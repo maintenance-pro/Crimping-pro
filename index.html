@@ -752,6 +752,49 @@ tr.sel .fix-col{background:#eef2ff!important}
 .lg-divider{display:flex;align-items:center;gap:10px;margin:14px 0;font-size:.7rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em}
 .lg-divider::before,.lg-divider::after{content:'';flex:1;height:1px;background:var(--bd)}
 
+
+/* HUB — Module Selector */
+.hub-bg{display:flex;align-items:center;justify-content:center;height:100%;background:var(--bg);overflow:hidden;position:relative}
+.hub-bg::before{content:'';position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(10,61,145,.06) 0%,transparent 70%);top:40%;left:50%;transform:translate(-50%,-50%)}
+.hub-wrap{position:relative;z-index:1;text-align:center;width:100%;max-width:800px;padding:30px}
+.hub-title{font-size:1.5rem;font-weight:800;color:var(--leoni-blue);letter-spacing:.05em;margin-bottom:4px}
+.hub-sub{font-size:.82rem;color:var(--t3);margin-bottom:32px}
+.hub-cards{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.hub-card{
+  background:var(--surf);border:2px solid var(--bd);border-radius:var(--r3);
+  padding:36px 28px;cursor:pointer;position:relative;overflow:hidden;
+  box-shadow:var(--shadow2);transition:all .25s ease;text-align:center;
+}
+.hub-card:hover{transform:translateY(-4px);box-shadow:var(--shadow3);border-color:var(--leoni-blue)}
+.hub-card:active{transform:translateY(-1px)}
+.hub-card::before{content:'';position:absolute;top:0;left:0;right:0;height:5px;transition:height .25s ease}
+.hub-card:hover::before{height:7px}
+.hc-crimping::before{background:linear-gradient(90deg,#0a3d91,#3b82f6)}
+.hc-kitjoint::before{background:linear-gradient(90deg,#059669,#10b981)}
+.hub-ico{font-size:3rem;margin-bottom:14px}
+.hub-cname{font-size:1.2rem;font-weight:700;color:var(--tx);margin-bottom:6px}
+.hub-cdesc{font-size:.8rem;color:var(--t2);line-height:1.5;margin-bottom:14px}
+.hub-cbadge{display:inline-flex;align-items:center;gap:5px;font-size:.7rem;font-weight:600;padding:4px 12px;border-radius:12px}
+.hb-blue{background:var(--leoni-light);color:var(--leoni-blue)}
+.hb-green{background:#ecfdf5;color:#059669}
+/* KJ Module */
+.kj-stat{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surf);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--shadow)}
+.kj-stat-ico{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.kj-stat-val{font-size:1.4rem;font-weight:800;color:var(--tx);line-height:1}
+.kj-stat-lbl{font-size:.68rem;color:var(--t3);margin-top:1px}
+.mvt-row{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surf);border:1px solid var(--bd);border-radius:var(--r);margin-bottom:6px;box-shadow:var(--shadow);transition:all var(--tr)}
+.mvt-row:hover{box-shadow:var(--shadow2)}
+.mvt-dir{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:700;flex-shrink:0}
+.mvt-out{background:#fee2e2;color:#dc2626}
+.mvt-in{background:#d1fae5;color:#059669}
+.mvt-info{flex:1;min-width:0}
+.mvt-item{font-weight:700;font-size:.88rem;color:var(--tx)}
+.mvt-meta{font-size:.72rem;color:var(--t3);margin-top:2px}
+.mvt-qty{font-size:1.1rem;font-weight:800;padding:4px 12px;border-radius:8px;text-align:center;min-width:48px}
+.mvt-qty-out{background:#fee2e2;color:#dc2626}
+.mvt-qty-in{background:#d1fae5;color:#059669}
+.mvt-time{font-size:.72rem;color:var(--t3);text-align:right;min-width:70px;white-space:nowrap}
+
 @media print{
   #topbar,#tc,#dlg-overlay,.sidebar,.ch .ca,.adm-only{display:none!important}
   body,html,#app,#screens,.scr.on,.lay,.cnt,.cb{overflow:visible!important;height:auto!important;background:#fff!important}
@@ -787,7 +830,7 @@ tr.sel .fix-col{background:#eef2ff!important}
       <span class="tb-uname" id="uname">—</span>
       <span class="tb-badge" id="ubadge"></span>
     </div>
-    <button class="tb-logout" id="settings-btn" onclick="navTo('g')" style="display:none">⚙</button> <button class="tb-logout" id="logout-btn" onclick="doLogout()" style="display:none">↩ Déconnecter</button>
+    <button class="tb-logout" id="hub-btn" onclick="goToHub()" style="display:none">🏠</button> <button class="tb-logout" id="settings-btn" onclick="navTo('g')" style="display:none">⚙</button> <button class="tb-logout" id="logout-btn" onclick="doLogout()" style="display:none">↩ Déconnecter</button>
   </div>
 </div>
 
@@ -811,6 +854,139 @@ tr.sel .fix-col{background:#eef2ff!important}
       <span style="font-family:monospace">bilal</span> (Super Admin) · 
       <span style="font-family:monospace">said · loukrimi · oumjoud · dahbi</span> (Admins) · 
       <span style="font-family:monospace">crimp</span> (Visiteur)
+    </div>
+  </div>
+</div>
+
+
+<!-- ═════ HUB — MODULE SELECTOR ═════ -->
+<div class="scr" id="sh">
+  <div class="hub-bg">
+    <div class="hub-wrap">
+      <div class="hub-title">⚙ CRIMPING PRO</div>
+      <div class="hub-sub">Sélectionnez un module — <span id="hub-user" style="font-weight:600;color:var(--t2)">Utilisateur</span></div>
+      <div class="hub-cards">
+        <div class="hub-card hc-crimping" onclick="enterModule('crimping')">
+          <div class="hub-ico">🔧</div>
+          <div class="hub-cname">Crimping</div>
+          <div class="hub-cdesc">Gestion des outils de sertissage, pièces de rechange, templates A4 et suivi par projet</div>
+          <span class="hub-cbadge hb-blue">📊 Dashboard · 🔩 Stock · 📂 Projets</span>
+        </div>
+        <div class="hub-card hc-kitjoint" onclick="enterModule('kitjoint')">
+          <div class="hub-ico">📦</div>
+          <div class="hub-cname">Kit Joint</div>
+          <div class="hub-cdesc">Système d'entrée et sortie du matériel — suivi des mouvements, historique et traçabilité</div>
+          <span class="hub-cbadge hb-green">📥 Entrée · 📤 Sortie · 📋 Historique</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═════ KIT JOINT — MODULE ═════ -->
+<div class="scr" id="skj">
+  <div class="lay">
+    <div class="sidebar">
+      <div class="sb-logo-zone"><div class="sb-logo-dot"></div><div class="sb-logo-name" style="color:#059669">Kit Joint</div></div>
+      <div class="sb-sec">
+        <div class="sb-lbl">Module</div>
+        <div class="ni" onclick="enterModule('hub')" style="color:var(--t3)"><span class="ico">↩</span>Retour Hub</div>
+        <div class="ni on" id="kjn-kd" onclick="kjNav('kd')"><span class="ico">📊</span>Tableau de Bord</div>
+        <div class="ni" id="kjn-ko" onclick="kjNav('ko')"><span class="ico">📤</span>Nouvelle Sortie</div>
+        <div class="ni" id="kjn-ki" onclick="kjNav('ki')"><span class="ico">📥</span>Nouvelle Entrée</div>
+        <div class="ni" id="kjn-kh" onclick="kjNav('kh')"><span class="ico">📋</span>Historique</div>
+      </div>
+      <div class="sb-foot">
+        <div class="sb-kpis" style="grid-template-columns:1fr 1fr">
+          <div class="skpi"><div class="sv" id="kj-sb1" style="color:#059669">—</div><div class="sl2">Sorties</div></div>
+          <div class="skpi"><div class="sv" id="kj-sb2" style="color:#3b82f6">—</div><div class="sl2">Entrées</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="cnt">
+      <div class="ch">
+        <span class="ct" style="color:#059669">📦 Kit Joint</span>
+        <span class="cs" id="kj-page-lbl">— Tableau de Bord</span>
+        <div class="ca">
+          <button class="btn btn-sm" onclick="buildKJDash()">↻ Actualiser</button>
+        </div>
+      </div>
+      <div class="cb">
+        <!-- KJ DASHBOARD -->
+        <div id="kj-dash">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">
+            <div class="kj-stat"><div class="kj-stat-ico" style="background:#fee2e2">📤</div><div><div class="kj-stat-val" id="kj-k1">0</div><div class="kj-stat-lbl">Sorties aujourd'hui</div></div></div>
+            <div class="kj-stat"><div class="kj-stat-ico" style="background:#d1fae5">📥</div><div><div class="kj-stat-val" id="kj-k2">0</div><div class="kj-stat-lbl">Entrées aujourd'hui</div></div></div>
+            <div class="kj-stat"><div class="kj-stat-ico" style="background:#dbeafe">📦</div><div><div class="kj-stat-val" id="kj-k3">0</div><div class="kj-stat-lbl">Pièces en cours</div></div></div>
+            <div class="kj-stat"><div class="kj-stat-ico" style="background:#f5f3ff">📋</div><div><div class="kj-stat-val" id="kj-k4">0</div><div class="kj-stat-lbl">Total mouvements</div></div></div>
+          </div>
+          <div class="sec">
+            <div class="sec-title"><div class="sec-ico" style="background:#ecfdf5">📋</div>Derniers mouvements</div>
+            <div id="kj-recent"></div>
+            <div class="empty-st" id="kj-empty"><div class="ei">📦</div><span>Aucun mouvement enregistré</span><span style="font-size:.75rem">Utilisez "Nouvelle Sortie" ou "Nouvelle Entrée"</span></div>
+          </div>
+        </div>
+        <!-- KJ SORTIE FORM -->
+        <div id="kj-out-form" style="display:none">
+          <div class="sec">
+            <div class="sec-title"><div class="sec-ico" style="background:#fee2e2">📤</div>Enregistrer une Sortie</div>
+            <div class="fg2">
+              <div class="ffg"><label class="ffl req">Désignation / Réf. Pièce</label><input class="ffi" id="kjo-item" placeholder="ex: Kit joint porte AV" style="width:100%"></div>
+              <div class="ffg"><label class="ffl req">Quantité</label><input class="ffi" id="kjo-qty" type="number" min="1" value="1" style="width:100%"></div>
+              <div class="ffg"><label class="ffl req">Demandeur</label><input class="ffi" id="kjo-who" placeholder="Nom de l'opérateur" style="width:100%"></div>
+              <div class="ffg"><label class="ffl">Ligne / Poste</label><input class="ffi" id="kjo-line" placeholder="ex: Ligne 3 - Poste 12" style="width:100%"></div>
+              <div class="ffg"><label class="ffl">Motif</label>
+                <select class="ffi" id="kjo-reason" style="width:100%;-webkit-appearance:none">
+                  <option value="production">Production</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="urgence">Urgence</option>
+                  <option value="essai">Essai / Test</option>
+                  <option value="autre">Autre</option>
+                </select>
+              </div>
+              <div class="ffg"><label class="ffl">Remarque</label><input class="ffi" id="kjo-note" placeholder="Optionnel" style="width:100%"></div>
+            </div>
+            <div class="ffa" style="margin-top:14px">
+              <button class="btn" onclick="kjNav('kd')">✕ Annuler</button>
+              <button class="btn btn-d" onclick="kjAddMvt('out')" style="background:#fee2e2;color:#dc2626;border-color:#fca5a5">📤 Confirmer la Sortie</button>
+            </div>
+          </div>
+        </div>
+        <!-- KJ ENTREE FORM -->
+        <div id="kj-in-form" style="display:none">
+          <div class="sec">
+            <div class="sec-title"><div class="sec-ico" style="background:#d1fae5">📥</div>Enregistrer une Entrée (Retour)</div>
+            <div class="fg2">
+              <div class="ffg"><label class="ffl req">Désignation / Réf. Pièce</label><input class="ffi" id="kji-item" placeholder="ex: Kit joint porte AV" style="width:100%"></div>
+              <div class="ffg"><label class="ffl req">Quantité</label><input class="ffi" id="kji-qty" type="number" min="1" value="1" style="width:100%"></div>
+              <div class="ffg"><label class="ffl">Retourné par</label><input class="ffi" id="kji-who" placeholder="Nom" style="width:100%"></div>
+              <div class="ffg"><label class="ffl">État du retour</label>
+                <select class="ffi" id="kji-state" style="width:100%;-webkit-appearance:none">
+                  <option value="bon">Bon état</option>
+                  <option value="usé">Usé</option>
+                  <option value="endommagé">Endommagé</option>
+                  <option value="défectueux">Défectueux</option>
+                </select>
+              </div>
+              <div class="ffg"><label class="ffl">Remarque</label><input class="ffi" id="kji-note" placeholder="Optionnel" style="width:100%"></div>
+            </div>
+            <div class="ffa" style="margin-top:14px">
+              <button class="btn" onclick="kjNav('kd')">✕ Annuler</button>
+              <button class="btn btn-g" onclick="kjAddMvt('in')">📥 Confirmer l'Entrée</button>
+            </div>
+          </div>
+        </div>
+        <!-- KJ HISTORY -->
+        <div id="kj-history" style="display:none">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;flex-shrink:0">
+            <div class="sb2" style="flex:1;min-width:200px"><span class="si-ico">🔍</span><input class="si-inp" id="kj-search" placeholder="Rechercher : pièce, opérateur, ligne…" oninput="kjFilterHist()"><span class="si-ct" id="kj-hct">—</span></div>
+            <select class="ffi" id="kj-dir-filter" onchange="kjFilterHist()" style="height:38px;min-width:120px;-webkit-appearance:none"><option value="">Tous</option><option value="out">📤 Sorties</option><option value="in">📥 Entrées</option></select>
+            <input class="ffi" id="kj-date-filter" type="date" onchange="kjFilterHist()" style="height:38px;min-width:140px">
+            <button class="btn btn-d btn-sm adm-only" onclick="kjClearHist()">🗑 Vider l'historique</button>
+          </div>
+          <div id="kj-hist-list"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1623,6 +1799,7 @@ function _doSave(){
     pieces:S.pieces,
     piecesFile:S.piecesFile||null,
     piecesXL:S.piecesXL||false,
+    kjMvts:S.kjMvts||[],
     _lastUpdate:new Date().toISOString(),
     _updatedBy:S.curUser||'system',
     _version:APP_VERSION
@@ -1654,7 +1831,7 @@ function loadState(){
   }catch(e){}
 }
 
-const APP_VERSION='2.0';
+const APP_VERSION='3.0';
 function _applyState(d){
   if(!d)return;
   if(d.DB&&d.DB.length)S.DB=d.DB;
@@ -1668,6 +1845,7 @@ function _applyState(d){
   if(d.pieces&&d.pieces.length)S.pieces=d.pieces;
   if(d.piecesFile)S.piecesFile=d.piecesFile;
   if(d.piecesXL!==undefined)S.piecesXL=d.piecesXL;
+  if(d.kjMvts&&d.kjMvts.length)S.kjMvts=d.kjMvts;
 }
 
 async function loadFromFirebase(){
@@ -1715,7 +1893,7 @@ function startRealtimeSync(){
 let S={isAdmin:false,curUser:'',curRole:'',selIdx:null,editIdx:null,curTpl:null,tplRows:[],tplRowIdx:0,dashData:[],dashXL:false,
   admins:[{user:'bilal',pass:'admin2024',role:'superadmin'},{user:'said',pass:'said123',role:'admin'},{user:'loukrimi',pass:'louk123',role:'admin'},{user:'oumjoud',pass:'oumj123',role:'admin'},{user:'dahbi',pass:'dahbi123',role:'admin'},{user:'crimp',pass:'1230',role:'visitor'}],
   fournisseurs:[{name:'THB',cls:'tbl'},{name:'JST',cls:'tgo'},{name:'AMP',cls:'trd'},{name:'MOLEX',cls:'tbl'},{name:'YAZAKI',cls:'tgo'},{name:'SUMITOMO',cls:'trd'}],
-  DB:[],injectedFiles:[],masterFile:null,pieces:[],piecesFile:null,piecesXL:false};
+  DB:[],injectedFiles:[],masterFile:null,pieces:[],piecesFile:null,piecesXL:false,kjMvts:[]};
 
 function defDB(){return [{"grp": "8032", "conn": "", "term": "P00391303", "contact": "", "doutils": "WZ8032-02", "serial": "R0756", "inv": "WZ8032-02/R0756", "pc": "YJM-AFS37986I-101", "pi": "3I-1.4-2.6-8.0-E", "ec": "YJM-AFS37986I-102", "ei": "YJM-AFS37986I-101", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "CMA", "dateRecep": "19/10/2024", "dateFin": "01/04/2026", "etat": "obsolete"}, {"grp": "1", "conn": "", "term": "P00006416", "contact": "", "doutils": "WZ00001", "serial": "Q0658", "inv": "WZ1", "pc": "3C-6.28-6.0", "pi": "3IS-8.2-4.5-A", "ec": "3AC-6.32-6.5-A", "ei": "3AI-8.2-5.8-0.5-A", "cut": "", "mcut": "", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "PSA", "dateRecep": "19/10/2024", "dateFin": "", "etat": "intégré sur cao"}, {"grp": "1", "conn": "", "term": "P00014927", "contact": "", "doutils": "WZ00001", "serial": "M4696", "inv": "WZ1", "pc": "3C-6.2-4.5", "pi": "3IS-8.65-6.0-A", "ec": "3AC-6.3-5.0-M", "ei": "3AI-8.7-7.5-0.1", "cut": "YJM-E300-05-01(UB-1.75-30.2)", "mcut": "", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "C-NEO", "dateRecep": "19/10/2024", "dateFin": "01/04/2026", "etat": "endommagé"}, {"grp": "4004", "conn": "", "term": "P00813447", "contact": "", "doutils": "WZ4004-01", "serial": "N7655", "inv": "WZ4004-01/N7655", "pc": "3C-5-65-4.0-A", "pi": "3I-6.3-4.0-A", "ec": "3AC-5.7-4.6-A", "ei": "3AI-6.3-4.8-1.0", "cut": "YJM-AFS30138-01", "mcut": "YJM-AFS30138-02", "press": "", "mav": "", "mar": "", "four": ".", "projet": "MP1", "dateRecep": "19/10/2024", "dateFin": "", "etat": "nouveau"}, {"grp": "1", "conn": "", "term": "P00097767", "contact": "", "doutils": "WZ00001", "serial": "L0629", "inv": "/L0629", "pc": "3C-5.85-6.2-A", "pi": "3IS-8.65-5.5-A", "ec": "3AC-6.1-6.7-M", "ei": "3AI-8.75-6.0-0.5-A", "cut": "YJM-AFS3461-02", "mcut": "YJM-S300A-04-11", "press": "", "mav": "", "mar": "", "four": ".", "projet": "SPA3", "dateRecep": "19/10/2024", "dateFin": "", "etat": "intégré sur cao"}, {"grp": "1", "conn": "", "term": "P00100787", "contact": "", "doutils": "WZ00001", "serial": "P0008", "inv": "/P0008", "pc": "3C-5.5-4.6-B", "pi": "3IS-8.1-7.0-A", "ec": "3AC-5.58-5.4-A", "ei": "3AIO-8.2-8.0-1.2", "cut": "YJM-AFS32864-01E", "mcut": "YJM-AFS32864-02", "press": "", "mav": "", "mar": "", "four": ".", "projet": "XJK-XJI", "dateRecep": "19/10/2024", "dateFin": "", "etat": "intégré sur cao"}, {"grp": "1", "conn": "", "term": "P00098392", "contact": "", "doutils": "WZ00001", "serial": "N8291", "inv": "WZ1", "pc": "3C-4.1-4.5-15", "pi": "3IS-5.15-5.7-15-A", "ec": "3C-4.18-5.0-M", "ei": "3AI-5.2-5.3-0.7", "cut": "YJM-AFS30567-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "339", "conn": "", "term": "P00006419", "contact": "", "doutils": "WZ339-01", "serial": "P2688", "inv": "WZ339-01/P2688", "pc": "3C-4.0-6.2", "pi": "3I-8.0-5.6-A", "ec": "3AC-4.07-6.6-M-A", "ei": "3AI-8.0-6.0-0.3", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00108741", "contact": "", "doutils": "WZ00001", "serial": "N8738", "inv": "WZ1", "pc": "3C-4.0-3.8-15", "pi": "3IS-4.1-3.2-15-UI.0", "ec": "3AC-4.1-4.3-M", "ei": "3AI-4.2-3.5-A", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00072150", "contact": "", "doutils": "WZ00001", "serial": "H8944", "inv": "WZ1", "pc": "3C-32.7-4.0-15", "pi": "3IS-4.2-3.0-12", "ec": "3AC-2.78-4.6-A", "ei": "3AI-4.2-3.5-0.5", "cut": "YJM-AFS36043-101A", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "308", "conn": "", "term": "P00009953", "contact": "", "doutils": "WZ308-01", "serial": "N8557", "inv": "WZ308-01/N8557", "pc": "3C-3.94-4.6", "pi": "3IS-5.33-4.9-B", "ec": "3AC-4.2-5.1-A", "ei": "3AI-5.4-4.5-0.5", "cut": "YJM-S300A-04-05J", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "425", "conn": "", "term": "P00072136", "contact": "", "doutils": "WZ425-R04", "serial": "N8161", "inv": "WZ425-R04/N8161", "pc": "3C-3.56-4.6-15", "pi": "3IS-4.7-4.5-12-B", "ec": "3AC-3.65-5.2-M", "ei": "3AI-4.7-5.0-0.4-A", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "9507", "conn": "", "term": "P00100829", "contact": "", "doutils": "WZ9507-03", "serial": "N8706", "inv": "WZ9507-03/N8706", "pc": "3C-3.56-4.0-12-A", "pi": "3IS-4.57-2.9-12-A", "ec": "3AC-3.63-4-5-M", "ei": "3AI-4.6-2.6-0.8-B", "cut": "", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "9455", "conn": "", "term": "P00004927", "contact": "", "doutils": "WZ9455-03", "serial": "N8078", "inv": "WZ9455-03/N8078", "pc": "3C-3.5-4.5-15", "pi": "3IS-4.5-4.0-15", "ec": "3AC-3.58-5.0-M", "ei": "3AI-4.5-5.0-0.5", "cut": "YJM-AFS3215-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "9455", "conn": "", "term": "P00004927", "contact": "", "doutils": "WZ9455-04", "serial": "N8079", "inv": "WZ9455-04/N8079", "pc": "3C-3.5-4.5-15", "pi": "3IS-4.5-4.0-15", "ec": "3AC-3.58-5.0-M", "ei": "3AI-4.5-5.0-0.5", "cut": "YJM-AFS3215-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "479", "conn": "", "term": "P00039986", "contact": "", "doutils": "WZ479-01", "serial": "Q1035", "inv": "WZ479-01/Q1035", "pc": "3C-3.35-4.0-15-A", "pi": "3I-4.2-2.5-15", "ec": "3AC-3.4-4.6-A", "ei": "3AI-4.3-3.0", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00040071", "contact": "", "doutils": "WZ00001", "serial": "P9635", "inv": "/P9635", "pc": "3C-3.35-3.8-15", "pi": "3I-4.2-2.5-15", "ec": "3AC-3.4-4.4-M", "ei": "3AI-4.2-3.0", "cut": "YJM-S300A-04-05-K", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "534", "conn": "", "term": "P00102654", "contact": "", "doutils": "WZ534J-R02", "serial": "N8340", "inv": "WZ534J-R02/N8340", "pc": "3C-3.3-4.0-15", "pi": "3IS-6.86-3.0-A", "ec": "3AC-3.43-4.5-M-A", "ei": "3AI-6.9-3.5-1.7", "cut": "", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00039967", "contact": "", "doutils": "WZ00001", "serial": "P6630", "inv": "WZ1", "pc": "3C-3.2-4.0-15-F", "pi": "3IO-5.05-4.5-15-B", "ec": "3AC-3.26-4.7-A", "ei": "3AI-5.1-5.3-1.4-A", "cut": "YJM-AFS30967R-015", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00102680", "contact": "", "doutils": "WZ00001", "serial": "P0973", "inv": "WZ1", "pc": "3C-3.23-3.4-A", "pi": "3IS-4.2-3.2-15-C", "ec": "3AC-3.25-3.8-A", "ei": "3AI-4.2-2.8-0.2-B", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00102704", "contact": "", "doutils": "WZ00001", "serial": "N9336", "inv": "WZ1", "pc": "3C-3.15-3.5-B", "pi": "3IS-4.1-3.2-15", "ec": "3AC-3.25-4.0", "ei": "3AI-4.2-2.8-0.4-A", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00100647", "contact": "", "doutils": "WZ00001", "serial": "P9885", "inv": "WZ1", "pc": "3C-3.1-4.0", "pi": "3IS-4.9-3.5-12-A", "ec": "3AC-3.15-4.5-M", "ei": "3AI-5.0-4.0-0.1", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00161899", "contact": "", "doutils": "WZ00001", "serial": "P2591", "inv": "WZ1", "pc": "3C-3.05-3.5-15", "pi": "3IS-4.06-3.0-12-A", "ec": "3AC-3.13-4.0-M", "ei": "3AI-4.1-2.7-0.5", "cut": "YJM-S300A-04-05J-1", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "456", "conn": "", "term": "P00004926", "contact": "", "doutils": "WZ456-02", "serial": "P9520", "inv": "WZ456-02/P9520", "pc": "3C-3.0-4.0-15", "pi": "3IS-3.8-3.0-12", "ec": "3AC-3.05-4.5-M", "ei": "3AI-3.8-3.5-0.4", "cut": "YJM-AFS3113I-101", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00002098", "contact": "", "doutils": "WZ00001", "serial": "N8497", "inv": "WZ1", "pc": "3C-3.0-4.0", "pi": "3IS-3.8-3.0-12-G", "ec": "3AC-3.05-4.6-M", "ei": "3AI-3.8-3.5-0.5", "cut": "YJM-S3315-01J", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "341", "conn": "", "term": "P00100790", "contact": "", "doutils": "WZ341J-02", "serial": "H9783", "inv": "WZ341J-02/H9783", "pc": "3C24-5.4-4.6-A", "pi": "3IS24-8.2-7.0-A", "ec": "YJM-AFS38554I-01", "ei": "YJM-AFS38554I-05", "cut": "YJM-AFS31707-201", "mcut": "YJM-AFS31707-202", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "341", "conn": "", "term": "P00100790", "contact": "", "doutils": "WZ341J-03", "serial": "Q6460", "inv": "WZ341J-03/Q6460", "pc": "3C24-5.4-4.6-A", "pi": "3IS24-8.2-7.0-A", "ec": "YJM-AFS38554I-01", "ei": "YJM-AFS38554I-05", "cut": "YJM-AFS31707-201", "mcut": "YJM-AFS31707-202", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P0009955", "contact": "", "doutils": "WZ00001", "serial": "N9127", "inv": "WZ1", "pc": "3C24-4.85-6.3-A", "pi": "3IS24-7.7-5.6-A", "ec": "3AC-4.95-7.0-M-B", "ei": "3AI-7.7-5.0-1.0", "cut": "YJM-AFS31092-05", "mcut": "YJM-AFS31092-06", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "9309", "conn": "", "term": "P00009954", "contact": "", "doutils": "WZ9309-02", "serial": "N9101", "inv": "WZ9309-02/N9101", "pc": "3C24-4.57-5.5-A", "pi": "3IS24-6.35-4.0-A", "ec": "3AC-4.68-5.8-M-A", "ei": "3AI-6.4-4.5-0.6", "cut": "YJM-AFS31092-05", "mcut": "YJM-AFS31092-06", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00070987", "contact": "", "doutils": "WZ00001", "serial": "N9671", "inv": "WZ1", "pc": "3C-2-4-4.0-12", "pi": "3I-2.8-2.5-12", "ec": "3AC-2.46-4.5-M", "ei": "3AI-2.8-3.6-0.5", "cut": "YJM-S36043-101", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00166523", "contact": "", "doutils": "WZ00001", "serial": "N7719", "inv": "WZ1", "pc": "3C-2.95-3.8-12-B", "pi": "3I-3.5-4.0-12-E", "ec": "3AC-3.04-4.3-M", "ei": "3AIO-3.5-3.8-0.6", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00104799", "contact": "", "doutils": "WZ00001", "serial": "Q0959", "inv": "WZ1", "pc": "3C-2.95-3.7-12-B", "pi": "3IS-2.95-3.2-12-C", "ec": "3AC-2.97-4.1-A", "ei": "3AI-3.05-2.5-0.3-A", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00104799", "contact": "", "doutils": "WZ00001", "serial": "P0801", "inv": "WZ1", "pc": "3C-2.95-3.7-12-B", "pi": "3IS-2.95-3.2-12-C", "ec": "3AC-2.97-4.1-A", "ei": "3AI-3.05-2.5-0.3-A", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00005466", "contact": "", "doutils": "WZ00001", "serial": "P5909", "inv": "NEW/P5909", "pc": "3C-2.85-3.5-12", "pi": "3IS-3.85-3.0-12-B", "ec": "3AC-2.88-4.0-B", "ei": "3AI-3.9-2.7-0.9", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00100876", "contact": "", "doutils": "WZ00001", "serial": "Q0981", "inv": "WZ1", "pc": "3C-2.8-4.0-C", "pi": "3IS-3.8-2.5-12-B", "ec": "3AC-2.85-4.4-A", "ei": "3AI-3.8-3.2-0.5", "cut": "YJM-E300-05-01 (UB-1.25-30.2)", "mcut": "YJM-AFE30789-101", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00102703", "contact": "", "doutils": "WZ00001", "serial": "N8561", "inv": "WZ1", "pc": "3C-2.8-3.6-15", "pi": "3IS-3.75-2.4-12-A", "ec": "3AC-2.85-4.0-MA", "ei": "3AI-3.8-2.8-0.55", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00004547", "contact": "", "doutils": "WZ00001", "serial": "Q0628", "inv": "WZ1", "pc": "3C-2.8-3.6-12", "pi": "3IS-3.9-3.1-A", "ec": "3AC-2.85-4.0-C", "ei": "3AI-3.9-3.0-0.6", "cut": "YJM-S300A-04-42", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "659", "conn": "", "term": "P00102675", "contact": "", "doutils": "WZ659J-03", "serial": "P2712", "inv": "WZ659J-03/P2712", "pc": "3C-2.79-3.4-12", "pi": "3IO-4.3-3.5-12-I", "ec": "3AC-2.85-3.8-C", "ei": "3AIO-4.2-3.8-0.4", "cut": "YJM-S300A-04-27", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00102695", "contact": "", "doutils": "WZ00001", "serial": "N8562", "inv": "WZ1", "pc": "3C-2.75-4.0-13-L", "pi": "3IO-4.8-5.6-12", "ec": "3AC-2.77-4.4-L", "ei": "3IO-4.8-5.4-1.6-L", "cut": "YJM-S300A-04-23C", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00004944", "contact": "", "doutils": "WZ00001", "serial": "N7871", "inv": "WZ1", "pc": "3C-2.7-4.0", "pi": "3IS-4.8-4.6-12", "ec": "3AC-2.75-4.6", "ei": "3AIO-4.8-5.0-1.4", "cut": "YJM-S300A-04-33", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00005681", "contact": "", "doutils": "WZ00001", "serial": "P1244", "inv": "WZ1", "pc": "3C-2.65-3.3-15", "pi": "3IO-4.0-3.0-12-B", "ec": "3AC-2.72-3.7-M", "ei": "3AIO-4.0-3.5-0.7", "cut": "YJM-S300A-04-40", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00009989", "contact": "", "doutils": "WZ00001", "serial": "Q5882", "inv": "WZ1", "pc": "3C-2.65-3.3-15", "pi": "3IO-4.0-3.0-12-P", "ec": "3AC-2.69-3.8-M", "ei": "3AIO-4.0-3.5-0.7", "cut": "YJM-S300A-04-40", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00049842", "contact": "", "doutils": "WZ00001", "serial": "Q0975", "inv": "WZ1", "pc": "3C-2.65-3.3-12", "pi": "3IS-2.9-3.3-15", "ec": "3AC-2.68-3.8-M", "ei": "3AIO-3.0-3.0-0.4", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00049842", "contact": "", "doutils": "WZ00001", "serial": "Q0974", "inv": "WZ1", "pc": "3C-2.65-3.3-12", "pi": "3IS-2.9-3.3-15", "ec": "3AC-2.68-3.8-M", "ei": "3AIO-3.0-3.0-0.4", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "661", "conn": "", "term": "P00006091", "contact": "", "doutils": "WZ661J-R02", "serial": "N8401", "inv": "WZ661J-R02/N8401", "pc": "3C-2.54-3.5-12", "pi": "3IO-4.2-3.5-12-F", "ec": "3AC-2.6-3.9-M", "ei": "3AIO-4.2-4.0-0.8", "cut": "", "mcut": "", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "788", "conn": "", "term": "P00102652", "contact": "", "doutils": "WZ788J-01", "serial": "N8188", "inv": "WZ788J-01/N8188", "pc": "3C-2.54-3.5-12", "pi": "3IO-4.2-2.5-12-D", "ec": "3AC-2.6-3.8-M", "ei": "3AIO-4.2-3.2-1.0", "cut": "YJM-S300A-04-40", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00005572", "contact": "", "doutils": "WZ00001", "serial": "P9515", "inv": "WZ1", "pc": "3C-2.54-3.5-12", "pi": "3IO-3.56-4.8-12", "ec": "3AC-2.58-4.0-M", "ei": "3AIO-3.5-4.2-0.2", "cut": "YJM-S300A-04-42", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00102681", "contact": "", "doutils": "WZ00001", "serial": "N8603", "inv": "WZ1", "pc": "3C-2.54-3.3-12", "pi": "3IS-3.56-2.8-12-A", "ec": "3AC-2.61-3.8-A", "ei": "3AI-3.6-2.3-0.4", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00166344", "contact": "", "doutils": "WZ00001", "serial": "N8332", "inv": "WZ1", "pc": "3C-2.5-3.5-12", "pi": "3IO-4.0-3.5-12", "ec": "3AC-2.58-4.0-M", "ei": "3AIO-4.0-3.2-0.9", "cut": "YJM-S300A-04-47", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "6171", "conn": "", "term": "P00001723", "contact": "", "doutils": "WZ6171-01", "serial": "N8212", "inv": "WZ6171-01/N8212", "pc": "3C-2.4-4.0-12", "pi": "3I-2.8-2.5-12", "ec": "3AC-2.46-4.5-M", "ei": "3AI-2.8-3.6-0.5", "cut": "YJM-AFS36043-101", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00069787", "contact": "", "doutils": "WZ00001", "serial": "Q0637", "inv": "WZ1", "pc": "3C-2.4-3.8-12", "pi": "3IS-2.45-3.2-12", "ec": "3AC-2.45-4.5-B", "ei": "3AI-2.6-3.5-0.3", "cut": "YJM-S300A-04-28", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "548", "conn": "", "term": "P00023868", "contact": "", "doutils": "WZ548-01", "serial": "Q0966", "inv": "WZ548-01/Q0966", "pc": "3C-2.4-3.2-12", "pi": "3IO-3.4-3.5-12", "ec": "3AC-2.48-3.5-M", "ei": "3AI-3.4-3.4", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00023710", "contact": "", "doutils": "WZ00001", "serial": "P1243", "inv": "WZ1", "pc": "3C-2.4-3.0", "pi": "3IO-2.95-2.7-12", "ec": "3AC-2.44-3.3-M", "ei": "3AIO-3.0-3.5-0.2", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00159355", "contact": "", "doutils": "WZ00001", "serial": "N7630", "inv": "WZ1", "pc": "3C-2.38-3.8-12", "pi": "3IO-3.2-3.5-12-H", "ec": "3AC-2.43-4.3-A", "ei": "3AIO-3.2-4.2-0.6", "cut": "YJM-S300A-04-23A", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00173565", "contact": "", "doutils": "WZ00001", "serial": "N8100", "inv": "/N8100", "pc": "3C-2.35-3.8-12", "pi": "3I-3.1-4.0-12-A", "ec": "3AC-2.45-4.3-A", "ei": "3AI-3.1-3.5-0.3", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "6041", "conn": "", "term": "P00023591", "contact": "", "doutils": "WZ6041J-02", "serial": "N8306", "inv": "WZ6041J-02/N8306", "pc": "3C-2.35-3.3-12", "pi": "3IO-4.0-3.5-12", "ec": "3AC-2.4-4.0-M", "ei": "3AI-4.0-4.0-0.4", "cut": "YJM-S300A-04-27", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00072149", "contact": "", "doutils": "WZ00001", "serial": "P9623", "inv": "WZ1", "pc": "3C-2.3-4.0-15", "pi": "3IS-3.4-3.0-12", "ec": "3AC-2.34-4.6-M", "ei": "3AI-3.4-3.5-0.3", "cut": "YJM-S300A-04-28", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00100875", "contact": "", "doutils": "WZ00001", "serial": "N8349", "inv": "400-R01/N8349", "pc": "3C-2.3-4.0-12", "pi": "3I-3.3-2.5-12-C", "ec": "3AC-2.33-4.4-M", "ei": "3I-3.3-3.2-0.5", "cut": "YJM-E300-05-01(UB-1.25-30.2)", "mcut": "YJM-AFE30789-101", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00023801", "contact": "", "doutils": "WZ00001", "serial": "N7957", "inv": "NEW/N7957", "pc": "3C-2.29-4.0-12", "pi": "3IO-2.7-3.2-12", "ec": "3AC-2.34-4.6-M", "ei": "3AI-2.7-2.8-0.2", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00040070", "contact": "", "doutils": "WZ00001", "serial": "Q4325", "inv": "/Q4325", "pc": "3C-2.25-3.7-12-A", "pi": "3IS-3.15-2.5-12-A", "ec": "3AC-2.28-4.5-A", "ei": "3AI-3.2-3.0", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00141026", "contact": "", "doutils": "WZ00001", "serial": "Q0829", "inv": "WZ1", "pc": "3C-2.25-3.6-12", "pi": "3IO-2.7-3.5-12", "ec": "3AC-2.3.3-4.0-M", "ei": "3AIO-2.7-3.3-0.6", "cut": "YJM-S300A-04-05H", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7047", "conn": "", "term": "P00070025", "contact": "", "doutils": "WZ7047-R05", "serial": "P9519", "inv": "WZ7047-R05/P9519", "pc": "3C-2.25-3.5-12", "pi": "3IS-3.2-2.5-12", "ec": "3AC-2.28-4.0-M", "ei": "3AI-3.2-3.0-0.5", "cut": "YJM-s300A-04-05", "mcut": "YJM-s300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00010026", "contact": "", "doutils": "WZ00001", "serial": "Q1075", "inv": "WZ1", "pc": "3C-2.2-2.7-12", "pi": "3I-2.6-3.0-12-H", "ec": "3AC-2.23-3.2-M", "ei": "3AIP-2.7-2.8-0.2", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00104787", "contact": "", "doutils": "WZ00001", "serial": "P9429", "inv": "WZ1", "pc": "3C-2.15-3.2-12", "pi": "3IO-2.5-3.2-10", "ec": "3AC-2.18-3.8-M", "ei": "3AIO-2.5-3.0-0.4", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7225", "conn": "", "term": "P00005013", "contact": "", "doutils": "WZ7225-R01", "serial": "G4423", "inv": "WZ7225-R01/G4423", "pc": "3C-2.1-3.8-12", "pi": "3IO-2.3-3.9-10-L", "ec": "3AC-2.15-4.2-M-A", "ei": "3AIO-2.3-3.8-0.2-L", "cut": "YJM-S300A-04-28", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "733", "conn": "", "term": "P00006157", "contact": "", "doutils": "WZ733-01", "serial": "N7866", "inv": "WZ733-01/N7866", "pc": "3C-2.1-3.5-12", "pi": "3IO-2.5-3.2-12", "ec": "3AC-2.13-3.8-M", "ei": "3AI-2.5-3.0-0.4", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7011", "conn": "", "term": "P00100656", "contact": "", "doutils": "WZ7011-03", "serial": "N8403", "inv": "WZ7011-03/N8403", "pc": "3C-2.1-3.5-10", "pi": "3IO-2.75-3.6-8.0", "ec": "3AC-2.15-4.0", "ei": "3AIO-2.75-3.3-0.2", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00002359", "contact": "", "doutils": "WZ00001", "serial": "Q0133", "inv": "WZ1", "pc": "3C-2.1-3.0-12", "pi": "3I-2.8-3.5-12", "ec": "3AC-2.1-3.5", "ei": "3AI-2.8-3.0", "cut": "YJM-AFS36043-101", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00055248", "contact": "", "doutils": "WZ00001", "serial": "N9252", "inv": "WZ1", "pc": "3C-2.07-4.0-12-A", "pi": "3IO-2.0-3.0-10-B", "ec": "3AC-2.17-4.3-M", "ei": "3AIO-2.0-3.5-0.25", "cut": "YJM-S3315-01C", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7221", "conn": "", "term": "P00131352", "contact": "", "doutils": "WZ7221-R01", "serial": "Q3718", "inv": "WZ7221-R01/Q3718", "pc": "3C-2.03-3.0-12", "pi": "3IO-2.54-3.4-10", "ec": "3AC-2.08-3.5-M", "ei": "3AIO-2.55-3.5-0.3", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "J-R01", "conn": "", "term": "P00009903", "contact": "", "doutils": "WZ9653J-R01", "serial": "N7875", "inv": "WZ1", "pc": "3C-2.03-3.0-12", "pi": "3IO-4.06-3.5-12-A", "ec": "3AC-2.06-3.5-M", "ei": "3AIO-4.1-3.2-1.0", "cut": "", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "562", "conn": "", "term": "P00055275", "contact": "", "doutils": "WZ562-03", "serial": "N8339", "inv": "WZ562-03/N8339", "pc": "3C-2.0-3.8-12", "pi": "3I-2.6-3.0-12", "ec": "3AC-2.06-4.5-A", "ei": "3AI-2.6-3.3", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00038035", "contact": "", "doutils": "WZ00001", "serial": "P5830", "inv": "WZ1", "pc": "3C-2.0-3.2-12", "pi": "3IS-4.5-3.2-15", "ec": "3AC-2.03-3.8-M", "ei": "3AIO-4.5-4.2-1.2", "cut": "YJM-S300A-04-23", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00023579", "contact": "", "doutils": "WZ00001", "serial": "P0628", "inv": "WZ1", "pc": "3C-2.0-3.2.3-12", "pi": "3IO-4.1-3.5-12", "ec": "3AC-2.03-3.9-M", "ei": "3AIO-4.1-3.8-0.3", "cut": "YJM-S300A-04-23B", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "4005", "conn": "", "term": "P00094955", "contact": "", "doutils": "WZ4005J-03", "serial": "N6609", "inv": "WZ4005J-03/N6609", "pc": "3C-2.0-3.0-12", "pi": "3IO-6.15-3.5-15", "ec": "3AC-2.05-3.5-F", "ei": "3AIO-6.2-4.0-1.5", "cut": "YJM-S31011-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00520115", "contact": "", "doutils": "WZ00001", "serial": "N8555", "inv": "WZ1", "pc": "3C-2.0-3.0-10", "pi": "3IO-3.85-2.8-12-A", "ec": "3AC-2.04-3.5-M", "ei": "3IO-3.9-3.2-1.0", "cut": "", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "468", "conn": "", "term": "P00100646", "contact": "", "doutils": "WZ468-01", "serial": "P3410", "inv": "WZ468-01/P3410", "pc": "3C-1.95-4.0-12", "pi": "3I-2.4-4.0-12-A", "ec": "3AC-2.0-4.3-D", "ei": "3AI-2.5-3.6", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7234", "conn": "", "term": "P00497397", "contact": "", "doutils": "WZ7234-01", "serial": "N8109", "inv": "WZ7234-01/N8109", "pc": "3C-1.95-3.0-12-D", "pi": "3IO-2.54-3.0-12", "ec": "3AC-2.0-3.6-M", "ei": "3AIO-2.6-3.5-0.4", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "-3", "conn": "", "term": "P00005035", "contact": "", "doutils": "WZ9509-03", "serial": "N9338", "inv": "WZ1", "pc": "3C-1.95-3.0-12", "pi": "3IS-2.7-3.0-12-F", "ec": "3AC-2.0-3.4-M", "ei": "3AI-2.7-2.8-0.6", "cut": "YJM-AFS36043-101", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00072148", "contact": "", "doutils": "WZ00001", "serial": "Q1022", "inv": "WZ1", "pc": "3C-1.9-4.0-12", "pi": "3IS-2.4-4.0-13-L", "ec": "3AC-1.92-4.5-MA", "ei": "3AI-2.5-3.5-0.3", "cut": "YJM-AFS36043-101A", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "6006", "conn": "", "term": "P00005662", "contact": "", "doutils": "WZ6006J-R03", "serial": "P1076", "inv": "WZ6006J-R03/P1076", "pc": "3C-1.9-3.3-12", "pi": "3IO-3.9-3.0-12-A", "ec": "3AC-1.92-3.6-M", "ei": "3AIO-3.9-3.8-0.8", "cut": "YJM-S300A-04-40", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00022950", "contact": "", "doutils": "WZ00001", "serial": "P9445", "inv": "WZ1", "pc": "3C-1.85-3.6-12", "pi": "3IS-2.9-3.0-12", "ec": "3AC-1.85-3.7-B", "ei": "3AI-3.0-3.0-0.4", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00024104", "contact": "", "doutils": "WZ00001", "serial": "Q0604", "inv": "NEW/Q0604", "pc": "3C-1.85-2.9-10", "pi": "3IO-3.2-3.5-10", "ec": "3AC-1.88-3.4-M", "ei": "3AI-3.2-3.2", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00128866", "contact": "", "doutils": "WZ00001", "serial": "N7723", "inv": "WZ1", "pc": "3C-1.83-3.5-10", "pi": "3IO-2.45-3.7-8.0-A", "ec": "3AC-1.83-3.5-10", "ei": "3AIO-2.5-3.3-0.2", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00141025", "contact": "", "doutils": "WZ00001", "serial": "K3259", "inv": "WZ1", "pc": "3C-1.8-3.6-12", "pi": "3IO-2.25-3.0-10", "ec": "3AC-1.85-4.0-M", "ei": "3AIO-2.3-3.3-0.3", "cut": "YJM-S300A-04-05H", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00038403", "contact": "", "doutils": "WZ00001", "serial": "P2109", "inv": "WZ1", "pc": "3C-1.8-3.3-10", "pi": "3I-2.5-3.0-12", "ec": "3AC-1.86-4.2-M-A", "ei": "3AI-2.6-3.0", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00006298", "contact": "", "doutils": "WZ00001", "serial": "Q1044", "inv": "WZ1", "pc": "3C-1.78-3.0-12", "pi": "3I-1.78-3.2-12-A", "ec": "3AC-1.81-3.6-M", "ei": "3AI-1.8-2.6-0.2", "cut": "YJM-AFS-36043-101", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00038446", "contact": "", "doutils": "WZ00001", "serial": "Q8031", "inv": "WZ1", "pc": "3C-1.78-3.0-12", "pi": "3I-2.3-2.5-12", "ec": "3AC-1.81-3.4-M", "ei": "3AI-2.2-3.0-0.2", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00603844", "contact": "", "doutils": "WZ00001", "serial": "P2709", "inv": "WZ1", "pc": "3C-1.7-3.5-7.5-C", "pi": "3IO-2.05-3.0-7.0-A", "ec": "3AC-1.74-4.2-M", "ei": "3AIO-2.1-3.1", "cut": "", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "603", "conn": "", "term": "P00005576", "contact": "", "doutils": "WZ603-01", "serial": "P9624", "inv": "WZ603-01/P9624", "pc": "3C-1.7-3.3-8.0", "pi": "3I-2.8-2.6-12", "ec": "3AC-1.74-3.7-M", "ei": "3AI-2.8-2.3-03", "cut": "YJM-S3315-01M", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00126774", "contact": "", "doutils": "WZ00001", "serial": "N7953", "inv": "WZ1", "pc": "3C-1.7-3.2-8.0", "pi": "3IO-3.3-2.5-8.0-A", "ec": "3AC-1.76-3.6-M", "ei": "3AIO-3.3-3.5-0.8", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00023592", "contact": "", "doutils": "WZ00001", "serial": "Q0957", "inv": "WZ1", "pc": "3C-1.6-3.5-12", "pi": "3IO-3.8-3.0-12", "ec": "3AC-1.63-4.0-M", "ei": "3AIO-3.8-4.0-0.3", "cut": "YJM-S300A-04-27", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00072113", "contact": "", "doutils": "WZ00001", "serial": "P9717", "inv": "WZ1", "pc": "3C-1.6-3.5-10", "pi": "3IS-2.45-2.5-12", "ec": "3AC-1.63-3.8-M", "ei": "3AI-2.5-3.0-0.4", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "6074", "conn": "", "term": "P00023578", "contact": "", "doutils": "WZ6074J-03", "serial": "N6417", "inv": "WZ6074J-03/N6417", "pc": "3C-1.6-3.3-12", "pi": "3IO-3.8-3.5-12-C", "ec": "3AC-1.63-3.6-M", "ei": "3AIO-3.8-4.2-0.4", "cut": "YJM-S300A-04-23", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00296791", "contact": "", "doutils": "WZ00001", "serial": "N7988", "inv": "WZ1", "pc": "3C-1.6-2.8-8.0", "pi": "3IO-3.15-3.4-10", "ec": "3AC-1.63-3.0-M", "ei": "3AIO-3.2-4.3-0.9", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00296799", "contact": "", "doutils": "WZ00001", "serial": "N6662", "inv": "WZ1", "pc": "3C-1.6-2.5-8.0", "pi": "3IO-3.2-3.5-10", "ec": "3AC-1.63-3.0-M", "ei": "3AIO-3.2-4.0-0.8", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00296788", "contact": "", "doutils": "WZ00001", "serial": "N7977", "inv": "WZ1", "pc": "3C-1.6-2.5-10-0.5", "pi": "3IO-3.2-3.2-8.5", "ec": "3AC-1.63-3.0-M", "ei": "3AIO-3.1-4.0-0.8", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "805", "conn": "", "term": "P00102692", "contact": "", "doutils": "WZ805-01", "serial": "Q0801", "inv": "WZ805-01/Q0801", "pc": "3C-1.57-3.0-12", "pi": "3I-1.78-4.0-12-A", "ec": "3AC-1.59-3.3-M", "ei": "3AIP-1.8-3.7-0.6", "cut": "YJM-AFS34963-101", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00102722", "contact": "", "doutils": "WZ00001", "serial": "P0879", "inv": "WZ1", "pc": "3C-1.57-3.0-12", "pi": "3IO-2.29-3.2-9.0", "ec": "3AC-1.61-3.4-M", "ei": "3AIO-2.3-3.6-0.3", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00072510", "contact": "", "doutils": "WZ00001", "serial": "N6499", "inv": "WZ1", "pc": "3C-1.57-3.0-10-0.5", "pi": "3IO-1.8-2.5-8", "ec": "3AC-1.6-3.3-M", "ei": "3AIO-1.8-3.0-0.2", "cut": "YJM-S36043-101", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00131347", "contact": "", "doutils": "WZ00001", "serial": "Q3818", "inv": "WZ1", "pc": "3C-1.57-3.0-10-0.5", "pi": "3IO-2.29-3.2-9.0", "ec": "3AC-1.61-3.4-M", "ei": "3AI-2.3-3.6-0.3", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "6034", "conn": "", "term": "P00102683", "contact": "", "doutils": "WZ6034-R03", "serial": "N8398", "inv": "WZ6034-R03/N8398", "pc": "3C-1.57-2.6-8.0", "pi": "3IO-2.3-3.3-10", "ec": "3AC-1.6-3.0-M", "ei": "3AIO-2.3-3.0-0.2", "cut": "YJM-S3315-01D", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00001379", "contact": "", "doutils": "WZ00001", "serial": "P5621", "inv": "WZ1", "pc": "3C-1.57-2.5-12-H", "pi": "3IO-2.2-3.5-12", "ec": "3AC-1.63-3.0-M", "ei": "3AIO-2.2-3.2-0.2", "cut": "YJM-S300A-04-05H", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7048", "conn": "", "term": "P00024410", "contact": "", "doutils": "WZ7048J-03", "serial": "N9768", "inv": "WZ7048J-03/N9768", "pc": "3C-1.55-3.2-12-B", "pi": "3IO-3.3-3.3-10", "ec": "3AC-1.6-4.0-E", "ei": "3AI-3.3-2.9-0.3", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00072955", "contact": "", "doutils": "WZ00001", "serial": "P9893", "inv": "WZ1", "pc": "3C-1.55-3.0-10", "pi": "3IO-2.7-3.8-10-A", "ec": "3AC-1.58-3.5-M", "ei": "3AIO-2.7-3.5-0.5", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "796", "conn": "", "term": "P00023554", "contact": "", "doutils": "WZ796J-03", "serial": "N8148", "inv": "WZ796J-03/N8148", "pc": "3C-1.5-3.5-12-B", "pi": "3IO-2.6-3.6-12", "ec": "3AC-1.55-4.0-M", "ei": "3AIO-2.6-3.3-0.2", "cut": "YJM-S300A-04-29B", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7027", "conn": "", "term": "P00024075", "contact": "", "doutils": "WZ7027-07", "serial": "Q0718", "inv": "WZ7027-07/Q0718", "pc": "3C-1.5-3.5-10-D", "pi": "3IO-2.3-3.6-9.0", "ec": "3AC-1.53-4.0-M", "ei": "3AIO-2.3-3.5-0.2", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00100658", "contact": "", "doutils": "WZ00001", "serial": "P0887", "inv": "WZ1", "pc": "3C-1.5-3.5-10-D", "pi": "3IO-2.5-3.6-10-A", "ec": "3AC-1.53-4.0-M", "ei": "3AIO-2.5-3.5-0.2", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00106053", "contact": "", "doutils": "WZ00001", "serial": "N8605", "inv": "880-R03/N8605", "pc": "3C-1.4-3.5-10", "pi": "3IO-1.75-3.7-10-A", "ec": "3AC-1.43-4.0-M", "ei": "3AIO-1.8-3.2-0.2", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00157704", "contact": "", "doutils": "WZ00001", "serial": "Q1142", "inv": "WZ1", "pc": "3C-1.4-3.5-10", "pi": "3IO-1.84-3.5-9.0-A", "ec": "3AC-1.43-4.0-M", "ei": "3AIO-1.9-3.2-0.2", "cut": "YJM-S300A-04-05G", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00148080", "contact": "", "doutils": "WZ00001", "serial": "Q0724", "inv": "NEW/Q0724", "pc": "3c-1.4-3.0-8.0", "pi": "3I-1.4-3.0-8.0", "ec": "3AC-1.43-3.6-M", "ei": "3AI-1.7-2.4-0.1", "cut": "YJM-AFS34963-101", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00148080", "contact": "", "doutils": "WZ00001", "serial": "Q0725", "inv": "WZ1", "pc": "3c-1.4-3.0-8.0", "pi": "3I-1.7-2.8-8.0-B", "ec": "3AC-1.43-3.6-M", "ei": "3AI-1.7-2.4-0.1", "cut": "YJM-AFS34963-101", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "8019", "conn": "", "term": "P00106155", "contact": "", "doutils": "WZ8019-R02", "serial": "N8090", "inv": "WZ8019-R02/N8090", "pc": "3C-1.4-2.8-10-G", "pi": "3IO-2.0-3.0-8.0", "ec": "3AC-1.43-3.1-A", "ei": "3AIO-2.0-2.8-0.2", "cut": "YJM-S300A-04-19", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7115", "conn": "", "term": "P00115287", "contact": "", "doutils": "WZ7115J-R04", "serial": "N6554", "inv": "WZ7115J-R04/N6554", "pc": "3C-1.4-2.6-9.0", "pi": "3IO-3.18-3.0-8.0", "ec": "3AC-1.44-3.3-M", "ei": "3AIO-3.2-3.3-0.8", "cut": "YJM-S300A-04-23", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7115", "conn": "", "term": "P00115287", "contact": "", "doutils": "WZ7115J-R05", "serial": "N8341", "inv": "WZ7115J-R05/N8341", "pc": "3C-1.4-2.6-9.0", "pi": "3IO-3.18-3.0-8.0", "ec": "3AC-1.44-3.3-M", "ei": "3AIO-3.2-3.3-0.8", "cut": "YJM-S300A-04-23", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7124", "conn": "", "term": "P00102716", "contact": "", "doutils": "WZ7124J-R02", "serial": "N7989", "inv": "WZ7124J-R02/N7989", "pc": "3C-1.4-2.6-9.0", "pi": "3IO-3.18-3.0-8.0-A", "ec": "3AC-1.43-3.1-M-A", "ei": "3AIO-3.2-3.5-0.7", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7087", "conn": "", "term": "P00115283", "contact": "", "doutils": "WZ7087J-R04", "serial": "P9630", "inv": "WZ7087J-R04/P9630", "pc": "3C-1.4-2.6-8.0", "pi": "3IO-3.18-3.0-8.0", "ec": "3AC-1.43-3.5-B", "ei": "3AIO-3.2-3.5-0.8", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00115285", "contact": "", "doutils": "WZ00001", "serial": "N8707", "inv": "WZ1", "pc": "3C-1.4-2.6-7.0", "pi": "3IO-3.18-3.0-8.0", "ec": "3AC-1.43-3.0-M", "ei": "3AIO-3.2-3.8-0.8", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00169873", "contact": "", "doutils": "WZ00001", "serial": "P9901", "inv": "WZ1", "pc": "3C-1.4-2.6-6.0-A", "pi": "3IO-1.83-3.2-6.0-A", "ec": "3AC-1.43-3.1-M-A", "ei": "3AIO-1.85-2.8-0.2", "cut": "YJM-AFS34963-101", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "880", "conn": "", "term": "P00106053", "contact": "", "doutils": "WZ880-R04", "serial": "N8606", "inv": "WZ880-R04/N8606", "pc": "3C-1.4-2.5-9.0-E", "pi": "3IO-1.83-3.2-9.0-A", "ec": "3AC-1.4-2.8-L", "ei": "3AIO-1.85-3.0-0.2", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00106047", "contact": "", "doutils": "WZ00001", "serial": "N6462", "inv": "WZ1", "pc": "3C-1.4-2.5-9.0-E", "pi": "3IO-1.83-3.2-9.0-A", "ec": "3AC-1.4-2.8-L", "ei": "3AIO-1.85-3.0-0.2", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7180", "conn": "", "term": "P00297848", "contact": "", "doutils": "WZ7180J-01", "serial": "N8328", "inv": "WZ7180J-01/N8328", "pc": "3C-1.4-2.5-7.5-A", "pi": "3IO-3.1-3.0-8.0", "ec": "3AC-1.42-2.7-M", "ei": "3AI-3.1-4.0-0.8", "cut": "YJM-S3315-01J", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7180", "conn": "", "term": "P00297848", "contact": "", "doutils": "WZ7180J-02", "serial": "P1064", "inv": "WZ7180J-02/P1064", "pc": "3C-1.4-2.5-7.5-A", "pi": "3IO-3.1-3.0-8.0", "ec": "3AC-1.42-2.7-M", "ei": "3AI-3.1-4.0-0.8", "cut": "YJM-S3315-01J", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00389580", "contact": "", "doutils": "WZ00001", "serial": "N6497", "inv": "WZ1", "pc": "3C-1.4-2.5-7.0", "pi": "3IO-2.9-3.2-8.0", "ec": "3AC-1.42-2.8-M", "ei": "3AIO-2.9-4.0-0.8", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00296787", "contact": "", "doutils": "WZ00001", "serial": "P0781", "inv": "WZ1", "pc": "3C-1.4-2.5-10-E", "pi": "3IO-2.95-3.8-10", "ec": "3AC-1.42-3.3-M", "ei": "3AIO-3.0-4.0-0.8", "cut": "", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "867", "conn": "", "term": "P00146794", "contact": "", "doutils": "WZ867-01", "serial": "Q1268", "inv": "WZ867-01/Q1268", "pc": "3C-1.35-3.0-8.0", "pi": "3I-1.4-2.0-9.0-A", "ec": "3AC-1.38-3.5-M", "ei": "3AI-1.4-2.5-0.1", "cut": "YJM-S300A-04-19", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00009913", "contact": "", "doutils": "WZ00001", "serial": "P9489", "inv": "WZ1", "pc": "3C-1.3-4.0-9.0", "pi": "3IO-1.42.5-8.0", "ec": "3AC-1.35-3.3-M", "ei": "3AI-1.4-2.6-0.2", "cut": "YJM-S300A-04-19", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "8052", "conn": "", "term": "P01180253", "contact": "", "doutils": "WZ8052J-01", "serial": "N9174", "inv": "WZ8052J-01/N9174", "pc": "3C-1.3-3.7-10", "pi": "3IO-2.2-2.3-7", "ec": "3AC-1.36-4.2-M", "ei": "3AIO-2.2-1.8-0.2", "cut": "YJM-S3315-01A", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "8052", "conn": "", "term": "P01180253", "contact": "", "doutils": "WZ8052J-02", "serial": "N9175", "inv": "WZ8052J-02/N9175", "pc": "3C-1.3-3.7-10", "pi": "3IO-2.2-2.3-7", "ec": "3AC-1.36-4.2-M", "ei": "3AIO-2.2-1.8-0.2", "cut": "YJM-S3315-01A", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "8052", "conn": "", "term": "P01180253", "contact": "", "doutils": "WZ8052J-03", "serial": "N9176", "inv": "WZ8052J-03/N9176", "pc": "3C-1.3-3.7-10", "pi": "3IO-2.2-2.3-7", "ec": "3AC-1.36-4.2-M", "ei": "3AIO-2.2-1.8-0.2", "cut": "YJM-S3315-01A", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00852646", "contact": "", "doutils": "WZ00001", "serial": "P9671", "inv": "WZ1", "pc": "3C-1.3-3.7-10", "pi": "3IO-2.2-2.3-7", "ec": "3AC-1.34-4.2-M", "ei": "3AIO-2.2-1.8-0.2", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00852646", "contact": "", "doutils": "WZ00001", "serial": "P9672", "inv": "WZ1", "pc": "3C-1.3-3.7-10", "pi": "3IO-2.2-2.3-7", "ec": "3AC-1.34-4.2-M", "ei": "3AIO-2.2-1.8-0.2", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00862298", "contact": "", "doutils": "WZ00001", "serial": "N8798", "inv": "WZ1", "pc": "3C-1.3-3.7-10", "pi": "3IO-2.2-2.3-7", "ec": "3AC-1.36-4.2-M", "ei": "3AIO-2.2-1.8-0.2", "cut": "", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "8045", "conn": "", "term": "P00069409", "contact": "", "doutils": "WZ8045J-R03", "serial": "Q6260", "inv": "WZ8045J-R03/Q6260", "pc": "3C-1.3-3.3-8.0", "pi": "3IO-2.3-2.7-6.0", "ec": "3AC-1.33-3.8-M", "ei": "3AI0-2.3-2.2-0.2", "cut": "YJM-S3315-01A", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00862298", "contact": "", "doutils": "WZ00001", "serial": "N9617", "inv": "WZ1", "pc": "3C-1.3-3.3-8.0", "pi": "3IO-2.3-2.7-6.0", "ec": "3AC-1.33-3.8-M", "ei": "3AIO-2.3-2.2-0.2", "cut": "YJM-S3315-01A", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00851770", "contact": "", "doutils": "WZ00001", "serial": "Q8198", "inv": "WZ1", "pc": "3C-1.3-3.2-10", "pi": "3IO-2.2-2.8-8.0", "ec": "3AC-1.33-3.5-M", "ei": "3AIO-2.2-2.6-0.2", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00851770", "contact": "", "doutils": "WZ00001", "serial": "P9602", "inv": "WZ1", "pc": "3C-1.3-3.2-10", "pi": "3IO-2.2-2.8-8.0", "ec": "3AC-1.33-3.5-M", "ei": "3AIO-2.2-2.6-0.2", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "855", "conn": "", "term": "P00100622", "contact": "", "doutils": "WZ855J-03", "serial": "P9760", "inv": "WZ855J-03/P9760", "pc": "3C-1.3-3.1-8.0-B", "pi": "3IO-2.2-2.7-6.0", "ec": "3AC-1.35-3.7-B", "ei": "3AIO-2.3-2.3-0.3", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00100616", "contact": "", "doutils": "WZ00001", "serial": "P1045", "inv": "WZ1", "pc": "3C-1.3-3.0-9.0", "pi": "3IO-2.1-2.8-9.0-B", "ec": "3AC-1.33-3.5-M", "ei": "3AIO-2.2-2.5-02", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00147654", "contact": "", "doutils": "WZ00001", "serial": "N7995", "inv": "WZ1", "pc": "3C-1.3-3.0-9.0", "pi": "3IO-2.0-2.8-8.0", "ec": "3AC-1.32-3.5-A", "ei": "3AI-2.0-2.6-0.2", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "853", "conn": "", "term": "P00100630", "contact": "", "doutils": "WZ853J-03", "serial": "Q1009", "inv": "WZ853J-03/Q1009", "pc": "3C-1.3-3.0-8.0", "pi": "3IO-2.2-2.8-8.0-A", "ec": "3AC-1.35-3.5-M", "ei": "3AIO-2.2-2.5-0.2", "cut": "YJM-S3315-01A", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "853", "conn": "", "term": "P00100630", "contact": "", "doutils": "WZ853J-04", "serial": "P0637", "inv": "WZ853J-04/P0637", "pc": "3C-1.3-3.0-8.0", "pi": "3IO-2.2-2.8-8.0-A", "ec": "3AC-1.35-3.5-M", "ei": "3AIO-2.2-2.5-0.2", "cut": "YJM-S3315-01A", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00100621", "contact": "", "doutils": "WZ00001", "serial": "P9844", "inv": "WZ1", "pc": "3C-1.3-3.0-8.0", "pi": "3IO-2.1-2.9-8.0-A", "ec": "3AC-1.34-3.5-M", "ei": "3AIO-2.1-2.2-0.2", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00100651", "contact": "", "doutils": "WZ00001", "serial": "N8717", "inv": "WZ1", "pc": "3C-1.3-3.0-8.0", "pi": "3IO-2.2-2.8-8.0-A", "ec": "3AC-1.35-3.5-M", "ei": "3AIO-2.2-2.5-0.2", "cut": "YJM-S3315-01A", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00101715", "contact": "", "doutils": "WZ00001", "serial": "Q0802", "inv": "WZ1", "pc": "3C-1.3-2.7-9.0", "pi": "3IO-2.3-2.5-10", "ec": "3AC-1.38-3.5-M", "ei": "3AI-2.3-2.2-0.2", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00702133", "contact": "P00003086", "doutils": "WZ00001", "serial": "N8181", "inv": "WZ1", "pc": "3C-1.27-3.7-10-B", "pi": "3IO-2.2-2.3-7", "ec": "3AC-1.3-4.2-M", "ei": "3AIO-2.2-1.8-0.2", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-11", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00702137", "contact": "", "doutils": "WZ00001", "serial": "N9259", "inv": "WZ1", "pc": "3C-1.27-3.0-7.0", "pi": "3IO-2.2-2.8-8.0", "ec": "3AC-1.3-3.5-A", "ei": "3AIO-2.2-2.6-0.2", "cut": "YJM-S3315-01", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7145", "conn": "", "term": "P00106599", "contact": "", "doutils": "WZ7145J-R01", "serial": "N7344", "inv": "WZ7145J-R01/N7344", "pc": "3C-1.27-2.6-9.0", "pi": "3IO-3.05-3.0-8.0", "ec": "3AC-1.29-3.0-M", "ei": "3AIO-3.1-3.8-0.8", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00118420", "contact": "", "doutils": "WZ00001", "serial": "N6700", "inv": "WZ1", "pc": "3C-1.27-2.6-9.0", "pi": "3IO-3.05-3.0-8.0", "ec": "3AC-1.3-3.0-M", "ei": "3AIO-3.05-3.8-0.8", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00118420", "contact": "", "doutils": "WZ00001", "serial": "N6701", "inv": "WZ1", "pc": "3C-1.27-2.6-9.0", "pi": "3IO-3.05-3.0-8.0", "ec": "3AC-1.3-3.0-M", "ei": "3AIO-3.05-3.8-0.8", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00001393", "contact": "", "doutils": "WZ00001", "serial": "N6529", "inv": "WZ1", "pc": "3C-1.27-2.6-7.0-A", "pi": "3IO-1.8-3.2-8.0-D", "ec": "3AC-1.32-3.0-M", "ei": "3AIO-1.8-3.0-0.2", "cut": "YJM-S33097-101B", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7144", "conn": "", "term": "P00118418", "contact": "", "doutils": "WZ7144J-R01", "serial": "P1152", "inv": "WZ7144J-R01/P1152", "pc": "3C-1.27-2.6-7.0", "pi": "3IO-3.05-3.2-8.0", "ec": "3AC-1.28-3.0-F", "ei": "3AIO-3.05-3.6-0.8", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "7144", "conn": "", "term": "P00118418", "contact": "", "doutils": "WZ7144J-R02", "serial": "P1153", "inv": "WZ7144J-R02/P1153", "pc": "3C-1.27-2.6-7.0", "pi": "3IO-3.05-3.2-8.0", "ec": "3AC-1.28-3.0-F", "ei": "3AIO-3.05-3.6-0.8", "cut": "YJM-S300A-04-05", "mcut": "YJM-S300A-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "P00133981", "contact": "", "doutils": "WZ00001", "serial": "P9662", "inv": "/P9662", "pc": "3C-1.15-2.7-6.0", "pi": "3IO-1.4-3.0-6.0-B", "ec": "3AC-1.2-3.0", "ei": "3AIO-1.4-2.6", "cut": "YJM-AFS30938F-01", "mcut": "YJM-S300A6-04-10", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "853", "conn": "", "term": "P00100630", "contact": "", "doutils": "WZ853J-05", "serial": "12768", "inv": "WZ853J-05/12768", "pc": "37 2 1902 03 0", "pi": "37 2 1902 05 0", "ec": "37 2 1902 20 0", "ei": "37 2 1902 21 0", "cut": "37-2-0000-19-4", "mcut": "37-2-0000-23-2", "press": "", "mav": "", "mar": "", "four": ".", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "p00109452", "contact": "", "doutils": "WZ00001", "serial": "12802", "inv": "WZ1", "pc": "37 2 1114 03 0", "pi": "37 2 114 05 0", "ec": "37 2 1114 20 0", "ei": "37 2 1114 21 0", "cut": "37-2-0000-19-4", "mcut": "37-2-0000-23-2", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}, {"grp": "1", "conn": "", "term": "p00009913", "contact": "", "doutils": "WZ00001", "serial": "12753", "inv": "WZ1", "pc": "37 2 0730 03 1", "pi": "37 2 1052 05 1", "ec": "37 2 0730 20 1 B", "ei": "37 2 0730 21 2", "cut": "37-2-0730-19-0", "mcut": "37 2 0000 23 2", "press": "", "mav": "", "mar": "", "four": "THB", "projet": "", "dateRecep": "", "dateFin": "", "etat": ""}];}
 
@@ -1807,25 +1985,22 @@ function doLogin(){
   S.curUser=adm.user;S.curRole=adm.role;
 
   if(adm.role==='visitor'){
-    // Visitor — read only, CAO filter
     S.isAdmin=false;
     setUser(adm.user,'Visiteur','read');
     applyROFilter();
-    navTo('d');
-    toast('Bienvenue '+adm.user+' — Lecture seule (CAO)','s');
   }else{
-    // Admin or Super Admin — full access
     S.isAdmin=true;
     const roleLabel=adm.role==='superadmin'?'Super Admin':'Admin';
     setUser(adm.user,roleLabel,'admin');
     enableAdmin();
-    navTo('d');
-    toast('Bienvenue '+adm.user+' — '+roleLabel,'s');
   }
+  // Go to HUB
+  goToHub();
+  toast('Bienvenue '+adm.user,'s');
 }
-function goRO(){S.isAdmin=false;S.curUser='Invité';S.curRole='visitor';setUser('Invité','Lecture seule','read');applyROFilter();navTo('d');toast('Outils intégrés sur CAO','i');}
-function doLogout(){S.isAdmin=false;S.curUser='';S.curRole='';disableAdmin();['uinfo','logout-btn','settings-btn'].forEach(id=>document.getElementById(id).style.display='none');['iu','ip'].forEach(id=>document.getElementById(id).value='');document.getElementById('lg-err').classList.remove('on');document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));document.getElementById('sl').classList.add('on');document.getElementById('scr-lbl').textContent='SCREEN_LOGIN';}
-function setUser(n,r,t){['uinfo','logout-btn','settings-btn'].forEach(id=>document.getElementById(id).style.display='flex');document.getElementById('uname').textContent=n;document.getElementById('uav').textContent=n[0].toUpperCase();const b=document.getElementById('ubadge');b.textContent=r;b.className='tb-badge '+(t==='admin'?'b-admin':'b-read');}
+function goRO(){S.isAdmin=false;S.curUser='Invité';S.curRole='visitor';setUser('Invité','Lecture seule','read');applyROFilter();goToHub();toast('Bienvenue','i');}
+function doLogout(){S.isAdmin=false;S.curUser='';S.curRole='';disableAdmin();['uinfo','logout-btn','settings-btn','hub-btn'].forEach(id=>document.getElementById(id).style.display='none');['iu','ip'].forEach(id=>document.getElementById(id).value='');document.getElementById('lg-err').classList.remove('on');document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));document.getElementById('sl').classList.add('on');document.getElementById('scr-lbl').textContent='SCREEN_LOGIN';}
+function setUser(n,r,t){['uinfo','logout-btn','settings-btn','hub-btn'].forEach(id=>document.getElementById(id).style.display='flex');document.getElementById('uname').textContent=n;document.getElementById('uav').textContent=n[0].toUpperCase();const b=document.getElementById('ubadge');b.textContent=r;b.className='tb-badge '+(t==='admin'?'b-admin':'b-read');}
 function applyROFilter(){
   const filtered=getViewData();
   const total=S.dashData.length?S.dashData.length:S.DB.length;
@@ -1848,9 +2023,9 @@ function enableAdmin(){
 }
 function disableAdmin(){document.querySelectorAll('.adm-only').forEach(e=>e.style.display='none');document.querySelectorAll('.super-only').forEach(e=>e.style.display='none');applyROFilter();}
 
-const SM={d:'sd',a:'sa',t:'st',f:'sf',s:'ss',m:'sm',p:'sp',r:'sr',g:'sg'},LM={d:'DASHBOARD',a:'BASE DE DONNÉES',t:'TEMPLATES A4',f:'FICHIERS',s:'FOURNISSEURS',m:'UTILISATEURS',p:'RÉPARTITION PROJETS',r:'PIÈCES & STOCK',g:'PARAMÈTRES'};
+const SM={d:'sd',a:'sa',t:'st',f:'sf',s:'ss',m:'sm',p:'sp',r:'sr',g:'sg',h:'sh',kj:'skj'},LM={d:'DASHBOARD',a:'BASE DE DONNÉES',t:'TEMPLATES A4',f:'FICHIERS',s:'FOURNISSEURS',m:'UTILISATEURS',p:'RÉPARTITION PROJETS',r:'PIÈCES & STOCK',g:'PARAMÈTRES',h:'HUB',kj:'KIT JOINT'};
 function navTo(id){
-  if(!S.isAdmin&&id!=='d'&&id!=='p'&&id!=='r'&&id!=='g'){toast('Connexion admin requise','e');return;}
+  if(!S.isAdmin&&id!=='d'&&id!=='p'&&id!=='r'&&id!=='g'&&id!=='h'&&id!=='kj'){toast('Connexion admin requise','e');return;}
   if(id==='m'&&S.curRole!=='superadmin'){toast('Réservé au Super Admin (Bilal)','e');return;}
   document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
   document.getElementById(SM[id]).classList.add('on');
@@ -2582,6 +2757,173 @@ function changeMyPassword(){
   ['pw-current','pw-new','pw-confirm'].forEach(id=>document.getElementById(id).value='');
   okEl.style.display='flex';
   toast('Mot de passe modifié avec succès','s');
+}
+
+
+
+/* ═══ HUB & MODULE NAVIGATION ═══ */
+let curModule='hub';
+
+function goToHub(){
+  curModule='hub';
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+  document.getElementById('sh').classList.add('on');
+  document.getElementById('scr-lbl').textContent='HUB';
+  document.getElementById('hub-user').textContent=S.curUser||'Utilisateur';
+}
+
+function enterModule(mod){
+  curModule=mod;
+  if(mod==='crimping'){
+    const viewData=getViewData();
+    buildDashHeader();renderDash(viewData);updateKPI(viewData);
+    navTo('d');
+  }else if(mod==='kitjoint'){
+    document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+    document.getElementById('skj').classList.add('on');
+    document.getElementById('scr-lbl').textContent='KIT JOINT';
+    // Show admin elements if admin
+    if(S.isAdmin)document.querySelectorAll('#skj .adm-only').forEach(e=>e.style.display='flex');
+    kjNav('kd');
+  }else if(mod==='hub'){
+    goToHub();
+  }
+}
+
+/* ═══ KIT JOINT — NAVIGATION ═══ */
+function kjNav(page){
+  ['kj-dash','kj-out-form','kj-in-form','kj-history'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+  document.querySelectorAll('[id^="kjn-"]').forEach(n=>n.classList.remove('on'));
+
+  if(page==='kd'){document.getElementById('kj-dash').style.display='block';document.getElementById('kj-page-lbl').textContent='— Tableau de Bord';buildKJDash();}
+  else if(page==='ko'){document.getElementById('kj-out-form').style.display='block';document.getElementById('kj-page-lbl').textContent='— Nouvelle Sortie';kjClearForm('out');}
+  else if(page==='ki'){document.getElementById('kj-in-form').style.display='block';document.getElementById('kj-page-lbl').textContent='— Nouvelle Entrée';kjClearForm('in');}
+  else if(page==='kh'){document.getElementById('kj-history').style.display='block';document.getElementById('kj-page-lbl').textContent='— Historique';kjRenderHist(S.kjMvts);}
+
+  const nav=document.getElementById('kjn-'+page);if(nav)nav.classList.add('on');
+}
+
+/* ═══ KIT JOINT — DASHBOARD ═══ */
+function buildKJDash(){
+  const mvts=S.kjMvts||[];
+  const today=new Date().toLocaleDateString('fr-FR');
+  const todayOut=mvts.filter(m=>m.dir==='out'&&m.date===today).length;
+  const todayIn=mvts.filter(m=>m.dir==='in'&&m.date===today).length;
+
+  // Items currently out (out minus returned in)
+  const outMap={};
+  mvts.forEach(m=>{
+    const key=m.item;
+    if(!outMap[key])outMap[key]=0;
+    if(m.dir==='out')outMap[key]+=parseInt(m.qty)||1;
+    else outMap[key]-=parseInt(m.qty)||1;
+  });
+  const currentlyOut=Object.values(outMap).filter(v=>v>0).reduce((a,b)=>a+b,0);
+
+  document.getElementById('kj-k1').textContent=todayOut;
+  document.getElementById('kj-k2').textContent=todayIn;
+  document.getElementById('kj-k3').textContent=currentlyOut;
+  document.getElementById('kj-k4').textContent=mvts.length;
+  document.getElementById('kj-sb1').textContent=todayOut;
+  document.getElementById('kj-sb2').textContent=todayIn;
+
+  // Recent movements (last 20)
+  const recent=mvts.slice(-20).reverse();
+  const container=document.getElementById('kj-recent');
+  const empty=document.getElementById('kj-empty');
+  if(!recent.length){container.innerHTML='';empty.style.display='flex';return;}
+  empty.style.display='none';
+  container.innerHTML=recent.map(m=>kjMvtRow(m)).join('');
+}
+
+function kjMvtRow(m){
+  const isOut=m.dir==='out';
+  const dirIco=isOut?'📤':'📥';
+  const dirCls=isOut?'mvt-out':'mvt-in';
+  const qtyCls=isOut?'mvt-qty-out':'mvt-qty-in';
+  const sign=isOut?'-':'+';
+  const reasonMap={production:'🏭 Production',maintenance:'🔧 Maintenance',urgence:'🚨 Urgence',essai:'🧪 Essai',autre:'📎 Autre'};
+  const stateMap={bon:'✅ Bon',usé:'⚠️ Usé',endommagé:'🔶 Endommagé',défectueux:'❌ Défectueux'};
+  const extra=isOut?(reasonMap[m.reason]||m.reason||''):(stateMap[m.state]||m.state||'');
+  return `<div class="mvt-row">
+    <div class="mvt-dir ${dirCls}">${dirIco}</div>
+    <div class="mvt-info">
+      <div class="mvt-item">${m.item||'—'}</div>
+      <div class="mvt-meta">${m.who||'—'} · ${m.line||''} ${extra?'· '+extra:''} ${m.note?'· <em>'+m.note+'</em>':''}</div>
+    </div>
+    <div class="mvt-qty ${qtyCls}">${sign}${m.qty}</div>
+    <div class="mvt-time">${m.date}<br>${m.time}</div>
+  </div>`;
+}
+
+/* ═══ KIT JOINT — ADD MOVEMENT ═══ */
+function kjAddMvt(dir){
+  const pre=dir==='out'?'kjo':'kji';
+  const item=document.getElementById(pre+'-item').value.trim();
+  const qty=document.getElementById(pre+'-qty').value.trim();
+  const who=document.getElementById(pre+'-who').value.trim();
+
+  if(!item){toast('Désignation obligatoire','w');return;}
+  if(!qty||parseInt(qty)<1){toast('Quantité invalide','w');return;}
+
+  const now=new Date();
+  const mvt={
+    id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    dir:dir,
+    item:item,
+    qty:qty,
+    who:who||S.curUser,
+    date:now.toLocaleDateString('fr-FR'),
+    time:now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),
+    ts:now.toISOString(),
+    by:S.curUser
+  };
+
+  if(dir==='out'){
+    mvt.line=document.getElementById('kjo-line').value.trim();
+    mvt.reason=document.getElementById('kjo-reason').value;
+    mvt.note=document.getElementById('kjo-note').value.trim();
+  }else{
+    mvt.state=document.getElementById('kji-state').value;
+    mvt.note=document.getElementById('kji-note').value.trim();
+  }
+
+  S.kjMvts.push(mvt);
+  saveState();
+  const label=dir==='out'?'Sortie':'Entrée';
+  toast(label+' enregistrée : '+item+' (x'+qty+')','s');
+  kjNav('kd');
+}
+
+function kjClearForm(dir){
+  if(dir==='out'){['kjo-item','kjo-qty','kjo-who','kjo-line','kjo-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=id==='kjo-qty'?'1':'';});document.getElementById('kjo-reason').value='production';}
+  else{['kji-item','kji-qty','kji-who','kji-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=id==='kji-qty'?'1':'';});document.getElementById('kji-state').value='bon';}
+}
+
+/* ═══ KIT JOINT — HISTORY ═══ */
+function kjRenderHist(data){
+  const container=document.getElementById('kj-hist-list');
+  document.getElementById('kj-hct').textContent=data.length+' mouvement'+(data.length>1?'s':'');
+  if(!data.length){container.innerHTML='<div class="empty-st"><div class="ei">📋</div><span>Aucun mouvement</span></div>';return;}
+  container.innerHTML=data.slice().reverse().map(m=>kjMvtRow(m)).join('');
+}
+
+function kjFilterHist(){
+  const q=(document.getElementById('kj-search').value||'').toLowerCase();
+  const dir=document.getElementById('kj-dir-filter').value;
+  const dateVal=document.getElementById('kj-date-filter').value;
+  let data=[...S.kjMvts];
+  if(dir)data=data.filter(m=>m.dir===dir);
+  if(dateVal){const dStr=new Date(dateVal).toLocaleDateString('fr-FR');data=data.filter(m=>m.date===dStr);}
+  if(q)data=data.filter(m=>[m.item,m.who,m.line,m.note,m.reason,m.state].some(v=>(v||'').toLowerCase().includes(q)));
+  kjRenderHist(data);
+}
+
+function kjClearHist(){
+  if(!S.isAdmin){toast('Réservé aux admins','e');return;}
+  showDlg('Vider l\'historique','Supprimer tous les mouvements Kit Joint ?<br><span style="color:var(--red);font-size:.79rem">Cette action est irréversible.</span>',()=>{
+    S.kjMvts=[];saveState();kjNav('kd');toast('Historique Kit Joint vidé','w');
+  });
 }
 
 function togglePcCols(){

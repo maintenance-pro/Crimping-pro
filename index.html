@@ -875,6 +875,39 @@ tr.sel .fix-col{background:#eef2ff!important}
 .std-actions{display:flex;gap:6px;margin-top:10px}
 .std-actions .btn{flex:1}
 @media(max-width:768px){.mach-grid{grid-template-columns:1fr}.qr-gen{flex-direction:column}.std-grid{grid-template-columns:1fr}}
+
+/* RBAC Toggle Switches */
+#rbac-panel table tr:hover{background:var(--surf2)}
+#rbac-panel input[type=checkbox]:checked+span{background:#059669!important}
+#rbac-panel input[type=checkbox]:checked+span+span{left:18px!important}
+.mach-sub-tabs{display:flex;gap:0;border-bottom:2px solid var(--bd);margin-bottom:14px}
+.mach-sub-tab{padding:8px 18px;font-size:.8rem;font-weight:600;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--font)}
+.mach-sub-tab.active{color:var(--leoni-blue);border-bottom-color:var(--leoni-blue)}
+.mach-sub-tab:hover{color:var(--tx)}
+
+/* Magasin module */
+.hc-magasin{border-left:4px solid #0284c7!important}
+.hc-magasin:hover{box-shadow:0 6px 20px rgba(2,132,199,.15)!important}
+/* Hub Health Dashboard */
+.hub-health{display:flex;gap:14px;justify-content:center;align-items:center;flex-wrap:wrap;padding:16px 0;margin-bottom:4px}
+.hub-health-card{background:var(--surf);border:1px solid var(--bd);border-radius:var(--r2);padding:12px 18px;text-align:center;min-width:110px;box-shadow:var(--shadow)}
+.hub-health-card .hhv{font-size:1.5rem;font-weight:800;font-family:monospace}
+.hub-health-card .hhl{font-size:.62rem;color:var(--t3);text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-top:4px}
+/* Hub sub2 */
+.hub-sub2{font-size:.72rem!important;color:var(--leoni-blue)!important;letter-spacing:2px!important;font-weight:600!important;text-transform:uppercase!important;margin-bottom:16px!important}
+/* Predictive alert banner */
+.pred-alert{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:var(--r);margin-bottom:6px;font-size:.78rem;animation:pred-pulse 2s ease-in-out infinite}
+.pred-alert.pa-crit{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b}
+.pred-alert.pa-warn{background:#fffbeb;border:1px solid #fcd34d;color:#92400e}
+@keyframes pred-pulse{0%,100%{opacity:1}50%{opacity:.85}}
+.pred-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;animation:blink 1.5s infinite}
+.pred-dot.pd-crit{background:#dc2626}.pred-dot.pd-warn{background:#d97706}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+/* Mag location cards */
+.mag-loc-card{background:var(--surf);border:1px solid var(--bd);border-radius:var(--r);padding:12px;text-align:center}
+.mag-loc-card .mlc-id{font-family:monospace;font-size:.82rem;font-weight:700;color:var(--leoni-blue)}
+.mag-loc-card .mlc-ct{font-size:1.2rem;font-weight:800;margin:4px 0}
+.mag-loc-card .mlc-lbl{font-size:.62rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
 </style>
 </head>
 <body>
@@ -932,8 +965,10 @@ tr.sel .fix-col{background:#eef2ff!important}
 <div class="scr" id="sh">
   <div class="hub-bg">
     <div class="hub-wrap">
-      <div class="hub-title">⚙ CRIMPING PRO</div>
-      <div class="hub-sub">Sélectionnez un module — <span id="hub-user" style="font-weight:600;color:var(--t2)">Utilisateur</span></div>
+      <div class="hub-title">🏭 Maintenance Management</div>
+      <div class="hub-sub2" style="font-size:.72rem;color:var(--leoni-blue);letter-spacing:2px;font-weight:600;text-transform:uppercase;margin-bottom:16px">LEONI WIRING SYSTEM — ERP Industriel</div>
+      <div id="hub-health-zone"></div>
+      <div class="hub-sub" style="margin-top:18px">Sélectionnez un module — <span id="hub-user" style="font-weight:600;color:var(--t2)">Utilisateur</span></div>
       <div class="hub-cards" id="hub-cards-grid">
         <div class="hub-card hc-crimping" onclick="enterModule('crimping')">
           <div class="hub-ico">🔧</div>
@@ -976,6 +1011,12 @@ tr.sel .fix-col{background:#eef2ff!important}
           <div class="hub-cname">Standard Library</div>
           <div class="hub-cdesc">Documents standards LEONI — PDF, images et procédures qualité</div>
           <span class="hub-cbadge" style="background:#fffbeb;color:#92400e">📄 PDF · 🖼 Images · 📋 Procédures</span>
+        </div>
+        <div class="hub-card hc-magasin" onclick="enterModule('magasin')">
+          <div class="hub-ico">🏪</div>
+          <div class="hub-cname">Magasin</div>
+          <div class="hub-cdesc">Suivi global du magasin — gestion des flux entrants, stock et emplacements</div>
+          <span class="hub-cbadge" style="background:#e0f2fe;color:#0c4a6e">📦 Stock · 📥 Flux entrant · 📍 Emplacements</span>
         </div>
       </div>
     </div>
@@ -1514,6 +1555,12 @@ tr.sel .fix-col{background:#eef2ff!important}
             <button class="btn" onclick="cancelResetPw()" style="height:36px">✕ Annuler</button>
           </div>
         </div>
+        <!-- RBAC Permissions Management -->
+        <div class="sec">
+          <div class="sec-title"><div class="sec-ico" style="background:#f5f3ff">🛡</div>Gouvernance RBAC — Permissions par Module</div>
+          <p style="font-size:.78rem;color:var(--t3);margin-bottom:12px">Activez ou désactivez l'accès à chaque module pour chaque utilisateur. Les changements sont immédiats.</p>
+          <div id="rbac-panel" style="overflow-x:auto"></div>
+        </div>
         <!-- Security note -->
         <div class="sec">
           <div class="sec-title"><div class="sec-ico sib">🔐</div>Sécurité</div>
@@ -1951,6 +1998,14 @@ tr.sel .fix-col{background:#eef2ff!important}
         <div class="ca"><button class="btn btn-sm" onclick="buildMachDash()">↻ Actualiser</button></div>
       </div>
       <div class="cb">
+        <!-- Machine Sub-Sections -->
+          <div class="mach-sub-tabs">
+            <button class="mach-sub-tab active" id="msub-all" onclick="machSubNav('all')">📊 Vue Globale</button>
+            <button class="mach-sub-tab" id="msub-coupe" onclick="machSubNav('coupe')">✂ Coupe</button>
+            <button class="mach-sub-tab" id="msub-prep" onclick="machSubNav('prep')">⚙ Préparation</button>
+            <button class="mach-sub-tab" id="msub-pr" onclick="machSubNav('pr')">🔩 Pièces de Rechange</button>
+          </div>
+        <div id="msub-c-all" class="mach-sub-content">
         <div id="mach-dash-view">
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:16px">
             <div class="kpi"><div class="kpi-left" style="border-color:#3b82f6"><div class="kl">Total Machines</div><div class="kv" id="mk1">8</div></div></div>
@@ -1970,6 +2025,26 @@ tr.sel .fix-col{background:#eef2ff!important}
         <div id="mach-list-view" style="display:none">
           <div style="margin-bottom:12px"><input class="fi" id="mach-search" placeholder="🔍 Rechercher une machine..." oninput="filterMachines()" style="max-width:320px"></div>
           <div class="mach-grid" id="mach-cards"></div>
+        </div>
+        </div><!-- /msub-c-all -->
+        <div id="msub-c-coupe" class="mach-sub-content" style="display:none">
+          <div class="sec">
+            <div class="sec-title"><div class="sec-ico" style="background:#fef2f2">✂</div>Zone Coupe — Machines<div class="ca" style="margin-left:auto"><button class="btn btn-sm btn-o adm-only" style="display:none">📂 Import Excel</button></div></div>
+            <div id="coupe-machines" style="font-size:.82rem;color:var(--t2)">Chargement...</div>
+          </div>
+        </div>
+        <div id="msub-c-prep" class="mach-sub-content" style="display:none">
+          <div class="sec">
+            <div class="sec-title"><div class="sec-ico" style="background:#eff6ff">⚙</div>Zone Préparation — Machines<div class="ca" style="margin-left:auto"><button class="btn btn-sm btn-o adm-only" style="display:none">📂 Import Excel</button></div></div>
+            <div id="prep-machines" style="font-size:.82rem;color:var(--t2)">Chargement...</div>
+          </div>
+        </div>
+        <div id="msub-c-pr" class="mach-sub-content" style="display:none">
+          <div class="sec">
+            <div class="sec-title"><div class="sec-ico" style="background:#ecfdf5">🔩</div>Pièces de Rechange — Stock Machines<div class="ca" style="margin-left:auto"><button class="btn btn-sm btn-o adm-only" style="display:none">📂 Import Excel</button></div></div>
+            <p style="font-size:.82rem;color:var(--t3);margin-bottom:10px">Importez un fichier Excel pour charger les pièces de rechange spécifiques aux machines.</p>
+            <div id="pr-machines" style="font-size:.82rem;color:var(--t2)">Aucune donnée chargée — Utilisez "Import Excel"</div>
+          </div>
         </div>
       </div>
     </div>
@@ -2068,6 +2143,79 @@ tr.sel .fix-col{background:#eef2ff!important}
       </div>
       <div class="cb">
         <div class="std-grid" id="std-grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═════ MAGASIN — MODULE ═════ -->
+<div class="scr" id="smag">
+  <div class="lay">
+    <div class="sidebar">
+      <div class="sb-logo-zone"><div class="sb-logo-dot" style="background:#0284c7"></div><div class="sb-logo-name" style="color:#0284c7">Magasin</div></div>
+      <div class="sb-sec">
+        <div class="sb-lbl">Module</div>
+        <div class="ni" onclick="enterModule('hub')" style="color:var(--t3)"><span class="ico">↩</span>Retour Hub</div>
+        <div class="ni on" id="mgn-dash" onclick="magNav('dash')"><span class="ico">📊</span>Tableau de Bord</div>
+        <div class="ni" id="mgn-flux" onclick="magNav('flux')"><span class="ico">📥</span>Flux Entrant</div>
+        <div class="ni" id="mgn-stock" onclick="magNav('stock')"><span class="ico">📦</span>Stock Global</div>
+        <div class="ni" id="mgn-loc" onclick="magNav('loc')"><span class="ico">📍</span>Emplacements</div>
+      </div>
+      <div class="sb-foot">
+        <div class="sb-kpis" style="grid-template-columns:1fr 1fr">
+          <div class="skpi"><div class="sv" id="mag-sb1" style="color:#059669">—</div><div class="sl2">Réf. actives</div></div>
+          <div class="skpi"><div class="sv" id="mag-sb2" style="color:#dc2626">—</div><div class="sl2">Alertes</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="cnt">
+      <div class="ch">
+        <span class="ct" style="color:#0284c7">🏪 Magasin</span>
+        <span class="cs" id="mag-page-lbl">— Tableau de Bord</span>
+        <div class="ca">
+          <button class="btn btn-sm btn-o adm-only" style="display:none" onclick="toast('Import Excel Magasin — bientôt','i')">📂 Import Excel</button>
+          <button class="btn btn-sm" onclick="buildMagDash()">↻ Actualiser</button>
+        </div>
+      </div>
+      <div class="cb">
+        <div id="mag-dash-view">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:16px">
+            <div class="kpi"><div class="kpi-left" style="border-color:#3b82f6"><div class="kl">Total Références</div><div class="kv" id="magk1">—</div></div></div>
+            <div class="kpi"><div class="kpi-left" style="border-color:#059669"><div class="kl">En Stock</div><div class="kv" id="magk2" style="color:#059669">—</div></div></div>
+            <div class="kpi"><div class="kpi-left" style="border-color:#d97706"><div class="kl">Alertes Seuil</div><div class="kv" id="magk3" style="color:#d97706">—</div></div></div>
+            <div class="kpi"><div class="kpi-left" style="border-color:#dc2626"><div class="kl">Rupture (Qty=0)</div><div class="kv" id="magk4" style="color:#dc2626">—</div></div></div>
+          </div>
+          <div class="sec">
+            <div class="sec-title"><div class="sec-ico" style="background:#e0f2fe">📦</div>Répartition par Fournisseur</div>
+            <div id="mag-suppliers" style="display:flex;gap:10px;flex-wrap:wrap;padding:8px 0"></div>
+          </div>
+          <div class="sec" style="margin-top:14px">
+            <div class="sec-title"><div class="sec-ico" style="background:#fef2f2">⚠</div>Alertes Stock Critiques</div>
+            <div id="mag-alerts"></div>
+            <div class="empty-st" id="mag-alerts-empty" style="display:none"><div class="ei">✅</div><span>Aucune alerte</span></div>
+          </div>
+        </div>
+        <div id="mag-flux-view" style="display:none">
+          <div class="sec">
+            <div class="sec-title"><div class="sec-ico" style="background:#d1fae5">📥</div>Flux Entrant — Réceptions récentes<div class="ca" style="margin-left:auto"><button class="btn btn-sm btn-o adm-only" style="display:none">📂 Import Excel</button></div></div>
+            <p style="font-size:.82rem;color:var(--t3)">Importez un fichier Excel contenant les réceptions pour mettre à jour le stock automatiquement.</p>
+            <div id="mag-flux-list"></div>
+          </div>
+        </div>
+        <div id="mag-stock-view" style="display:none">
+          <div class="sec">
+            <div class="sec-title"><div class="sec-ico" style="background:#eff6ff">📦</div>Stock Global — Toutes références</div>
+            <div style="margin-bottom:10px"><input class="fi" id="mag-stock-search" placeholder="🔍 Rechercher une référence..." oninput="filterMagStock()" style="max-width:320px"></div>
+            <div id="mag-stock-table" style="overflow-x:auto"></div>
+          </div>
+        </div>
+        <div id="mag-loc-view" style="display:none">
+          <div class="sec">
+            <div class="sec-title"><div class="sec-ico" style="background:#f5f3ff">📍</div>Emplacements Magasin</div>
+            <div id="mag-loc-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -2253,7 +2401,7 @@ function startRealtimeSync(){
 }
 
 let S={isAdmin:false,curUser:'',curRole:'',selIdx:null,editIdx:null,curTpl:null,tplRows:[],tplRowIdx:0,dashData:[],dashXL:false,
-  admins:[{user:'bilal',pass:'10541',role:'superadmin',modules:{crimping:true,kitjoint:true,admin:true}},{user:'said',pass:'said123',role:'admin',modules:{crimping:true,kitjoint:true,admin:false}},{user:'loukrimi',pass:'louk123',role:'admin',modules:{crimping:true,kitjoint:true,admin:false}},{user:'oumjoud',pass:'oumj123',role:'admin',modules:{crimping:true,kitjoint:true,admin:false}},{user:'dahbi',pass:'dahbi123',role:'admin',modules:{crimping:true,kitjoint:true,admin:false}},{user:'crimp',pass:'1230',role:'visitor',modules:{crimping:true,kitjoint:false,admin:false}}],
+  admins:[{user:'bilal',pass:'10541',role:'superadmin',modules:{crimping:true,kitjoint:true,admin:true,machines:true,planning:true,qrcode:true,standards:true,magasin:true}},{user:'said',pass:'said123',role:'admin',modules:{crimping:true,kitjoint:true,admin:false,machines:true,planning:true,qrcode:true,standards:false,magasin:false}},{user:'loukrimi',pass:'louk123',role:'admin',modules:{crimping:true,kitjoint:false,admin:false,machines:false,planning:false,qrcode:true,standards:false,magasin:false}},{user:'oumjoud',pass:'oumj123',role:'admin',modules:{crimping:false,kitjoint:true,admin:false,machines:false,planning:false,qrcode:true,standards:false,magasin:true}},{user:'dahbi',pass:'dahbi123',role:'admin',modules:{crimping:false,kitjoint:true,admin:false,machines:false,planning:true,qrcode:true,standards:false,magasin:false}},{user:'crimp',pass:'1230',role:'visitor',modules:{crimping:true,kitjoint:false,admin:false,machines:false,planning:false,qrcode:false,standards:false,magasin:false}},{user:'adil',pass:'adil123',role:'admin',modules:{crimping:false,kitjoint:false,admin:false,machines:true,planning:true,qrcode:true,standards:false,magasin:false}},{user:'mouaden',pass:'mouaden123',role:'admin',modules:{crimping:false,kitjoint:false,admin:false,machines:true,planning:true,qrcode:true,standards:false,magasin:false}},{user:'rachid',pass:'rachid123',role:'admin',modules:{crimping:true,kitjoint:false,admin:false,machines:false,planning:false,qrcode:true,standards:false,magasin:false}},{user:'ouladi',pass:'ouladi123',role:'admin',modules:{crimping:true,kitjoint:false,admin:false,machines:false,planning:false,qrcode:true,standards:false,magasin:false}}],
   fournisseurs:[{name:'THB',cls:'tbl'},{name:'JST',cls:'tgo'},{name:'AMP',cls:'trd'},{name:'MOLEX',cls:'tbl'},{name:'YAZAKI',cls:'tgo'},{name:'SUMITOMO',cls:'trd'}],
   DB:[],injectedFiles:[],masterFile:null,pieces:[],piecesFile:null,piecesXL:false,kjMvts:[],
   secLog:[],
@@ -2569,7 +2717,7 @@ function buildAdminList(){
     c.appendChild(d);
   });
 }
-function addAdmin(){if(S.curRole!=='superadmin'){toast('Réservé au Super Admin','e');return;}const u=document.getElementById('new-au').value.trim().toLowerCase(),p=document.getElementById('new-ap').value,r=document.getElementById('new-ar').value;if(!u||!p){toast('Remplissez tous les champs','w');return;}if(S.admins.find(a=>a.user===u)){toast(u+' existe déjà','w');return;}S.admins.push({user:u,pass:p,role:r,modules:{crimping:true,kitjoint:r!=='visitor',admin:r==='superadmin'}});saveState();buildAdminList();document.getElementById('new-au').value='';document.getElementById('new-ap').value='';toast('Utilisateur '+u+' ajouté','s');}
+function addAdmin(){if(S.curRole!=='superadmin'){toast('Réservé au Super Admin','e');return;}const u=document.getElementById('new-au').value.trim().toLowerCase(),p=document.getElementById('new-ap').value,r=document.getElementById('new-ar').value;if(!u||!p){toast('Remplissez tous les champs','w');return;}if(S.admins.find(a=>a.user===u)){toast(u+' existe déjà','w');return;}S.admins.push({user:u,pass:p,role:r,modules:{crimping:true,kitjoint:r!=='visitor',admin:r==='superadmin',machines:r!=='visitor',planning:r!=='visitor',qrcode:true,standards:r==='superadmin',magasin:r!=='visitor'}});saveState();buildAdminList();document.getElementById('new-au').value='';document.getElementById('new-ap').value='';toast('Utilisateur '+u+' ajouté','s');}
 function delAdmin(i){if(S.curRole!=='superadmin'){toast('Réservé au Super Admin','e');return;}const a=S.admins[i];if(a.user==='bilal'){toast('Impossible de supprimer le Super Admin principal','e');return;}showDlg('Supprimer utilisateur',`Supprimer <strong>${a.user}</strong> ?`,()=>{S.admins.splice(i,1);saveState();buildAdminList();toast('Utilisateur supprimé','w');});}
 
 function renderFiles(){
@@ -3138,8 +3286,10 @@ let curModule='hub';
 
 function getUserModules(){
   const usr=S.admins.find(a=>a.user.toLowerCase()===S.curUser.toLowerCase());
-  if(!usr||!usr.modules)return{crimping:true,kitjoint:true,admin:S.curRole==='superadmin'};
-  return usr.modules;
+  if(!usr||!usr.modules)return{crimping:true,kitjoint:true,admin:S.curRole==='superadmin',machines:true,planning:true,qrcode:true,standards:S.curRole==='superadmin',magasin:true};
+  // Ensure new module keys exist (backward compat)
+  const m=Object.assign({machines:true,planning:true,qrcode:true,standards:false,magasin:true},usr.modules);
+  return m;
 }
 
 function goToHub(){
@@ -3157,10 +3307,17 @@ function goToHub(){
   if(crimpCard)crimpCard.style.display=mods.crimping?'block':'none';
   if(kjCard)kjCard.style.display=mods.kitjoint?'block':'none';
   if(adminCard)adminCard.style.display=(mods.admin&&S.curRole==='superadmin')?'block':'none';
-  // New modules — visible to all logged-in users
-  ['hc-machines','hc-planning','hc-qrcode'].forEach(cls=>{const c=document.querySelector('.'+cls);if(c)c.style.display=S.curUser?'block':'none';});
+  // New modules — controlled by RBAC permissions
+  const machCard=document.querySelector('.hc-machines');
+  const planCard=document.querySelector('.hc-planning');
+  const qrCard=document.querySelector('.hc-qrcode');
   const stdCard=document.querySelector('.hc-standards');
-  if(stdCard)stdCard.style.display=(S.isAdmin||S.curRole==='superadmin')?'block':'none';
+  if(machCard)machCard.style.display=mods.machines?'block':'none';
+  if(planCard)planCard.style.display=mods.planning?'block':'none';
+  if(qrCard)qrCard.style.display=mods.qrcode?'block':'none';
+  if(stdCard)stdCard.style.display=mods.standards?'block':'none';
+  var magasinCard=document.querySelector('.hc-magasin');
+  if(magasinCard)magasinCard.style.display=mods.magasin?'block':'none';
 
   // Adjust grid columns
   const allCards=document.querySelectorAll('#hub-cards-grid .hub-card');
@@ -3192,26 +3349,37 @@ function enterModule(mod){
     document.getElementById('scr-lbl').textContent='ADMINISTRATION';
     adNav('au');
   }else if(mod==='machines'){
+    var pm=getUserModules();if(!pm.machines){toast('Accès non autorisé — contactez le Super Admin','e');return;}
     document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
     document.getElementById('smach').classList.add('on');
     document.getElementById('scr-lbl').textContent='MACHINES';
     machNav('dash');
   }else if(mod==='planning'){
+    var pm=getUserModules();if(!pm.planning){toast('Accès non autorisé — contactez le Super Admin','e');return;}
     document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
     document.getElementById('splan').classList.add('on');
     document.getElementById('scr-lbl').textContent='PLANNING PRÉVENTIF';
     planNav('cal');
   }else if(mod==='qrcode'){
+    var pm=getUserModules();if(!pm.qrcode){toast('Accès non autorisé — contactez le Super Admin','e');return;}
     document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
     document.getElementById('sqr').classList.add('on');
     document.getElementById('scr-lbl').textContent='QR CODE';
     genQR();buildQRGrid();
   }else if(mod==='standards'){
+    var pm=getUserModules();if(!pm.standards){toast('Accès non autorisé — contactez le Super Admin','e');return;}
     document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
     document.getElementById('sstd').classList.add('on');
     document.getElementById('scr-lbl').textContent='STANDARD LIBRARY';
     if(S.isAdmin)document.querySelectorAll('#sstd .adm-only').forEach(e=>e.style.display='flex');
     buildStdGrid();
+  }else if(mod==='magasin'){
+    var pm=getUserModules();if(!pm.magasin){toast('Accès non autorisé — contactez le Super Admin','e');return;}
+    document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
+    document.getElementById('smag').classList.add('on');
+    document.getElementById('scr-lbl').textContent='MAGASIN';
+    if(S.isAdmin)document.querySelectorAll('#smag .adm-only').forEach(e=>e.style.display='flex');
+    magNav('dash');
   }else if(mod==='hub'){
     goToHub();
   }
@@ -3444,7 +3612,7 @@ function adAddUser(){
   if(!u||!p){toast('Remplissez tous les champs','w');return;}
   if(p.length<4){toast('Mot de passe trop court (min 4)','w');return;}
   if(S.admins.find(a=>a.user===u)){toast(u+' existe déjà','w');return;}
-  S.admins.push({user:u,pass:p,role:r,modules:{crimping:true,kitjoint:r!=='visitor',admin:r==='superadmin'}});
+  S.admins.push({user:u,pass:p,role:r,modules:{crimping:true,kitjoint:r!=='visitor',admin:r==='superadmin',machines:r!=='visitor',planning:r!=='visitor',qrcode:true,standards:r==='superadmin',magasin:r!=='visitor'}});
   S.secLog.push({ts:new Date().toISOString(),user:S.curUser,action:'user_add',target:u,role:r});
   saveState();adBuildUsers();
   document.getElementById('ad-new-user').value='';document.getElementById('ad-new-pass').value='';
@@ -3705,6 +3873,248 @@ function buildStdGrid(){
     return '<div class="std-card"><div class="std-ico" style="background:'+bg+'">'+ico+'</div><div style="flex:1"><div style="font-size:.88rem;font-weight:600;color:var(--tx)">'+d.title+'</div><div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap"><span style="background:var(--blue-bg);color:var(--blue);padding:1px 8px;border-radius:4px;font-size:.68rem;font-weight:600">'+d.cat+'</span><span style="color:var(--t3);font-size:.68rem">'+d.date+'</span></div><div class="std-actions" style="margin-top:10px"><button class="btn btn-sm btn-o" style="flex:1">Voir</button><button class="btn btn-sm" style="flex:1">Télécharger</button></div></div></div>';
   }).join('');
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   RBAC PERMISSIONS MANAGEMENT — Super Admin Controls
+   ⚠ PASSWORDS ARE NEVER MODIFIED ⚠
+═══════════════════════════════════════════════════════════════ */
+const MOD_LABELS={crimping:'🔧 Crimping',kitjoint:'📦 Kit Joint',machines:'🏭 Machines',planning:'📅 Planning',qrcode:'📱 QR Code',standards:'📚 Standards',magasin:'🏪 Magasin',admin:'🛡 Admin'};
+const MOD_KEYS=['crimping','kitjoint','machines','planning','qrcode','standards','magasin','admin'];
+
+function buildPermPanel(){
+  var panel=document.getElementById('rbac-panel');
+  if(!panel)return;
+  var users=S.admins.filter(function(a){return a.user!=='bilal';});
+  if(!users.length){panel.innerHTML='<p style="color:var(--t3);font-size:.82rem">Aucun utilisateur à configurer</p>';return;}
+  var h='<table style="width:100%;border-collapse:collapse;font-size:.78rem">';
+  h+='<thead><tr><th style="padding:8px 10px;text-align:left;color:var(--t3);border-bottom:2px solid var(--bd);font-weight:700;white-space:nowrap">Utilisateur</th>';
+  MOD_KEYS.forEach(function(k){h+='<th style="padding:8px 6px;text-align:center;color:var(--t3);border-bottom:2px solid var(--bd);font-weight:600;font-size:.7rem;white-space:nowrap">'+MOD_LABELS[k]+'</th>';});
+  h+='</tr></thead><tbody>';
+  users.forEach(function(usr){
+    h+='<tr style="border-bottom:1px solid var(--bd)">';
+    h+='<td style="padding:8px 10px;font-weight:600;color:var(--tx);white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:24px;height:24px;border-radius:6px;background:'+(usr.role==='visitor'?'var(--surf3)':'var(--blue-bg)')+';display:inline-flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;color:'+(usr.role==='visitor'?'var(--t3)':'var(--blue)')+'">'+usr.user[0].toUpperCase()+'</span>'+usr.user+'</span><br><span style="font-size:.62rem;color:var(--t3);font-weight:400">'+(usr.role==='visitor'?'Visiteur':'Admin')+'</span></td>';
+    MOD_KEYS.forEach(function(k){
+      if(!usr.modules)usr.modules={};
+      var on=!!usr.modules[k];
+      var disabled=(k==='admin'&&usr.role!=='superadmin');
+      h+='<td style="padding:6px;text-align:center"><label style="cursor:'+(disabled?'not-allowed':'pointer')+';display:inline-block;position:relative;width:36px;height:20px"><input type="checkbox" '+(on?'checked':'')+' '+(disabled?'disabled':'')+' onchange="togglePerm(\''+usr.user+'\',\''+k+'\',this.checked)" style="opacity:0;width:0;height:0;position:absolute"><span style="position:absolute;inset:0;border-radius:10px;background:'+(on?'#059669':'var(--bd2)')+';transition:background .2s"></span><span style="position:absolute;top:2px;left:'+(on?'18':'2')+'px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)"></span></label></td>';
+    });
+    h+='</tr>';
+  });
+  h+='</tbody></table>';
+  panel.innerHTML=h;
+}
+
+function togglePerm(user,mod,val){
+  var usr=S.admins.find(function(a){return a.user===user;});
+  if(!usr){toast('Utilisateur introuvable','e');return;}
+  if(!usr.modules)usr.modules={};
+  usr.modules[mod]=val;
+  saveState();
+  buildPermPanel();
+  toast(user+' → '+(val?'✅':'❌')+' '+MOD_LABELS[mod],'s');
+}
+
+// Patch buildAdminList to also build perm panel
+var _origBuildAdminList=typeof buildAdminList==='function'?buildAdminList:null;
+if(_origBuildAdminList){
+  var _patchedBuild=function(){
+    _origBuildAdminList();
+    buildPermPanel();
+  };
+  // Override references - we hook into navTo('m') which calls buildAdminList
+  buildAdminList=_patchedBuild;
+}
+
+// Add sub-section tabs to Machine module
+function machSubNav(tab){
+  document.querySelectorAll('.mach-sub-tab').forEach(function(t){t.classList.remove('active');});
+  document.querySelectorAll('.mach-sub-content').forEach(function(c){c.style.display='none';});
+  var tabEl=document.getElementById('msub-'+tab);if(tabEl)tabEl.classList.add('active');
+  var contentEl=document.getElementById('msub-c-'+tab);if(contentEl)contentEl.style.display='block';
+}
+
+
+// Machine sub-section rendering
+function machSubNav(tab){
+  document.querySelectorAll('.mach-sub-tab').forEach(function(t){t.classList.remove('active');});
+  document.querySelectorAll('.mach-sub-content').forEach(function(c){c.style.display='none';});
+  var tabEl=document.getElementById('msub-'+tab);if(tabEl)tabEl.classList.add('active');
+  var contentEl=document.getElementById('msub-c-'+tab);if(contentEl)contentEl.style.display='block';
+  if(S.isAdmin){document.querySelectorAll('.adm-only').forEach(function(e){e.style.display='flex';});}
+  if(tab==='coupe')renderZoneMachines('Coupe','coupe-machines');
+  if(tab==='prep')renderZoneMachines('Préparation','prep-machines');
+  if(tab==='all'){buildMachDash();}
+}
+function renderZoneMachines(zone,targetId){
+  var zm=MACHINES.filter(function(m){return m.zone===zone;});
+  if(!zm.length){document.getElementById(targetId).innerHTML='<div class="empty-st"><div class="ei">🔧</div><span>Aucune machine dans cette zone</span></div>';return;}
+  document.getElementById(targetId).innerHTML='<div class="mach-grid">'+zm.map(function(m){
+    var sc=m.status==='running'?'ms-run':m.status==='warning'?'ms-warn':'ms-stop';
+    var sl=m.status==='running'?'En marche':m.status==='warning'?'Attention':'Arrêt';
+    var col=m.health>=80?'#059669':m.health>=50?'#d97706':'#dc2626';
+    return '<div class="mach-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div style="font-size:.92rem;font-weight:600;color:var(--tx)">'+m.name+'</div><div style="font-size:.72rem;color:var(--t3);font-family:monospace;margin-top:2px">'+m.id+' · '+m.zone+'</div></div><span class="mach-status '+sc+'"><span class="ms-dot"></span>'+sl+'</span></div><div style="display:flex;justify-content:space-between;font-size:.7rem;margin-bottom:4px"><span style="color:var(--t3)">Santé</span><span style="color:'+col+';font-weight:700;font-family:monospace">'+m.health+'%</span></div><div class="mc-bar"><div class="mc-bar-fill" style="width:'+m.health+'%;background:'+col+'"></div></div><div class="mc-meta"><span>MTTR: <strong>'+m.mttr+'h</strong></span><span style="color:var(--leoni-blue)">'+m.project+'</span></div><div class="mc-detail"><span>Dernière maint:</span><span>'+m.lastMaint+'</span><span>Prochaine:</span><span style="color:#d97706">'+m.nextMaint+'</span></div></div>';
+  }).join('')+'</div>';
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   V4 — HUB HEALTH SCORE, MAGASIN, PREDICTIVE ALERTS
+   ⚠ PASSWORDS NEVER MODIFIED ⚠
+═══════════════════════════════════════════════════════════════ */
+
+// Stock data for Magasin
+const MAG_STOCK=[
+  {ref:'KMX-BLD-477',name:'Lame de coupe Komax',qty:12,min:5,max:30,loc:'MAG-A1-R3',supplier:'Komax AG',price:245},
+  {ref:'TE-PC-2040',name:'Poinçon conducteur TE',qty:3,min:4,max:15,loc:'MAG-B2-R1',supplier:'TE Connectivity',price:189.5},
+  {ref:'AMP-EI-330',name:'Enclume isolant AMP',qty:8,min:3,max:20,loc:'MAG-B2-R2',supplier:'TE Connectivity',price:156},
+  {ref:'JT-OR-012',name:'Joint torique Ø12',qty:150,min:50,max:500,loc:'MAG-C1-R1',supplier:'Parker',price:0.85},
+  {ref:'SCH-BLT-93',name:'Courroie Schleuniger',qty:2,min:3,max:10,loc:'MAG-A2-R4',supplier:'Schleuniger',price:78.3},
+  {ref:'RST-APP-05',name:'Ressort applicateur',qty:0,min:5,max:25,loc:'MAG-B1-R3',supplier:'TE Connectivity',price:12.4},
+  {ref:'KMX-OPT-22',name:'Capteur optique Kx',qty:4,min:2,max:8,loc:'MAG-A1-R5',supplier:'Komax AG',price:520},
+  {ref:'SPC-44-BLK',name:'Seal plug connector',qty:500,min:100,max:2000,loc:'MAG-C2-R1',supplier:'Yazaki',price:0.15},
+  {ref:'TE-DIE-55',name:'Matrice sertissage TE',qty:1,min:2,max:6,loc:'MAG-B3-R1',supplier:'TE Connectivity',price:340},
+  {ref:'SCH-SNS-11',name:'Capteur Schleuniger',qty:6,min:3,max:12,loc:'MAG-A2-R2',supplier:'Schleuniger',price:285}
+];
+
+// Build Hub Health Score
+function buildHubHealth(){
+  var zone=document.getElementById('hub-health-zone');
+  if(!zone)return;
+  var run=MACHINES.filter(function(m){return m.status==='running';}).length;
+  var total=MACHINES.length;
+  var avgH=Math.round(MACHINES.reduce(function(s,m){return s+m.health;},0)/total);
+  var avgMTTR=(MACHINES.reduce(function(s,m){return s+m.mttr;},0)/total).toFixed(1);
+  var stockAlerts=MAG_STOCK.filter(function(p){return p.qty<=p.min;}).length;
+  var prevRate=Math.round(PREV_TASKS.filter(function(t){return t.status==='planifié';}).length/PREV_TASKS.length*100);
+  var hCol=avgH>=80?'#059669':avgH>=50?'#d97706':'#dc2626';
+
+  // Health gauge SVG
+  var circ=Math.round(2*Math.PI*42);
+  var off=Math.round((1-avgH/100)*circ);
+  var gauge='<svg width="90" height="90" viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="#eef1f6" stroke-width="7"/><circle cx="50" cy="50" r="42" fill="none" stroke="'+hCol+'" stroke-width="7" stroke-dasharray="'+circ+'" stroke-dashoffset="'+off+'" stroke-linecap="round" transform="rotate(-90 50 50)" style="transition:stroke-dashoffset 1.2s"/><text x="50" y="48" text-anchor="middle" fill="'+hCol+'" font-size="20" font-weight="800" font-family="monospace">'+avgH+'</text><text x="50" y="62" text-anchor="middle" fill="#8896ab" font-size="7" letter-spacing="1">SANTÉ</text></svg>';
+
+  var h='<div class="hub-health">';
+  h+='<div class="hub-health-card" style="padding:8px 14px">'+gauge+'</div>';
+  h+='<div class="hub-health-card"><div class="hhv" style="color:#059669">'+run+'/'+total+'</div><div class="hhl">Machines actives</div></div>';
+  h+='<div class="hub-health-card"><div class="hhv" style="color:#d97706">'+avgMTTR+'h</div><div class="hhl">MTTR moyen</div></div>';
+  h+='<div class="hub-health-card"><div class="hhv" style="color:'+prevRate+'+(prevRate>=80?'#059669':'#d97706')+'">'+prevRate+'%</div><div class="hhl">Taux préventif</div></div>';
+  h+='<div class="hub-health-card"><div class="hhv" style="color:'+(stockAlerts>0?'#dc2626':'#059669')+'">'+stockAlerts+'</div><div class="hhl">Alertes stock</div></div>';
+  h+='</div>';
+
+  // Predictive alerts
+  var alerts=[];
+  MACHINES.filter(function(m){return m.status==='stopped';}).forEach(function(m){
+    alerts.push({type:'crit',msg:'ARRÊT: '+m.name+' ('+m.id+') — Zone '+m.zone+' — Santé: '+m.health+'%',loc:m.zone});
+  });
+  MACHINES.filter(function(m){return m.status==='warning';}).forEach(function(m){
+    alerts.push({type:'warn',msg:'ATTENTION: '+m.name+' — Santé dégradée '+m.health+'% — Prochaine maintenance: '+m.nextMaint,loc:m.zone});
+  });
+  MAG_STOCK.filter(function(p){return p.qty===0;}).forEach(function(p){
+    alerts.push({type:'crit',msg:'RUPTURE STOCK: '+p.name+' ('+p.ref+') — 📍 '+p.loc,loc:p.loc});
+  });
+  MAG_STOCK.filter(function(p){return p.qty>0&&p.qty<=p.min;}).forEach(function(p){
+    alerts.push({type:'warn',msg:'SEUIL BAS: '+p.name+' — Qty: '+p.qty+'/'+p.min+' — 📍 '+p.loc,loc:p.loc});
+  });
+
+  if(alerts.length){
+    h+='<div style="max-width:700px;margin:0 auto">';
+    alerts.forEach(function(a){
+      h+='<div class="pred-alert pa-'+(a.type==='crit'?'crit':'warn')+'"><span class="pred-dot pd-'+(a.type==='crit'?'crit':'warn')+'"></span><span>'+a.msg+'</span></div>';
+    });
+    h+='</div>';
+  }
+
+  zone.innerHTML=h;
+}
+
+// Magasin navigation
+function magNav(p){
+  ['mag-dash-view','mag-flux-view','mag-stock-view','mag-loc-view'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+  document.querySelectorAll('[id^="mgn-"]').forEach(function(n){n.classList.remove('on');});
+  var el=document.getElementById('mgn-'+p);if(el)el.classList.add('on');
+  var lbl={dash:'— Tableau de Bord',flux:'— Flux Entrant',stock:'— Stock Global',loc:'— Emplacements'};
+  document.getElementById('mag-page-lbl').textContent=lbl[p]||'';
+  if(p==='dash')buildMagDash();
+  else if(p==='stock')buildMagStockTable();
+  else if(p==='loc')buildMagLocations();
+  else if(p==='flux')buildMagFlux();
+}
+
+function buildMagDash(){
+  var total=MAG_STOCK.length;
+  var ok=MAG_STOCK.filter(function(p){return p.qty>p.min;}).length;
+  var warn=MAG_STOCK.filter(function(p){return p.qty>0&&p.qty<=p.min;}).length;
+  var rupt=MAG_STOCK.filter(function(p){return p.qty===0;}).length;
+  document.getElementById('magk1').textContent=total;
+  document.getElementById('magk2').textContent=ok;
+  document.getElementById('magk3').textContent=warn;
+  document.getElementById('magk4').textContent=rupt;
+  document.getElementById('mag-sb1').textContent=total;
+  document.getElementById('mag-sb2').textContent=warn+rupt;
+
+  // Suppliers
+  var supps={};MAG_STOCK.forEach(function(p){supps[p.supplier]=(supps[p.supplier]||0)+1;});
+  var cols=['#3b82f6','#059669','#f97316','#8b5cf6','#dc2626','#0284c7'];var ci=0;
+  document.getElementById('mag-suppliers').innerHTML=Object.keys(supps).map(function(s){
+    var c=cols[ci%cols.length];ci++;
+    return '<div style="display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;background:'+c+'10;border:1px solid '+c+'25;font-size:.78rem"><span style="width:8px;height:8px;border-radius:50%;background:'+c+'"></span><span style="font-weight:600;color:var(--tx)">'+s+'</span><span style="font-weight:700;color:'+c+';font-family:monospace">'+supps[s]+'</span></div>';
+  }).join('');
+
+  // Alerts
+  var alerts=MAG_STOCK.filter(function(p){return p.qty<=p.min;});
+  if(!alerts.length){document.getElementById('mag-alerts').innerHTML='';document.getElementById('mag-alerts-empty').style.display='block';return;}
+  document.getElementById('mag-alerts-empty').style.display='none';
+  document.getElementById('mag-alerts').innerHTML=alerts.map(function(p){
+    var isCrit=p.qty===0;
+    return '<div class="pred-alert pa-'+(isCrit?'crit':'warn')+'" style="animation:none"><span class="pred-dot pd-'+(isCrit?'crit':'warn')+'"></span><span style="flex:1"><strong>'+p.name+'</strong> ('+p.ref+') — Qty: <strong>'+p.qty+'</strong>/'+p.min+'</span><span style="font-family:monospace;font-size:.72rem;color:var(--t3)">📍 '+p.loc+'</span></div>';
+  }).join('');
+}
+
+function buildMagStockTable(){
+  var q=(document.getElementById('mag-stock-search').value||'').toLowerCase();
+  var data=MAG_STOCK.filter(function(p){return !q||p.name.toLowerCase().includes(q)||p.ref.toLowerCase().includes(q)||p.supplier.toLowerCase().includes(q);});
+  var h='<table style="width:100%;border-collapse:collapse;font-size:.78rem"><thead><tr>';
+  ['Réf.','Nom','Qty','Min','Max','Emplacement','Fournisseur','Prix','Status'].forEach(function(c){h+='<th style="padding:7px 8px;text-align:left;color:var(--t3);border-bottom:2px solid var(--bd);font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap">'+c+'</th>';});
+  h+='</tr></thead><tbody>';
+  data.forEach(function(p){
+    var st=p.qty===0?'Rupture':p.qty<=p.min?'Alerte':'OK';
+    var sc=p.qty===0?'color:#dc2626;background:#fef2f2':p.qty<=p.min?'color:#d97706;background:#fffbeb':'color:#059669;background:#ecfdf5';
+    h+='<tr style="border-bottom:1px solid var(--bd)">';
+    h+='<td style="padding:6px 8px;font-family:monospace;color:var(--leoni-blue);font-weight:600">'+p.ref+'</td>';
+    h+='<td style="padding:6px 8px;color:var(--tx)">'+p.name+'</td>';
+    h+='<td style="padding:6px 8px;font-weight:700;font-family:monospace;color:'+(p.qty===0?'#dc2626':p.qty<=p.min?'#d97706':'#059669')+'">'+p.qty+'</td>';
+    h+='<td style="padding:6px 8px;color:var(--t3);font-family:monospace">'+p.min+'</td>';
+    h+='<td style="padding:6px 8px;color:var(--t3);font-family:monospace">'+p.max+'</td>';
+    h+='<td style="padding:6px 8px"><span style="background:#f5f3ff;color:#7c3aed;padding:1px 8px;border-radius:4px;font-size:.68rem;font-weight:600;font-family:monospace">'+p.loc+'</span></td>';
+    h+='<td style="padding:6px 8px;color:var(--tx)">'+p.supplier+'</td>';
+    h+='<td style="padding:6px 8px;font-family:monospace;color:#d97706">'+p.price.toFixed(2)+'€</td>';
+    h+='<td style="padding:6px 8px"><span style="padding:2px 8px;border-radius:10px;font-size:.65rem;font-weight:600;'+sc+'">'+st+'</span></td>';
+    h+='</tr>';
+  });
+  h+='</tbody></table>';
+  document.getElementById('mag-stock-table').innerHTML=h;
+}
+function filterMagStock(){buildMagStockTable();}
+
+function buildMagLocations(){
+  var locs={};MAG_STOCK.forEach(function(p){if(!locs[p.loc])locs[p.loc]={count:0,items:[]};locs[p.loc].count++;locs[p.loc].items.push(p.name);});
+  document.getElementById('mag-loc-grid').innerHTML=Object.keys(locs).sort().map(function(loc){
+    return '<div class="mag-loc-card"><div class="mlc-id">'+loc+'</div><div class="mlc-ct">'+locs[loc].count+'</div><div class="mlc-lbl">références</div><div style="font-size:.62rem;color:var(--t3);margin-top:4px;line-height:1.4">'+locs[loc].items.slice(0,2).join(', ')+(locs[loc].items.length>2?' ...':'')+'</div></div>';
+  }).join('');
+}
+
+function buildMagFlux(){
+  document.getElementById('mag-flux-list').innerHTML='<div class="empty-st"><div class="ei">📥</div><span>Aucune réception enregistrée</span><span style="font-size:.75rem">Utilisez "Import Excel" pour charger les flux entrants</span></div>';
+}
+
+// Patch goToHub to build health dashboard
+var _origGoToHub=goToHub;
+goToHub=function(){
+  _origGoToHub();
+  setTimeout(buildHubHealth,50);
+};
 
 </script>
 </body>

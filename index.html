@@ -3337,24 +3337,24 @@ section[data-view][hidden],
               <span class="sidebar__icon">🏠</span><span class="sidebar__label">Hub</span>
             </button>
           </li>
-          <li class="sidebar__item">
+          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping">
             <button class="sidebar__link" data-nav="intervention">
               <span class="sidebar__icon">📝</span><span class="sidebar__label">Bon d'intervention</span>
             </button>
           </li>
-          <li class="sidebar__item">
+          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">
             <button class="sidebar__link" data-nav="history">
               <span class="sidebar__icon">📋</span><span class="sidebar__label">Historique</span>
               <span class="sidebar__pill" id="nav-history-count">0</span>
             </button>
           </li>
-          <li class="sidebar__item">
+          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">
             <button class="sidebar__link" data-nav="queue">
               <span class="sidebar__icon">⏳</span><span class="sidebar__label">File d'attente</span>
               <span class="sidebar__pill sidebar__pill--warn" id="nav-queue-count">0</span>
             </button>
           </li>
-          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping">
+          <li class="sidebar__item" data-requires-role="admin,super_admin">
             <button class="sidebar__link" data-nav="catalog">
               <span class="sidebar__icon">🛠</span><span class="sidebar__label">Catalogue outils</span>
             </button>
@@ -3376,13 +3376,13 @@ section[data-view][hidden],
           </li>
 
           <!-- ═══ NOUVEAU : MODULES MAGASIN ═══ -->
-          <li class="sidebar__item" data-requires-role="admin,super_admin,magasinier,responsable">
+          <li class="sidebar__item" data-requires-role="admin,super_admin,magasinier,responsable,crimp,crimping">
             <button class="sidebar__link" data-nav="magasin">
               <span class="sidebar__icon">📦</span><span class="sidebar__label">Magasin Stock</span>
               <span class="sidebar__badge sidebar__badge--danger" id="stock-alert-badge" hidden>0</span>
             </button>
           </li>
-          <li class="sidebar__item" data-requires-role="admin,super_admin,magasinier,responsable">
+          <li class="sidebar__item" data-requires-role="admin,super_admin,magasinier,responsable,crimp,crimping">
             <button class="sidebar__link" data-nav="performance">
               <span class="sidebar__icon">📊</span><span class="sidebar__label">Performance équipe</span>
             </button>
@@ -5067,6 +5067,26 @@ section[data-view][hidden],
     },
 
     showView(viewName) {
+      // ═══ Vérifier permissions d'accès à la vue ═══
+      if (typeof ui !== 'undefined' && ui.can) {
+        const viewPerms = {
+          'intervention': 'intervention.view',
+          'history': 'history.view',
+          'queue': 'queue.view',
+          'magasin': 'magasin.view',
+          'performance': 'performance.view',
+          'catalog': 'catalog.view',
+          'users': 'users.view'
+        };
+        const required = viewPerms[viewName];
+        if (required && !ui.can(required)) {
+          ui.toast('🔒 Accès refusé : permission insuffisante', 'warn');
+          // Rediriger vers hub
+          location.hash = '#hub';
+          return;
+        }
+      }
+      
       $$('[data-view]').forEach(el => { el.hidden = (el.dataset.view !== viewName); });
       $$('.sidebar__link').forEach(el => {
         el.classList.toggle('sidebar__link--active', el.dataset.nav === viewName);
@@ -5080,6 +5100,71 @@ section[data-view][hidden],
         const allowed = el.dataset.requiresRole.split(',').map(s => s.trim());
         el.hidden = !allowed.includes(state.role);
       });
+
+      // ── Mode lecture seule pour certains rôles sur Magasin ──
+      // Crimping voit Magasin mais ne peut PAS modifier
+      const role = state.role;
+      const isCrimping = (role === 'crimp' || role === 'crimping');
+      const isMagasinier = (role === 'magasinier');
+      const isAdmin = (role === 'admin' || role === 'super_admin' || role === 'responsable');
+      const canWriteMagasin = isAdmin || isMagasinier;
+
+      // Boutons d'action Magasin (import, ajouter, modifier)
+      $$('[data-magasin-write]').forEach(el => {
+        if (!canWriteMagasin) {
+          el.hidden = true;
+        } else {
+          el.hidden = false;
+        }
+      });
+
+      // ── Restriction labo : empêcher l'accès au formulaire de bon ──
+      const isLabo = (role === 'labo');
+      const interventionView = $('#view-intervention');
+      if (isLabo && interventionView) {
+        // Si labo essaie d'aller sur intervention, rediriger vers hub
+        if (state.currentView === 'intervention') {
+          location.hash = '#hub';
+        }
+      }
+
+      // ── Section "Validation Labo" dans le bon d'intervention ──
+      // Crimping ne peut PAS modifier la partie Labo (lecture seule)
+      const laboSection = $('.intervention-card.lab-card, .lab-section, [data-section="lab"]');
+      if (laboSection && isCrimping) {
+        laboSection.querySelectorAll('input, select, textarea, button[type="submit"]').forEach(el => {
+          if (!el.dataset.alwaysEditable) {
+            el.disabled = true;
+            el.style.opacity = '0.5';
+            el.title = 'Réservé au technicien laboratoire';
+          }
+        });
+      }
+    },
+
+    // ── Helper : vérifier si l'utilisateur peut faire une action ──
+    can(action) {
+      const role = state.role;
+      const PERMS = {
+        // Lecture
+        'hub.view': ['admin','super_admin','responsable','crimp','crimping','labo','magasinier'],
+        'history.view': ['admin','super_admin','responsable','crimp','crimping','labo'],
+        'queue.view': ['admin','super_admin','responsable','crimp','crimping','labo'],
+        'magasin.view': ['admin','super_admin','responsable','crimp','crimping','magasinier'],
+        'performance.view': ['admin','super_admin','responsable','crimp','crimping','magasinier'],
+        'intervention.view': ['admin','super_admin','responsable','crimp','crimping','labo'],
+        'catalog.view': ['admin','super_admin','responsable'],
+        'users.view': ['admin','super_admin','responsable'],
+        // Écriture
+        'intervention.create': ['admin','super_admin','responsable','crimp','crimping'],
+        'intervention.edit_crimp': ['admin','super_admin','responsable','crimp','crimping'],
+        'intervention.edit_labo': ['admin','super_admin','responsable','labo'],
+        'magasin.write': ['admin','super_admin','responsable','magasinier'],
+        'catalog.write': ['admin','super_admin','responsable'],
+        'users.write': ['admin','super_admin','responsable'],
+        'pin.modify_others': ['admin','super_admin','responsable']
+      };
+      return (PERMS[action] || []).includes(role);
     }
   };
 
@@ -6208,6 +6293,7 @@ section[data-view][hidden],
 
         // ── Verrouillage Outil + Crimping pour le rôle LABO ──
         const isLabo = state.role === 'labo';
+        const isCrimper = (state.role === 'crimp' || state.role === 'crimping');
         const toolSection = $('.intervention__section--tool');
         if (toolSection) toolSection.disabled = isLabo;
 
@@ -6221,6 +6307,27 @@ section[data-view][hidden],
             el.style.pointerEvents = isLabo ? 'none' : '';
           }
         });
+
+        // ═══ Verrouillage Labo pour le rôle CRIMPING ═══
+        // Crimping peut voir les champs labo mais ne peut PAS les modifier
+        if (isCrimper) {
+          ['lab-decision','lab-test-result','labo-tech-name','lab-comment','lab-observation','lab-validation-date'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+              el.readOnly  = true;
+              el.disabled  = true;
+              el.style.opacity = '0.5';
+              el.style.cursor  = 'not-allowed';
+              el.title = 'Réservé au technicien laboratoire';
+            }
+          });
+          // Désactiver aussi les boutons radio/select dans la section labo
+          $$('input[name^="lab"], select[name^="lab"]').forEach(el => {
+            el.disabled = true;
+            el.style.opacity = '0.5';
+            el.title = 'Réservé au technicien laboratoire';
+          });
+        }
 
         // Crimping
         if (data.crimping) {
@@ -7107,8 +7214,8 @@ section[data-view][hidden],
               <div style="display:flex;gap:.3rem;flex-wrap:wrap">
                 <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem"
                   data-action="edit" data-uid="${ui.escape(u.uid || '')}">✏️ Modifier</button>
-                <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem;color:var(--accent-500)"
-                  data-action="set-pass" data-uid="${ui.escape(u.uid || '')}" data-email="${ui.escape(u.email || '')}" data-name="${ui.escape(u.displayName || u.email || '')}">🔑 MDP</button>
+                <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem;color:#00d4ff"
+                  data-action="set-pin" data-uid="${ui.escape(u.uid || '')}" data-name="${ui.escape(u.displayName || u.email || '')}" data-pin="${ui.escape(u.pin || '')}">🔢 Changer PIN</button>
                 <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem;color:${isActive ? 'var(--danger-500)' : 'var(--success-500)'}"
                   data-action="toggle-active" data-uid="${ui.escape(u.uid || '')}" data-active="${isActive}">
                   ${isActive ? '⛔' : '✅'}

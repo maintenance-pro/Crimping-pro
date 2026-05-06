@@ -3337,7 +3337,7 @@ section[data-view][hidden],
               <span class="sidebar__icon">🏠</span><span class="sidebar__label">Hub</span>
             </button>
           </li>
-          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping">
+          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">
             <button class="sidebar__link" data-nav="intervention">
               <span class="sidebar__icon">📝</span><span class="sidebar__label">Bon d'intervention</span>
             </button>
@@ -3913,7 +3913,7 @@ section[data-view][hidden],
               <button type="button" class="btn btn--ghost" id="btn-int-print">🖨 Imprimer A4</button>
               <button type="button" class="btn btn--ghost" id="btn-int-export">📤 Export PDF</button>
               <button type="button" class="btn btn--danger btn--ghost" id="btn-int-delete" data-requires-role="responsable,super_admin,admin">🗑 Supprimer</button>
-              <button type="button" class="btn btn--secondary" id="btn-int-save" data-requires-role="admin,super_admin,responsable,crimp,crimping">💾 Enregistrer brouillon</button>
+              <button type="button" class="btn btn--secondary" id="btn-int-save" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">💾 Enregistrer brouillon</button>
               <button type="submit" class="btn btn--primary" id="btn-int-submit" data-requires-role="admin,super_admin,responsable,crimp,crimping">📨 Soumettre au labo</button>
             </div>
           </footer>
@@ -5086,13 +5086,9 @@ section[data-view][hidden],
           return;
         }
 
-        // Cas spécial : Labo qui essaie d'accéder à intervention sans bon en cours
-        const role = state.role;
-        if (viewName === 'intervention' && role === 'labo' && !state.editingId) {
-          ui.toast('ℹ️ Choisissez un bon depuis la File d\'attente pour le valider', 'info', 5000);
-          location.hash = '#queue';
-          return;
-        }
+        // Note : Le labo peut accéder à intervention librement
+        // Il peut ouvrir un bon depuis l'historique/file ou voir un nouveau formulaire vide
+        // Mais il ne peut PAS soumettre/créer un nouveau bon (bloqué dans save())
       }
       
       $$('[data-view]').forEach(el => { el.hidden = (el.dataset.view !== viewName); });
@@ -6570,7 +6566,9 @@ section[data-view][hidden],
         if (isCreating && !auth.can('intervention.create')) {
           return ui.toast('🔒 Vous ne pouvez pas créer un nouveau bon d\'intervention', 'danger');
         }
-        if (isEditing && !auth.can('intervention.edit')) {
+        // Le labo peut éditer les bons existants (enregistrer ses modifs labo)
+        const isLabo = (state.role === 'labo');
+        if (isEditing && !auth.can('intervention.edit') && !isLabo) {
           return ui.toast('🔒 Vous ne pouvez pas modifier ce bon d\'intervention', 'danger');
         }
         // Si labo essaie de créer un nouveau bon, bloquer
@@ -6585,6 +6583,11 @@ section[data-view][hidden],
             return ui.toast('Référence outil obligatoire', 'warn');
           }
           // ⚠️ Validation : nom du technicien crimping obligatoire à la SOUMISSION
+          // Le labo ne peut pas faire 'submit' (envoyer au labo) - seulement 'save' (brouillon) ou 'validate'
+          if (mode === 'submit' && state.role === 'labo') {
+            ui.hideLoader();
+            return ui.toast('ℹ️ Le labo doit utiliser "✅ Valider" pour finaliser le bon', 'warn');
+          }
           if (mode === 'submit' && !data.technicienNom) {
             ui.hideLoader();
             $('#crimp-tech-name')?.focus();

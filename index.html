@@ -3137,6 +3137,72 @@ section[data-view][hidden],
 }
 
 
+/* ── Animation pulse pour urgences ── */
+@keyframes pulseUrgent {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,61,90,.6); }
+  50% { box-shadow: 0 0 0 8px rgba(255,61,90,0); }
+}
+.badge--urgent {
+  animation: pulseUrgent 2s ease-in-out infinite;
+}
+
+/* ── Animation fade-in douce pour nouveaux éléments ── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up {
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+/* ── Skeleton loader pour chargement ── */
+@keyframes skeletonShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-2) 25%, var(--bg-3) 50%, var(--bg-2) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* ── Highlight row au hover dans les tables ── */
+.data-table tbody tr {
+  transition: background 0.15s ease;
+}
+.data-table tbody tr:hover {
+  background: rgba(0, 212, 255, 0.04) !important;
+}
+
+/* ── Bouton effet ripple au clic ── */
+.btn {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Tooltip simple ── */
+[data-tooltip] {
+  position: relative;
+}
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-1);
+  border: 1px solid var(--border-base);
+  color: var(--text-primary);
+  padding: 0.4rem 0.7rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+  margin-bottom: 6px;
+}
+
 /* ── Cellule PIN cliquable dans table utilisateurs ── */
 .pin-cell {
   cursor: pointer;
@@ -4951,6 +5017,11 @@ section[data-view][hidden],
      ========================================================================== */
   const ui = {
     toast(message, type = 'info', duration = 4000) {
+      // Limite : max 5 toasts simultanés (évite empilement)
+      const existingToasts = document.querySelectorAll('.toast');
+      if (existingToasts.length >= 5) {
+        existingToasts[0]?.remove();
+      }
       const container = $('#toast-container');
       if (!container) return;
       const t = document.createElement('div');
@@ -5030,6 +5101,28 @@ section[data-view][hidden],
 
       fbAuth.onAuthStateChanged(this.handleAuthChange.bind(this));
 
+      // ── Synchronisation auto loginIndex après login admin ──
+      // ⚠️ Tourne dès qu'un admin se connecte pour garantir que loginIndex est à jour
+      if (state.role === 'admin' || state.role === 'super_admin') {
+        if (!window.__loginIndexAutoSynced) {
+          window.__loginIndexAutoSynced = true;
+          setTimeout(() => {
+            try { auth.syncLoginIndex && auth.syncLoginIndex(); } catch(e) {}
+          }, 2000);
+        }
+      }
+
+      // ── Détection mode hors-ligne / en-ligne ──
+      if (!window._connListenerSet) {
+        window._connListenerSet = true;
+        window.addEventListener('online', () => {
+          if (typeof ui !== 'undefined' && ui.toast) ui.toast('🟢 Connexion rétablie', 'success', 3000);
+        });
+        window.addEventListener('offline', () => {
+          if (typeof ui !== 'undefined' && ui.toast) ui.toast('🔴 Connexion perdue — mode hors ligne', 'warn', 5000);
+        });
+      }
+
       // Focus auto sur le matricule au chargement
       setTimeout(() => $('#pin-code')?.focus(), 200);
     },
@@ -5060,7 +5153,7 @@ section[data-view][hidden],
         let entry = null;
         let matchedKey = null;
         for (const key in allIndex) {
-          if (String(allIndex[key].pin) === pin) {
+          if (String(allIndex[key].pin || '').trim() === pin) {
             entry = allIndex[key];
             matchedKey = key;
             break;
@@ -5082,7 +5175,17 @@ section[data-view][hidden],
 
       } catch (err) {
         ui.hideLoader();
-        errEl.innerHTML = '❌ ' + (err.message || 'Erreur de connexion');
+        // Traduction des erreurs Firebase pour les utilisateurs
+        const friendlyMsg = (() => {
+          const m = err.message || '';
+          if (err.code === 'auth/wrong-password') return 'Mot de passe technique incorrect (contactez admin)';
+          if (err.code === 'auth/user-not-found') return 'Compte introuvable (contactez admin)';
+          if (err.code === 'auth/network-request-failed') return 'Pas de connexion internet';
+          if (err.code === 'auth/too-many-requests') return 'Trop de tentatives — attendez 5 min';
+          if (err.code === 'PERMISSION_DENIED') return 'Permission refusée — contactez admin';
+          return m || 'Erreur de connexion';
+        })();
+        errEl.innerHTML = '❌ ' + friendlyMsg;
         errEl.hidden = false;
         errEl.style.fontSize = '0.85rem';
         errEl.style.lineHeight = '1.4';
@@ -9053,6 +9156,76 @@ Erreur Firebase : ${e.message}`;
     }
   };
 
+  
+  // ── Helper console : diagnoseLEONI() pour debug rapide ──
+  if (typeof window.diagnoseLEONI === 'undefined') {
+    window.diagnoseLEONI = async function() {
+      console.log('═══════════════════════════════════════');
+      console.log('🔍 DIAGNOSTIC LEONI Sertissage Lab');
+      console.log('═══════════════════════════════════════');
+
+      try {
+        // 1. Auth state
+        const currentUser = fbAuth.currentUser;
+        console.log('1. AUTH:', currentUser ? `✅ Connecté (${currentUser.email})` : '❌ Non connecté');
+
+        // 2. Profile
+        if (state.profile) {
+          console.log('2. PROFIL:', state.profile.displayName, `(${state.role})`, 'matricule:', state.profile.matricule);
+        }
+
+        // 3. loginIndex
+        try {
+          const idx = await fbDb.ref('loginIndex').once('value');
+          const data = idx.val() || {};
+          console.log(`3. LOGININDEX: ${Object.keys(data).length} entrées`);
+          const summary = {};
+          Object.entries(data).forEach(([k, v]) => {
+            summary[k] = { nom: v.displayName, pin: v.pin, active: v.active };
+          });
+          if (Object.keys(summary).length > 0) console.table(summary);
+        } catch(e) {
+          console.warn('3. LOGININDEX: ❌', e.code || e.message);
+        }
+
+        // 4. Users count
+        try {
+          const users = await fbDb.ref('users').once('value');
+          console.log('4. USERS:', Object.keys(users.val() || {}).length);
+        } catch(e) {
+          console.warn('4. USERS: ❌', e.code);
+        }
+
+        // 5. Interventions
+        try {
+          const interv = await fbDb.ref('interventions').once('value');
+          console.log('5. INTERVENTIONS:', Object.keys(interv.val() || {}).length);
+        } catch(e) {
+          console.warn('5. INTERVENTIONS: ❌', e.code);
+        }
+
+        // 6. Stock
+        try {
+          const stock = await fbDb.ref('stockPieces').once('value');
+          const sd = stock.val();
+          console.log('6. STOCK:', sd?.pieces?.length || 0, 'pièces');
+        } catch(e) {
+          console.warn('6. STOCK: ❌', e.code);
+        }
+
+        // 7. Network
+        console.log('7. RÉSEAU:', navigator.onLine ? '✅ En ligne' : '❌ Hors ligne');
+
+        // 8. App version
+        console.log('8. VERSION:', state.appVersion || 'inconnue');
+        console.log('═══════════════════════════════════════');
+        console.log('💡 Si problème de login PIN, tape: forceSyncLogin()');
+      } catch(e) {
+        console.error('Erreur diagnostic:', e);
+      }
+    };
+  }
+
   /* ==========================================================================
      15. BOOTSTRAP
      ========================================================================== */
@@ -9212,7 +9385,17 @@ Erreur Firebase : ${e.message}`;
 
     Shortcuts.init();
     ConnMonitor.init();
-    console.log('[LEONI] Raccourcis : Alt+H Hub · Alt+N Nouveau · Alt+M Magasin · Alt+P Performance');
+    console.log('[LEONI] Raccourcis : Alt+H Hub · Alt+N Nouveau · Alt+M Magasin · Alt+P Performance · Ctrl+/ Aide');
+
+    // ── Raccourci Ctrl+/ : afficher l'aide raccourcis ──
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === '/') {
+        e.preventDefault();
+        if (typeof ui !== 'undefined' && ui.toast) {
+          ui.toast('⌨️ Raccourcis : Alt+H Hub · Alt+N Nouveau · Alt+M Magasin · Alt+P Performance · Esc Fermer modal', 'info', 8000);
+        }
+      }
+    });
     console.log('[LEONI] 💡 En cas de problème Firebase, tapez : diagnoseLEONI()');
 
     // Stats period change triggers re-render

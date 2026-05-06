@@ -1,0 +1,49 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "interventions": {
+      ".indexOn": [
+        "numBon",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "stockImportHistory": {
+      ".indexOn": [
+        "timestamp"
+      ]
+    },
+    "stockMovements": {
+      ".indexOn": [
+        "timestamp",
+        "stockId"
+      ]
+    },
+    "auditLog": {
+      ".indexOn": [
+        "timestamp",
+        "uid"
+      ]
+    },
+    "notifications": {
+      ".indexOn": [
+        "timestamp",
+        "read",
+        "createdAt"
+      ],
+      "$uid": {
+        ".indexOn": [
+          "timestamp",
+          "read",
+          "createdAt"
+        ]
+      }
+    },
+    "loginIndex": {
+      ".read": true,
+      ".write": "auth != null"
+    }
+  }
+}

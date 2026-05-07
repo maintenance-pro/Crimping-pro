@@ -5008,12 +5008,19 @@ section[data-view][hidden],
   }
   
   // Helper : code PDR + tool → référence fabricant de la pièce
-  // Ex: pdrRef('pAr', tool) où tool.pieces = {pAr: '1', pAv: '2'} → retourne "1"
-  // Si pas de référence trouvée, retourne le label court (P-AR)
+  // Cherche dans tool.pieces[code] OU directement tool[code]
+  // Ex: pdrRef('pAr', {pieces: {pAr: '37 2 0268 03 0'}}) → "37 2 0268 03 0"
+  // Ex: pdrRef('pAr', {pAr: '37 2 0268 03 0'}) → "37 2 0268 03 0"
+  // Si pas trouvé, retourne le label court (P-AR)
   function pdrRef(code, tool) {
     if (!code) return '—';
-    const ref = tool?.pieces?.[code];
-    if (ref) return String(ref);
+    if (!tool) return PDR_LABELS[code] || code;
+    // Chercher dans tool.pieces.{code}
+    const refInPieces = tool.pieces?.[code];
+    if (refInPieces) return String(refInPieces);
+    // Chercher directement dans tool.{code}
+    const refDirect = tool[code];
+    if (refDirect) return String(refDirect);
     return PDR_LABELS[code] || code;
   }
   
@@ -8658,6 +8665,11 @@ Erreur Firebase : ${e.message}`;
           const pdrChanged = itv.crimping?.piecesChanged || {};
           const pdrList = Object.entries(pdrChanged).filter(([k,v]) => v).map(([k]) => k);
           if (pdrList.length > 0) {
+            // ⚠️ Récupérer l'outil COMPLET depuis le catalogue state.tools
+            // car l'intervention ne stocke que les infos de base, pas les références des pièces
+            const toolId = itv.tool?.toolId || itv.tool?.outilId;
+            const fullTool = state.tools?.[toolId] || itv.tool || null;
+            
             records.push({
               numBon: itv.numBon || itv.id || '—',
               date: itv.crimping?.date || itv.createdAt || 0,
@@ -8665,7 +8677,7 @@ Erreur Firebase : ${e.message}`;
               fabricant: itv.tool?.fabricant || '—',
               refOutil: itv.tool?.refOutil || '—',
               refFabricant: itv.tool?.refFabricant || '—',
-              tool: itv.tool || null,  // ← NOUVEAU : on garde l'outil complet pour pdrRef
+              tool: fullTool,  // ← Outil complet avec ses pièces
               pdrList: pdrList,
               technicien: itv.crimping?.technicienNom || itv.crimping?.filledBy?.name || '—',
               matricule: itv.crimping?.technicienMatricule || itv.crimping?.filledBy?.matricule || '',
@@ -8723,11 +8735,18 @@ Erreur Firebase : ${e.message}`;
         };
         tbody.innerHTML = records.map(r => {
           const piecesHtml = r.pdrList.map(p => {
-            const ref = pdrRef(p, r.tool);  // référence fabricant (1,2,3...)
+            const ref = pdrRef(p, r.tool);  // référence fabricant (ex: 37 2 0268 03 0)
             const label = pdrLabel(p);       // nom court (P-AR)
             const hasRef = (ref !== label);  // true si vraie référence trouvée
-            const display = hasRef ? (label + ': ' + ref) : label;
-            return '<span style="display:inline-block;background:rgba(0,212,255,.12);color:#00d4ff;padding:.2rem .65rem;border-radius:5px;font-size:.75rem;margin:.15rem;font-weight:700" title="' + ui.escape(p) + '">🔧 ' + ui.escape(display) + '</span>';
+            // Format : [P-AR] 37 2 0268 03 0 (avec ref) OU juste P-AR (sans ref)
+            if (hasRef) {
+              return '<div style="display:inline-block;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.3);padding:.3rem .65rem;border-radius:6px;margin:.2rem;line-height:1.3;vertical-align:middle">'
+                + '<span style="font-size:.65rem;color:var(--accent-500);font-weight:700;display:block">🔧 ' + ui.escape(label) + '</span>'
+                + '<span style="font-size:.78rem;color:var(--text-primary);font-weight:600;font-family:var(--font-mono)">' + ui.escape(ref) + '</span>'
+                + '</div>';
+            } else {
+              return '<span style="display:inline-block;background:rgba(0,212,255,.12);color:#00d4ff;padding:.2rem .65rem;border-radius:5px;font-size:.75rem;margin:.15rem;font-weight:700" title="' + ui.escape(p) + '">🔧 ' + ui.escape(label) + '</span>';
+            }
           }).join('');
           return '<tr>'
             + '<td style="font-size:.78rem;color:var(--text-secondary);white-space:nowrap">' + fmtDate(r.date) + '</td>'

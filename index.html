@@ -5836,7 +5836,7 @@ section[data-view][hidden],
     },
     handleHash() {
       const hash = window.location.hash.replace('#', '') || 'hub';
-      const valid = ['hub','intervention','history','queue','catalog','users','stats','auditlog','magasin','performance'];
+      const valid = ['hub','intervention','history','queue','catalog','users','stats','auditlog','magasin','performance','pdr'];
       let view = valid.includes(hash) ? hash : 'hub';
 
       // ── Restrictions par rôle ──

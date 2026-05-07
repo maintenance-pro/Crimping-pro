@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="LEONI Wiring Systems — Bon d'Intervention Sertissage & Validation Laboratoire" />
   <meta name="theme-color" content="#0a0e1a" />
-  <title>LEONI · Sertissage Lab</title>
+  <title>LEONI · Admin Dashboard</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>" />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <!-- Optimisation chargement réseau (Firebase + CDN) -->
@@ -3137,72 +3137,6 @@ section[data-view][hidden],
 }
 
 
-/* ── Animation pulse pour urgences ── */
-@keyframes pulseUrgent {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255,61,90,.6); }
-  50% { box-shadow: 0 0 0 8px rgba(255,61,90,0); }
-}
-.badge--urgent {
-  animation: pulseUrgent 2s ease-in-out infinite;
-}
-
-/* ── Animation fade-in douce pour nouveaux éléments ── */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.fade-in-up {
-  animation: fadeInUp 0.4s ease-out forwards;
-}
-
-/* ── Skeleton loader pour chargement ── */
-@keyframes skeletonShimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-.skeleton {
-  background: linear-gradient(90deg, var(--bg-2) 25%, var(--bg-3) 50%, var(--bg-2) 75%);
-  background-size: 200% 100%;
-  animation: skeletonShimmer 1.5s ease-in-out infinite;
-  border-radius: 6px;
-}
-
-/* ── Highlight row au hover dans les tables ── */
-.data-table tbody tr {
-  transition: background 0.15s ease;
-}
-.data-table tbody tr:hover {
-  background: rgba(0, 212, 255, 0.04) !important;
-}
-
-/* ── Bouton effet ripple au clic ── */
-.btn {
-  position: relative;
-  overflow: hidden;
-}
-
-/* ── Tooltip simple ── */
-[data-tooltip] {
-  position: relative;
-}
-[data-tooltip]:hover::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg-1);
-  border: 1px solid var(--border-base);
-  color: var(--text-primary);
-  padding: 0.4rem 0.7rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  white-space: nowrap;
-  z-index: 1000;
-  pointer-events: none;
-  margin-bottom: 6px;
-}
-
 /* ── Cellule PIN cliquable dans table utilisateurs ── */
 .pin-cell {
   cursor: pointer;
@@ -3354,7 +3288,7 @@ section[data-view][hidden],
               <span class="sidebar__pill sidebar__pill--warn" id="nav-queue-count">0</span>
             </button>
           </li>
-          <li class="sidebar__item" data-requires-role="admin,super_admin">
+          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable">
             <button class="sidebar__link" data-nav="catalog">
               <span class="sidebar__icon">🛠</span><span class="sidebar__label">Catalogue outils</span>
             </button>
@@ -3385,6 +3319,13 @@ section[data-view][hidden],
           <li class="sidebar__item" data-requires-role="admin,super_admin,magasinier,responsable,crimp,crimping">
             <button class="sidebar__link" data-nav="performance">
               <span class="sidebar__icon">📊</span><span class="sidebar__label">Performance équipe</span>
+            </button>
+          </li>
+          <!-- Suivi PDR : Magasinier + Admin uniquement (lecture seule) -->
+          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,magasinier">
+            <button class="sidebar__link" data-nav="pdr">
+              <span class="sidebar__icon">🔧</span><span class="sidebar__label">Suivi PDR</span>
+              <span class="sidebar__pill" id="nav-pdr-count">0</span>
             </button>
           </li>
         </ul>
@@ -4082,6 +4023,77 @@ section[data-view][hidden],
           </thead>
           <tbody id="users-body"></tbody>
         </table>
+      </section>
+
+
+      <!-- ================================================================= -->
+      <!-- VIEW PDR — SUIVI DES PIÈCES DE RECHANGE (Lecture seule)           -->
+      <!-- ================================================================= -->
+      <section class="pdr-view" id="view-pdr" data-view="pdr" hidden>
+        <header class="view-header">
+          <div>
+            <h1 class="view-header__title">🔧 Suivi des Pièces De Rechange (PDR)</h1>
+            <p class="view-header__subtitle">📋 Lecture seule — Liste des pièces remplacées dans les bons d'intervention</p>
+          </div>
+          <div style="display:flex;gap:.5rem;align-items:center">
+            <button class="btn btn--ghost" id="btn-pdr-refresh">🔄 Actualiser</button>
+          </div>
+        </header>
+
+        <!-- KPIs PDR -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem">
+          <div style="background:var(--bg-2);border:1px solid var(--border-base);border-radius:10px;padding:1rem">
+            <div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em">Total PDR (filtré)</div>
+            <div id="kpi-pdr-total" style="font-size:1.8rem;font-weight:700;color:var(--accent-500);font-family:var(--font-mono)">0</div>
+          </div>
+          <div style="background:var(--bg-2);border:1px solid var(--border-base);border-radius:10px;padding:1rem">
+            <div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em">Ce mois-ci</div>
+            <div id="kpi-pdr-month" style="font-size:1.8rem;font-weight:700;color:#00e5a0;font-family:var(--font-mono)">0</div>
+          </div>
+          <div style="background:var(--bg-2);border:1px solid var(--border-base);border-radius:10px;padding:1rem">
+            <div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em">Outils impactés</div>
+            <div id="kpi-pdr-tools" style="font-size:1.8rem;font-weight:700;color:#ffb547;font-family:var(--font-mono)">0</div>
+          </div>
+          <div style="background:var(--bg-2);border:1px solid var(--border-base);border-radius:10px;padding:1rem">
+            <div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em">Top pièces changées</div>
+            <div id="kpi-pdr-top" style="font-size:.95rem;font-weight:600;color:var(--text-primary);line-height:1.3;margin-top:.4rem">—</div>
+          </div>
+        </div>
+
+        <!-- Filtre période -->
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center;background:var(--bg-2);padding:.85rem 1rem;border-radius:10px;border:1px solid var(--border-base)">
+          <span style="font-size:.78rem;font-weight:600;color:var(--text-muted)">📅 Période :</span>
+          <select class="field__input" id="pdr-filter-period" style="max-width:200px;font-size:.9rem;font-weight:600">
+            <option value="all">Toutes périodes</option>
+            <option value="today">Aujourd'hui</option>
+            <option value="week">Cette semaine</option>
+            <option value="month" selected>Ce mois-ci</option>
+            <option value="quarter">Ce trimestre</option>
+            <option value="year">Cette année</option>
+          </select>
+          <span style="margin-left:auto;font-size:.85rem;color:var(--accent-500);font-weight:600" id="pdr-results-count">0 résultat(s)</span>
+        </div>
+
+        <!-- Tableau -->
+        <div style="background:var(--bg-2);border:1px solid var(--border-base);border-radius:10px;overflow:hidden">
+          <table class="data-table" id="pdr-table">
+            <thead>
+              <tr>
+                <th>📅 Date</th>
+                <th>📋 N° Bon</th>
+                <th>🛠 N° Outil</th>
+                <th>🏭 Fabricant</th>
+                <th>📐 Réf. Outil</th>
+                <th>🔧 PDR Changée(s)</th>
+                <th>👤 Technicien</th>
+                <th>📊 Statut</th>
+              </tr>
+            </thead>
+            <tbody id="pdr-body">
+              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem">Chargement...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
 
@@ -5017,11 +5029,8 @@ section[data-view][hidden],
      ========================================================================== */
   const ui = {
     toast(message, type = 'info', duration = 4000) {
-      // Limite : max 5 toasts simultanés (évite empilement)
       const existingToasts = document.querySelectorAll('.toast');
-      if (existingToasts.length >= 5) {
-        existingToasts[0]?.remove();
-      }
+      if (existingToasts.length >= 5) existingToasts[0]?.remove();
       const container = $('#toast-container');
       if (!container) return;
       const t = document.createElement('div');
@@ -5067,30 +5076,6 @@ section[data-view][hidden],
     },
 
     showView(viewName) {
-      // ═══ Vérifier permissions d'accès à la vue ═══
-      if (typeof ui !== 'undefined' && ui.can) {
-        const viewPerms = {
-          'intervention': 'intervention.view',
-          'history': 'history.view',
-          'queue': 'queue.view',
-          'magasin': 'magasin.view',
-          'performance': 'performance.view',
-          'catalog': 'catalog.view',
-          'users': 'users.view'
-        };
-        const required = viewPerms[viewName];
-        if (required && !ui.can(required)) {
-          ui.toast('🔒 Accès refusé : permission insuffisante', 'warn');
-          // Rediriger vers hub
-          location.hash = '#hub';
-          return;
-        }
-
-        // Note : Le labo peut accéder à intervention librement
-        // Il peut ouvrir un bon depuis l'historique/file ou voir un nouveau formulaire vide
-        // Mais il ne peut PAS soumettre/créer un nouveau bon (bloqué dans save())
-      }
-      
       $$('[data-view]').forEach(el => { el.hidden = (el.dataset.view !== viewName); });
       $$('.sidebar__link').forEach(el => {
         el.classList.toggle('sidebar__link--active', el.dataset.nav === viewName);
@@ -5105,65 +5090,51 @@ section[data-view][hidden],
         el.hidden = !allowed.includes(state.role);
       });
 
-      // ── Mode lecture seule pour certains rôles sur Magasin ──
-      // Crimping voit Magasin mais ne peut PAS modifier
+      // Mode lecture seule pour Magasin (Crimping voit mais ne modifie pas)
       const role = state.role;
       const isCrimping = (role === 'crimp' || role === 'crimping');
       const isMagasinier = (role === 'magasinier');
       const isAdmin = (role === 'admin' || role === 'super_admin' || role === 'responsable');
       const canWriteMagasin = isAdmin || isMagasinier;
-
-      // Boutons d'action Magasin (import, ajouter, modifier)
       $$('[data-magasin-write]').forEach(el => {
-        if (!canWriteMagasin) {
-          el.hidden = true;
-        } else {
-          el.hidden = false;
-        }
+        el.hidden = !canWriteMagasin;
       });
 
-      // ── Restriction labo sur intervention ──
-      // Le labo PEUT accéder au formulaire pour valider un bon existant (depuis File d'attente)
-      // Mais NE PEUT PAS créer un nouveau bon depuis zéro
-      const isLabo = (role === 'labo');
-      // Note : la création de nouveau bon est bloquée dans submitIntervention via ui.can('intervention.create')
-      // Et le bouton "Nouveau bon" dans le hub est caché via data-requires-role
-
-      // ── Section "Validation Labo" dans le bon d'intervention ──
-      // Crimping ne peut PAS modifier la partie Labo (lecture seule)
-      const laboSection = $('.intervention-card.lab-card, .lab-section, [data-section="lab"]');
-      if (laboSection && isCrimping) {
-        laboSection.querySelectorAll('input, select, textarea, button[type="submit"]').forEach(el => {
-          if (!el.dataset.alwaysEditable) {
+      // Verrouiller section Labo pour Crimping
+      if (isCrimping) {
+        ['lab-decision','lab-test-result','labo-tech-name','lab-comment','lab-observation','lab-validation-date'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.readOnly = true;
             el.disabled = true;
             el.style.opacity = '0.5';
             el.title = 'Réservé au technicien laboratoire';
           }
         });
+        $$('input[name^="lab"], select[name^="lab"]').forEach(el => {
+          el.disabled = true;
+          el.style.opacity = '0.5';
+          el.title = 'Réservé au technicien laboratoire';
+        });
       }
     },
 
-    // ── Helper : vérifier si l'utilisateur peut faire une action ──
     can(action) {
       const role = state.role;
       const PERMS = {
-        // Lecture
         'hub.view': ['admin','super_admin','responsable','crimp','crimping','labo','magasinier'],
         'history.view': ['admin','super_admin','responsable','crimp','crimping','labo'],
         'queue.view': ['admin','super_admin','responsable','crimp','crimping','labo'],
         'magasin.view': ['admin','super_admin','responsable','crimp','crimping','magasinier'],
+        'magasin.write': ['admin','super_admin','responsable','magasinier'],
         'performance.view': ['admin','super_admin','responsable','crimp','crimping','magasinier'],
         'intervention.view': ['admin','super_admin','responsable','crimp','crimping','labo'],
         'catalog.view': ['admin','super_admin','responsable'],
         'users.view': ['admin','super_admin','responsable'],
-        // Écriture
+        'pdr.view': ['admin','super_admin','responsable','magasinier'],
         'intervention.create': ['admin','super_admin','responsable','crimp','crimping'],
         'intervention.edit_crimp': ['admin','super_admin','responsable','crimp','crimping'],
-        'intervention.edit_labo': ['admin','super_admin','responsable','labo'],
-        'magasin.write': ['admin','super_admin','responsable','magasinier'],
-        'catalog.write': ['admin','super_admin','responsable'],
-        'users.write': ['admin','super_admin','responsable'],
-        'pin.modify_others': ['admin','super_admin','responsable']
+        'intervention.edit_labo': ['admin','super_admin','responsable','labo']
       };
       return (PERMS[action] || []).includes(role);
     }
@@ -5186,28 +5157,6 @@ section[data-view][hidden],
       });
 
       fbAuth.onAuthStateChanged(this.handleAuthChange.bind(this));
-
-      // ── Synchronisation auto loginIndex après login admin ──
-      // ⚠️ Tourne dès qu'un admin se connecte pour garantir que loginIndex est à jour
-      if (state.role === 'admin' || state.role === 'super_admin') {
-        if (!window.__loginIndexAutoSynced) {
-          window.__loginIndexAutoSynced = true;
-          setTimeout(() => {
-            try { auth.syncLoginIndex && auth.syncLoginIndex(); } catch(e) {}
-          }, 2000);
-        }
-      }
-
-      // ── Détection mode hors-ligne / en-ligne ──
-      if (!window._connListenerSet) {
-        window._connListenerSet = true;
-        window.addEventListener('online', () => {
-          if (typeof ui !== 'undefined' && ui.toast) ui.toast('🟢 Connexion rétablie', 'success', 3000);
-        });
-        window.addEventListener('offline', () => {
-          if (typeof ui !== 'undefined' && ui.toast) ui.toast('🔴 Connexion perdue — mode hors ligne', 'warn', 5000);
-        });
-      }
 
       // Focus auto sur le matricule au chargement
       setTimeout(() => $('#pin-code')?.focus(), 200);
@@ -5261,7 +5210,6 @@ section[data-view][hidden],
 
       } catch (err) {
         ui.hideLoader();
-        // Traduction des erreurs Firebase pour les utilisateurs
         const friendlyMsg = (() => {
           const m = err.message || '';
           if (err.code === 'auth/wrong-password') return 'Mot de passe technique incorrect (contactez admin)';
@@ -6294,10 +6242,6 @@ section[data-view][hidden],
 
         // ── Verrouillage Outil + Crimping pour le rôle LABO ──
         const isLabo = state.role === 'labo';
-        const isCrimper = (state.role === 'crimp' || state.role === 'crimping');
-        // Le labo peut SEULEMENT modifier les bons existants (loadingId set)
-        // Pas de création de bon depuis zéro
-        const isLaboNewForm = isLabo && !state.editingId;
         const toolSection = $('.intervention__section--tool');
         if (toolSection) toolSection.disabled = isLabo;
 
@@ -6311,27 +6255,6 @@ section[data-view][hidden],
             el.style.pointerEvents = isLabo ? 'none' : '';
           }
         });
-
-        // ═══ Verrouillage Labo pour le rôle CRIMPING ═══
-        // Crimping peut voir les champs labo mais ne peut PAS les modifier
-        if (isCrimper) {
-          ['lab-decision','lab-test-result','labo-tech-name','lab-comment','lab-observation','lab-validation-date'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-              el.readOnly  = true;
-              el.disabled  = true;
-              el.style.opacity = '0.5';
-              el.style.cursor  = 'not-allowed';
-              el.title = 'Réservé au technicien laboratoire';
-            }
-          });
-          // Désactiver aussi les boutons radio/select dans la section labo
-          $$('input[name^="lab"], select[name^="lab"]').forEach(el => {
-            el.disabled = true;
-            el.style.opacity = '0.5';
-            el.title = 'Réservé au technicien laboratoire';
-          });
-        }
 
         // Crimping
         if (data.crimping) {
@@ -6559,21 +6482,18 @@ section[data-view][hidden],
       },
 
       async save(mode) {
-        // ═══ Vérification permissions selon contexte ═══
         const isCreating = !state.currentInterventionId;
-        const isEditing  = !!state.currentInterventionId;
+        const isEditing = !!state.currentInterventionId;
+        const isLabo = (state.role === 'labo');
 
         if (isCreating && !auth.can('intervention.create')) {
           return ui.toast('🔒 Vous ne pouvez pas créer un nouveau bon d\'intervention', 'danger');
         }
-        // Le labo peut éditer les bons existants (enregistrer ses modifs labo)
-        const isLabo = (state.role === 'labo');
         if (isEditing && !auth.can('intervention.edit') && !isLabo) {
-          return ui.toast('🔒 Vous ne pouvez pas modifier ce bon d\'intervention', 'danger');
+          return ui.toast('🔒 Vous ne pouvez pas modifier ce bon', 'danger');
         }
-        // Si labo essaie de créer un nouveau bon, bloquer
-        if (isCreating && state.role === 'labo') {
-          return ui.toast('ℹ️ Le laboratoire valide les bons existants. Demandez au technicien Crimping de créer le bon.', 'warn', 6000);
+        if (mode === 'submit' && isLabo) {
+          return ui.toast('ℹ️ Le labo doit utiliser "Valider" pour finaliser', 'warn');
         }
         ui.showLoader('Enregistrement…');
         try {
@@ -6583,11 +6503,6 @@ section[data-view][hidden],
             return ui.toast('Référence outil obligatoire', 'warn');
           }
           // ⚠️ Validation : nom du technicien crimping obligatoire à la SOUMISSION
-          // Le labo ne peut pas faire 'submit' (envoyer au labo) - seulement 'save' (brouillon) ou 'validate'
-          if (mode === 'submit' && state.role === 'labo') {
-            ui.hideLoader();
-            return ui.toast('ℹ️ Le labo doit utiliser "✅ Valider" pour finaliser le bon', 'warn');
-          }
           if (mode === 'submit' && !data.technicienNom) {
             ui.hideLoader();
             $('#crimp-tech-name')?.focus();
@@ -6675,10 +6590,6 @@ section[data-view][hidden],
       },
 
       async reject() {
-        // ═══ Permission : seul Labo + Admin peuvent rejeter ═══
-        if (!ui.can || !ui.can('intervention.edit_labo')) {
-          return ui.toast('🔒 Seul le laboratoire peut rejeter un bon', 'danger');
-        }
         if (!auth.can('intervention.reject')) return ui.toast('Accès refusé', 'danger');
         const reg = state.currentInterventionId;
         if (!reg) return;
@@ -7241,7 +7152,7 @@ section[data-view][hidden],
                 <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem"
                   data-action="edit" data-uid="${ui.escape(u.uid || '')}">✏️ Modifier</button>
                 <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem;color:#00d4ff"
-                  data-action="set-pin" data-uid="${ui.escape(u.uid || '')}" data-name="${ui.escape(u.displayName || u.email || '')}" data-pin="${ui.escape(u.pin || '')}">🔢 Changer PIN</button>
+                  data-action="set-pin" data-uid="${ui.escape(u.uid || '')}" data-name="${ui.escape(u.displayName || u.email || '')}" data-pin="${ui.escape(u.pin || '')}">🔢 PIN</button>
                 <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem;color:${isActive ? 'var(--danger-500)' : 'var(--success-500)'}"
                   data-action="toggle-active" data-uid="${ui.escape(u.uid || '')}" data-active="${isActive}">
                   ${isActive ? '⛔' : '✅'}
@@ -8626,6 +8537,144 @@ Erreur Firebase : ${e.message}`;
       }
     },
 
+    /* ========== SUIVI PDR (Pièces De Rechange) — Lecture seule pour Magasinier+Admin ========== */
+    pdr: {
+      _all: [],
+      _filtered: [],
+      _listenerSet: false,
+
+      init() {
+        if (this._listenerSet) return;
+        this._listenerSet = true;
+        document.getElementById('btn-pdr-refresh')?.addEventListener('click', () => this.render());
+        document.getElementById('pdr-filter-period')?.addEventListener('change', () => this.applyFilters());
+      },
+
+      render() {
+        if (state.currentView !== 'pdr') return;
+        const role = state.role;
+        if (!['admin','super_admin','responsable','magasinier'].includes(role)) {
+          location.hash = '#hub';
+          return;
+        }
+        this._loadData();
+      },
+
+      _loadData() {
+        const interventions = Object.values(state.interventions || {});
+        const records = [];
+        interventions.forEach(itv => {
+          const pdrChanged = itv.crimping?.piecesChanged || {};
+          const pdrList = Object.entries(pdrChanged).filter(([k,v]) => v).map(([k]) => k);
+          if (pdrList.length > 0) {
+            records.push({
+              numBon: itv.numBon || itv.id || '—',
+              date: itv.crimping?.date || itv.createdAt || 0,
+              outilId: itv.tool?.outilId || '—',
+              fabricant: itv.tool?.fabricant || '—',
+              refOutil: itv.tool?.refOutil || '—',
+              refFabricant: itv.tool?.refFabricant || '—',
+              pdrList: pdrList,
+              technicien: itv.crimping?.technicienNom || itv.crimping?.filledBy?.name || '—',
+              matricule: itv.crimping?.technicienMatricule || itv.crimping?.filledBy?.matricule || '',
+              status: itv.status || 'unknown',
+              type: itv.crimping?.type || ''
+            });
+          }
+        });
+        records.sort((a,b) => (b.date||0) - (a.date||0));
+        this._all = records;
+        this.applyFilters();
+      },
+
+      applyFilters() {
+        const period = document.getElementById('pdr-filter-period')?.value || 'month';
+        const since = this._periodStart(period);
+        this._filtered = this._all.filter(r => (r.date || 0) >= since);
+        this._renderTable();
+        this._renderKPIs();
+        this._updateNavBadge();
+      },
+
+      _periodStart(period) {
+        const now = new Date();
+        switch(period) {
+          case 'today': return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+          case 'week': { const d = new Date(now); d.setDate(d.getDate() - 7); return d.getTime(); }
+          case 'month': return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+          case 'quarter': { const q = Math.floor(now.getMonth() / 3) * 3; return new Date(now.getFullYear(), q, 1).getTime(); }
+          case 'year': return new Date(now.getFullYear(), 0, 1).getTime();
+          default: return 0;
+        }
+      },
+
+      _renderTable() {
+        const tbody = document.getElementById('pdr-body');
+        if (!tbody) return;
+        const records = this._filtered;
+        document.getElementById('pdr-results-count').textContent = records.length + ' résultat(s)';
+        if (records.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem">Aucune PDR changée pour cette période</td></tr>';
+          return;
+        }
+        const statusBadges = {
+          'submitted': '<span style="background:rgba(255,181,71,.15);color:#ffb547;padding:.15rem .5rem;border-radius:5px;font-size:.72rem;font-weight:600">⏳ Soumis</span>',
+          'validated': '<span style="background:rgba(0,229,160,.15);color:#00e5a0;padding:.15rem .5rem;border-radius:5px;font-size:.72rem;font-weight:600">✅ Validé</span>',
+          'rejected': '<span style="background:rgba(255,61,90,.15);color:#ff3d5a;padding:.15rem .5rem;border-radius:5px;font-size:.72rem;font-weight:600">❌ Rejeté</span>',
+          'draft': '<span style="background:rgba(155,155,155,.15);color:#999;padding:.15rem .5rem;border-radius:5px;font-size:.72rem;font-weight:600">📝 Brouillon</span>',
+          'unknown': '<span style="color:var(--text-muted);font-size:.72rem">—</span>'
+        };
+        const fmtDate = (ts) => {
+          if (!ts) return '—';
+          const d = new Date(ts);
+          return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+        };
+        tbody.innerHTML = records.map(r => {
+          const piecesHtml = r.pdrList.map(p =>
+            '<span style="display:inline-block;background:rgba(0,212,255,.12);color:#00d4ff;padding:.18rem .55rem;border-radius:5px;font-size:.72rem;margin:.1rem;font-weight:600">🔧 ' + ui.escape(p) + '</span>'
+          ).join('');
+          return '<tr>'
+            + '<td style="font-size:.78rem;color:var(--text-secondary);white-space:nowrap">' + fmtDate(r.date) + '</td>'
+            + '<td><strong style="color:#00d4ff;font-family:var(--font-mono)">' + ui.escape(r.numBon) + '</strong></td>'
+            + '<td style="font-family:var(--font-mono);font-weight:600">' + ui.escape(r.outilId) + '</td>'
+            + '<td style="font-size:.85rem">' + ui.escape(r.fabricant) + '</td>'
+            + '<td style="font-size:.78rem;color:var(--text-secondary);font-family:var(--font-mono)">' + ui.escape(r.refOutil) + '</td>'
+            + '<td>' + piecesHtml + '</td>'
+            + '<td><div style="font-weight:600;font-size:.85rem">' + ui.escape(r.technicien) + '</div>' + (r.matricule ? '<div style="font-size:.7rem;color:var(--text-muted);font-family:var(--font-mono)">' + ui.escape(r.matricule) + '</div>' : '') + '</td>'
+            + '<td>' + (statusBadges[r.status] || statusBadges.unknown) + '</td>'
+            + '</tr>';
+        }).join('');
+      },
+
+      _renderKPIs() {
+        const records = this._filtered;
+        const total = records.length;
+        const uniqueTools = new Set(records.map(r => r.outilId).filter(Boolean));
+        const pieceCount = {};
+        records.forEach(r => { r.pdrList.forEach(p => { pieceCount[p] = (pieceCount[p] || 0) + 1; }); });
+        const topPieces = Object.entries(pieceCount).sort((a,b) => b[1] - a[1]).slice(0, 3);
+        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+        const monthCount = this._all.filter(r => (r.date||0) >= monthStart).length;
+        const totalEl = document.getElementById('kpi-pdr-total');
+        const monthEl = document.getElementById('kpi-pdr-month');
+        const toolsEl = document.getElementById('kpi-pdr-tools');
+        const topEl = document.getElementById('kpi-pdr-top');
+        if (totalEl) totalEl.textContent = total;
+        if (monthEl) monthEl.textContent = monthCount;
+        if (toolsEl) toolsEl.textContent = uniqueTools.size;
+        if (topEl) topEl.innerHTML = topPieces.length
+          ? topPieces.map(([p, c]) => '<div style="font-size:.78rem">' + ui.escape(p) + ' <span style="color:var(--text-muted)">(' + c + '×)</span></div>').join('')
+          : '<span style="color:var(--text-muted);font-size:.85rem">Aucune</span>';
+      },
+
+      _updateNavBadge() {
+        const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+        const monthCount = this._all.filter(r => (r.date||0) >= monthStart).length;
+        const badge = document.getElementById('nav-pdr-count');
+        if (badge) badge.textContent = monthCount;
+      }
+    },
+
     /* ========== STATS ========== */
     stats: {
       render() {
@@ -9289,76 +9338,6 @@ Erreur Firebase : ${e.message}`;
     }
   };
 
-  
-  // ── Helper console : diagnoseLEONI() pour debug rapide ──
-  if (typeof window.diagnoseLEONI === 'undefined') {
-    window.diagnoseLEONI = async function() {
-      console.log('═══════════════════════════════════════');
-      console.log('🔍 DIAGNOSTIC LEONI Sertissage Lab');
-      console.log('═══════════════════════════════════════');
-
-      try {
-        // 1. Auth state
-        const currentUser = fbAuth.currentUser;
-        console.log('1. AUTH:', currentUser ? `✅ Connecté (${currentUser.email})` : '❌ Non connecté');
-
-        // 2. Profile
-        if (state.profile) {
-          console.log('2. PROFIL:', state.profile.displayName, `(${state.role})`, 'matricule:', state.profile.matricule);
-        }
-
-        // 3. loginIndex
-        try {
-          const idx = await fbDb.ref('loginIndex').once('value');
-          const data = idx.val() || {};
-          console.log(`3. LOGININDEX: ${Object.keys(data).length} entrées`);
-          const summary = {};
-          Object.entries(data).forEach(([k, v]) => {
-            summary[k] = { nom: v.displayName, pin: v.pin, active: v.active };
-          });
-          if (Object.keys(summary).length > 0) console.table(summary);
-        } catch(e) {
-          console.warn('3. LOGININDEX: ❌', e.code || e.message);
-        }
-
-        // 4. Users count
-        try {
-          const users = await fbDb.ref('users').once('value');
-          console.log('4. USERS:', Object.keys(users.val() || {}).length);
-        } catch(e) {
-          console.warn('4. USERS: ❌', e.code);
-        }
-
-        // 5. Interventions
-        try {
-          const interv = await fbDb.ref('interventions').once('value');
-          console.log('5. INTERVENTIONS:', Object.keys(interv.val() || {}).length);
-        } catch(e) {
-          console.warn('5. INTERVENTIONS: ❌', e.code);
-        }
-
-        // 6. Stock
-        try {
-          const stock = await fbDb.ref('stockPieces').once('value');
-          const sd = stock.val();
-          console.log('6. STOCK:', sd?.pieces?.length || 0, 'pièces');
-        } catch(e) {
-          console.warn('6. STOCK: ❌', e.code);
-        }
-
-        // 7. Network
-        console.log('7. RÉSEAU:', navigator.onLine ? '✅ En ligne' : '❌ Hors ligne');
-
-        // 8. App version
-        console.log('8. VERSION:', state.appVersion || 'inconnue');
-        console.log('═══════════════════════════════════════');
-        console.log('💡 Si problème de login PIN, tape: forceSyncLogin()');
-      } catch(e) {
-        console.error('Erreur diagnostic:', e);
-      }
-    };
-  }
-
   /* ==========================================================================
      15. BOOTSTRAP
      ========================================================================== */
@@ -9376,6 +9355,7 @@ Erreur Firebase : ${e.message}`;
     views.auditLog.init();
     views.magasin.init();
     views.performance.init();
+    if (views.pdr && views.pdr.init) views.pdr.init();
     userActions.initModals();
     initDurationField();
     // Désactiver autocomplete sur tous les password fields (warnings DOM)
@@ -9518,17 +9498,7 @@ Erreur Firebase : ${e.message}`;
 
     Shortcuts.init();
     ConnMonitor.init();
-    console.log('[LEONI] Raccourcis : Alt+H Hub · Alt+N Nouveau · Alt+M Magasin · Alt+P Performance · Ctrl+/ Aide');
-
-    // ── Raccourci Ctrl+/ : afficher l'aide raccourcis ──
-    document.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.key === '/') {
-        e.preventDefault();
-        if (typeof ui !== 'undefined' && ui.toast) {
-          ui.toast('⌨️ Raccourcis : Alt+H Hub · Alt+N Nouveau · Alt+M Magasin · Alt+P Performance · Esc Fermer modal', 'info', 8000);
-        }
-      }
-    });
+    console.log('[LEONI] Raccourcis : Alt+H Hub · Alt+N Nouveau · Alt+M Magasin · Alt+P Performance');
     console.log('[LEONI] 💡 En cas de problème Firebase, tapez : diagnoseLEONI()');
 
     // Stats period change triggers re-render
@@ -9649,6 +9619,6 @@ Erreur Firebase : ${e.message}`;
   </div>
 
 
-  <!-- Service Worker désactivé pour éviter les bugs de cache -->
+  <!-- Service Worker désactivé -->
 </body>
 </html>

@@ -4037,6 +4037,7 @@ section[data-view][hidden],
               <th>Nom</th>
               <th>Matricule</th>
               <th>Email</th>
+              <th>🔑 Mot de passe</th>
               <th>Rôle</th>
               <th>Statut</th>
               <th>Dernière connexion</th>
@@ -7271,10 +7272,24 @@ section[data-view][hidden],
             ? `Modifié le ${fmt.date(u.passwordChangedAt)}`
             : 'Jamais modifié';
           const pwBy = u.passwordChangedBy ? ` par ${ui.escape(u.passwordChangedBy)}` : '';
+          // ── Cellule MDP avec toggle voir/cacher (visible uniquement pour admin) ──
+          const isAdminViewer = (state.role === 'admin' || state.role === 'super_admin' || state.role === 'responsable');
+          const passwordCell = isAdminViewer
+            ? `<td style="font-family:var(--font-mono);font-size:.85rem">
+                 <span class="pwd-display" data-uid="${ui.escape(u.uid || '')}" style="display:inline-block;background:rgba(0,212,255,.08);border:1px dashed rgba(0,212,255,.3);padding:.18rem .55rem;border-radius:5px;color:var(--text-muted);letter-spacing:.15em;cursor:pointer;font-weight:600"
+                       title="Cliquer pour révéler"
+                       data-pwd="${ui.escape(u.password || '')}"
+                       onclick="this.textContent = this.dataset.pwd || '(vide)'; this.style.color='#00e5a0'; this.style.letterSpacing='.05em'; this.style.background='rgba(0,229,160,.1)'; this.style.borderStyle='solid'; setTimeout(() => { this.textContent = '••••••••'; this.style.color='var(--text-muted)'; this.style.letterSpacing='.15em'; this.style.background='rgba(0,212,255,.08)'; this.style.borderStyle='dashed'; }, 5000);">
+                   ••••••••
+                 </span>
+               </td>`
+            : `<td style="color:var(--text-muted);font-size:.78rem">🔒</td>`;
+
           return `<tr>
             <td><strong>${ui.escape(u.displayName || '—')}</strong></td>
             <td style="font-family:var(--font-mono);font-size:.85rem;font-weight:600">${ui.escape(u.matricule || '—')}</td>
             <td style="font-size:.82rem">${ui.escape(u.email || '—')}</td>
+            ${passwordCell}
             <td><span class="badge badge--auto">${auth.roleLabel(u.role)}</span></td>
             <td>
               <span style="font-size:.74rem;padding:.18rem .5rem;border-radius:5px;font-weight:600;

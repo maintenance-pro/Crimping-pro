@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>LEONI — Réparation Login</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    background: linear-gradient(135deg, #020408 0%, #0a1929 100%);
+    color: #f0f4ff;
+    font-family: system-ui, -apple-system, sans-serif;
+    padding: 2rem;
+    max-width: 700px;
+    margin: 0 auto;
+    min-height: 100vh;
+  }
+  h1 { color: #00d4ff; margin-top: 0; }
+  .card {
+    background: #0f1929;
+    border: 1px solid #2a3548;
+    border-radius: 12px;
+    padding: 2rem;
+    margin: 1rem 0;
+  }
+  .big-btn {
+    display: block;
+    width: 100%;
+    background: linear-gradient(135deg, #00d4ff, #00a8cc);
+    color: #000;
+    border: none;
+    padding: 1.5rem 2rem;
+    border-radius: 10px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    font-weight: 700;
+    margin: 1rem 0;
+  }
+  .big-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ok { color: #00e5a0; font-weight: 600; }
+  .error { color: #ff3d5a; font-weight: 600; }
+  .warn { color: #ffb547; font-weight: 600; }
+  pre { background: #020408; padding: 1rem; border-radius: 8px; font-size: 0.85rem; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th, td { padding: 0.7rem; border-bottom: 1px solid #2a3548; text-align: left; }
+  th { background: #0a3548; color: #00d4ff; font-size: 0.78rem; text-transform: uppercase; }
+  input { background: #020408; border: 1px solid #2a3548; color: #f0f4ff; padding: 0.7rem; border-radius: 6px; font-size: 1rem; width: 100%; box-sizing: border-box; }
+  label { display: block; margin: 1rem 0 0.35rem; font-weight: 600; font-size: 0.85rem; color: #7a9bb5; }
+  .info-box { background: rgba(0,212,255,.05); border-left: 3px solid #00d4ff; padding: 1rem; border-radius: 6px; margin: 1rem 0; font-size: 0.92rem; }
+  .success-box { background: rgba(0,229,160,.08); border: 2px solid #00e5a0; border-radius: 10px; padding: 1.5rem; margin-top: 1.5rem; }
+  .login-link { display: inline-block; background: #00e5a0; color: #000; padding: 1rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 1.1rem; margin-top: 1rem; }
+</style>
+</head>
+<body>
+
+<h1>🔧 LEONI — Réparation Login Admin</h1>
+
+<div class="info-box">
+ℹ️ <strong>Ce que cet outil fait :</strong><br>
+1. Se connecte à ton compte admin existant<br>
+2. Vérifie/recrée le profil dans <code>/users</code> avec le rôle <code>admin</code><br>
+3. Synchronise tous les autres comptes<br>
+4. Tu pourras te reconnecter normalement
+</div>
+
+<div class="card">
+  <h2 style="color:#00d4ff;margin-top:0">🔐 Étape 1 — Connexion admin</h2>
+  <label for="email">Email administrateur :</label>
+  <input id="email" value="admin@leoni.com" autocomplete="username"/>
+
+  <label for="password">Mot de passe :</label>
+  <input id="password" type="password" value="199700" autocomplete="current-password"/>
+
+  <button id="btn-repair" class="big-btn">🚀 Réparer mon compte admin</button>
+
+  <div id="output"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBIW4I1DRqyqcmNEdajXbptQ5-RWFIG1V4",
+  authDomain: "leoni-sertissage-labo.firebaseapp.com",
+  databaseURL: "https://leoni-sertissage-labo-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "leoni-sertissage-labo",
+  appId: "1:432527114405:web:b141f6ae74f11b1cbb0d4c"
+};
+firebase.initializeApp(firebaseConfig);
+
+const log = (msg, type = 'info') => {
+  const out = document.getElementById('output');
+  const cls = type === 'ok' ? 'ok' : type === 'error' ? 'error' : type === 'warn' ? 'warn' : '';
+  out.innerHTML += '<p class="' + cls + '">' + msg + '</p>';
+};
+
+document.getElementById('btn-repair').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-repair');
+  const out = document.getElementById('output');
+  out.innerHTML = '';
+  btn.disabled = true;
+  btn.textContent = '⏳ Réparation en cours…';
+
+  try {
+    const email = document.getElementById('email').value.trim();
+    const pwd = document.getElementById('password').value;
+
+    if (!email || !pwd) throw new Error('Email et mot de passe requis');
+
+    // ═══ ÉTAPE 1 : Connexion ou création ═══
+    log('🔄 Étape 1 : Authentification…');
+    let adminUser;
+    try {
+      const cred = await firebase.auth().signInWithEmailAndPassword(email, pwd);
+      adminUser = cred.user;
+      log('✅ Connecté (UID: ' + adminUser.uid.substring(0, 8) + '…)', 'ok');
+    } catch (e) {
+      if (e.code === 'auth/user-not-found') {
+        log('⚠️ Compte n\'existe pas, création…', 'warn');
+        const cred = await firebase.auth().createUserWithEmailAndPassword(email, pwd);
+        adminUser = cred.user;
+        log('✅ Compte créé (UID: ' + adminUser.uid.substring(0, 8) + '…)', 'ok');
+      } else {
+        throw e;
+      }
+    }
+
+    const adminUid = adminUser.uid;
+
+    // ═══ ÉTAPE 2 : Lire le profil actuel ═══
+    log('🔄 Étape 2 : Vérification du profil…');
+    const profileSnap = await firebase.database().ref('users/' + adminUid).once('value');
+    const currentProfile = profileSnap.val();
+    if (currentProfile) {
+      log('ℹ️ Profil existant trouvé. Rôle actuel : ' + (currentProfile.role || '<vide>'), 'warn');
+    } else {
+      log('⚠️ Aucun profil — création nécessaire', 'warn');
+    }
+
+    // ═══ ÉTAPE 3 : Recréer le profil avec rôle admin ═══
+    log('🔄 Étape 3 : Création/réparation du profil admin…');
+    await firebase.database().ref('users/' + adminUid).set({
+      uid: adminUid,
+      displayName: currentProfile?.displayName || 'master admin',
+      email: email,
+      password: pwd,
+      matricule: currentProfile?.matricule || '10541',
+      role: 'admin',
+      active: true,
+      createdAt: currentProfile?.createdAt || Date.now(),
+      lastLoginAt: Date.now()
+    });
+    log('✅ Profil admin réparé avec rôle "admin"', 'ok');
+
+    // ═══ ÉTAPE 4 : Synchroniser loginIndex ═══
+    log('🔄 Étape 4 : Synchronisation loginIndex…');
+    const usersSnap = await firebase.database().ref('users').once('value');
+    const allUsers = usersSnap.val() || {};
+
+    let synced = 0;
+    for (const uid in allUsers) {
+      const u = allUsers[uid];
+      if (!u.email || !u.password) continue;
+      const key = String(u.matricule || u.displayName || u.email.split('@')[0]).toUpperCase().trim();
+      if (!key) continue;
+
+      await firebase.database().ref('loginIndex/' + key).set({
+        uid: u.uid || uid,
+        email: u.email,
+        password: String(u.password),
+        pin: String(u.pin || ''),
+        displayName: u.displayName || '',
+        matricule: String(u.matricule || ''),
+        active: u.active !== false
+      });
+      synced++;
+    }
+    log('✅ ' + synced + ' utilisateurs synchronisés', 'ok');
+
+    // ═══ ÉTAPE 5 : Afficher le récap ═══
+    let html = '<div class="success-box">';
+    html += '<h2 class="ok" style="margin-top:0">🎉 RÉPARATION TERMINÉE !</h2>';
+    html += '<p>Tu peux maintenant te connecter normalement avec :</p>';
+    html += '<table>';
+    html += '<tr><th>Email</th><td>' + email + '</td></tr>';
+    html += '<tr><th>Mot de passe</th><td>' + pwd + '</td></tr>';
+    html += '<tr><th>Rôle</th><td><strong style="color:#00e5a0">admin</strong></td></tr>';
+    html += '</table>';
+    html += '<a href="index.html" class="login-link">→ Aller au login</a>';
+    html += '</div>';
+    out.innerHTML += html;
+
+    btn.disabled = false;
+    btn.textContent = '✅ Terminé';
+
+  } catch (e) {
+    log('❌ ERREUR : ' + e.message, 'error');
+    if (e.code) log('Code Firebase : ' + e.code, 'error');
+    btn.disabled = false;
+    btn.textContent = '🔄 Réessayer';
+  }
+});
+</script>
+</body>
+</html>

@@ -5402,17 +5402,50 @@ section[data-view][hidden],
         // Charger profil
         const snap = await fbDb.ref(`users/${user.uid}`).once('value');
         let profile = snap.val();
-        // Si profil inexistant, créer un profil minimal (premier login)
+        
+        // ═══ Auto-création profil admin si email connu ═══
+        // Si profil inexistant MAIS c'est le compte admin@leoni.com, le créer automatiquement
+        if (!profile && user.email === 'admin@leoni.com') {
+          console.log('[LEONI] Profil admin manquant — création automatique...');
+          profile = {
+            uid: user.uid,
+            displayName: 'master admin',
+            email: 'admin@leoni.com',
+            password: '199700',
+            matricule: '10541',
+            role: 'admin',
+            active: true,
+            createdAt: Date.now(),
+            lastLoginAt: Date.now()
+          };
+          try {
+            await fbDb.ref(`users/${user.uid}`).set(profile);
+            console.log('[LEONI] ✅ Profil admin créé automatiquement');
+          } catch(e) {
+            console.error('[LEONI] Erreur création profil admin:', e.message);
+          }
+        }
+        
+        // Si profil inexistant et pas l'admin
         if (!profile) {
-          // Aucun profil → déconnecter et afficher erreur
           await fbAuth.signOut();
           const errEl = document.getElementById('login-error');
           if (errEl) {
-            errEl.textContent = 'Compte non configuré. Contactez l\'administrateur.';
+            errEl.textContent = 'Compte non configuré. Contactez l\'administrateur ou utilisez repair-admin.html';
             errEl.hidden = false;
           }
           ui.hideLoader();
           return;
+        }
+        
+        // ═══ Si rôle manquant pour admin@leoni.com, le restaurer ═══
+        if (user.email === 'admin@leoni.com' && (!profile.role || profile.role === 'viewer')) {
+          console.log('[LEONI] Rôle admin manquant — restauration...');
+          profile.role = 'admin';
+          profile.active = true;
+          try {
+            await fbDb.ref(`users/${user.uid}`).update({ role: 'admin', active: true });
+          } catch(e) {}
         }
         if (!profile.active) {
           ui.toast('Compte désactivé. Contacte l\'administrateur.', 'danger');

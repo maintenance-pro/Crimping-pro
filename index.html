@@ -3630,7 +3630,9 @@ section[data-view][hidden],
                 <label class="checkbox"><input type="checkbox" name="piece" value="pAv" / autocomplete="off"><span>P-AV · Poinçon Avant</span></label>
                 <label class="checkbox"><input type="checkbox" name="piece" value="eAr" / autocomplete="off"><span>E-AR · Enclume Arrière</span></label>
                 <label class="checkbox"><input type="checkbox" name="piece" value="eAv" / autocomplete="off"><span>E-AV · Enclume Avant</span></label>
-                <label class="checkbox"><input type="checkbox" name="piece" value="ejector" / autocomplete="off"><span>Ejector</span></label>
+                <label class="checkbox"><input type="checkbox" name="piece" value="cAr" / autocomplete="off"><span>C-AR · Couteau Arrière</span></label>
+                <label class="checkbox"><input type="checkbox" name="piece" value="cAv" / autocomplete="off"><span>C-AV · Couteau Avant</span></label>
+                <label class="checkbox"><input type="checkbox" name="piece" value="ejector" / autocomplete="off"><span>Éjecteur</span></label>
                 <label class="checkbox"><input type="checkbox" name="piece" value="couteauBanda" / autocomplete="off"><span>Couteau / Banda</span></label>
               </div>
             </div>
@@ -4986,6 +4988,28 @@ section[data-view][hidden],
   const $  = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+  // ═══ Mappage code PDR → Nom complet/référence ═══
+  // Utilisé partout pour afficher les PDR avec leurs vraies références
+  const PDR_LABELS = {
+    'pAr'         : 'P-AR · Poinçon Arrière',
+    'pAv'         : 'P-AV · Poinçon Avant',
+    'eAr'         : 'E-AR · Enclume Arrière',
+    'eAv'         : 'E-AV · Enclume Avant',
+    'cAr'         : 'C-AR · Couteau Arrière',
+    'cAv'         : 'C-AV · Couteau Avant',
+    'ejector'     : 'Éjecteur',
+    'couteauBanda': 'Couteau / Banda',
+    'couteauBande': 'Couteau / Bande'
+  };
+
+  // Helper : convertir un code PDR en label lisible
+  // Retourne le nom complet si trouvé, sinon le code original
+  function pdrLabel(code) {
+    if (!code) return '—';
+    return PDR_LABELS[code] || code;
+  }
+  window.pdrLabel = pdrLabel; // pour debug console
+
   const fmt = {
     date: (ts) => {
       if (!ts) return '—';
@@ -6241,7 +6265,7 @@ section[data-view][hidden],
             drawRow('Date:', data.crimping.date ? new Date(data.crimping.date).toLocaleDateString('fr-FR') : '—');
             drawRow('Cycles compteur:', data.crimping.cycles);
             drawRow('Type:', data.crimping.type ? {preventive:'Préventive',curative:'Curative',requalification:'Requalification'}[data.crimping.type] : '—');
-            const pieces = Object.entries(data.crimping.piecesChanged||{}).filter(([,v])=>v).map(([k])=>k).join(', ') || 'Aucune';
+            const pieces = Object.entries(data.crimping.piecesChanged||{}).filter(([,v])=>v).map(([k])=>pdrLabel(k)).join(', ') || 'Aucune';
             drawRow('Pièces changées:', pieces);
             if (data.crimping.observation) drawRow('Observation:', data.crimping.observation.slice(0,60));
           }
@@ -8683,7 +8707,7 @@ Erreur Firebase : ${e.message}`;
         };
         tbody.innerHTML = records.map(r => {
           const piecesHtml = r.pdrList.map(p =>
-            '<span style="display:inline-block;background:rgba(0,212,255,.12);color:#00d4ff;padding:.18rem .55rem;border-radius:5px;font-size:.72rem;margin:.1rem;font-weight:600">🔧 ' + ui.escape(p) + '</span>'
+            '<span style="display:inline-block;background:rgba(0,212,255,.12);color:#00d4ff;padding:.18rem .55rem;border-radius:5px;font-size:.72rem;margin:.1rem;font-weight:600" title="' + ui.escape(p) + '">🔧 ' + ui.escape(pdrLabel(p)) + '</span>'
           ).join('');
           return '<tr>'
             + '<td style="font-size:.78rem;color:var(--text-secondary);white-space:nowrap">' + fmtDate(r.date) + '</td>'
@@ -8715,7 +8739,7 @@ Erreur Firebase : ${e.message}`;
         if (monthEl) monthEl.textContent = monthCount;
         if (toolsEl) toolsEl.textContent = uniqueTools.size;
         if (topEl) topEl.innerHTML = topPieces.length
-          ? topPieces.map(([p, c]) => '<div style="font-size:.78rem">' + ui.escape(p) + ' <span style="color:var(--text-muted)">(' + c + '×)</span></div>').join('')
+          ? topPieces.map(([p, c]) => '<div style="font-size:.78rem">' + ui.escape(pdrLabel(p)) + ' <span style="color:var(--text-muted)">(' + c + '×)</span></div>').join('')
           : '<span style="color:var(--text-muted);font-size:.85rem">Aucune</span>';
       },
 

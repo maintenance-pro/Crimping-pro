@@ -3178,35 +3178,56 @@ section[data-view][hidden],
         <p class="login__subtitle">Coordination Crimping &times; Laboratoire</p>
       </header>
 
-      <!-- ═══════════ LOGIN ULTRA-SIMPLE : PIN UNIQUEMENT ═══════════ -->
-      <form class="login__form" id="form-pin" autocomplete="off" novalidate>
-        <p style="color:var(--text-muted);font-size:.95rem;text-align:center;margin:0 0 2rem">
-          Tapez votre code PIN à 4 chiffres
+      <!-- ═══════════ LOGIN PAR EMAIL + MOT DE PASSE ═══════════ -->
+      <form class="login__form" id="form-login" autocomplete="on" novalidate>
+        <p style="color:var(--text-muted);font-size:.9rem;text-align:center;margin:0 0 1.75rem">
+          🔐 Connectez-vous avec votre email et mot de passe
         </p>
 
         <div class="login__field">
-          <input class="login__input" id="pin-code" name="pin" type="password"
-                 required autocomplete="off" inputmode="numeric" pattern="[0-9]{4}"
-                 maxlength="4" placeholder="••••"
-                 style="text-align:center;letter-spacing:.8em;font-size:2.2rem;font-family:var(--font-mono);padding:1.1rem .5em;font-weight:700"/>
+          <label class="login__label" for="login-email">📧 Email</label>
+          <input class="login__input" id="login-email" name="email" type="email"
+                 required autocomplete="username" placeholder="exemple@leoni.com"
+                 autocapitalize="off" autocorrect="off"
+                 style="font-size:1rem;padding:.85rem 1rem"/>
         </div>
 
-        <button class="login__submit" type="submit" id="btn-login-pin"
-                style="font-size:1.05rem;padding:.95rem 1.5rem;margin-top:.5rem">
-          🚀 Connexion
+        <div class="login__field">
+          <label class="login__label" for="login-password">🔑 Mot de passe</label>
+          <div style="position:relative">
+            <input class="login__input" id="login-password" name="password" type="password"
+                   required autocomplete="current-password" placeholder="••••••••"
+                   style="font-size:1rem;padding:.85rem 1rem;padding-right:3rem"/>
+            <button class="login__toggle-pass" type="button" id="btn-toggle-pass"
+                    aria-label="Afficher le mot de passe"
+                    style="position:absolute;right:.6rem;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:.4rem;font-size:1rem">
+              👁
+            </button>
+          </div>
+        </div>
+
+        <div class="login__row" style="display:flex;align-items:center;justify-content:space-between;margin:.5rem 0 1rem;font-size:.8rem">
+          <label class="login__remember" style="display:flex;align-items:center;gap:.4rem;cursor:pointer">
+            <input type="checkbox" id="login-remember" name="remember" autocomplete="off" style="margin:0"/>
+            <span>Se souvenir de moi</span>
+          </label>
+        </div>
+
+        <button class="login__submit" type="submit" id="btn-login"
+                style="font-size:1rem;padding:.9rem 1.5rem;margin-top:.5rem">
+          🚀 Se connecter
         </button>
 
-        <p class="login__error" id="login-error-pin" hidden></p>
+        <p class="login__error" id="login-error" hidden></p>
 
         <p style="text-align:center;margin-top:1.5rem;font-size:.78rem;color:var(--text-muted)">
-          Pas de PIN ? Demandez à votre administrateur
+          Mot de passe oublié ? Contactez votre administrateur
         </p>
       </form>
 
-      <!-- Form caché pour compatibilité interne -->
-      <form id="form-login" hidden>
-        <input id="login-email" type="hidden"/>
-        <input id="login-password" type="hidden"/>
+      <!-- Form PIN caché pour compatibilité interne -->
+      <form id="form-pin" hidden>
+        <input id="pin-code" type="hidden"/>
       </form>
 
       <footer class="login__footer">
@@ -4013,7 +4034,6 @@ section[data-view][hidden],
             <tr>
               <th>Nom</th>
               <th>Matricule</th>
-              <th>🔢 PIN</th>
               <th>Email</th>
               <th>Rôle</th>
               <th>Statut</th>
@@ -4526,43 +4546,38 @@ section[data-view][hidden],
           </div>
         </div>
 
-        <!-- Section Connexion PIN (priorité) -->
+        <!-- Section Connexion par Email + Mot de passe -->
         <div style="margin:1.5rem 0 .5rem;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-500);font-weight:700">
-          🔢 Connexion par PIN
+          🔐 Identifiants de connexion
         </div>
 
         <div class="field">
-          <label class="field__label" for="user-pin">
-            Code PIN (4 chiffres) *
-            <span style="font-size:.7rem;color:var(--text-muted);font-weight:400;margin-left:.5rem">— L'utilisateur tapera ce code pour se connecter</span>
-          </label>
+          <label class="field__label" for="user-email">📧 Email *</label>
+          <input class="field__input" id="user-email" name="email" type="email" required
+                 placeholder="Ex: ahmed@leoni.com" autocomplete="off"
+                 style="font-size:.95rem"/>
+          <span style="font-size:.7rem;color:var(--text-muted);margin-top:.25rem;display:block">L'utilisateur utilisera cet email pour se connecter</span>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="user-password">🔑 Mot de passe *</label>
           <div style="display:flex;gap:.5rem;align-items:center">
-            <input class="field__input" id="user-pin" name="pin" type="text" inputmode="numeric"
-                   pattern="[0-9]{4}" maxlength="4" required placeholder="Ex: 4567" autocomplete="off"
-                   style="font-family:var(--font-mono);letter-spacing:.4em;font-size:1.2rem;text-align:center;font-weight:700;flex:1"/>
-            <button type="button" id="btn-pin-generate" class="btn btn--ghost" style="font-size:.78rem;padding:.55rem .85rem;white-space:nowrap" title="Générer un PIN aléatoire">
+            <input class="field__input" id="user-password" name="password" type="text" required
+                   placeholder="Min. 6 caractères" minlength="6" autocomplete="off"
+                   style="font-family:var(--font-mono);font-size:1rem;flex:1"/>
+            <button type="button" id="btn-pwd-generate" class="btn btn--ghost"
+                    style="font-size:.78rem;padding:.55rem .85rem;white-space:nowrap"
+                    title="Générer un mot de passe aléatoire">
               🎲 Générer
             </button>
           </div>
+          <span style="font-size:.7rem;color:var(--warn-500);margin-top:.25rem;display:block">⚠ Notez ce mot de passe et communiquez-le à l'utilisateur</span>
         </div>
 
-        <!-- Section Compte technique (optionnelle) -->
-        <details style="margin-top:1.5rem;background:var(--bg-2);border:1px solid var(--border-base);border-radius:8px;padding:.5rem .85rem">
-          <summary style="cursor:pointer;font-size:.78rem;color:var(--text-secondary);font-weight:600;list-style:none;padding:.4rem 0">
-            ⚙️ Paramètres avancés (email + mot de passe technique)
-          </summary>
-          <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border-base)">
-            <p style="font-size:.75rem;color:var(--text-muted);margin:0 0 .85rem">
-              Ces champs sont nécessaires en interne pour Firebase Auth. Tu peux laisser vide pour qu'ils soient générés automatiquement.
-            </p>
-            <div class="field">
-              <label class="field__label" for="user-email">Email</label>
-              <input class="field__input" id="user-email" name="email" type="email" placeholder="Auto: ahmed@leoni.com" autocomplete="off"/>
-            </div>
-            <div class="field">
-              <label class="field__label" for="user-password">Mot de passe</label>
-              <input class="field__input" id="user-password" name="password" type="text" placeholder="Auto: AHM2025" minlength="6" autocomplete="off"/>
-            </div>
+        <!-- Champs cachés pour compatibilité (PIN désactivé mais on garde le champ pour ne pas casser le code existant) -->
+        <input type="hidden" id="user-pin" name="pin" value=""/>
+        <details style="display:none">
+          <summary>
           </div>
         </details>
 
@@ -5145,21 +5160,38 @@ section[data-view][hidden],
      ========================================================================== */
   const auth = {
     init() {
-      // ── Connexion par PIN UNIQUEMENT ──
-      $('#form-pin')?.addEventListener('submit', this.handlePinLogin.bind(this));
+      // ── Connexion par EMAIL + MOT DE PASSE ──
+      $('#form-login')?.addEventListener('submit', this.handleLogin.bind(this));
 
-      // Auto-submit quand le PIN atteint 4 chiffres
-      $('#pin-code')?.addEventListener('input', e => {
-        e.target.value = e.target.value.replace(/[^0-9]/g, ''); // chiffres uniquement
-        if (e.target.value.length === 4) {
-          setTimeout(() => $('#form-pin').requestSubmit(), 150);
+      // Toggle visibilité du mot de passe
+      $('#btn-toggle-pass')?.addEventListener('click', () => {
+        const inp = $('#login-password');
+        if (inp) {
+          inp.type = inp.type === 'password' ? 'text' : 'password';
+          $('#btn-toggle-pass').textContent = inp.type === 'password' ? '👁' : '🙈';
         }
       });
 
+      // Restaurer email mémorisé
+      try {
+        const remembered = localStorage.getItem('LEONI_remembered_email');
+        if (remembered && $('#login-email')) {
+          $('#login-email').value = remembered;
+          $('#login-remember').checked = true;
+        }
+      } catch(e) {}
+
       fbAuth.onAuthStateChanged(this.handleAuthChange.bind(this));
 
-      // Focus auto sur le matricule au chargement
-      setTimeout(() => $('#pin-code')?.focus(), 200);
+      // Focus auto sur le champ email
+      setTimeout(() => {
+        const emailVal = $('#login-email')?.value;
+        if (emailVal) {
+          $('#login-password')?.focus();
+        } else {
+          $('#login-email')?.focus();
+        }
+      }, 200);
     },
 
     /* ── Connexion par PIN UNIQUEMENT — Solution ultra-simple ── */
@@ -5236,15 +5268,51 @@ section[data-view][hidden],
       e.preventDefault();
       const email = $('#login-email').value.trim();
       const password = $('#login-password').value;
+      const remember = $('#login-remember')?.checked || false;
       const errEl = $('#login-error');
+      const formEl = $('#form-login');
       errEl.hidden = true;
+      formEl?.classList.remove('login__form--error');
+
+      if (!email || !password) {
+        errEl.textContent = 'Email et mot de passe requis';
+        errEl.hidden = false;
+        return;
+      }
+
       ui.showLoader('Connexion…');
       try {
         await fbAuth.signInWithEmailAndPassword(email, password);
+        // Sauvegarder l'email si "Se souvenir"
+        try {
+          if (remember) {
+            localStorage.setItem('LEONI_remembered_email', email);
+          } else {
+            localStorage.removeItem('LEONI_remembered_email');
+          }
+        } catch(e) {}
       } catch (err) {
-        errEl.textContent = this.translateError(err.code);
+        // Messages d'erreur traduits en français
+        const friendlyMsg = (() => {
+          switch(err.code) {
+            case 'auth/wrong-password': return '❌ Mot de passe incorrect';
+            case 'auth/user-not-found': return '❌ Aucun compte avec cet email';
+            case 'auth/invalid-email': return '❌ Email invalide';
+            case 'auth/user-disabled': return '❌ Compte désactivé. Contactez admin';
+            case 'auth/too-many-requests': return '⚠️ Trop de tentatives. Attendez 5 minutes';
+            case 'auth/network-request-failed': return '🔴 Pas de connexion internet';
+            case 'auth/invalid-credential': return '❌ Email ou mot de passe incorrect';
+            default: return '❌ ' + (err.message || 'Erreur de connexion');
+          }
+        })();
+        errEl.innerHTML = friendlyMsg;
         errEl.hidden = false;
+        formEl?.classList.add('login__form--error');
+        $('#login-password').value = '';
+        $('#login-password')?.focus();
         ui.hideLoader();
+        // Animation shake
+        setTimeout(() => formEl?.classList.remove('login__form--error'), 500);
       }
     },
 
@@ -7124,20 +7192,10 @@ section[data-view][hidden],
             ? `Modifié le ${fmt.date(u.passwordChangedAt)}`
             : 'Jamais modifié';
           const pwBy = u.passwordChangedBy ? ` par ${ui.escape(u.passwordChangedBy)}` : '';
-          // ── Affichage PIN avec édition rapide ──
-          const pinDisplay = u.pin
-            ? `<button class="pin-cell" data-action="set-pin" data-uid="${ui.escape(u.uid || '')}" data-name="${ui.escape(u.displayName || '')}" data-pin="${ui.escape(u.pin)}"
-                 style="background:linear-gradient(135deg, rgba(0,212,255,.15), rgba(0,212,255,.08));border:1px solid rgba(0,212,255,.3);color:#00d4ff;
-                        padding:.35rem .85rem;border-radius:6px;font-family:var(--font-mono);font-weight:700;font-size:.95rem;letter-spacing:.15em;
-                        cursor:pointer;transition:all .15s">${ui.escape(u.pin)}</button>`
-            : `<button class="btn btn--ghost" data-action="set-pin" data-uid="${ui.escape(u.uid || '')}" data-name="${ui.escape(u.displayName || '')}" data-pin=""
-                 style="font-size:.72rem;padding:.3rem .65rem;color:var(--warn-500);border:1px dashed var(--warn-500)">⚠ Définir</button>`;
-
           return `<tr>
             <td><strong>${ui.escape(u.displayName || '—')}</strong></td>
             <td style="font-family:var(--font-mono);font-size:.85rem;font-weight:600">${ui.escape(u.matricule || '—')}</td>
-            <td>${pinDisplay}</td>
-            <td style="font-size:.78rem;color:var(--text-muted)">${ui.escape(u.email || '—')}</td>
+            <td style="font-size:.82rem">${ui.escape(u.email || '—')}</td>
             <td><span class="badge badge--auto">${auth.roleLabel(u.role)}</span></td>
             <td>
               <span style="font-size:.74rem;padding:.18rem .5rem;border-radius:5px;font-weight:600;
@@ -7151,8 +7209,8 @@ section[data-view][hidden],
               <div style="display:flex;gap:.3rem;flex-wrap:wrap">
                 <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem"
                   data-action="edit" data-uid="${ui.escape(u.uid || '')}">✏️ Modifier</button>
-                <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem;color:#00d4ff"
-                  data-action="set-pin" data-uid="${ui.escape(u.uid || '')}" data-name="${ui.escape(u.displayName || u.email || '')}" data-pin="${ui.escape(u.pin || '')}">🔢 PIN</button>
+                <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem;color:var(--accent-500)"
+                  data-action="set-pass" data-uid="${ui.escape(u.uid || '')}" data-email="${ui.escape(u.email || '')}" data-name="${ui.escape(u.displayName || u.email || '')}">🔑 Changer MDP</button>
                 <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem;color:${isActive ? 'var(--danger-500)' : 'var(--success-500)'}"
                   data-action="toggle-active" data-uid="${ui.escape(u.uid || '')}" data-active="${isActive}">
                   ${isActive ? '⛔' : '✅'}
@@ -7481,34 +7539,17 @@ section[data-view][hidden],
           el.addEventListener('click', () => { modal.hidden = true; }, { once: true });
         });
 
-        // ── Générateur de PIN aléatoire (unique dans la base) ──
-        $('#btn-pin-generate')?.addEventListener('click', async () => {
-          try {
-            const indexSnap = await fbDb.ref('loginIndex').once('value');
-            const usedPins = new Set();
-            const allIndex = indexSnap.val() || {};
-            Object.values(allIndex).forEach(e => usedPins.add(String(e.pin)));
-
-            // Générer un PIN qui n'est pas déjà utilisé
-            let newPin;
-            let attempts = 0;
-            do {
-              newPin = String(Math.floor(1000 + Math.random() * 9000));
-              attempts++;
-            } while (usedPins.has(newPin) && attempts < 50);
-
-            $('#user-pin').value = newPin;
-            $('#user-pin').style.background = 'rgba(0,229,160,.15)';
-            setTimeout(() => $('#user-pin').style.background = '', 800);
-            ui.toast(`PIN généré : ${newPin}`, 'success');
-          } catch(e) {
-            ui.toast('Erreur génération : ' + e.message, 'warn');
-          }
-        }, { once: false });
-
-        // ── Auto-restriction du PIN à 4 chiffres ──
-        $('#user-pin')?.addEventListener('input', e => {
-          e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+        // ── Générateur de mot de passe aléatoire ──
+        $('#btn-pwd-generate')?.addEventListener('click', () => {
+          // Génère 3 lettres + 4 chiffres : ex. ABC1234
+          const name = ($('#user-displayname')?.value || 'USR').replace(/[^A-Za-z]/g, '').toUpperCase();
+          const prefix = (name.substring(0, 3) || 'USR').padEnd(3, 'X');
+          const num = Math.floor(1000 + Math.random() * 9000);
+          const newPwd = prefix + num;
+          $('#user-password').value = newPwd;
+          $('#user-password').style.background = 'rgba(0,229,160,.15)';
+          setTimeout(() => $('#user-password').style.background = '', 800);
+          ui.toast(`Mot de passe généré : ${newPwd}`, 'success');
         });
 
         // ── Focus auto sur le nom complet ──
@@ -7518,46 +7559,24 @@ section[data-view][hidden],
           const data = {};
           new FormData(form).forEach((v, k) => { data[k] = v; });
 
-          // ── Validations principales ──
+          // ── Validations principales (mode email+mdp) ──
           if (!data.displayName?.trim())
             return ui.toast('Nom complet obligatoire', 'warn');
           if (!data.matricule?.trim())
             return ui.toast('Matricule obligatoire', 'warn');
-          if (!data.pin || !/^\d{4}$/.test(data.pin))
-            return ui.toast('Le PIN doit faire exactement 4 chiffres', 'warn');
+          if (!data.email?.trim())
+            return ui.toast('Email obligatoire', 'warn');
+          if (!data.email.includes('@'))
+            return ui.toast('Email invalide', 'warn');
+          if (!data.password?.trim())
+            return ui.toast('Mot de passe obligatoire', 'warn');
+          if (data.password.length < 6)
+            return ui.toast('Mot de passe trop court (min 6 caractères)', 'warn');
           if (!data.role)
             return ui.toast('Rôle obligatoire', 'warn');
 
-          // ── Auto-génération des champs avancés si vides ──
-          // Email : à partir du nom (lowercase, sans accents)
-          if (!data.email?.trim()) {
-            const slug = data.displayName.toLowerCase()
-              .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-              .replace(/[^a-z0-9]/g, '')
-              .substring(0, 12);
-            data.email = `${slug}@leoni.com`;
-          }
-          if (!data.email.includes('@'))
-            return ui.toast('Email invalide', 'warn');
-
-          // Password : auto-généré (3 lettres du nom + 4 chiffres aléatoires)
-          if (!data.password?.trim()) {
-            const prefix = data.displayName.replace(/[^A-Za-z]/g, '').substring(0, 3).toUpperCase() || 'USR';
-            const num = Math.floor(1000 + Math.random() * 9000);
-            data.password = `${prefix}${num}`;
-          }
-          if (data.password.length < 6)
-            return ui.toast('Mot de passe trop court (min 6 caractères)', 'warn');
-
-          // ── Vérifier que le PIN n'est pas déjà utilisé ──
-          try {
-            const indexSnap = await fbDb.ref('loginIndex').once('value');
-            const allIndex = indexSnap.val() || {};
-            const conflict = Object.values(allIndex).find(e => String(e.pin) === data.pin);
-            if (conflict) {
-              return ui.toast(`⚠️ Le PIN ${data.pin} est déjà utilisé par ${conflict.displayName}`, 'danger');
-            }
-          } catch(e) { /* ignore - on tentera quand même */ }
+          // PIN désactivé : on ne le valide plus
+          data.pin = data.pin || '';
 
           const btn = $('#btn-user-save');
           btn.disabled = true;

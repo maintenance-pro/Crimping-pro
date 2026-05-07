@@ -5885,7 +5885,12 @@ section[data-view][hidden],
       }
 
       ui.showView(view);
-      if (views[view] && views[view].render) views[view].render();
+      // Mapping route → nom de module (pour gérer camelCase comme auditLog)
+      const moduleMap = {
+        'auditlog': 'auditLog'
+      };
+      const moduleName = moduleMap[view] || view;
+      if (views[moduleName] && views[moduleName].render) views[moduleName].render();
     }
   };
 

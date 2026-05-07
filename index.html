@@ -3254,16 +3254,18 @@ section[data-view][hidden],
       </a>
 
       <div class="topbar__search">
-        <input class="topbar__search-input" id="global-search" type="search" placeholder="Rechercher un bon, un outil, un technicien…" / autocomplete="off">
+        <input class="topbar__search-input" id="global-search" type="search" placeholder="Rechercher un bon, un outil, un technicien…" data-i18n-placeholder="search.placeholder" / autocomplete="off">
       </div>
 
       <div class="topbar__actions">
-        <button class="topbar__btn topbar__btn--quick" id="btn-quick-new" title="Nouveau bon (N)" data-requires-role="admin,super_admin,responsable,crimp,crimping">＋ Nouveau bon</button>
+        <button class="topbar__btn topbar__btn--quick" id="btn-quick-new" title="Nouveau bon (N)" data-requires-role="admin,super_admin,responsable,crimp,crimping">＋ <span data-i18n="topbar.newBon">Nouveau bon</span></button>
 
         <button class="topbar__btn topbar__btn--icon" id="btn-notifications" aria-label="Notifications">
           🔔
           <span class="topbar__badge" id="notif-badge" hidden>0</span>
         </button>
+
+        <button class="topbar__btn topbar__btn--icon" id="btn-language" aria-label="Changer la langue" title="Changer la langue / Change language" style="font-weight:700;font-size:.85rem;min-width:42px">FR</button>
 
         <button class="topbar__btn topbar__btn--icon" id="btn-theme" aria-label="Changer le thème">◐</button>
 
@@ -3274,10 +3276,10 @@ section[data-view][hidden],
             <span class="topbar__user-role" id="user-role">—</span>
           </button>
           <ul class="topbar__user-dropdown" id="user-dropdown" hidden>
-            <li><button data-action="profile">Mon profil</button></li>
-            <li><button data-action="password">Changer mot de passe</button></li>
+            <li><button data-action="profile" data-i18n="user.profile">Mon profil</button></li>
+            <li><button data-action="password" data-i18n="user.changePassword">Changer mot de passe</button></li>
             <li><hr /></li>
-            <li><button data-action="logout">Se déconnecter</button></li>
+            <li><button data-action="logout" data-i18n="user.logout">Se déconnecter</button></li>
           </ul>
         </div>
       </div>
@@ -3289,63 +3291,63 @@ section[data-view][hidden],
         <ul class="sidebar__list">
           <li class="sidebar__item">
             <button class="sidebar__link sidebar__link--active" data-nav="hub">
-              <span class="sidebar__icon">🏠</span><span class="sidebar__label">Hub</span>
+              <span class="sidebar__icon">🏠</span><span class="sidebar__label" data-i18n="nav.hub">Hub</span>
             </button>
           </li>
           <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">
             <button class="sidebar__link" data-nav="intervention">
-              <span class="sidebar__icon">📝</span><span class="sidebar__label">Bon d'intervention</span>
+              <span class="sidebar__icon">📝</span><span class="sidebar__label" data-i18n="nav.intervention">Bon d'intervention</span>
             </button>
           </li>
           <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">
             <button class="sidebar__link" data-nav="history">
-              <span class="sidebar__icon">📋</span><span class="sidebar__label">Historique</span>
+              <span class="sidebar__icon">📋</span><span class="sidebar__label" data-i18n="nav.history">Historique</span>
               <span class="sidebar__pill" id="nav-history-count">0</span>
             </button>
           </li>
           <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">
             <button class="sidebar__link" data-nav="queue">
-              <span class="sidebar__icon">⏳</span><span class="sidebar__label">File d'attente</span>
+              <span class="sidebar__icon">⏳</span><span class="sidebar__label" data-i18n="nav.queue">File d'attente</span>
               <span class="sidebar__pill sidebar__pill--warn" id="nav-queue-count">0</span>
             </button>
           </li>
           <li class="sidebar__item" data-requires-role="admin,super_admin,responsable">
             <button class="sidebar__link" data-nav="catalog">
-              <span class="sidebar__icon">🛠</span><span class="sidebar__label">Catalogue outils</span>
+              <span class="sidebar__icon">🛠</span><span class="sidebar__label" data-i18n="nav.catalog">Catalogue outils</span>
             </button>
           </li>
           <li class="sidebar__item sidebar__item--admin" data-requires-role="responsable,super_admin,admin">
             <button class="sidebar__link" data-nav="users">
-              <span class="sidebar__icon">👥</span><span class="sidebar__label">Utilisateurs</span>
+              <span class="sidebar__icon">👥</span><span class="sidebar__label" data-i18n="nav.users">Utilisateurs</span>
             </button>
           </li>
           <li class="sidebar__item sidebar__item--admin" data-requires-role="responsable,super_admin,admin">
             <button class="sidebar__link" data-nav="stats">
-              <span class="sidebar__icon">📊</span><span class="sidebar__label">Statistiques & SLA</span>
+              <span class="sidebar__icon">📊</span><span class="sidebar__label" data-i18n="nav.stats">Statistiques & SLA</span>
             </button>
           </li>
           <li class="sidebar__item sidebar__item--admin" data-requires-role="admin,super_admin">
             <button class="sidebar__link" data-nav="auditlog">
-              <span class="sidebar__icon">📜</span><span class="sidebar__label">Journal d'audit</span>
+              <span class="sidebar__icon">📜</span><span class="sidebar__label" data-i18n="nav.audit">Journal d'audit</span>
             </button>
           </li>
 
           <!-- ═══ NOUVEAU : MODULES MAGASIN ═══ -->
           <li class="sidebar__item" data-requires-role="admin,super_admin,magasinier,responsable,crimp,crimping">
             <button class="sidebar__link" data-nav="magasin">
-              <span class="sidebar__icon">📦</span><span class="sidebar__label">Magasin Stock</span>
+              <span class="sidebar__icon">📦</span><span class="sidebar__label" data-i18n="nav.stock">Magasin Stock</span>
               <span class="sidebar__badge sidebar__badge--danger" id="stock-alert-badge" hidden>0</span>
             </button>
           </li>
           <li class="sidebar__item" data-requires-role="admin,super_admin,magasinier,responsable,crimp,crimping">
             <button class="sidebar__link" data-nav="performance">
-              <span class="sidebar__icon">📊</span><span class="sidebar__label">Performance équipe</span>
+              <span class="sidebar__icon">📊</span><span class="sidebar__label" data-i18n="nav.performance">Performance équipe</span>
             </button>
           </li>
           <!-- Suivi PDR : Magasinier + Admin uniquement (lecture seule) -->
           <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,magasinier">
             <button class="sidebar__link" data-nav="pdr">
-              <span class="sidebar__icon">🔧</span><span class="sidebar__label">Suivi PDR</span>
+              <span class="sidebar__icon">🔧</span><span class="sidebar__label" data-i18n="nav.pdr">Suivi PDR</span>
               <span class="sidebar__pill" id="nav-pdr-count">0</span>
             </button>
           </li>
@@ -3369,7 +3371,7 @@ section[data-view][hidden],
       <section class="hub" id="view-hub" data-view="hub">
         <header class="hub__header">
           <div>
-            <h1 class="hub__title">Tableau de bord</h1>
+            <h1 class="hub__title" data-i18n="hub.title">Tableau de bord</h1>
             <p class="hub__greeting" id="hub-greeting">Bienvenue —</p>
           </div>
           <div id="hub-health-score" style="min-width:220px;background:var(--bg-2);border:1px solid var(--border-soft);border-radius:12px;padding:.9rem 1.1rem;display:flex;align-items:center;gap:.75rem">
@@ -3427,7 +3429,7 @@ section[data-view][hidden],
         <div class="hub__grid">
           <section class="card card--chart">
             <header class="card__header">
-              <h2 class="card__title">Interventions / semaine</h2>
+              <h2 class="card__title" data-i18n="hub.interventionsWeek">Interventions / semaine</h2>
               <select class="card__filter" id="chart-period">
                 <option value="4">4 dernières semaines</option>
                 <option value="12" selected>12 dernières semaines</option>
@@ -3441,7 +3443,7 @@ section[data-view][hidden],
 
           <section class="card card--list">
             <header class="card__header">
-              <h2 class="card__title">À valider en urgence</h2>
+              <h2 class="card__title" data-i18n="hub.urgentValidation">À valider en urgence</h2>
               <button class="card__see-all" data-nav="queue">Voir tout →</button>
             </header>
             <ul class="queue" id="queue-list">
@@ -3451,14 +3453,14 @@ section[data-view][hidden],
 
           <section class="card card--list">
             <header class="card__header">
-              <h2 class="card__title">Top 5 outils maintenus</h2>
+              <h2 class="card__title" data-i18n="hub.topTools">Top 5 outils maintenus</h2>
             </header>
             <ul class="toplist" id="top-tools-list"></ul>
           </section>
 
           <section class="card card--list">
             <header class="card__header">
-              <h2 class="card__title">Dernières activités</h2>
+              <h2 class="card__title" data-i18n="hub.latestActivities">Dernières activités</h2>
             </header>
             <ul class="activity" id="activity-feed"></ul>
           </section>
@@ -3476,7 +3478,7 @@ section[data-view][hidden],
           <div class="intervention__title-block">
             <button class="intervention__back" id="btn-int-back" aria-label="Retour">←</button>
             <div>
-              <h1 class="intervention__title">Bon d'intervention</h1>
+              <h1 class="intervention__title" data-i18n="intervention.title">Bon d'intervention</h1>
               <p class="intervention__subtitle">
                 N° <span class="intervention__num" id="int-num">—</span>
                 · créé le <span id="int-created">—</span>
@@ -3890,7 +3892,7 @@ section[data-view][hidden],
       <!-- ================================================================= -->
       <section class="history" id="view-history" data-view="history" hidden>
         <header class="history__header">
-          <h1 class="history__title">Suivi des maintenances</h1>
+          <h1 class="history__title" data-i18n="history.title">Suivi des maintenances</h1>
           <p class="history__subtitle">Validation des outils de sertissage</p>
         </header>
 
@@ -3987,7 +3989,7 @@ section[data-view][hidden],
       <!-- ================================================================= -->
       <section class="queue-view" id="view-queue" data-view="queue" hidden>
         <header class="queue-view__header">
-          <h1 class="queue-view__title">Ma file d'attente</h1>
+          <h1 class="queue-view__title" data-i18n="queue.title">Ma file d'attente</h1>
           <div class="queue-view__tabs" role="tablist">
             <button class="tab tab--active" role="tab" data-tab="all">Tous</button>
             <button class="tab" role="tab" data-tab="mine">Les miens</button>
@@ -4007,7 +4009,7 @@ section[data-view][hidden],
       <!-- ================================================================= -->
       <section class="catalog" id="view-catalog" data-view="catalog" hidden>
         <header class="catalog__header">
-          <h1 class="catalog__title">Catalogue outils</h1>
+          <h1 class="catalog__title" data-i18n="catalog.title">Catalogue outils</h1>
           <div class="catalog__actions">
             <input class="catalog__search" id="catalog-search" type="search" placeholder="Rechercher un outil…" / autocomplete="off">
             <button class="btn btn--secondary" id="btn-catalog-import">📥 Importer Excel</button>
@@ -4027,7 +4029,7 @@ section[data-view][hidden],
       <!-- ================================================================= -->
       <section class="users-view" id="view-users" data-view="users" hidden>
         <header class="users-view__header">
-          <h1 class="users-view__title">Gestion des utilisateurs</h1>
+          <h1 class="users-view__title" data-i18n="users.title">Gestion des utilisateurs</h1>
           <button class="btn btn--primary" id="btn-user-add">＋ Nouvel utilisateur</button>
         </header>
 
@@ -4055,7 +4057,7 @@ section[data-view][hidden],
       <section class="pdr-view" id="view-pdr" data-view="pdr" hidden>
         <header class="view-header">
           <div>
-            <h1 class="view-header__title">🔧 Suivi des Pièces De Rechange (PDR)</h1>
+            <h1 class="view-header__title" data-i18n="pdr.title">🔧 Suivi des Pièces De Rechange (PDR)</h1>
             <p class="view-header__subtitle">📋 Lecture seule — Suivi des pièces remplacées dans les bons d'intervention</p>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
@@ -4205,7 +4207,7 @@ section[data-view][hidden],
       <!-- ================================================================= -->
       <section class="stats-view" id="view-stats" data-view="stats" hidden>
         <header class="stats-view__header">
-          <h1 class="stats-view__title">Statistiques & SLA</h1>
+          <h1 class="stats-view__title" data-i18n="stats.title">Statistiques & SLA</h1>
           <div class="stats-view__period">
             <select id="stats-period">
               <option value="7">7 jours</option>
@@ -9799,6 +9801,135 @@ Erreur Firebase : ${e.message}`;
   };
 
   /* ==========================================================================
+     SYSTÈME DE TRADUCTION FR / EN
+     ========================================================================== */
+  const i18n = {
+    current: localStorage.getItem('LEONI_lang') || 'fr',
+
+    translations: {
+      fr: {
+        // Navigation
+        'nav.hub': 'Hub',
+        'nav.intervention': 'Bon d\'intervention',
+        'nav.history': 'Historique',
+        'nav.queue': 'File d\'attente',
+        'nav.catalog': 'Catalogue outils',
+        'nav.users': 'Utilisateurs',
+        'nav.stats': 'Statistiques & SLA',
+        'nav.audit': 'Journal d\'audit',
+        'nav.stock': 'Magasin Stock',
+        'nav.performance': 'Performance équipe',
+        'nav.pdr': 'Suivi PDR',
+
+        // Topbar
+        'topbar.newBon': 'Nouveau bon',
+        'search.placeholder': 'Rechercher un bon, un outil, un technicien…',
+        'user.profile': 'Mon profil',
+        'user.changePassword': 'Changer mot de passe',
+        'user.logout': 'Se déconnecter',
+
+        // Pages titles
+        'hub.title': 'Tableau de bord',
+        'intervention.title': 'Bon d\'intervention',
+        'history.title': 'Suivi des maintenances',
+        'queue.title': 'Ma file d\'attente',
+        'catalog.title': 'Catalogue outils',
+        'users.title': 'Gestion des utilisateurs',
+        'pdr.title': '🔧 Suivi des Pièces De Rechange (PDR)',
+        'stats.title': 'Statistiques & SLA',
+
+        // Hub cards
+        'hub.interventionsWeek': 'Interventions / semaine',
+        'hub.urgentValidation': 'À valider en urgence',
+        'hub.topTools': 'Top 5 outils maintenus',
+        'hub.latestActivities': 'Dernières activités'
+      },
+      en: {
+        // Navigation
+        'nav.hub': 'Dashboard',
+        'nav.intervention': 'Maintenance Order',
+        'nav.history': 'History',
+        'nav.queue': 'Queue',
+        'nav.catalog': 'Tool Catalog',
+        'nav.users': 'Users',
+        'nav.stats': 'Statistics & SLA',
+        'nav.audit': 'Audit Log',
+        'nav.stock': 'Stock Inventory',
+        'nav.performance': 'Team Performance',
+        'nav.pdr': 'Spare Parts Tracking',
+
+        // Topbar
+        'topbar.newBon': 'New Order',
+        'search.placeholder': 'Search for an order, a tool, a technician…',
+        'user.profile': 'My profile',
+        'user.changePassword': 'Change password',
+        'user.logout': 'Sign out',
+
+        // Pages titles
+        'hub.title': 'Dashboard',
+        'intervention.title': 'Maintenance Order',
+        'history.title': 'Maintenance History',
+        'queue.title': 'My Queue',
+        'catalog.title': 'Tool Catalog',
+        'users.title': 'User Management',
+        'pdr.title': '🔧 Spare Parts Tracking (SPT)',
+        'stats.title': 'Statistics & SLA',
+
+        // Hub cards
+        'hub.interventionsWeek': 'Interventions / week',
+        'hub.urgentValidation': 'Urgent validation',
+        'hub.topTools': 'Top 5 maintained tools',
+        'hub.latestActivities': 'Latest activities'
+      }
+    },
+
+    t(key) {
+      return this.translations[this.current]?.[key] || this.translations.fr[key] || key;
+    },
+
+    apply() {
+      // Traduire tous les éléments avec data-i18n
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        const value = this.t(key);
+        if (value) el.textContent = value;
+      });
+      // Traduire les placeholders
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        const value = this.t(key);
+        if (value) el.placeholder = value;
+      });
+      // Mettre à jour le bouton de langue
+      const btn = document.getElementById('btn-language');
+      if (btn) {
+        btn.textContent = this.current === 'fr' ? 'EN' : 'FR';
+        btn.title = this.current === 'fr' ? 'Switch to English' : 'Passer en français';
+      }
+      // HTML lang attribute
+      document.documentElement.lang = this.current;
+    },
+
+    toggle() {
+      this.current = this.current === 'fr' ? 'en' : 'fr';
+      localStorage.setItem('LEONI_lang', this.current);
+      this.apply();
+      if (typeof ui !== 'undefined' && ui.toast) {
+        ui.toast(this.current === 'fr' ? '🇫🇷 Langue changée en Français' : '🇬🇧 Language changed to English', 'success', 2000);
+      }
+    },
+
+    init() {
+      const btn = document.getElementById('btn-language');
+      if (btn) {
+        btn.addEventListener('click', () => this.toggle());
+      }
+      this.apply();
+    }
+  };
+  window.i18n = i18n;
+
+  /* ==========================================================================
      15. BOOTSTRAP
      ========================================================================== */
   document.addEventListener('DOMContentLoaded', () => {
@@ -9806,6 +9937,7 @@ Erreur Firebase : ${e.message}`;
     auth.init();
     app.initUI();
     router.init();
+    if (typeof i18n !== 'undefined') i18n.init();
     views.intervention.init();
     views.history.init();
     views.queue.init();

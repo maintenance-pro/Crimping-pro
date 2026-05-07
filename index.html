@@ -4988,27 +4988,37 @@ section[data-view][hidden],
   const $  = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-  // ═══ Mappage code PDR → Nom complet/référence ═══
-  // Utilisé partout pour afficher les PDR avec leurs vraies références
+  // ═══ Mappage code PDR → Nom court (P-AR, etc.) ═══
   const PDR_LABELS = {
-    'pAr'         : 'P-AR · Poinçon Arrière',
-    'pAv'         : 'P-AV · Poinçon Avant',
-    'eAr'         : 'E-AR · Enclume Arrière',
-    'eAv'         : 'E-AV · Enclume Avant',
-    'cAr'         : 'C-AR · Couteau Arrière',
-    'cAv'         : 'C-AV · Couteau Avant',
+    'pAr'         : 'P-AR',
+    'pAv'         : 'P-AV',
+    'eAr'         : 'E-AR',
+    'eAv'         : 'E-AV',
+    'cAr'         : 'C-AR',
+    'cAv'         : 'C-AV',
     'ejector'     : 'Éjecteur',
-    'couteauBanda': 'Couteau / Banda',
-    'couteauBande': 'Couteau / Bande'
+    'couteauBanda': 'Couteau/Banda',
+    'couteauBande': 'Couteau/Bande'
   };
 
-  // Helper : convertir un code PDR en label lisible
-  // Retourne le nom complet si trouvé, sinon le code original
+  // Helper : code PDR → nom court (P-AR, P-AV...)
   function pdrLabel(code) {
     if (!code) return '—';
     return PDR_LABELS[code] || code;
   }
-  window.pdrLabel = pdrLabel; // pour debug console
+  
+  // Helper : code PDR + tool → référence fabricant de la pièce
+  // Ex: pdrRef('pAr', tool) où tool.pieces = {pAr: '1', pAv: '2'} → retourne "1"
+  // Si pas de référence trouvée, retourne le label court (P-AR)
+  function pdrRef(code, tool) {
+    if (!code) return '—';
+    const ref = tool?.pieces?.[code];
+    if (ref) return String(ref);
+    return PDR_LABELS[code] || code;
+  }
+  
+  window.pdrLabel = pdrLabel;
+  window.pdrRef = pdrRef;
 
   const fmt = {
     date: (ts) => {
@@ -6265,7 +6275,7 @@ section[data-view][hidden],
             drawRow('Date:', data.crimping.date ? new Date(data.crimping.date).toLocaleDateString('fr-FR') : '—');
             drawRow('Cycles compteur:', data.crimping.cycles);
             drawRow('Type:', data.crimping.type ? {preventive:'Préventive',curative:'Curative',requalification:'Requalification'}[data.crimping.type] : '—');
-            const pieces = Object.entries(data.crimping.piecesChanged||{}).filter(([,v])=>v).map(([k])=>pdrLabel(k)).join(', ') || 'Aucune';
+            const pieces = Object.entries(data.crimping.piecesChanged||{}).filter(([,v])=>v).map(([k])=>pdrRef(k, data.tool)).join(', ') || 'Aucune';
             drawRow('Pièces changées:', pieces);
             if (data.crimping.observation) drawRow('Observation:', data.crimping.observation.slice(0,60));
           }
@@ -8650,6 +8660,7 @@ Erreur Firebase : ${e.message}`;
               fabricant: itv.tool?.fabricant || '—',
               refOutil: itv.tool?.refOutil || '—',
               refFabricant: itv.tool?.refFabricant || '—',
+              tool: itv.tool || null,  // ← NOUVEAU : on garde l'outil complet pour pdrRef
               pdrList: pdrList,
               technicien: itv.crimping?.technicienNom || itv.crimping?.filledBy?.name || '—',
               matricule: itv.crimping?.technicienMatricule || itv.crimping?.filledBy?.matricule || '',
@@ -8706,9 +8717,13 @@ Erreur Firebase : ${e.message}`;
           return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
         };
         tbody.innerHTML = records.map(r => {
-          const piecesHtml = r.pdrList.map(p =>
-            '<span style="display:inline-block;background:rgba(0,212,255,.12);color:#00d4ff;padding:.18rem .55rem;border-radius:5px;font-size:.72rem;margin:.1rem;font-weight:600" title="' + ui.escape(p) + '">🔧 ' + ui.escape(pdrLabel(p)) + '</span>'
-          ).join('');
+          const piecesHtml = r.pdrList.map(p => {
+            const ref = pdrRef(p, r.tool);  // référence fabricant (1,2,3...)
+            const label = pdrLabel(p);       // nom court (P-AR)
+            const hasRef = (ref !== label);  // true si vraie référence trouvée
+            const display = hasRef ? (label + ': ' + ref) : label;
+            return '<span style="display:inline-block;background:rgba(0,212,255,.12);color:#00d4ff;padding:.2rem .65rem;border-radius:5px;font-size:.75rem;margin:.15rem;font-weight:700" title="' + ui.escape(p) + '">🔧 ' + ui.escape(display) + '</span>';
+          }).join('');
           return '<tr>'
             + '<td style="font-size:.78rem;color:var(--text-secondary);white-space:nowrap">' + fmtDate(r.date) + '</td>'
             + '<td><strong style="color:#00d4ff;font-family:var(--font-mono)">' + ui.escape(r.numBon) + '</strong></td>'
@@ -8739,7 +8754,7 @@ Erreur Firebase : ${e.message}`;
         if (monthEl) monthEl.textContent = monthCount;
         if (toolsEl) toolsEl.textContent = uniqueTools.size;
         if (topEl) topEl.innerHTML = topPieces.length
-          ? topPieces.map(([p, c]) => '<div style="font-size:.78rem">' + ui.escape(pdrLabel(p)) + ' <span style="color:var(--text-muted)">(' + c + '×)</span></div>').join('')
+          ? topPieces.map(([p, c]) => '<div style="font-size:.78rem"><strong>' + ui.escape(pdrLabel(p)) + '</strong> <span style="color:var(--text-muted)">(' + c + '×)</span></div>').join('')
           : '<span style="color:var(--text-muted);font-size:.85rem">Aucune</span>';
       },
 

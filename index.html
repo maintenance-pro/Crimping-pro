@@ -3273,7 +3273,7 @@ section[data-view][hidden],
           <button class="topbar__user-btn" id="btn-user">
             <span class="topbar__user-avatar" id="user-avatar">B</span>
             <span class="topbar__user-name" id="user-name">—</span>
-            <span class="topbar__user-role" id="user-role">—</span>
+            <span class="topbar__user-role" id="topbar-user-role">—</span>
           </button>
           <ul class="topbar__user-dropdown" id="user-dropdown" hidden>
             <li><button data-action="profile" data-i18n="user.profile">Mon profil</button></li>
@@ -4512,6 +4512,10 @@ section[data-view][hidden],
         <button id="btn-notif-clear">Tout marquer lu</button>
         <button id="btn-notif-close" aria-label="Fermer">×</button>
       </header>
+      <div id="notif-perm-banner" hidden style="padding:.75rem 1rem;background:rgba(255,180,0,.10);border-bottom:1px solid var(--border-soft);font-size:var(--fs-sm);display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+        <span style="flex:1">🔔 Active les alertes système pour ne rater aucun bon</span>
+        <button id="btn-notif-enable" class="btn btn--primary" style="padding:.4rem .8rem;font-size:.78rem;font-weight:600">Activer</button>
+      </div>
       <ul class="notif-panel__list" id="notif-list"></ul>
     </aside>
 
@@ -5025,6 +5029,10 @@ section[data-view][hidden],
     listeners: [],        // unsubscribe functions
     stock: {},            // stock items
     stockMovements: [],   // movements log
+    // ── Notifications real-time tracking ──
+    notifSeenKeys: new Set(),   // keys of notifs we've already alerted on
+    notifInitDone: false,       // first listener fire = baseline (no alert)
+    notifPermAsked: false,      // browser permission asked once per session
   };
 
   /* ==========================================================================
@@ -5593,6 +5601,10 @@ section[data-view][hidden],
         ui.toast(`Bienvenue ${profile.displayName}`, 'success');
         initSessionTimeout();
 
+        // 🔔 Demander la permission notifications système (1 seule fois)
+        // Délai 2s pour ne pas perturber le login + laisser le UI s'afficher
+        setTimeout(() => { try { notifAlert.requestPermission(); } catch(e){} }, 2000);
+
         // ⚠️ AUTO-SYNC du loginIndex pour le login PIN
         // Tourne 1 seule fois par session admin
         if ((state.role === 'admin' || state.role === 'super_admin') && !window.__loginIndexSynced) {
@@ -5612,7 +5624,7 @@ section[data-view][hidden],
     updateUserBadge() {
       const p = state.profile;
       $('#user-name').textContent = p.displayName || '—';
-      $('#user-role').textContent = p.role || '—';
+      $('#topbar-user-role').textContent = p.role || '—';
       $('#user-avatar').textContent = (p.displayName || '?').charAt(0).toUpperCase();
       $('#hub-greeting').textContent = `Bienvenue ${p.displayName} — ${this.roleLabel(p.role)}`;
     },
@@ -5901,6 +5913,9 @@ section[data-view][hidden],
 
     listenNotifications() {
       if (!state.user) return;
+      // Reset tracking state for this session
+      state.notifSeenKeys = new Set();
+      state.notifInitDone = false;
       // Pas d'orderByChild — tri côté client pour éviter le warning d'index Firebase
       const ref = fbDb.ref(`notifications/${state.user.uid}`).limitToLast(20);
       const handler = (snap) => {
@@ -5912,9 +5927,136 @@ section[data-view][hidden],
         badge.textContent = unread;
         badge.hidden = unread === 0;
         views.notifications.render(notifs);
+
+        // ── Détection de NOUVELLES notifications (depuis le dernier snapshot) ──
+        if (!state.notifInitDone) {
+          // Premier appel = baseline → on enregistre tout sans alerter
+          notifs.forEach(n => state.notifSeenKeys.add(n.id));
+          state.notifInitDone = true;
+          return;
+        }
+
+        // Nouveaux notifs détectées → alerter l'utilisateur
+        const fresh = notifs.filter(n => !state.notifSeenKeys.has(n.id) && !n.read);
+        fresh.forEach(n => {
+          state.notifSeenKeys.add(n.id);
+          notifAlert.fire(n);
+        });
+        // Mémoriser tous les ids vus (même les anciens marqués lus)
+        notifs.forEach(n => state.notifSeenKeys.add(n.id));
       };
       ref.on('value', handler);
       state.listeners.push(() => ref.off('value', handler));
+    }
+  };
+
+  /* ==========================================================================
+     NOTIFICATION ALERT SYSTEM — toast + sound + browser/desktop notification
+     ========================================================================== */
+  const notifAlert = {
+    /**
+     * Demande la permission pour les notifications système (1 seule fois).
+     * Appelée après login.
+     */
+    async requestPermission() {
+      if (state.notifPermAsked) return;
+      state.notifPermAsked = true;
+      if (!('Notification' in window)) {
+        console.log('[Notif] Notifications système non supportées par le navigateur');
+        return;
+      }
+      if (Notification.permission === 'default') {
+        try {
+          const result = await Notification.requestPermission();
+          console.log('[Notif] Permission utilisateur :', result);
+        } catch (e) {
+          console.warn('[Notif] Erreur demande permission :', e);
+        }
+      } else {
+        console.log('[Notif] Permission déjà :', Notification.permission);
+      }
+    },
+
+    /**
+     * Joue un son court (Web Audio API — pas de fichier externe).
+     */
+    playSound(type = 'info') {
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        // 2 tons rapides selon le type
+        const pattern = type === 'rejected'
+          ? [{ f: 880, d: 0.08 }, { f: 440, d: 0.12 }]
+          : type === 'validated'
+          ? [{ f: 660, d: 0.08 }, { f: 990, d: 0.12 }]
+          : [{ f: 800, d: 0.10 }, { f: 1000, d: 0.10 }];
+        let t = ctx.currentTime;
+        pattern.forEach(p => {
+          osc.frequency.setValueAtTime(p.f, t);
+          gain.gain.setValueAtTime(0.10, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + p.d);
+          t += p.d;
+        });
+        osc.start(ctx.currentTime);
+        osc.stop(t + 0.05);
+        // Cleanup
+        setTimeout(() => { try { ctx.close(); } catch(e){} }, (t - ctx.currentTime + 0.2) * 1000);
+      } catch (e) {
+        console.warn('[Notif] Sound failed:', e);
+      }
+    },
+
+    /**
+     * Affiche une notification système Windows/Android.
+     */
+    showDesktop(notif) {
+      if (!('Notification' in window)) return;
+      if (Notification.permission !== 'granted') return;
+      try {
+        const title = 'CRIMPING LABO — LEONI';
+        const body = notif.message || 'Nouvelle notification';
+        const tag = `bon-${notif.interventionId || notif.id}`;
+        const n = new Notification(title, {
+          body,
+          tag,                  // remplace les notifs en double pour le même bon
+          renotify: false,
+          requireInteraction: false,
+          silent: false,
+          icon: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#0066ff"/><text x="32" y="42" font-size="32" text-anchor="middle" fill="#fff" font-family="Arial" font-weight="bold">L</text></svg>`)
+        });
+        n.onclick = () => {
+          window.focus();
+          // Ouvrir le bon concerné si possible
+          if (notif.interventionId && views?.intervention?.open) {
+            try { views.intervention.open(notif.interventionId); } catch(e){}
+          }
+          n.close();
+        };
+        // Auto-close après 8s
+        setTimeout(() => { try { n.close(); } catch(e){} }, 8000);
+      } catch (e) {
+        console.warn('[Notif] Desktop notification failed:', e);
+      }
+    },
+
+    /**
+     * Déclenche tout : toast + son + notif système.
+     */
+    fire(notif) {
+      const type = (notif.type || '').replace('intervention_', '') || 'info';
+      // 1. Toast in-app
+      const toastType = type === 'rejected' ? 'error' : type === 'validated' ? 'success' : 'info';
+      try { ui.toast(notif.message || 'Nouvelle notification', toastType); } catch(e){}
+      // 2. Son
+      this.playSound(type);
+      // 3. Notif système (si onglet en arrière-plan ou autorisée)
+      this.showDesktop(notif);
+      console.log('[Notif] 🔔 Nouvelle notification :', notif.message);
     }
   };
 
@@ -9244,6 +9386,7 @@ Erreur Firebase : ${e.message}`;
       init() {
         $('#btn-notifications').addEventListener('click', () => {
           $('#notif-panel').hidden = false;
+          this.refreshPermBanner();
         });
         $('#btn-notif-close').addEventListener('click', () => {
           $('#notif-panel').hidden = true;
@@ -9256,6 +9399,32 @@ Erreur Firebase : ${e.message}`;
           snap.forEach(c => { updates[`${c.key}/read`] = true; });
           await ref.update(updates);
         });
+        // 🔔 Bouton activer notifs système
+        const btnEnable = $('#btn-notif-enable');
+        if (btnEnable) {
+          btnEnable.addEventListener('click', async () => {
+            state.notifPermAsked = false; // permettre une nouvelle demande
+            await notifAlert.requestPermission();
+            this.refreshPermBanner();
+            // Test immédiat si autorisé
+            if ('Notification' in window && Notification.permission === 'granted') {
+              notifAlert.fire({
+                type: 'test',
+                message: '✅ Les notifications système sont activées',
+                interventionId: null
+              });
+            } else if ('Notification' in window && Notification.permission === 'denied') {
+              ui.toast('Permission refusée. Active-la manuellement dans les paramètres du navigateur (cadenas dans la barre d\'adresse).', 'warn');
+            }
+          });
+        }
+      },
+      refreshPermBanner() {
+        const banner = $('#notif-perm-banner');
+        if (!banner) return;
+        if (!('Notification' in window)) { banner.hidden = true; return; }
+        // Affiche la bannière sauf si déjà accordée
+        banner.hidden = (Notification.permission === 'granted');
       },
       render(notifs) {
         $('#notif-list').innerHTML = notifs.map(n => `

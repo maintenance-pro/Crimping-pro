@@ -3365,6 +3365,55 @@ section[data-view][hidden],
     <!-- ============== MAIN ============== -->
     <main class="main" id="main">
 
+      <!-- 🔔 BARRE D'ALERTE PERSISTANTE — visible tant qu'il reste des notifs non-lues -->
+      <div id="unread-bar" hidden style="
+          position:sticky;top:0;z-index:40;
+          background:linear-gradient(90deg,rgba(0,229,160,.18),rgba(0,180,255,.14));
+          border-bottom:2px solid var(--accent-500,#00b4d8);
+          padding:.65rem 1rem;
+          display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;
+          box-shadow:0 2px 12px rgba(0,180,216,.20);
+          animation:unreadBarPulse 2.5s ease-in-out infinite;">
+        <span style="font-size:1.1rem;animation:bellShake 1.2s ease-in-out infinite">🔔</span>
+        <span id="unread-bar-count" style="
+            background:var(--accent-500,#00b4d8);color:#fff;
+            font-weight:700;font-size:.78rem;
+            padding:.18rem .55rem;border-radius:999px;
+            font-family:var(--font-mono,monospace)">1</span>
+        <span id="unread-bar-message" style="
+            flex:1;font-size:.92rem;font-weight:500;
+            color:var(--text-primary,#e6f1ff);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+            min-width:0">Nouvelle notification</span>
+        <button id="unread-bar-view" style="
+            padding:.35rem .85rem;font-size:.78rem;font-weight:600;
+            background:var(--accent-500,#00b4d8);color:#fff;border:none;
+            border-radius:6px;cursor:pointer;white-space:nowrap;
+            transition:all .15s ease">Voir</button>
+        <button id="unread-bar-dismiss" title="Marquer comme lu" style="
+            padding:.35rem .65rem;font-size:.78rem;font-weight:600;
+            background:transparent;color:var(--text-primary,#e6f1ff);
+            border:1px solid var(--border-soft,#2a3a5a);
+            border-radius:6px;cursor:pointer;white-space:nowrap;
+            transition:all .15s ease">✓ Lu</button>
+      </div>
+      <style>
+        @keyframes unreadBarPulse {
+          0%,100% { box-shadow:0 2px 12px rgba(0,180,216,.20); }
+          50%     { box-shadow:0 2px 22px rgba(0,180,216,.45); }
+        }
+        @keyframes bellShake {
+          0%,100% { transform:rotate(0deg); }
+          15%     { transform:rotate(-12deg); }
+          30%     { transform:rotate(10deg); }
+          45%     { transform:rotate(-8deg); }
+          60%     { transform:rotate(6deg); }
+          75%     { transform:rotate(-3deg); }
+        }
+        #unread-bar-view:hover  { filter:brightness(1.15);transform:translateY(-1px); }
+        #unread-bar-dismiss:hover { background:rgba(255,255,255,.08); }
+      </style>
+
       <!-- ================================================================= -->
       <!-- VIEW 2 — HUB / DASHBOARD                                          -->
       <!-- ================================================================= -->
@@ -5922,11 +5971,14 @@ section[data-view][hidden],
         const notifs = [];
         snap.forEach(child => notifs.push({ id: child.key, ...child.val() }));
         notifs.reverse();
-        const unread = notifs.filter(n => !n.read).length;
+        const unreadList = notifs.filter(n => !n.read);
+        const unread = unreadList.length;
         const badge = $('#notif-badge');
         badge.textContent = unread;
         badge.hidden = unread === 0;
         views.notifications.render(notifs);
+        // 🔔 Mise à jour de la barre persistante (latest unread)
+        views.notifications.updateUnreadBar(unreadList);
 
         // ── Détection de NOUVELLES notifications (depuis le dernier snapshot) ──
         if (!state.notifInitDone) {
@@ -9383,6 +9435,9 @@ Erreur Firebase : ${e.message}`;
 
     /* ========== NOTIFICATIONS PANEL ========== */
     notifications: {
+      // Référence au dernier non-lu affiché dans la barre persistante
+      _topUnread: null,
+
       init() {
         $('#btn-notifications').addEventListener('click', () => {
           $('#notif-panel').hidden = false;
@@ -9418,7 +9473,69 @@ Erreur Firebase : ${e.message}`;
             }
           });
         }
+
+        // 🔔 Boutons de la barre persistante "non-lues"
+        const btnView = $('#unread-bar-view');
+        if (btnView) {
+          btnView.addEventListener('click', () => {
+            const n = this._topUnread;
+            if (!n) return;
+            // Marquer lu
+            this.markRead(n.id);
+            // Ouvrir le bon si possible
+            if (n.interventionId && views?.intervention?.open) {
+              try { views.intervention.open(n.interventionId); } catch(e){
+                // Fallback : ouvrir le panneau notifs
+                $('#notif-panel').hidden = false;
+              }
+            } else {
+              $('#notif-panel').hidden = false;
+            }
+          });
+        }
+        const btnDismiss = $('#unread-bar-dismiss');
+        if (btnDismiss) {
+          btnDismiss.addEventListener('click', () => {
+            const n = this._topUnread;
+            if (n) this.markRead(n.id);
+          });
+        }
       },
+
+      /**
+       * Marque UNE notification comme lue dans Firebase.
+       */
+      async markRead(notifId) {
+        if (!state.user || !notifId) return;
+        try {
+          await fbDb.ref(`notifications/${state.user.uid}/${notifId}/read`).set(true);
+        } catch(e) {
+          console.warn('[Notif] markRead failed:', e);
+        }
+      },
+
+      /**
+       * Met à jour la barre persistante en haut de l'écran.
+       * Visible tant qu'il reste au moins 1 notif non-lue.
+       */
+      updateUnreadBar(unreadList) {
+        const bar = $('#unread-bar');
+        if (!bar) return;
+        if (!unreadList || unreadList.length === 0) {
+          bar.hidden = true;
+          this._topUnread = null;
+          return;
+        }
+        // Plus récente en premier (déjà reversed dans listenNotifications)
+        const top = unreadList[0];
+        this._topUnread = top;
+        const msgEl = $('#unread-bar-message');
+        const cntEl = $('#unread-bar-count');
+        if (msgEl) msgEl.textContent = top.message || 'Nouvelle notification';
+        if (cntEl) cntEl.textContent = unreadList.length;
+        bar.hidden = false;
+      },
+
       refreshPermBanner() {
         const banner = $('#notif-perm-banner');
         if (!banner) return;
@@ -9426,13 +9543,36 @@ Erreur Firebase : ${e.message}`;
         // Affiche la bannière sauf si déjà accordée
         banner.hidden = (Notification.permission === 'granted');
       },
+
+      /**
+       * Affiche UNIQUEMENT les notifications non-lues.
+       * Une notif lue disparaît automatiquement de la liste.
+       */
       render(notifs) {
-        $('#notif-list').innerHTML = notifs.map(n => `
-          <li style="padding:var(--sp-3);border-bottom:1px solid var(--border-soft);${n.read ? 'opacity:.6' : ''}">
+        const unread = (notifs || []).filter(n => !n.read);
+        $('#notif-list').innerHTML = unread.map(n => `
+          <li data-notif-id="${n.id}" style="padding:var(--sp-3);border-bottom:1px solid var(--border-soft);cursor:pointer;transition:background .15s">
             <div style="font-size:var(--fs-sm)">${ui.escape(n.message)}</div>
-            <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:var(--sp-1)">${fmt.dateTime(n.createdAt)}</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:var(--sp-1);display:flex;justify-content:space-between;align-items:center;gap:.5rem">
+              <span>${fmt.dateTime(n.createdAt)}</span>
+              <span style="color:var(--accent-500,#00b4d8);font-weight:600">✓ Marquer lu</span>
+            </div>
           </li>
-        `).join('') || '<li style="padding:var(--sp-4);color:var(--text-muted);text-align:center">Aucune notification</li>';
+        `).join('') || '<li style="padding:var(--sp-4);color:var(--text-muted);text-align:center">✨ Aucune nouvelle notification</li>';
+        // Click sur une notif → marquer lu + ouvrir le bon
+        $('#notif-list').querySelectorAll('li[data-notif-id]').forEach(li => {
+          li.addEventListener('click', () => {
+            const id = li.dataset.notifId;
+            const n = (notifs || []).find(x => x.id === id);
+            this.markRead(id);
+            if (n?.interventionId && views?.intervention?.open) {
+              try { views.intervention.open(n.interventionId); } catch(e){}
+              $('#notif-panel').hidden = true;
+            }
+          });
+          li.addEventListener('mouseenter', () => li.style.background = 'var(--bg-elevated, rgba(255,255,255,.04))');
+          li.addEventListener('mouseleave', () => li.style.background = '');
+        });
       }
     }
   };

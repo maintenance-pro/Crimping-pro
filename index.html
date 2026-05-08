@@ -4110,6 +4110,7 @@ section[data-view][hidden],
             <p class="view-header__subtitle">📋 Lecture seule — Suivi des pièces remplacées dans les bons d'intervention</p>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
+            <button class="btn btn--ghost" id="btn-pdr-export" title="Télécharger la liste filtrée en Excel">📥 Exporter Excel</button>
             <button class="btn btn--ghost" id="btn-pdr-refresh"><span data-i18n="action.refresh">🔄 <span data-i18n="action.refresh">Actualiser</span></span></button>
           </div>
         </header>
@@ -8936,6 +8937,7 @@ Erreur Firebase : ${e.message}`;
         if (this._listenerSet) return;
         this._listenerSet = true;
         document.getElementById('btn-pdr-refresh')?.addEventListener('click', () => this.render());
+        document.getElementById('btn-pdr-export')?.addEventListener('click', () => this._exportExcel());
         document.getElementById('pdr-filter-period')?.addEventListener('change', () => this.applyFilters());
         // Top 20 références
         document.getElementById('top20-month')?.addEventListener('change', () => this._renderTop20());
@@ -9288,6 +9290,133 @@ Erreur Firebase : ${e.message}`;
             + '<div style="font-size:.65rem;color:' + (isSelected ? '#00e5a0' : 'var(--text-muted)') + ';font-weight:' + (isSelected ? '700' : '500') + ';margin-top:.25rem;font-family:var(--font-mono)">' + monthShort + '</div>'
             + '</div>';
         }).join('');
+      },
+
+      // ═══ Export Excel de la liste PDR filtrée ═══
+      async _exportExcel() {
+        const records = this._filtered || [];
+        if (records.length === 0) {
+          ui.toast('Aucune PDR à exporter pour cette période', 'warn');
+          return;
+        }
+
+        // Chargement lazy de SheetJS si pas déjà présent
+        const loadXLSX = () => new Promise((resolve, reject) => {
+          if (window.XLSX) return resolve();
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          s.onload = resolve;
+          s.onerror = () => reject(new Error('Impossible de charger SheetJS'));
+          document.head.appendChild(s);
+        });
+
+        ui.showLoader('Génération Excel en cours…');
+        try {
+          await loadXLSX();
+
+          const fmtDate = (ts) => {
+            if (!ts) return '';
+            const d = new Date(ts);
+            const pad = n => String(n).padStart(2, '0');
+            return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+          };
+          const statusLabel = {
+            'submitted': '⏳ Soumis',
+            'validated': '✅ Validé',
+            'rejected':  '❌ Rejeté',
+            'draft':     '📝 Brouillon',
+            'unknown':   '—'
+          };
+
+          // 1 ligne = 1 PDR changée (un bon avec 3 PDR → 3 lignes)
+          // → Format plus exploitable pour les tableaux croisés Excel
+          const rows = [];
+          records.forEach(r => {
+            r.pdrList.forEach(code => {
+              const labelFn = (typeof pdrLabel === 'function') ? pdrLabel : (c => c);
+              const refFn   = (typeof pdrRef   === 'function') ? pdrRef   : (() => '');
+              rows.push({
+                'Date':              fmtDate(r.date),
+                'N° Bon':            r.numBon || '',
+                'N° Outil':          r.outilId || '',
+                'Fabricant':         r.fabricant || '',
+                'Réf. Outil':        r.refOutil || '',
+                'PDR Changée':       labelFn(code),
+                'Code PDR':          code,
+                'Référence PDR':     refFn(code, r.tool) || '',
+                'Type Intervention': r.type || '',
+                'Technicien':        r.technicien || '',
+                'Matricule':         r.matricule || '',
+                'Statut':            statusLabel[r.status] || r.status || ''
+              });
+            });
+          });
+
+          // Feuille 2 : récapitulatif par bon (1 ligne = 1 bon)
+          const summaryRows = records.map(r => {
+            const labelFn = (typeof pdrLabel === 'function') ? pdrLabel : (c => c);
+            return {
+              'Date':              fmtDate(r.date),
+              'N° Bon':            r.numBon || '',
+              'N° Outil':          r.outilId || '',
+              'Fabricant':         r.fabricant || '',
+              'Réf. Outil':        r.refOutil || '',
+              'Nb PDR':            r.pdrList.length,
+              'PDR Changées':      r.pdrList.map(labelFn).join(', '),
+              'Type Intervention': r.type || '',
+              'Technicien':        r.technicien || '',
+              'Matricule':         r.matricule || '',
+              'Statut':            statusLabel[r.status] || r.status || ''
+            };
+          });
+
+          const wb = XLSX.utils.book_new();
+
+          // Feuille 1 : Détail (une ligne par PDR)
+          const ws1 = XLSX.utils.json_to_sheet(rows);
+          ws1['!cols'] = [
+            {wch:18},{wch:10},{wch:14},{wch:14},{wch:14},
+            {wch:16},{wch:10},{wch:20},{wch:18},{wch:22},{wch:12},{wch:14}
+          ];
+          XLSX.utils.book_append_sheet(wb, ws1, 'PDR Détail');
+
+          // Feuille 2 : Récap par bon
+          const ws2 = XLSX.utils.json_to_sheet(summaryRows);
+          ws2['!cols'] = [
+            {wch:18},{wch:10},{wch:14},{wch:14},{wch:14},
+            {wch:8},{wch:30},{wch:18},{wch:22},{wch:12},{wch:14}
+          ];
+          XLSX.utils.book_append_sheet(wb, ws2, 'Récap par Bon');
+
+          // Feuille 3 : Métadonnées export
+          const periodSel = document.getElementById('pdr-filter-period');
+          const periodLabel = periodSel?.options[periodSel.selectedIndex]?.text || periodSel?.value || '—';
+          const meta = [
+            { 'Champ': 'Application',          'Valeur': 'CRIMPING LABO PRO — LEONI' },
+            { 'Champ': 'Export généré le',     'Valeur': fmtDate(Date.now()) },
+            { 'Champ': 'Généré par',           'Valeur': state.profile?.displayName || '—' },
+            { 'Champ': 'Matricule',            'Valeur': state.profile?.matricule || '—' },
+            { 'Champ': 'Période filtrée',      'Valeur': periodLabel },
+            { 'Champ': 'Nombre de bons',       'Valeur': records.length },
+            { 'Champ': 'Nombre total de PDR',  'Valeur': rows.length }
+          ];
+          const ws3 = XLSX.utils.json_to_sheet(meta);
+          ws3['!cols'] = [{wch:22},{wch:38}];
+          XLSX.utils.book_append_sheet(wb, ws3, 'Infos Export');
+
+          // Nom de fichier : LEONI_PDR_YYYYMMDD_HHMM.xlsx
+          const now = new Date();
+          const pad = n => String(n).padStart(2, '0');
+          const fname = `LEONI_PDR_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.xlsx`;
+
+          XLSX.writeFile(wb, fname);
+          ui.hideLoader();
+          ui.toast(`✅ ${rows.length} PDR exportée(s) — ${fname}`, 'success');
+        } catch(e) {
+          ui.hideLoader();
+          console.error('[PDR Export] Error:', e);
+          ui.toast('Erreur export : ' + e.message, 'danger');
+        }
       },
 
       _exportTop20() {

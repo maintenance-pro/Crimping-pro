@@ -2785,7 +2785,7 @@ body::before, body::after {
   margin-top: .2rem;
 }
 
-/* ── Historique des injections (panel) ── */
+/* ── <span data-i18n="stock.injectionHistory">Historique des injections</span> (panel) ── */
 #pc-history-block {
   margin-bottom: 1.25rem;
   background: var(--bg-2);
@@ -3174,18 +3174,18 @@ section[data-view][hidden],
     <div class="login__card">
       <header class="login__header">
         <div class="login__logo">LEONI</div>
-        <h1 class="login__title">Bon d'Intervention Sertissage</h1>
+        <h1 class="login__title" data-i18n="login.title">Bon d'Intervention Sertissage</h1>
         <p class="login__subtitle">Coordination Crimping &times; Laboratoire</p>
       </header>
 
       <!-- ═══════════ LOGIN PAR EMAIL + MOT DE PASSE ═══════════ -->
       <form class="login__form" id="form-login" autocomplete="on" novalidate>
         <p style="color:var(--text-muted);font-size:.9rem;text-align:center;margin:0 0 1.75rem">
-          🔐 Connectez-vous avec votre email et mot de passe
+          <span data-i18n="login.subtitle">🔐 Connectez-vous avec votre email et mot de passe</span>
         </p>
 
         <div class="login__field">
-          <label class="login__label" for="login-email">📧 Email</label>
+          <label class="login__label" for="login-email"><span data-i18n="login.email">📧 Email</span></label>
           <input class="login__input" id="login-email" name="email" type="email"
                  required autocomplete="username" placeholder="exemple@leoni.com"
                  autocapitalize="off" autocorrect="off"
@@ -3193,7 +3193,7 @@ section[data-view][hidden],
         </div>
 
         <div class="login__field">
-          <label class="login__label" for="login-password">🔑 Mot de passe</label>
+          <label class="login__label" for="login-password"><span data-i18n="login.password">🔑 Mot de passe</span></label>
           <div style="position:relative">
             <input class="login__input" id="login-password" name="password" type="password"
                    required autocomplete="current-password" placeholder="••••••••"
@@ -3209,19 +3209,19 @@ section[data-view][hidden],
         <div class="login__row" style="display:flex;align-items:center;justify-content:space-between;margin:.5rem 0 1rem;font-size:.8rem">
           <label class="login__remember" style="display:flex;align-items:center;gap:.4rem;cursor:pointer">
             <input type="checkbox" id="login-remember" name="remember" autocomplete="off" style="margin:0"/>
-            <span>Se souvenir de moi</span>
+            <span data-i18n="login.remember">Se souvenir de moi</span>
           </label>
         </div>
 
         <button class="login__submit" type="submit" id="btn-login"
                 style="font-size:1rem;padding:.9rem 1.5rem;margin-top:.5rem">
-          🚀 Se connecter
+          🚀 <span data-i18n="login.signin">Se connecter</span>
         </button>
 
         <p class="login__error" id="login-error" hidden></p>
 
         <p style="text-align:center;margin-top:1.5rem;font-size:.78rem;color:var(--text-muted)">
-          Mot de passe oublié ? Contactez votre administrateur
+          <span data-i18n="login.forgotten">Mot de passe oublié ? Contactez votre administrateur</span>
         </p>
       </form>
 
@@ -3526,7 +3526,7 @@ section[data-view][hidden],
           <!-- SECTION A — Identification de l'outil                          -->
           <!-- ============================================================= -->
           <fieldset class="intervention__section intervention__section--tool">
-            <legend class="intervention__legend">🛠 Outil concerné</legend>
+            <legend class="intervention__legend">🛠 <span data-i18n="form.tool">Outil</span> concerné</legend>
 
             <div class="intervention__grid intervention__grid--3">
               <div class="field">
@@ -3626,7 +3626,7 @@ section[data-view][hidden],
             </div>
 
             <div class="field field--full">
-              <label class="field__label" aria-label="Pièces changées">Pièces changées</label>
+              <label class="field__label" aria-label="<span data-i18n="form.piecesChanged">Pièces changées</span>">Pièces changées</label>
               <div class="checkbox-group" id="pieces-group">
                 <label class="checkbox"><input type="checkbox" name="piece" value="pAr" / autocomplete="off"><span>P-AR · Poinçon Arrière</span></label>
                 <label class="checkbox"><input type="checkbox" name="piece" value="pAv" / autocomplete="off"><span>P-AV · Poinçon Avant</span></label>
@@ -3640,7 +3640,7 @@ section[data-view][hidden],
             </div>
 
             <div class="field field--full">
-              <label class="field__label" for="int-observation">Observation</label>
+              <label class="field__label" for="int-observation"><span data-i18n="form.observation">Observation</span></label>
               <textarea class="field__input field__input--area" id="int-observation" name="observation" rows="4" maxlength="1000" placeholder="Ex: Requalification + bon n° 410034"></textarea>
               <span class="field__counter" id="obs-counter">0 / 1000</span>
             </div>
@@ -4013,7 +4013,7 @@ section[data-view][hidden],
           <div class="catalog__actions">
             <input class="catalog__search" id="catalog-search" type="search" placeholder="Rechercher un outil…" / autocomplete="off">
             <button class="btn btn--secondary" id="btn-catalog-import">📥 Importer Excel</button>
-            <button class="btn btn--secondary" id="btn-catalog-export">📤 Exporter Excel</button>
+            <button class="btn btn--secondary" id="btn-catalog-export"><span data-i18n="action.exportExcel">📤 Exporter Excel</span></button>
             <button class="btn btn--primary" id="btn-catalog-add" data-requires-role="responsable,super_admin,admin">＋ Nouvel outil</button>
           </div>
         </header>
@@ -4061,17 +4061,17 @@ section[data-view][hidden],
             <p class="view-header__subtitle">📋 Lecture seule — Suivi des pièces remplacées dans les bons d'intervention</p>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
-            <button class="btn btn--ghost" id="btn-pdr-refresh">🔄 Actualiser</button>
+            <button class="btn btn--ghost" id="btn-pdr-refresh"><span data-i18n="action.refresh">🔄 <span data-i18n="action.refresh">Actualiser</span></span></button>
           </div>
         </header>
 
         <!-- ═══ ONGLETS PDR ═══ -->
         <div style="display:flex;gap:.25rem;border-bottom:1px solid var(--border-base);margin-bottom:1.25rem">
           <button class="pdr-tab pdr-tab--active" data-pdr-tab="list" style="background:transparent;border:none;color:#00d4ff;padding:.85rem 1.25rem;font-size:.9rem;font-weight:700;cursor:pointer;border-bottom:2px solid #00d4ff;transition:all .15s">
-            📋 Liste des PDR changées
+            📋 <span data-i18n="pdr.tab.list">Liste des PDR changées</span>
           </button>
           <button class="pdr-tab" data-pdr-tab="top20" style="background:transparent;border:none;color:var(--text-muted);padding:.85rem 1.25rem;font-size:.9rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s">
-            🏆 Top 20 historique
+            🏆 <span data-i18n="pdr.tab.top20">Top 20 historique</span>
           </button>
         </div>
 
@@ -4081,19 +4081,19 @@ section[data-view][hidden],
         <!-- KPIs PDR -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem">
           <div style="background:var(--bg-2);border:1px solid var(--border-base);border-radius:10px;padding:1rem">
-            <div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em">Total PDR (filtré)</div>
+            <div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em"><span data-i18n="kpi.totalFiltered">Total PDR (filtré)</span></div>
             <div id="kpi-pdr-total" style="font-size:1.8rem;font-weight:700;color:var(--accent-500);font-family:var(--font-mono)">0</div>
           </div>
           <div style="background:var(--bg-2);border:1px solid var(--border-base);border-radius:10px;padding:1rem">
-            <div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em">Ce mois-ci</div>
+            <div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em"><span data-i18n="kpi.thisMonth">Ce mois-ci</span></div>
             <div id="kpi-pdr-month" style="font-size:1.8rem;font-weight:700;color:#00e5a0;font-family:var(--font-mono)">0</div>
           </div>
           <div style="background:var(--bg-2);border:1px solid var(--border-base);border-radius:10px;padding:1rem">
-            <div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em">Outils impactés</div>
+            <div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em"><span data-i18n="kpi.toolsImpacted">Outils impactés</span></div>
             <div id="kpi-pdr-tools" style="font-size:1.8rem;font-weight:700;color:#ffb547;font-family:var(--font-mono)">0</div>
           </div>
           <div style="background:var(--bg-2);border:1px solid var(--border-base);border-radius:10px;padding:1rem;cursor:pointer" onclick="document.getElementById('top20-section')?.scrollIntoView({behavior:'smooth'})">
-            <div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em">Top pièces (voir Top 20 ↓)</div>
+            <div style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em"><span data-i18n="kpi.topPieces">Top pièces (voir Top 20 ↓)</span></div>
             <div id="kpi-pdr-top" style="font-size:.85rem;font-weight:600;color:var(--text-primary);line-height:1.3;margin-top:.4rem">—</div>
           </div>
         </div>
@@ -4102,12 +4102,12 @@ section[data-view][hidden],
         <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center;background:var(--bg-2);padding:.85rem 1rem;border-radius:10px;border:1px solid var(--border-base)">
           <span style="font-size:.78rem;font-weight:600;color:var(--text-muted)">📅 Période :</span>
           <select class="field__input" id="pdr-filter-period" style="max-width:200px;font-size:.9rem;font-weight:600">
-            <option value="all">Toutes périodes</option>
-            <option value="today">Aujourd'hui</option>
-            <option value="week">Cette semaine</option>
-            <option value="month" selected>Ce mois-ci</option>
-            <option value="quarter">Ce trimestre</option>
-            <option value="year">Cette année</option>
+            <option value="all" data-i18n="filter.allPeriods">Toutes périodes</option>
+            <option value="today" data-i18n="filter.today">Aujourd'hui</option>
+            <option value="week" data-i18n="filter.week">Cette semaine</option>
+            <option value="month" selected data-i18n="filter.month">Ce mois-ci</option>
+            <option value="quarter" data-i18n="filter.quarter">Ce trimestre</option>
+            <option value="year" data-i18n="filter.year">Cette année</option>
           </select>
           <span style="margin-left:auto;font-size:.85rem;color:var(--accent-500);font-weight:600" id="pdr-results-count">0 résultat(s)</span>
         </div>
@@ -4140,14 +4140,14 @@ section[data-view][hidden],
         <div id="top20-section" style="background:var(--bg-2);border:1px solid var(--border-base);border-radius:10px;padding:1.25rem;margin-bottom:1.5rem">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
             <h2 style="margin:0;font-size:1.1rem;color:#00d4ff;font-weight:700">
-              🏆 Top 20 références les plus changées
+              🏆 <span data-i18n="top20.title">Top 20 références les plus changées</span>
             </h2>
             <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
               <label style="font-size:.78rem;font-weight:600;color:var(--text-muted)">📅 Mois :</label>
               <select id="top20-month" style="background:var(--bg-1);border:1px solid var(--border-base);color:var(--text-primary);padding:.45rem .85rem;border-radius:6px;font-size:.85rem;font-weight:600;font-family:var(--font-mono);min-width:160px;cursor:pointer">
                 <!-- Rempli par JavaScript -->
               </select>
-              <button id="btn-top20-export" class="btn btn--ghost" style="font-size:.78rem;padding:.45rem .85rem">📤 Exporter</button>
+              <button id="btn-top20-export" class="btn btn--ghost" style="font-size:.78rem;padding:.45rem .85rem"><span data-i18n="action.export">📤 Exporter</span></button>
             </div>
           </div>
 
@@ -4187,7 +4187,7 @@ section[data-view][hidden],
         <!-- Historique mensuel comparatif -->
         <div id="history-monthly-section" style="background:var(--bg-2);border:1px solid var(--border-base);border-radius:10px;padding:1.25rem;margin-bottom:1.5rem">
           <h2 style="margin:0 0 1rem;font-size:1.1rem;color:#00d4ff;font-weight:700">
-            📈 Historique mensuel — Évolution des changements
+            📈 <span data-i18n="top20.history">Historique mensuel — Évolution des changements</span>
           </h2>
           <div id="history-monthly-bars" style="display:flex;gap:.5rem;align-items:flex-end;height:140px;padding:.5rem;background:var(--bg-1);border-radius:6px;border:1px solid var(--border-base);overflow-x:auto">
             <!-- Rempli par JavaScript -->
@@ -4260,7 +4260,7 @@ section[data-view][hidden],
       <section class="history" id="view-magasin" data-view="magasin" hidden>
         <header class="history__header">
           <div>
-            <h1 class="history__title">🔩 Pièces de Rechange & Stock</h1>
+            <h1 class="history__title">🔩 <span data-i18n="stock.title">Pièces de Rechange & Stock</span></h1>
             <p style="color:var(--text-secondary);font-size:.875rem" id="pc-lbl">— Aucun fichier chargé</p>
           </div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap" id="pc-actions">
@@ -4360,12 +4360,12 @@ section[data-view][hidden],
 
           <!-- Filtres en grille 5 colonnes -->
           <div class="pc-filters-grid">
-            <select class="filter__input" id="pc-empl-filter"><option value="">📍 Tous emplacements</option></select>
-            <select class="filter__input" id="pc-stock-filter"><option value="">📦 Tous N° Stock</option></select>
-            <select class="filter__input" id="pc-four-filter"><option value="">🏭 Tous fournisseurs</option></select>
-            <select class="filter__input" id="pc-type-filter"><option value="">🔧 Tous types</option></select>
+            <select class="filter__input" id="pc-empl-filter"><option value="">📍 <span data-i18n="stock.allLocations">Tous emplacements</span></option></select>
+            <select class="filter__input" id="pc-stock-filter"><option value="">📦 <span data-i18n="stock.allStockNum">Tous N° Stock</span></option></select>
+            <select class="filter__input" id="pc-four-filter"><option value="">🏭 <span data-i18n="stock.allSuppliers">Tous fournisseurs</span></option></select>
+            <select class="filter__input" id="pc-type-filter"><option value="">🔧 <span data-i18n="stock.allTypes">Tous types</span></option></select>
             <select class="filter__input" id="pc-etat-filter">
-              <option value="">📊 Tous états</option>
+              <option value="">📊 <span data-i18n="stock.allStates">Tous états</span></option>
               <option value="__alert">⚠ Alertes stock</option>
               <option value="__zero">🔴 Rupture (qty=0)</option>
               <option value="__ok">✅ Stock OK</option>
@@ -4594,7 +4594,7 @@ section[data-view][hidden],
     <div class="modal__backdrop" data-close></div>
     <div class="modal__panel" style="max-width:560px">
       <header class="modal__header">
-        <h2 class="modal__title">➕ Nouvel utilisateur</h2>
+        <h2 class="modal__title">➕ <span data-i18n="user.new">Nouvel utilisateur</span></h2>
         <button class="modal__close" data-close>×</button>
       </header>
       <form class="modal__body" id="form-user" autocomplete="off">
@@ -9827,6 +9827,8 @@ Erreur Firebase : ${e.message}`;
         'user.profile': 'Mon profil',
         'user.changePassword': 'Changer mot de passe',
         'user.logout': 'Se déconnecter',
+        'user.online': 'En ligne',
+        'user.offline': 'Hors ligne',
 
         // Pages titles
         'hub.title': 'Tableau de bord',
@@ -9837,12 +9839,267 @@ Erreur Firebase : ${e.message}`;
         'users.title': 'Gestion des utilisateurs',
         'pdr.title': '🔧 Suivi des Pièces De Rechange (PDR)',
         'stats.title': 'Statistiques & SLA',
+        'audit.title': 'Journal d\'audit',
+        'stock.title': '🔩 Pièces de Rechange & Stock',
+        'performance.title': 'Performance équipe',
 
         // Hub cards
+        'hub.welcome': 'Bienvenue',
         'hub.interventionsWeek': 'Interventions / semaine',
         'hub.urgentValidation': 'À valider en urgence',
         'hub.topTools': 'Top 5 outils maintenus',
-        'hub.latestActivities': 'Dernières activités'
+        'hub.latestActivities': 'Dernières activités',
+        'hub.noActivity': 'Aucune activité',
+        'hub.viewAll': 'Voir tout →',
+        'hub.bonsThisMonth': 'Bons ce mois',
+        'hub.waitingLab': 'En attente labo',
+        'hub.validatedMonth': 'Validés (mois)',
+        'hub.rejectedMonth': 'Refusés (mois)',
+        'hub.slaAvg': 'SLA moyen validation',
+        'hub.attention': 'Attention',
+        'hub.validationRate': 'Taux validation',
+        'hub.bonsLate': 'Bons en retard',
+        'hub.refusalsMonth': 'Refus ce mois',
+
+        // Periods
+        'period.today': 'Aujourd\'hui',
+        'period.week': 'Cette semaine',
+        'period.month': 'Ce mois-ci',
+        'period.quarter': 'Ce trimestre',
+        'period.year': 'Cette année',
+        'period.all': 'Toutes périodes',
+        'period.last4w': '4 dernières semaines',
+        'period.last12w': '12 dernières semaines',
+        'period.last26w': '26 dernières semaines',
+        'period.7d': '7 jours',
+        'period.30d': '30 jours',
+        'period.90d': '90 jours',
+        'period.365d': '12 mois',
+
+        // Common buttons
+        'btn.save': 'Enregistrer',
+        'btn.cancel': 'Annuler',
+        'btn.delete': 'Supprimer',
+        'btn.modify': 'Modifier',
+        'btn.create': 'Créer',
+        'btn.add': 'Ajouter',
+        'btn.refresh': 'Actualiser',
+        'btn.export': 'Exporter',
+        'btn.import': 'Importer',
+        'btn.search': 'Rechercher',
+        'btn.filter': 'Filtrer',
+        'btn.validate': 'Valider',
+        'btn.reject': 'Rejeter',
+        'btn.confirm': 'Confirmer',
+        'btn.close': 'Fermer',
+        'btn.back': 'Retour',
+        'btn.next': 'Suivant',
+        'btn.print': 'Imprimer',
+        'btn.download': 'Télécharger',
+        'btn.see': 'Voir',
+        'btn.copy': 'Copier',
+        'btn.edit': 'Modifier',
+        'btn.activate': 'Activer',
+        'btn.deactivate': 'Désactiver',
+
+        // States/Status
+        'status.draft': 'Brouillon',
+        'status.submitted': 'Soumis',
+        'status.validated': 'Validé',
+        'status.rejected': 'Rejeté',
+        'status.closed': 'Clôturé',
+        'status.cancelled': 'Annulé',
+        'status.pending': 'En attente',
+        'status.waitingLab': 'En attente labo',
+        'status.inStock': 'En Stock',
+        'status.active': 'Actif',
+        'status.inactive': 'Inactif',
+        'status.online': 'En ligne',
+        'status.offline': 'Hors ligne',
+
+        // Forms
+        'form.required': 'Obligatoire',
+        'form.optional': 'Optionnel',
+        'form.search.placeholder': 'Rechercher…',
+        'form.designation': 'Désignation',
+        'form.matricule': 'Matricule',
+        'form.email': 'Email',
+        'form.password': 'Mot de passe',
+        'form.passwordCurrent': 'Mot de passe actuel',
+        'form.passwordNew': 'Nouveau mot de passe',
+        'form.passwordConfirm': 'Confirmer le nouveau mot de passe',
+        'form.role': 'Rôle',
+        'form.displayName': 'Nom affiché',
+        'form.observation': 'Observation',
+        'form.date': 'Date',
+        'form.cycles': 'Cycles compteur',
+        'form.type': 'Type',
+        'form.notes': 'Notes',
+
+        // Common labels
+        'label.name': 'Nom',
+        'label.numBon': 'N° Bon',
+        'label.numTool': 'N° Outil',
+        'label.manufacturer': 'Fabricant',
+        'label.refTool': 'Réf. Outil',
+        'label.technician': 'Technicien',
+        'label.status': 'Statut',
+        'label.action': 'Action',
+        'label.actions': 'Actions',
+        'label.entity': 'Entité',
+        'label.lastConnection': 'Dernière connexion',
+        'label.dateTime': 'Date & heure',
+        'label.user': 'Utilisateur',
+        'label.role': 'Rôle',
+        'label.location': 'Emplacement',
+        'label.category': 'Catégorie',
+        'label.supplier': 'Fournisseur',
+        'label.qty': 'Quantité',
+        'label.qtyMin': 'Qté Min',
+        'label.qtyMax': 'Qté Max',
+        'label.qtyPhysical': 'Qté Physique',
+
+        // Stock
+        'stock.import': 'Importer Excel',
+        'stock.clear': 'Effacer stock',
+        'stock.refresh': 'Actualiser',
+        'stock.totalPieces': 'Total pièces',
+        'stock.locations': 'Emplacements',
+        'stock.inStock': 'En Stock',
+        'stock.alerts': 'Alertes Stock',
+        'stock.recordedRefs': 'références enregistrées',
+        'stock.distinct': 'distincts',
+        'stock.available': 'disponibles',
+        'stock.alertsSuffix': 'alertes',
+        'stock.importHistory': 'Historique des injections',
+        'stock.mergeBy': 'Fusionner par',
+        'stock.searchPlaceholder': 'Rechercher une référence (ex: 37 2 0765 20 0) · emplacement · fournisseur…',
+        'stock.allLocations': 'Tous emplacements',
+        'stock.allStock': 'Tous N° Stock',
+        'stock.allSuppliers': 'Tous fournisseurs',
+        'stock.allTypes': 'Tous types',
+        'stock.allStates': 'Tous états',
+        'stock.management': 'Gestion des Pièces de Rechange',
+        'stock.dragDrop': 'Cliquez ou glissez votre fichier ici',
+        'stock.acceptedFormat': 'Format accepté : .xlsx',
+        'stock.fromFile': 'Données depuis fichier Excel',
+        'stock.noData': 'Pas de données',
+        'stock.noResults': 'Aucun résultat',
+
+        // PDR
+        'pdr.subtitle': '📋 Lecture seule — Suivi des pièces remplacées dans les bons d\'intervention',
+        'pdr.tabList': '📋 Liste des PDR changées',
+        'pdr.tabTop20': '🏆 Top 20 historique',
+        'pdr.totalFiltered': 'Total PDR (filtré)',
+        'pdr.thisMonth': 'Ce mois-ci',
+        'pdr.toolsAffected': 'Outils impactés',
+        'pdr.topPieces': 'Top pièces (voir Top 20 ↓)',
+        'pdr.period': 'Période',
+        'pdr.month': 'Mois',
+        'pdr.results': 'résultat(s)',
+        'pdr.changes': 'changements',
+        'pdr.uniqueRefs': 'références uniques',
+        'pdr.tools': 'outils impactés',
+        'pdr.top20Title': '🏆 Top 20 références les plus changées',
+        'pdr.historyMonthly': '📈 Historique mensuel — Évolution des changements',
+        'pdr.historyHint': '12 derniers mois — Cliquer sur un mois pour voir le détail',
+        'pdr.colDate': '📅 Date',
+        'pdr.colNumBon': '📋 N° Bon',
+        'pdr.colNumTool': '🛠 N° Outil',
+        'pdr.colMfr': '🏭 Fabricant',
+        'pdr.colRefTool': '📐 Réf. Outil',
+        'pdr.colChanged': '🔧 PDR Changée(s)',
+        'pdr.colTechnician': '👤 Technicien',
+        'pdr.colStatus': '📊 Statut',
+        'pdr.colRank': 'Rang',
+        'pdr.colMfrRef': 'Référence Fabricant',
+        'pdr.colPieceType': 'Type Pièce',
+        'pdr.colTools': 'Outil(s)',
+        'pdr.colCount': 'Nb changements',
+        'pdr.colTrend': 'Tendance',
+        'pdr.noChanges': 'Aucun changement de pièce ce mois-ci',
+        'pdr.noChangesPeriod': 'Aucune PDR changée pour cette période',
+
+        // Audit
+        'audit.subtitle': '100 dernières actions administrateur',
+        'audit.noActions': 'Aucune action enregistrée',
+        'audit.colDate': 'Date & heure',
+        'audit.colUser': 'Utilisateur',
+        'audit.colAction': 'Action',
+        'audit.colEntity': 'Entité',
+        'audit.colUid': 'UID',
+
+        // Intervention
+        'intervention.toolSection': 'Outil',
+        'intervention.crimpingSection': 'Crimping',
+        'intervention.labSection': 'Laboratoire',
+        'intervention.cycleCounter': 'Cycles compteur',
+        'intervention.piecesChanged': 'Pièces changées',
+        'intervention.observation': 'Observation',
+        'intervention.duration': 'Durée intervention (min)',
+        'intervention.history': 'Historique du bon',
+        'intervention.labDecision': 'Décision laboratoire',
+        'intervention.labCapability': 'Capabilité',
+        'intervention.compliance': 'Conformités',
+        'intervention.crossSection': 'Coupe métallographique',
+        'intervention.coreHeight': 'Hauteur âme moy.',
+        'intervention.coreWidth': 'Largeur âme',
+        'intervention.cmCore': 'Cm âme',
+        'intervention.cmkCore': 'Cmk âme',
+        'intervention.testedCord': 'Cordon testé',
+        'intervention.cycleFreq': 'Fréquence cycle',
+        'intervention.cuttingChamfer': 'Conformité chanfrein',
+        'intervention.cuttingCheck': 'Conformité témoin coupe',
+        'intervention.flexionCheck': 'Conformité flexion',
+        'intervention.parametricIndex': 'Indice paramétrique',
+        'intervention.rejectReason': 'Motif du refus (obligatoire)',
+        'intervention.submitToLab': 'Soumettre au labo',
+        'intervention.saveDraft': 'Enregistrer brouillon',
+        'intervention.noQueue': 'Aucun bon en attente 🎉',
+        'intervention.noResults': 'Aucun bon dans cette catégorie',
+        'intervention.mine': 'Les miens',
+
+        // Auth/Login
+        'auth.email': 'Email',
+        'auth.password': 'Mot de passe',
+        'auth.connect': 'Se connecter',
+        'auth.rememberMe': 'Se souvenir de moi',
+        'auth.forgotPassword': 'Mot de passe oublié ? Contactez votre administrateur',
+        'auth.title': 'Bon d\'Intervention Sertissage',
+        'auth.subtitle': 'Coordination Crimping × Laboratoire',
+        'auth.connectionRequired': 'Connectez-vous avec votre email et mot de passe',
+
+        // Users management
+        'users.newUser': '+ Nouvel utilisateur',
+        'users.management': 'Gestion des utilisateurs',
+        'users.colName': 'Nom',
+        'users.colMatricule': 'Matricule',
+        'users.colEmail': 'Email',
+        'users.colPassword': '🔑 Mot de passe',
+        'users.colRole': 'Rôle',
+        'users.colStatus': 'Statut',
+        'users.colLastConnection': 'Dernière connexion',
+        'users.colActions': 'Actions',
+        'users.changePassword': 'Changer MDP',
+
+        // Misc
+        'misc.calculating': 'Calcul du score…',
+        'misc.loading': 'Chargement…',
+        'misc.noResults': 'Aucun résultat',
+        'misc.noImports': 'Aucun import enregistré',
+        'misc.clickToReconnect': 'Cliquez pour rester connecté.',
+        'misc.refsCount': 'références enregistrées',
+        'misc.linesCount': 'lignes',
+        'misc.uniqueRefsCount': 'réf. uniques',
+
+        // Roles
+        'role.admin': 'Administrateur',
+        'role.super_admin': 'Super Admin',
+        'role.responsable': 'Responsable',
+        'role.crimp': 'Technicien Crimping',
+        'role.crimping': 'Technicien Crimping',
+        'role.labo': 'Technicien Labo',
+        'role.magasinier': 'Magasinier'
       },
       en: {
         // Navigation
@@ -9864,6 +10121,8 @@ Erreur Firebase : ${e.message}`;
         'user.profile': 'My profile',
         'user.changePassword': 'Change password',
         'user.logout': 'Sign out',
+        'user.online': 'Online',
+        'user.offline': 'Offline',
 
         // Pages titles
         'hub.title': 'Dashboard',
@@ -9874,12 +10133,267 @@ Erreur Firebase : ${e.message}`;
         'users.title': 'User Management',
         'pdr.title': '🔧 Spare Parts Tracking (SPT)',
         'stats.title': 'Statistics & SLA',
+        'audit.title': 'Audit Log',
+        'stock.title': '🔩 Spare Parts & Stock',
+        'performance.title': 'Team Performance',
 
         // Hub cards
+        'hub.welcome': 'Welcome',
         'hub.interventionsWeek': 'Interventions / week',
         'hub.urgentValidation': 'Urgent validation',
         'hub.topTools': 'Top 5 maintained tools',
-        'hub.latestActivities': 'Latest activities'
+        'hub.latestActivities': 'Latest activities',
+        'hub.noActivity': 'No activity',
+        'hub.viewAll': 'View all →',
+        'hub.bonsThisMonth': 'Orders this month',
+        'hub.waitingLab': 'Waiting for lab',
+        'hub.validatedMonth': 'Validated (month)',
+        'hub.rejectedMonth': 'Rejected (month)',
+        'hub.slaAvg': 'Avg SLA validation',
+        'hub.attention': 'Attention',
+        'hub.validationRate': 'Validation rate',
+        'hub.bonsLate': 'Late orders',
+        'hub.refusalsMonth': 'Refusals this month',
+
+        // Periods
+        'period.today': 'Today',
+        'period.week': 'This week',
+        'period.month': 'This month',
+        'period.quarter': 'This quarter',
+        'period.year': 'This year',
+        'period.all': 'All periods',
+        'period.last4w': 'Last 4 weeks',
+        'period.last12w': 'Last 12 weeks',
+        'period.last26w': 'Last 26 weeks',
+        'period.7d': '7 days',
+        'period.30d': '30 days',
+        'period.90d': '90 days',
+        'period.365d': '12 months',
+
+        // Common buttons
+        'btn.save': 'Save',
+        'btn.cancel': 'Cancel',
+        'btn.delete': 'Delete',
+        'btn.modify': 'Modify',
+        'btn.create': 'Create',
+        'btn.add': 'Add',
+        'btn.refresh': 'Refresh',
+        'btn.export': 'Export',
+        'btn.import': 'Import',
+        'btn.search': 'Search',
+        'btn.filter': 'Filter',
+        'btn.validate': 'Validate',
+        'btn.reject': 'Reject',
+        'btn.confirm': 'Confirm',
+        'btn.close': 'Close',
+        'btn.back': 'Back',
+        'btn.next': 'Next',
+        'btn.print': 'Print',
+        'btn.download': 'Download',
+        'btn.see': 'View',
+        'btn.copy': 'Copy',
+        'btn.edit': 'Edit',
+        'btn.activate': 'Activate',
+        'btn.deactivate': 'Deactivate',
+
+        // States/Status
+        'status.draft': 'Draft',
+        'status.submitted': 'Submitted',
+        'status.validated': 'Validated',
+        'status.rejected': 'Rejected',
+        'status.closed': 'Closed',
+        'status.cancelled': 'Cancelled',
+        'status.pending': 'Pending',
+        'status.waitingLab': 'Waiting for lab',
+        'status.inStock': 'In stock',
+        'status.active': 'Active',
+        'status.inactive': 'Inactive',
+        'status.online': 'Online',
+        'status.offline': 'Offline',
+
+        // Forms
+        'form.required': 'Required',
+        'form.optional': 'Optional',
+        'form.search.placeholder': 'Search…',
+        'form.designation': 'Designation',
+        'form.matricule': 'ID number',
+        'form.email': 'Email',
+        'form.password': 'Password',
+        'form.passwordCurrent': 'Current password',
+        'form.passwordNew': 'New password',
+        'form.passwordConfirm': 'Confirm new password',
+        'form.role': 'Role',
+        'form.displayName': 'Display name',
+        'form.observation': 'Observation',
+        'form.date': 'Date',
+        'form.cycles': 'Cycle counter',
+        'form.type': 'Type',
+        'form.notes': 'Notes',
+
+        // Common labels
+        'label.name': 'Name',
+        'label.numBon': 'Order #',
+        'label.numTool': 'Tool #',
+        'label.manufacturer': 'Manufacturer',
+        'label.refTool': 'Tool Ref.',
+        'label.technician': 'Technician',
+        'label.status': 'Status',
+        'label.action': 'Action',
+        'label.actions': 'Actions',
+        'label.entity': 'Entity',
+        'label.lastConnection': 'Last connection',
+        'label.dateTime': 'Date & time',
+        'label.user': 'User',
+        'label.role': 'Role',
+        'label.location': 'Location',
+        'label.category': 'Category',
+        'label.supplier': 'Supplier',
+        'label.qty': 'Qty',
+        'label.qtyMin': 'Qty Min',
+        'label.qtyMax': 'Qty Max',
+        'label.qtyPhysical': 'Physical Qty',
+
+        // Stock
+        'stock.import': 'Import Excel',
+        'stock.clear': 'Clear stock',
+        'stock.refresh': 'Refresh',
+        'stock.totalPieces': 'Total parts',
+        'stock.locations': 'Locations',
+        'stock.inStock': 'In stock',
+        'stock.alerts': 'Stock Alerts',
+        'stock.recordedRefs': 'recorded references',
+        'stock.distinct': 'distinct',
+        'stock.available': 'available',
+        'stock.alertsSuffix': 'alerts',
+        'stock.importHistory': 'Import history',
+        'stock.mergeBy': 'Merge by',
+        'stock.searchPlaceholder': 'Search reference (ex: 37 2 0765 20 0) · location · supplier…',
+        'stock.allLocations': 'All locations',
+        'stock.allStock': 'All Stock #',
+        'stock.allSuppliers': 'All suppliers',
+        'stock.allTypes': 'All types',
+        'stock.allStates': 'All states',
+        'stock.management': 'Spare Parts Management',
+        'stock.dragDrop': 'Click or drag your file here',
+        'stock.acceptedFormat': 'Accepted format: .xlsx',
+        'stock.fromFile': 'Data from Excel file',
+        'stock.noData': 'No data',
+        'stock.noResults': 'No results',
+
+        // PDR
+        'pdr.subtitle': '📋 Read-only — Tracking parts replaced in maintenance orders',
+        'pdr.tabList': '📋 Changed parts list',
+        'pdr.tabTop20': '🏆 Top 20 history',
+        'pdr.totalFiltered': 'Total parts (filtered)',
+        'pdr.thisMonth': 'This month',
+        'pdr.toolsAffected': 'Affected tools',
+        'pdr.topPieces': 'Top parts (see Top 20 ↓)',
+        'pdr.period': 'Period',
+        'pdr.month': 'Month',
+        'pdr.results': 'result(s)',
+        'pdr.changes': 'changes',
+        'pdr.uniqueRefs': 'unique refs',
+        'pdr.tools': 'affected tools',
+        'pdr.top20Title': '🏆 Top 20 most replaced references',
+        'pdr.historyMonthly': '📈 Monthly history — Changes evolution',
+        'pdr.historyHint': '12 last months — Click on a month to see details',
+        'pdr.colDate': '📅 Date',
+        'pdr.colNumBon': '📋 Order #',
+        'pdr.colNumTool': '🛠 Tool #',
+        'pdr.colMfr': '🏭 Manufacturer',
+        'pdr.colRefTool': '📐 Tool Ref.',
+        'pdr.colChanged': '🔧 Changed parts',
+        'pdr.colTechnician': '👤 Technician',
+        'pdr.colStatus': '📊 Status',
+        'pdr.colRank': 'Rank',
+        'pdr.colMfrRef': 'Manufacturer Ref.',
+        'pdr.colPieceType': 'Part Type',
+        'pdr.colTools': 'Tool(s)',
+        'pdr.colCount': '# Changes',
+        'pdr.colTrend': 'Trend',
+        'pdr.noChanges': 'No part changes this month',
+        'pdr.noChangesPeriod': 'No changed parts for this period',
+
+        // Audit
+        'audit.subtitle': '100 latest admin actions',
+        'audit.noActions': 'No action recorded',
+        'audit.colDate': 'Date & time',
+        'audit.colUser': 'User',
+        'audit.colAction': 'Action',
+        'audit.colEntity': 'Entity',
+        'audit.colUid': 'UID',
+
+        // Intervention
+        'intervention.toolSection': 'Tool',
+        'intervention.crimpingSection': 'Crimping',
+        'intervention.labSection': 'Laboratory',
+        'intervention.cycleCounter': 'Cycle counter',
+        'intervention.piecesChanged': 'Changed parts',
+        'intervention.observation': 'Observation',
+        'intervention.duration': 'Duration (min)',
+        'intervention.history': 'Order history',
+        'intervention.labDecision': 'Lab decision',
+        'intervention.labCapability': 'Capability',
+        'intervention.compliance': 'Compliance',
+        'intervention.crossSection': 'Cross-section metallography',
+        'intervention.coreHeight': 'Avg core height',
+        'intervention.coreWidth': 'Core width',
+        'intervention.cmCore': 'Cm core',
+        'intervention.cmkCore': 'Cmk core',
+        'intervention.testedCord': 'Tested cord',
+        'intervention.cycleFreq': 'Cycle frequency',
+        'intervention.cuttingChamfer': 'Chamfer compliance',
+        'intervention.cuttingCheck': 'Cut indicator compliance',
+        'intervention.flexionCheck': 'Flexion compliance',
+        'intervention.parametricIndex': 'Parametric index',
+        'intervention.rejectReason': 'Reason for rejection (required)',
+        'intervention.submitToLab': 'Submit to lab',
+        'intervention.saveDraft': 'Save draft',
+        'intervention.noQueue': 'No pending order 🎉',
+        'intervention.noResults': 'No order in this category',
+        'intervention.mine': 'Mine',
+
+        // Auth/Login
+        'auth.email': 'Email',
+        'auth.password': 'Password',
+        'auth.connect': 'Sign in',
+        'auth.rememberMe': 'Remember me',
+        'auth.forgotPassword': 'Forgot password? Contact your administrator',
+        'auth.title': 'Crimping Maintenance Order',
+        'auth.subtitle': 'Crimping × Laboratory Coordination',
+        'auth.connectionRequired': 'Sign in with your email and password',
+
+        // Users management
+        'users.newUser': '+ New user',
+        'users.management': 'User Management',
+        'users.colName': 'Name',
+        'users.colMatricule': 'ID number',
+        'users.colEmail': 'Email',
+        'users.colPassword': '🔑 Password',
+        'users.colRole': 'Role',
+        'users.colStatus': 'Status',
+        'users.colLastConnection': 'Last connection',
+        'users.colActions': 'Actions',
+        'users.changePassword': 'Change pwd',
+
+        // Misc
+        'misc.calculating': 'Calculating score…',
+        'misc.loading': 'Loading…',
+        'misc.noResults': 'No results',
+        'misc.noImports': 'No import recorded',
+        'misc.clickToReconnect': 'Click to stay connected.',
+        'misc.refsCount': 'recorded references',
+        'misc.linesCount': 'rows',
+        'misc.uniqueRefsCount': 'unique refs',
+
+        // Roles
+        'role.admin': 'Administrator',
+        'role.super_admin': 'Super Admin',
+        'role.responsable': 'Manager',
+        'role.crimp': 'Crimping Technician',
+        'role.crimping': 'Crimping Technician',
+        'role.labo': 'Lab Technician',
+        'role.magasinier': 'Stock Manager'
       }
     },
 

@@ -4314,13 +4314,29 @@ section[data-view][hidden],
             <p style="color:var(--text-secondary);font-size:.875rem" id="pc-lbl">— Aucun fichier chargé</p>
           </div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap" id="pc-actions">
-            <label class="btn btn--primary" data-requires-role="admin,super_admin,magasinier" style="cursor:pointer;position:relative;overflow:hidden">
-              📂 Importer Excel
-              <input type="file" accept=".xlsx,.xls" id="pc-xl-input" style="position:absolute;inset:0;opacity:0;cursor:pointer;z-index:1"/ autocomplete="off">
-            </label>
-            <button class="btn btn--secondary" id="pc-clr-btn" data-requires-role="admin,super_admin,magasinier" style="display:none">✕ Effacer stock</button>
-            <button class="btn btn--secondary" id="pc-export-btn">📥 Exporter Excel</button>
-            <button class="btn btn--secondary" id="pc-refresh-btn">↻ Actualiser</button>
+
+            <!-- ═══ GROUPE STOCK ═══ -->
+            <div style="display:inline-flex;align-items:center;gap:.4rem;padding:.25rem .5rem;border:1px solid rgba(0,212,255,.25);border-radius:9px;background:rgba(0,212,255,.03)">
+              <span style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-500);font-weight:700">📋 Stock</span>
+              <label class="btn btn--primary" data-requires-role="admin,super_admin,magasinier" title="Importer le fichier Excel des références/stock physique" style="cursor:pointer;position:relative;overflow:hidden">
+                📥 Importer
+                <input type="file" accept=".xlsx,.xls" id="pc-xl-input" style="position:absolute;inset:0;opacity:0;cursor:pointer;z-index:1"/ autocomplete="off">
+              </label>
+              <button class="btn btn--secondary" id="pc-export-btn" title="Télécharger le stock complet en Excel">📤 Exporter</button>
+              <button class="btn btn--secondary" id="pc-clr-btn" data-requires-role="admin,super_admin,magasinier" style="display:none" title="Effacer toutes les pièces du stock">✕ Effacer</button>
+            </div>
+
+            <!-- ═══ GROUPE COMMANDES ═══ -->
+            <div style="display:inline-flex;align-items:center;gap:.4rem;padding:.25rem .5rem;border:1px solid rgba(255,181,71,.30);border-radius:9px;background:rgba(255,181,71,.04)">
+              <span style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:#ffb547;font-weight:700">📦 Commandes</span>
+              <label class="btn btn--primary" data-requires-role="admin,super_admin,magasinier" title="Importer un fichier Excel avec les commandes (Réf + Qté + Statut)" style="cursor:pointer;position:relative;overflow:hidden;background:linear-gradient(135deg,#ffb547,#e89422);color:#0a1628">
+                📥 Importer
+                <input type="file" accept=".xlsx,.xls" id="pc-orders-xl-input" style="position:absolute;inset:0;opacity:0;cursor:pointer;z-index:1"/ autocomplete="off">
+              </label>
+              <button class="btn btn--secondary" id="pc-orders-template-btn" title="Télécharger un modèle Excel vide à remplir">📋 Modèle</button>
+            </div>
+
+            <button class="btn btn--secondary" id="pc-refresh-btn" title="Recharger les données">↻ Actualiser</button>
           </div>
         </header>
 
@@ -8959,6 +8975,219 @@ Erreur Firebase : ${e.message}`;
       },
 
       /**
+       * Télécharge un modèle Excel vide pour les commandes
+       * Colonnes : Nom (Référence) | Qté Commandée | Statut Commande
+       */
+      async downloadOrdersTemplate() {
+        try {
+          await this._loadXLSX();
+          const sample = [
+            { 'Nom (Référence)':'37 2 0268 21 0', 'Qté Commandée':10, 'Statut Commande':'a_commander' },
+            { 'Nom (Référence)':'37 2 0268 03 0', 'Qté Commandée':5,  'Statut Commande':'envoyee' },
+            { 'Nom (Référence)':'1-318059-6',     'Qté Commandée':20, 'Statut Commande':'recue' },
+            { 'Nom (Référence)':'(votre référence ici)', 'Qté Commandée':'', 'Statut Commande':'' }
+          ];
+          const codes = [
+            { Code:'a_commander', Libellé:'📋 À commander' },
+            { Code:'envoyee',     Libellé:'📤 Commande envoyée' },
+            { Code:'livraison',   Libellé:'🚚 En livraison' },
+            { Code:'recue',       Libellé:'✅ Reçue' },
+            { Code:'annulee',     Libellé:'❌ Annulée' },
+            { Code:'(vide)',      Libellé:'— (efface le statut)' }
+          ];
+          const wb = XLSX.utils.book_new();
+          const ws1 = XLSX.utils.json_to_sheet(sample);
+          ws1['!cols'] = [{wch:25},{wch:14},{wch:18}];
+          XLSX.utils.book_append_sheet(wb, ws1, 'Commandes');
+          const ws2 = XLSX.utils.json_to_sheet(codes);
+          ws2['!cols'] = [{wch:14},{wch:24}];
+          XLSX.utils.book_append_sheet(wb, ws2, 'Codes Statut');
+          const help = [
+            { 'Champ':'Nom (Référence)','Description':'La référence exacte de la pièce (doit correspondre au stock)' },
+            { 'Champ':'Qté Commandée','Description':'Nombre entier (laisser vide pour effacer)' },
+            { 'Champ':'Statut Commande','Description':'Code parmi : a_commander, envoyee, livraison, recue, annulee — ou vide' },
+            { 'Champ':'Note','Description':'Plusieurs lignes avec la même référence : la dernière écrase les précédentes' },
+            { 'Champ':'Note','Description':'Les références inconnues sont importées quand même (créées comme commandes orphelines)' }
+          ];
+          const ws3 = XLSX.utils.json_to_sheet(help);
+          ws3['!cols'] = [{wch:18},{wch:60}];
+          XLSX.utils.book_append_sheet(wb, ws3, 'Aide');
+          XLSX.writeFile(wb, 'LEONI_Modele_Commandes.xlsx');
+          ui.toast('✅ Modèle téléchargé — remplis-le puis clique "Importer"', 'success');
+        } catch(e) {
+          ui.toast('Erreur génération modèle : ' + e.message, 'danger');
+        }
+      },
+
+      /**
+       * Importe un fichier Excel de commandes → écrit dans stockOrders/{key}
+       * Colonnes attendues : Nom (Référence), Qté Commandée, Statut Commande
+       * Tolère plusieurs variantes de noms de colonnes.
+       */
+      async importOrdersExcel(event) {
+        const TAG = '[importOrdersExcel]';
+        if (!['admin','super_admin','magasinier'].includes(state.role)) {
+          ui.toast('Import commandes réservé aux magasiniers', 'danger');
+          event.target.value = ''; return;
+        }
+        const file = event.target.files[0];
+        if (!file) return;
+
+        try {
+          await this._loadXLSX();
+        } catch(e) {
+          ui.toast('Impossible de charger le moteur Excel', 'danger');
+          event.target.value = ''; return;
+        }
+
+        const VALID_STATUS = (this._ORDER_STATUS_OPTS || []).map(o => o.v).filter(Boolean);
+
+        // Mapping souple des noms de colonnes (insensible à casse/accents/espaces)
+        const norm = s => String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+        const findCol = (row, candidates) => {
+          const keys = Object.keys(row);
+          for (const cand of candidates) {
+            const c = norm(cand);
+            const k = keys.find(k => norm(k) === c) || keys.find(k => norm(k).includes(c));
+            if (k) return k;
+          }
+          return null;
+        };
+
+        // Mapping label → code statut (au cas où l'utilisateur saisit "📋 À commander" au lieu de "a_commander")
+        const labelToCode = {};
+        (this._ORDER_STATUS_OPTS || []).forEach(o => {
+          if (o.v) {
+            labelToCode[norm(o.label)] = o.v;
+            labelToCode[norm(o.v)] = o.v;
+            labelToCode[norm(o.label.replace(/[^\w\s]/g,'').trim())] = o.v;
+          }
+        });
+
+        const r = new FileReader();
+        r.onload = async (e) => {
+          try {
+            const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
+            // Choisir une feuille pertinente
+            const sn = wb.SheetNames.find(n => /command|order/i.test(n)) || wb.SheetNames[0];
+            const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval:'', raw:false });
+            console.log(`${TAG} 📂 Feuille "${sn}" : ${raw.length} ligne(s)`);
+            if (!raw.length) {
+              ui.toast('Fichier vide', 'warn');
+              event.target.value = ''; return;
+            }
+
+            // Détection des colonnes (sur la 1ère ligne)
+            const sample = raw[0];
+            const colNom    = findCol(sample, ['nom (référence)', 'nom reference', 'référence', 'reference', 'nom', 'ref']);
+            const colQcom   = findCol(sample, ['qté commandée', 'qte commandee', 'qcom', 'quantité commandée', 'qty', 'qte', 'quantite']);
+            const colStatut = findCol(sample, ['statut commande', 'statut', 'status', 'state', 'etat']);
+
+            console.log(`${TAG} 📋 Colonnes détectées : nom=${colNom}, qcom=${colQcom}, statut=${colStatut}`);
+            if (!colNom) {
+              ui.toast('Colonne "Nom (Référence)" introuvable. Télécharge le modèle pour voir le format attendu.', 'danger');
+              event.target.value = ''; return;
+            }
+            if (!colQcom && !colStatut) {
+              ui.toast('Aucune colonne "Qté Commandée" ni "Statut Commande" trouvée', 'danger');
+              event.target.value = ''; return;
+            }
+
+            // Parser chaque ligne
+            const updates = {};
+            let imported = 0, skipped = 0, invalidStatus = 0;
+            const now = Date.now();
+            const by = state.profile?.displayName || '?';
+
+            raw.forEach((row, idx) => {
+              const nom = String(row[colNom] || '').trim();
+              if (!nom || nom.startsWith('(')) { skipped++; return; }
+              const key = this._orderKey(nom);
+              if (!key) { skipped++; return; }
+
+              const entry = { nom, updatedAt: now, updatedBy: by };
+
+              // qcom
+              if (colQcom) {
+                const rawV = String(row[colQcom] || '').trim();
+                if (rawV === '' || rawV.toLowerCase() === 'null') {
+                  entry.qcom = null;
+                } else {
+                  const n = parseInt(String(rawV).replace(',', '.'));
+                  if (!isNaN(n) && n >= 0) entry.qcom = n;
+                  else { skipped++; return; }
+                }
+              }
+
+              // statutCom
+              if (colStatut) {
+                const rawV = String(row[colStatut] || '').trim();
+                if (!rawV) {
+                  entry.statutCom = null;
+                } else {
+                  const code = labelToCode[norm(rawV)] || null;
+                  if (code && VALID_STATUS.includes(code)) {
+                    entry.statutCom = code;
+                  } else {
+                    invalidStatus++;
+                    entry.statutCom = null;
+                  }
+                }
+              }
+
+              updates[key] = { ...(updates[key] || {}), ...entry };
+              imported++;
+            });
+
+            if (imported === 0) {
+              ui.toast('Aucune commande valide trouvée dans le fichier', 'warn');
+              event.target.value = ''; return;
+            }
+
+            // Confirmation avant écriture
+            const ok = confirm(`📦 Import de ${imported} commande(s) ?\n\n` +
+              `• Importées : ${imported}\n` +
+              `• Ignorées : ${skipped}\n` +
+              `• Statuts invalides (mis à vide) : ${invalidStatus}\n\n` +
+              `Les commandes existantes pour les mêmes références seront ÉCRASÉES.\n\nContinuer ?`);
+            if (!ok) {
+              event.target.value = ''; return;
+            }
+
+            // Écriture Firebase (multi-update atomique)
+            ui.showLoader('Import en cours…');
+            const fbUpdates = {};
+            Object.entries(updates).forEach(([k, v]) => {
+              Object.entries(v).forEach(([f, val]) => {
+                fbUpdates[`stockOrders/${k}/${f}`] = val;
+              });
+            });
+
+            try {
+              await fbDb.ref().update(fbUpdates);
+              ui.hideLoader();
+              ui.toast(`✅ ${imported} commande(s) importée(s)${invalidStatus ? ` (${invalidStatus} statuts invalides ignorés)` : ''}`, 'success');
+              if (typeof db?.audit === 'function') {
+                db.audit('stockOrders.import', file.name, { count: imported, skipped, invalidStatus });
+              }
+              // Le listener stockOrders va déclencher le re-render automatiquement
+            } catch(err) {
+              ui.hideLoader();
+              console.error(`${TAG} ❌ Écriture Firebase KO :`, err);
+              ui.toast('Erreur sauvegarde : ' + err.message, 'danger');
+            }
+          } catch(err) {
+            ui.hideLoader();
+            console.error(`${TAG} ❌ Parsing KO :`, err);
+            ui.toast('Erreur lecture fichier : ' + err.message, 'danger');
+          } finally {
+            event.target.value = '';
+          }
+        };
+        r.readAsArrayBuffer(file);
+      },
+
+      /**
        * Listener Firebase sur stockOrders → met à jour state.stockOrders et re-render
        */
       attachOrdersListener() {
@@ -9200,6 +9429,10 @@ Erreur Firebase : ${e.message}`;
         document.getElementById('pc-clr-btn')?.addEventListener('click', () => this.clear());
         document.getElementById('pc-refresh-btn')?.addEventListener('click', () => this.render());
         document.getElementById('pc-export-btn')?.addEventListener('click', () => this.exportExcel());
+
+        // 📦 Boutons Commandes (import + template)
+        document.getElementById('pc-orders-xl-input')?.addEventListener('change', e => this.importOrdersExcel(e));
+        document.getElementById('pc-orders-template-btn')?.addEventListener('click', () => this.downloadOrdersTemplate());
 
         // 📦 Listener Firebase pour les commandes (qcom + statutCom)
         this.attachOrdersListener();

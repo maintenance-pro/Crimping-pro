@@ -4319,6 +4319,7 @@ section[data-view][hidden],
               <input type="file" accept=".xlsx,.xls" id="pc-xl-input" style="position:absolute;inset:0;opacity:0;cursor:pointer;z-index:1"/ autocomplete="off">
             </label>
             <button class="btn btn--secondary" id="pc-clr-btn" data-requires-role="admin,super_admin,magasinier" style="display:none">✕ Effacer stock</button>
+            <button class="btn btn--secondary" id="pc-export-btn">📥 Exporter Excel</button>
             <button class="btn btn--secondary" id="pc-refresh-btn">↻ Actualiser</button>
           </div>
         </header>
@@ -5079,6 +5080,7 @@ section[data-view][hidden],
     listeners: [],        // unsubscribe functions
     stock: {},            // stock items
     stockMovements: [],   // movements log
+    stockOrders: {},      // commandes par référence (key = sanitized nom) → { qcom, statutCom, ... }
     // ── Notifications real-time tracking ──
     notifSeenKeys: new Set(),   // keys of notifs we've already alerted on
     notifInitDone: false,       // first listener fire = baseline (no alert)
@@ -8268,8 +8270,29 @@ section[data-view][hidden],
         { k:'empl',    label:'Emplacement',              w:140 },
         { k:'qty',     label:'Qté Physique',             w:110, num:true },
         { k:'qmin',    label:'Qté Min',                  w:90,  num:true },
-        { k:'qmax',    label:'Qté Max',                  w:90,  num:true }
+        { k:'qmax',    label:'Qté Max',                  w:90,  num:true },
+        // ── Colonnes commande (éditables magasinier) ──
+        { k:'qcom',     label:'Qté Commandée',           w:120, num:true, editable:true, source:'orders' },
+        { k:'statutCom',label:'Statut Commande',         w:170,            editable:true, source:'orders' }
       ],
+
+      // Options statut commande (pour le dropdown)
+      _ORDER_STATUS_OPTS: [
+        { v:'',           label:'—',                       color:'var(--text-muted)' },
+        { v:'a_commander',label:'📋 À commander',          color:'#ffb547' },
+        { v:'envoyee',    label:'📤 Commande envoyée',     color:'#00d4ff' },
+        { v:'livraison',  label:'🚚 En livraison',         color:'#a855f7' },
+        { v:'recue',      label:'✅ Reçue',                color:'#00e5a0' },
+        { v:'annulee',    label:'❌ Annulée',              color:'#ff3d5a' }
+      ],
+
+      // Sanitize nom → key Firebase (interdit . # $ / [ ])
+      _orderKey(nom) {
+        return String(nom || '').trim()
+          .replace(/[.#$/\[\]]/g, '_')
+          .replace(/\s+/g, '_')
+          .substring(0, 200);
+      },
 
 
       mapRow(row) {
@@ -8640,8 +8663,8 @@ Erreur Firebase : ${e.message}`;
       },
 
       buildTable(data) {
-        // Show only columns that have data in at least one row
-        const cols = this._COLS.filter(c => data.some(r => r[c.k] && String(r[c.k]).trim() !== ''));
+        // Show columns that have data OR are editable (qcom/statutCom always visible for magasinier)
+        const cols = this._COLS.filter(c => c.editable || data.some(r => r[c.k] && String(r[c.k]).trim() !== ''));
         const thead = document.getElementById('pc-thead');
         if (thead) {
           // En-tête VISIBLE avec fond cyan
@@ -8755,6 +8778,32 @@ Erreur Firebase : ${e.message}`;
             : 'background:rgba(0,212,255,.025);') : '';
 
           return '<tr style="' + rowStyle + '">' + cols.map(c => {
+            // ── Colonnes éditables (qcom, statutCom) ── lookup dans state.stockOrders
+            if (c.editable && c.source === 'orders') {
+              const orderKey = this._orderKey(currentNom);
+              const order = (state.stockOrders && state.stockOrders[orderKey]) || {};
+              const canEdit = ['admin','super_admin','magasinier'].includes(state.role);
+
+              if (c.k === 'qcom') {
+                const val = order.qcom != null ? order.qcom : '';
+                if (canEdit) {
+                  return `<td style="text-align:right;padding:.3rem .5rem"><input type="number" min="0" step="1" value="${ui.escape(String(val))}" data-order-edit="qcom" data-order-key="${ui.escape(orderKey)}" data-order-nom="${ui.escape(currentNom)}" placeholder="0" style="width:80px;padding:.32rem .45rem;background:rgba(0,212,255,.06);border:1px solid var(--border-base);border-radius:5px;color:var(--text-primary);font-family:var(--font-mono);font-size:.78rem;text-align:right" autocomplete="off"/></td>`;
+                }
+                return `<td style="text-align:right;font-family:var(--font-mono);color:var(--text-secondary)">${ui.escape(String(val))}</td>`;
+              }
+              if (c.k === 'statutCom') {
+                const val = order.statutCom || '';
+                const opt = this._ORDER_STATUS_OPTS.find(o => o.v === val) || this._ORDER_STATUS_OPTS[0];
+                if (canEdit) {
+                  const optsHtml = this._ORDER_STATUS_OPTS.map(o =>
+                    `<option value="${o.v}" ${o.v === val ? 'selected' : ''}>${o.label}</option>`
+                  ).join('');
+                  return `<td style="padding:.3rem .5rem"><select data-order-edit="statutCom" data-order-key="${ui.escape(orderKey)}" data-order-nom="${ui.escape(currentNom)}" style="padding:.32rem .45rem;background:rgba(0,212,255,.06);border:1px solid var(--border-base);border-radius:5px;color:${opt.color};font-size:.75rem;font-weight:600;min-width:155px">${optsHtml}</select></td>`;
+                }
+                return `<td style="color:${opt.color};font-size:.75rem;font-weight:600">${ui.escape(opt.label)}</td>`;
+              }
+            }
+            // ── Colonnes standard ──
             let v = r[c.k] || '';
             const style = c.num ? 'text-align:right;font-family:var(--font-mono)' : '';
             // Highlight nom column if grouped
@@ -8767,6 +8816,224 @@ Erreur Firebase : ${e.message}`;
 
         if (data.length > 500) {
           tbody.innerHTML += '<tr><td colspan="' + (cols.length+1) + '" style="text-align:center;padding:.75rem;color:var(--text-muted);font-size:.78rem;font-style:italic">+ ' + (data.length - 500) + ' lignes supplémentaires (filtrer pour affiner)</td></tr>';
+        }
+
+        // 🔔 Wire-up des inputs éditables (qcom, statutCom)
+        tbody.querySelectorAll('[data-order-edit]').forEach(el => {
+          const field = el.dataset.orderEdit;
+          const key = el.dataset.orderKey;
+          const nom = el.dataset.orderNom;
+          if (!key || !field) return;
+          const evt = (el.tagName === 'SELECT') ? 'change' : 'change';
+          el.addEventListener(evt, () => this.saveOrderField(key, field, el.value, nom, el));
+          // Pour les inputs number, sauvegarder aussi sur blur (mobile-friendly)
+          if (el.tagName === 'INPUT') {
+            el.addEventListener('blur', () => this.saveOrderField(key, field, el.value, nom, el));
+          }
+          // Petit feedback visuel sur focus
+          el.addEventListener('focus', () => el.style.outline = '2px solid var(--accent-500)');
+          el.addEventListener('blur',  () => el.style.outline = '');
+        });
+      },
+
+      /**
+       * Sauvegarde un champ commande (qcom ou statutCom) dans stockOrders/{key}
+       */
+      async saveOrderField(key, field, rawValue, nom, inputEl) {
+        if (!key) return;
+        if (!['admin','super_admin','magasinier'].includes(state.role)) {
+          ui.toast('Édition réservée aux magasiniers', 'warn');
+          return;
+        }
+        // Normalisation
+        let value = rawValue;
+        if (field === 'qcom') {
+          if (value === '' || value == null) {
+            value = null;
+          } else {
+            const n = parseInt(value);
+            if (isNaN(n) || n < 0) {
+              ui.toast('Quantité invalide', 'warn');
+              if (inputEl) inputEl.value = '';
+              return;
+            }
+            value = n;
+          }
+        }
+        if (field === 'statutCom') {
+          const valid = (this._ORDER_STATUS_OPTS || []).map(o => o.v);
+          if (!valid.includes(value)) value = '';
+          if (value === '') value = null; // efface le champ si "—"
+        }
+        try {
+          const updates = {};
+          updates[field] = value;
+          updates.nom = nom || '';
+          updates.updatedAt = Date.now();
+          updates.updatedBy = state.profile?.displayName || state.user?.uid || '?';
+          await fbDb.ref(`stockOrders/${key}`).update(updates);
+
+          // Petit feedback visuel : flash vert
+          if (inputEl) {
+            const orig = inputEl.style.background;
+            inputEl.style.background = 'rgba(0,229,160,.20)';
+            setTimeout(() => { inputEl.style.background = orig; }, 700);
+          }
+          // Audit léger
+          if (typeof db?.audit === 'function') {
+            db.audit('stockOrder.update', key, { field, value });
+          }
+        } catch(e) {
+          console.error('[saveOrderField] Erreur:', e);
+          ui.toast('Erreur sauvegarde : ' + e.message, 'danger');
+        }
+      },
+
+      /**
+       * Listener Firebase sur stockOrders → met à jour state.stockOrders et re-render
+       */
+      attachOrdersListener() {
+        if (this._ordersListenerAttached) return;
+        this._ordersListenerAttached = true;
+        try {
+          const ref = fbDb.ref('stockOrders');
+          ref.on('value', snap => {
+            state.stockOrders = snap.val() || {};
+            // Re-render uniquement si on est sur la vue magasin (évite renders inutiles)
+            if (state.currentView === 'magasin') {
+              this.renderRows(this.filtered || []);
+            }
+          });
+        } catch(e) {
+          console.warn('[attachOrdersListener]', e);
+        }
+      },
+
+      /**
+       * Export Excel du stock (filtré) avec les colonnes commande
+       */
+      async exportExcel() {
+        const data = this.filtered && this.filtered.length ? this.filtered : this.pieces;
+        if (!data || data.length === 0) {
+          ui.toast('Aucune donnée à exporter', 'warn');
+          return;
+        }
+
+        // Chargement lazy de SheetJS si nécessaire
+        const loadXLSX = () => new Promise((resolve, reject) => {
+          if (window.XLSX) return resolve();
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          s.onload = resolve;
+          s.onerror = () => reject(new Error('Impossible de charger SheetJS'));
+          document.head.appendChild(s);
+        });
+
+        ui.showLoader('Génération Excel en cours…');
+        try {
+          await loadXLSX();
+
+          const statusLabel = (v) => {
+            const o = (this._ORDER_STATUS_OPTS || []).find(x => x.v === v);
+            return o ? o.label : '';
+          };
+
+          // Feuille 1 : Stock complet avec commandes
+          const rows = data.map(r => {
+            const orderKey = this._orderKey(r.nom);
+            const order = (state.stockOrders && state.stockOrders[orderKey]) || {};
+            const qty = parseInt(r.qty), qmin = parseInt(r.qmin);
+            let stockStatut = '';
+            if (!isNaN(qty)) {
+              if (qty === 0) stockStatut = '🔴 Rupture';
+              else if (!isNaN(qmin) && qmin > 0 && qty <= qmin) stockStatut = '⚠️ Faible';
+              else stockStatut = '✅ OK';
+            }
+            return {
+              'Nom (Référence)':  r.nom || '',
+              'N° Stock':         r.nstock || '',
+              'Emplacement':      r.empl || '',
+              'Qté Physique':     r.qty || '',
+              'Qté Min':          r.qmin || '',
+              'Qté Max':          r.qmax || '',
+              'Qté Commandée':    order.qcom != null ? order.qcom : '',
+              'Statut Commande':  statusLabel(order.statutCom),
+              'Statut Stock':     stockStatut,
+              'Fournisseur':      r.nomFour || r.codeFour || '',
+              'Type':             r.typePiece || '',
+              'Site':              r.site || '',
+              'MAJ Commande':     order.updatedAt ? new Date(order.updatedAt).toLocaleString('fr-FR') : '',
+              'Modifié par':      order.updatedBy || ''
+            };
+          });
+
+          // Feuille 2 : Récap commandes (uniquement les références avec qcom > 0 ou statut)
+          const ordersOnly = rows.filter(r => r['Qté Commandée'] !== '' || r['Statut Commande']);
+          // Dédupliquer par Nom (Référence) car la même réf peut apparaître sur plusieurs emplacements
+          const seenRefs = new Set();
+          const ordersDedup = ordersOnly.filter(r => {
+            const k = r['Nom (Référence)'];
+            if (seenRefs.has(k)) return false;
+            seenRefs.add(k);
+            return true;
+          }).map(r => ({
+            'Nom (Référence)':  r['Nom (Référence)'],
+            'Qté Commandée':    r['Qté Commandée'],
+            'Statut Commande':  r['Statut Commande'],
+            'Stock Physique':   r['Qté Physique'],
+            'Statut Stock':     r['Statut Stock'],
+            'Fournisseur':      r['Fournisseur'],
+            'MAJ Commande':     r['MAJ Commande'],
+            'Modifié par':      r['Modifié par']
+          }));
+
+          const wb = XLSX.utils.book_new();
+
+          // F1
+          const ws1 = XLSX.utils.json_to_sheet(rows);
+          ws1['!cols'] = [
+            {wch:20},{wch:26},{wch:14},{wch:12},{wch:10},{wch:10},
+            {wch:14},{wch:22},{wch:14},{wch:24},{wch:14},{wch:12},
+            {wch:18},{wch:18}
+          ];
+          XLSX.utils.book_append_sheet(wb, ws1, 'Stock Complet');
+
+          // F2
+          if (ordersDedup.length > 0) {
+            const ws2 = XLSX.utils.json_to_sheet(ordersDedup);
+            ws2['!cols'] = [
+              {wch:20},{wch:14},{wch:22},{wch:14},{wch:14},
+              {wch:24},{wch:18},{wch:18}
+            ];
+            XLSX.utils.book_append_sheet(wb, ws2, 'Commandes en cours');
+          }
+
+          // F3 : métadonnées
+          const meta = [
+            { 'Champ': 'Application',         'Valeur': 'CRIMPING LABO PRO — LEONI' },
+            { 'Champ': 'Export généré le',    'Valeur': new Date().toLocaleString('fr-FR') },
+            { 'Champ': 'Généré par',          'Valeur': state.profile?.displayName || '—' },
+            { 'Champ': 'Matricule',           'Valeur': state.profile?.matricule || '—' },
+            { 'Champ': 'Total lignes stock',  'Valeur': rows.length },
+            { 'Champ': 'Réfs avec commande',  'Valeur': ordersDedup.length },
+            { 'Champ': 'Fichier source',      'Valeur': this.piecesFile?.name || '—' }
+          ];
+          const ws3 = XLSX.utils.json_to_sheet(meta);
+          ws3['!cols'] = [{wch:22},{wch:38}];
+          XLSX.utils.book_append_sheet(wb, ws3, 'Infos Export');
+
+          // Nom fichier
+          const now = new Date();
+          const pad = n => String(n).padStart(2, '0');
+          const fname = `LEONI_Stock_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.xlsx`;
+
+          XLSX.writeFile(wb, fname);
+          ui.hideLoader();
+          ui.toast(`✅ ${rows.length} lignes exportées — ${fname}`, 'success');
+        } catch(e) {
+          ui.hideLoader();
+          console.error('[Stock Export]', e);
+          ui.toast('Erreur export : ' + e.message, 'danger');
         }
       },
 
@@ -8863,6 +9130,10 @@ Erreur Firebase : ${e.message}`;
         // Buttons
         document.getElementById('pc-clr-btn')?.addEventListener('click', () => this.clear());
         document.getElementById('pc-refresh-btn')?.addEventListener('click', () => this.render());
+        document.getElementById('pc-export-btn')?.addEventListener('click', () => this.exportExcel());
+
+        // 📦 Listener Firebase pour les commandes (qcom + statutCom)
+        this.attachOrdersListener();
 
         // Filters
         document.getElementById('pc-search')?.addEventListener('input', Perf.debounce(() => this.applyFilters(), 200));

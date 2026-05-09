@@ -5988,12 +5988,14 @@ section[data-view][hidden],
       const TAG = '[notifyMagasinier]';
       try {
         console.log(`${TAG} 🚀 Démarrage pour bon N°${reg}`);
+        ui.toast(`📦 Vérification magasinier (bon N°${reg})…`, 'info');
 
         // 1. Charger l'intervention
         const itvSnap = await fbDb.ref(`interventions/${reg}`).once('value');
         const itv = itvSnap.val();
         if (!itv) {
           console.warn(`${TAG} ❌ Bon ${reg} introuvable dans Firebase`);
+          ui.toast(`❌ Bon ${reg} introuvable`, 'danger');
           return;
         }
 
@@ -6003,10 +6005,11 @@ section[data-view][hidden],
         console.log(`${TAG} 📋 PDR cochées :`, pdrCodes);
         if (pdrCodes.length === 0) {
           console.log(`${TAG} ℹ️ Aucune PDR cochée → pas de notification magasinier`);
+          ui.toast('ℹ️ Bon sans PDR — pas de demande au magasinier', 'info');
           return;
         }
 
-        // 3. Résoudre chaque PDR : code → label, référence, emplacement, stock dispo
+        // 3. Résoudre chaque PDR
         const tool = itv.tool || {};
         const toolPieces = tool.pieces || {};
         const labelFn = (typeof pdrLabel === 'function') ? pdrLabel : (c => c);
@@ -6037,44 +6040,70 @@ section[data-view][hidden],
         });
         console.log(`${TAG} 🔍 Items résolus :`, pdrItems);
 
-        // 4. Construire le message lisible
+        // 4. Construire les messages
         const refLines = pdrItems.map(p =>
           `• ${p.label} → ${p.ref}  📍 ${p.emplacement}  (stock: ${p.stockQty})`
         ).join('\n');
         const toolInfo = `${tool.fabricant || '?'} — ${tool.refOutil || tool.outilId || '?'}`;
         const message = `🔧 Préparer PDR du bon N°${reg}\n📦 Outil : ${toolInfo}\n${refLines}`;
-        // Message court pour la barre persistante
         const shortMessage = `🔧 Demande PDR — bon N°${reg} (${pdrItems.length} réf${pdrItems.length>1?'s':''} à préparer)`;
 
-        // 5. Trouver les magasiniers
+        // 5. Trouver les magasiniers (avec fallback robuste)
         let magUids = [];
+        let allUsers = null;
         try {
-          const usersSnap = await fbDb.ref('users').orderByChild('role').equalTo('magasinier').once('value');
-          magUids = Object.keys(usersSnap.val() || {});
+          const snap = await fbDb.ref('users').orderByChild('role').equalTo('magasinier').once('value');
+          magUids = Object.keys(snap.val() || {});
+          console.log(`${TAG} 🔎 Méthode 1 (orderByChild) → ${magUids.length} magasinier(s)`);
         } catch(e) {
-          console.warn(`${TAG} ⚠️ Query users avec orderByChild a échoué (rules ?), fallback complet`, e);
-          // Fallback : lire tout users et filtrer côté client
+          console.warn(`${TAG} ⚠️ orderByChild a échoué :`, e?.code, e?.message);
+        }
+
+        // Fallback : lecture complète si la première méthode a rien trouvé OU a échoué
+        if (magUids.length === 0) {
           try {
             const allSnap = await fbDb.ref('users').once('value');
-            const all = allSnap.val() || {};
-            magUids = Object.entries(all)
+            allUsers = allSnap.val() || {};
+            magUids = Object.entries(allUsers)
               .filter(([uid, u]) => u && u.role === 'magasinier')
               .map(([uid]) => uid);
+            console.log(`${TAG} 🔎 Méthode 2 (lecture complète) → ${magUids.length} magasinier(s)`);
           } catch(e2) {
-            console.error(`${TAG} ❌ Impossible de lire users:`, e2);
-            ui.toast('⚠️ Impossible de notifier le magasinier (vérifier règles Firebase)', 'danger');
+            console.error(`${TAG} ❌ Lecture users impossible :`, e2);
+            ui.toast(`⛔ Lecture users refusée par Firebase (${e2.code || 'erreur'}) — vérifie les règles`, 'danger');
             return;
           }
         }
 
-        console.log(`${TAG} 👥 Magasiniers trouvés : ${magUids.length}`, magUids);
+        // 6. Si toujours aucun magasinier → diagnostic complet
         if (magUids.length === 0) {
-          console.warn(`${TAG} ⚠️ Aucun magasinier configuré dans la base`);
-          ui.toast('⚠️ Aucun magasinier configuré — bon soumis sans demande PDR', 'warn');
+          console.warn(`${TAG} ⚠️ Aucun utilisateur avec role='magasinier' dans la base`);
+          // Liste tous les rôles trouvés pour aider au debug
+          if (!allUsers) {
+            try {
+              const allSnap = await fbDb.ref('users').once('value');
+              allUsers = allSnap.val() || {};
+            } catch(e) {}
+          }
+          if (allUsers) {
+            const rolesSummary = {};
+            Object.values(allUsers).forEach(u => {
+              const role = u?.role || '(undefined)';
+              rolesSummary[role] = (rolesSummary[role] || 0) + 1;
+            });
+            console.warn(`${TAG} 📊 Rôles présents dans la base :`, rolesSummary);
+            console.warn(`${TAG} 👥 Utilisateurs :`, Object.entries(allUsers).map(([uid, u]) => ({ uid: uid.slice(-6), name: u?.displayName, role: u?.role })));
+            const rolesList = Object.entries(rolesSummary)
+              .map(([r,c]) => `${r}(${c})`).join(', ');
+            ui.toast(`⚠️ AUCUN magasinier dans la base ! Rôles trouvés : ${rolesList}`, 'warn');
+            ui.toast(`💡 Crée un user avec role="magasinier" dans Admin → Utilisateurs`, 'info');
+          } else {
+            ui.toast('⚠️ Aucun magasinier configuré — bon soumis sans demande PDR', 'warn');
+          }
           return;
         }
 
-        // 6. Envoyer la notif à chaque magasinier (utiliser un objet keyed pour éviter [] ↔ {} confusion)
+        // 7. Envoyer la notif
         const pdrItemsObj = {};
         pdrItems.forEach((it, i) => { pdrItemsObj['p' + i] = it; });
 
@@ -6083,7 +6112,7 @@ section[data-view][hidden],
           message,
           shortMessage,
           interventionId: String(reg),
-          pdrItems: pdrItemsObj,         // stocké comme objet keyed (robuste)
+          pdrItems: pdrItemsObj,
           pdrItemsCount: pdrItems.length,
           toolInfo,
           requesterName: state.profile?.displayName || '?',
@@ -6095,21 +6124,28 @@ section[data-view][hidden],
         };
 
         let okCount = 0, failCount = 0;
+        const errors = [];
         for (const uid of magUids) {
           try {
             await fbDb.ref(`notifications/${uid}`).push(payload);
             okCount++;
+            console.log(`${TAG} ✅ Push OK → ${uid.slice(-6)}`);
           } catch(e) {
             failCount++;
+            errors.push({ uid: uid.slice(-6), code: e.code, msg: e.message });
             console.error(`${TAG} ❌ Push KO pour ${uid}:`, e);
           }
         }
 
-        console.log(`${TAG} ✅ Envoyé à ${okCount}/${magUids.length} magasinier(s)`);
-        if (okCount > 0) {
-          ui.toast(`📦 ${okCount} magasinier(s) notifié(s) pour préparer ${pdrItems.length} PDR`, 'success');
+        if (okCount > 0 && failCount === 0) {
+          ui.toast(`📦 ${okCount} magasinier(s) notifié(s) — ${pdrItems.length} PDR à préparer`, 'success');
+        } else if (okCount > 0 && failCount > 0) {
+          ui.toast(`⚠️ ${okCount} OK, ${failCount} échec — voir console`, 'warn');
         } else {
-          ui.toast('❌ Notification magasinier échouée — règles Firebase ?', 'danger');
+          // Tous les pushs ont échoué → permission Firebase
+          const firstErr = errors[0]?.code || 'inconnu';
+          ui.toast(`⛔ Notification magasinier refusée par Firebase (${firstErr}) — règles à corriger`, 'danger');
+          console.error(`${TAG} ❌ Tous les pushs ont échoué :`, errors);
         }
       } catch (e) {
         console.error('[notifyMagasinier] Erreur globale:', e);
@@ -11918,6 +11954,23 @@ Erreur Firebase : ${e.message}`;
     console.log('[LEONI] Raccourcis : Alt+H Hub · Alt+N Nouveau · Alt+M Magasin · Alt+P Performance');
     console.log('[LEONI] 💡 En cas de problème Firebase, tapez : diagnoseLEONI()');
     console.log('[LEONI] 🔧 Pour tester les notifs PDR magasinier, tapez : diagPDR()');
+    console.log('[LEONI] 📦 Pour tester un envoi de notif sur un bon précis : testMagNotif("12")');
+
+    // Test manuel d'envoi notif magasinier sur un bon donné
+    window.testMagNotif = async function(bonId) {
+      if (!bonId) {
+        console.error('Utilisation : testMagNotif("12")');
+        return;
+      }
+      console.group(`📦 Test notif magasinier pour bon N°${bonId}`);
+      try {
+        await db.notifyMagasinier(String(bonId));
+        console.log('✅ Test terminé — regarde le toast et la base Firebase');
+      } catch(e) {
+        console.error('❌ Test KO :', e);
+      }
+      console.groupEnd();
+    };
 
     // ── Diagnostic PDR — trace toute la chaîne magasinier ↔ technicien ──
     window.diagPDR = async function() {

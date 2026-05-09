@@ -5969,16 +5969,26 @@ section[data-view][hidden],
        NOTIFICATION MAGASINIER — Préparer les PDR pour un bon soumis
        ════════════════════════════════════════════════════════════════════ */
     async notifyMagasinier(reg) {
+      const TAG = '[notifyMagasinier]';
       try {
+        console.log(`${TAG} 🚀 Démarrage pour bon N°${reg}`);
+
         // 1. Charger l'intervention
         const itvSnap = await fbDb.ref(`interventions/${reg}`).once('value');
         const itv = itvSnap.val();
-        if (!itv) return;
+        if (!itv) {
+          console.warn(`${TAG} ❌ Bon ${reg} introuvable dans Firebase`);
+          return;
+        }
 
         // 2. Extraire les PDR cochées
         const piecesChanged = itv.crimping?.piecesChanged || {};
         const pdrCodes = Object.entries(piecesChanged).filter(([k,v]) => v).map(([k]) => k);
-        if (pdrCodes.length === 0) return; // Pas de PDR → pas de notif
+        console.log(`${TAG} 📋 PDR cochées :`, pdrCodes);
+        if (pdrCodes.length === 0) {
+          console.log(`${TAG} ℹ️ Aucune PDR cochée → pas de notification magasinier`);
+          return;
+        }
 
         // 3. Résoudre chaque PDR : code → label, référence, emplacement, stock dispo
         const tool = itv.tool || {};
@@ -5990,7 +6000,6 @@ section[data-view][hidden],
           let emplacement = '';
           let stockQty = null;
           let stockId = null;
-          // Recherche dans state.stock par nom (= référence)
           if (ref && state.stock) {
             for (const [sid, item] of Object.entries(state.stock)) {
               if ((item.nom || '').trim() === ref) {
@@ -6007,46 +6016,88 @@ section[data-view][hidden],
             ref: ref || '(non renseigné)',
             emplacement: emplacement || '⚠️ non répertorié',
             stockQty: stockQty != null ? String(stockQty) : '?',
-            stockId
+            stockId: stockId || ''
           };
         });
+        console.log(`${TAG} 🔍 Items résolus :`, pdrItems);
 
         // 4. Construire le message lisible
         const refLines = pdrItems.map(p =>
-          `• ${p.label} → ${p.ref}  📍 ${p.emplacement}  (stock dispo: ${p.stockQty})`
+          `• ${p.label} → ${p.ref}  📍 ${p.emplacement}  (stock: ${p.stockQty})`
         ).join('\n');
         const toolInfo = `${tool.fabricant || '?'} — ${tool.refOutil || tool.outilId || '?'}`;
-        const message = `🔧 Merci de préparer ces références pour le bon N°${reg}\n📦 Outil : ${toolInfo}\n${refLines}`;
+        const message = `🔧 Préparer PDR du bon N°${reg}\n📦 Outil : ${toolInfo}\n${refLines}`;
+        // Message court pour la barre persistante
+        const shortMessage = `🔧 Demande PDR — bon N°${reg} (${pdrItems.length} réf${pdrItems.length>1?'s':''} à préparer)`;
 
-        // 5. Envoyer à tous les magasiniers
-        const usersSnap = await fbDb.ref('users').orderByChild('role').equalTo('magasinier').once('value');
-        const magUsers = usersSnap.val() || {};
-        const magUids = Object.keys(magUsers);
+        // 5. Trouver les magasiniers
+        let magUids = [];
+        try {
+          const usersSnap = await fbDb.ref('users').orderByChild('role').equalTo('magasinier').once('value');
+          magUids = Object.keys(usersSnap.val() || {});
+        } catch(e) {
+          console.warn(`${TAG} ⚠️ Query users avec orderByChild a échoué (rules ?), fallback complet`, e);
+          // Fallback : lire tout users et filtrer côté client
+          try {
+            const allSnap = await fbDb.ref('users').once('value');
+            const all = allSnap.val() || {};
+            magUids = Object.entries(all)
+              .filter(([uid, u]) => u && u.role === 'magasinier')
+              .map(([uid]) => uid);
+          } catch(e2) {
+            console.error(`${TAG} ❌ Impossible de lire users:`, e2);
+            ui.toast('⚠️ Impossible de notifier le magasinier (vérifier règles Firebase)', 'danger');
+            return;
+          }
+        }
+
+        console.log(`${TAG} 👥 Magasiniers trouvés : ${magUids.length}`, magUids);
         if (magUids.length === 0) {
-          console.warn('[notifyMagasinier] Aucun magasinier dans la base — notification non envoyée');
+          console.warn(`${TAG} ⚠️ Aucun magasinier configuré dans la base`);
+          ui.toast('⚠️ Aucun magasinier configuré — bon soumis sans demande PDR', 'warn');
           return;
         }
+
+        // 6. Envoyer la notif à chaque magasinier (utiliser un objet keyed pour éviter [] ↔ {} confusion)
+        const pdrItemsObj = {};
+        pdrItems.forEach((it, i) => { pdrItemsObj['p' + i] = it; });
 
         const payload = {
           type: 'pdr_request',
           message,
-          interventionId: reg,
-          pdrItems,
+          shortMessage,
+          interventionId: String(reg),
+          pdrItems: pdrItemsObj,         // stocké comme objet keyed (robuste)
+          pdrItemsCount: pdrItems.length,
           toolInfo,
-          requesterName: state.profile.displayName,
-          requesterUid: state.user.uid,
-          requesterMatricule: state.profile.matricule || '',
-          pdrStatus: 'pending', // pending | ready | unavailable
+          requesterName: state.profile?.displayName || '?',
+          requesterUid: state.user?.uid || '',
+          requesterMatricule: state.profile?.matricule || '',
+          pdrStatus: 'pending',
           createdAt: Date.now(),
           read: false
         };
-        const pushPromises = magUids.map(uid =>
-          fbDb.ref(`notifications/${uid}`).push(payload)
-        );
-        await Promise.all(pushPromises);
-        console.log(`[notifyMagasinier] ✅ Notifié ${magUids.length} magasinier(s) pour bon ${reg} (${pdrItems.length} PDR)`);
+
+        let okCount = 0, failCount = 0;
+        for (const uid of magUids) {
+          try {
+            await fbDb.ref(`notifications/${uid}`).push(payload);
+            okCount++;
+          } catch(e) {
+            failCount++;
+            console.error(`${TAG} ❌ Push KO pour ${uid}:`, e);
+          }
+        }
+
+        console.log(`${TAG} ✅ Envoyé à ${okCount}/${magUids.length} magasinier(s)`);
+        if (okCount > 0) {
+          ui.toast(`📦 ${okCount} magasinier(s) notifié(s) pour préparer ${pdrItems.length} PDR`, 'success');
+        } else {
+          ui.toast('❌ Notification magasinier échouée — règles Firebase ?', 'danger');
+        }
       } catch (e) {
-        console.error('[notifyMagasinier] Erreur:', e);
+        console.error('[notifyMagasinier] Erreur globale:', e);
+        ui.toast('Erreur notif magasinier : ' + e.message, 'danger');
       }
     },
 
@@ -6055,13 +6106,17 @@ section[data-view][hidden],
      * decision = 'ready' (rassemblées) | 'unavailable' (non disponible)
      */
     async respondPDRRequest(notifId, decision, reason = null) {
+      const TAG = '[respondPDRRequest]';
       if (!state.user) return;
       try {
+        console.log(`${TAG} 🚀 Réponse "${decision}" pour notif ${notifId}`);
+
         // 1. Charger la notif
         const notifRef = fbDb.ref(`notifications/${state.user.uid}/${notifId}`);
         const snap = await notifRef.once('value');
         const notif = snap.val();
         if (!notif || notif.type !== 'pdr_request') {
+          console.warn(`${TAG} ❌ Notif introuvable ou mauvais type`, notif);
           ui.toast('Notification introuvable', 'danger');
           return;
         }
@@ -6072,8 +6127,8 @@ section[data-view][hidden],
 
         const responder = {
           uid: state.user.uid,
-          name: state.profile.displayName,
-          matricule: state.profile.matricule || '',
+          name: state.profile?.displayName || '?',
+          matricule: state.profile?.matricule || '',
           at: Date.now()
         };
 
@@ -6085,30 +6140,44 @@ section[data-view][hidden],
           pdrResponseReason: reason || null,
           pdrResponseBy: responder.name
         });
+        console.log(`${TAG} ✅ Notif magasinier mise à jour`);
 
-        // 3. Tracer sur l'intervention
-        await fbDb.ref(`interventions/${notif.interventionId}/pdrPreparation`).set({
-          status: decision,
-          by: responder,
-          reason: reason || null
-        });
+        // 3. Tracer sur l'intervention (best-effort, non bloquant)
+        try {
+          await fbDb.ref(`interventions/${notif.interventionId}/pdrPreparation`).set({
+            status: decision,
+            by: responder,
+            reason: reason || null
+          });
+        } catch(e) {
+          console.warn(`${TAG} ⚠️ Trace intervention KO (non bloquant):`, e);
+        }
 
         // 4. Notifier en retour le technicien crimping
         if (notif.requesterUid) {
           const responseMessage = decision === 'ready'
             ? `📦 Tes PDR pour le bon N°${notif.interventionId} sont PRÊTES — par ${responder.name}`
             : `⚠️ PDR non disponibles pour le bon N°${notif.interventionId}${reason ? ' — ' + reason : ''} (par ${responder.name})`;
-          await fbDb.ref(`notifications/${notif.requesterUid}`).push({
-            type: `pdr_${decision}`,
-            message: responseMessage,
-            interventionId: notif.interventionId,
-            createdAt: Date.now(),
-            read: false
-          });
+          try {
+            await fbDb.ref(`notifications/${notif.requesterUid}`).push({
+              type: `pdr_${decision}`,
+              message: responseMessage,
+              shortMessage: responseMessage,
+              interventionId: notif.interventionId,
+              createdAt: Date.now(),
+              read: false
+            });
+            console.log(`${TAG} ✅ Notif retour envoyée au technicien ${notif.requesterUid}`);
+          } catch(e) {
+            console.error(`${TAG} ❌ Notif retour KO:`, e);
+            ui.toast('⚠️ Réponse enregistrée mais le technicien n\'a pas pu être notifié (vérifier règles Firebase)', 'warn');
+          }
+        } else {
+          console.warn(`${TAG} ⚠️ Pas de requesterUid → pas de notif retour`);
         }
 
         // 5. Audit
-        this.audit('pdr.' + decision, notif.interventionId, { reason: reason || null });
+        try { this.audit('pdr.' + decision, notif.interventionId, { reason: reason || null }); } catch(e){}
         ui.toast(decision === 'ready'
           ? '✅ Réponse envoyée : PDR prêtes'
           : '⚠️ Réponse envoyée : non disponibles', 'success');
@@ -10097,7 +10166,10 @@ Erreur Firebase : ${e.message}`;
         this._topUnread = top;
         const msgEl = $('#unread-bar-message');
         const cntEl = $('#unread-bar-count');
-        if (msgEl) msgEl.textContent = top.message || 'Nouvelle notification';
+        // Pour la barre : utiliser shortMessage si dispo, sinon 1ère ligne du message
+        let displayMsg = top.shortMessage
+          || (top.message ? String(top.message).split('\n')[0] : 'Nouvelle notification');
+        if (msgEl) msgEl.textContent = displayMsg;
         if (cntEl) cntEl.textContent = unreadList.length;
         bar.hidden = false;
       },
@@ -10117,62 +10189,111 @@ Erreur Firebase : ${e.message}`;
        */
       render(notifs) {
         const unread = (notifs || []).filter(n => !n.read);
+
+        // Helper : convertir pdrItems en Array (Firebase peut renvoyer un objet keyed)
+        const toArray = (v) => {
+          if (Array.isArray(v)) return v;
+          if (v && typeof v === 'object') return Object.values(v);
+          return [];
+        };
+
         const renderOne = (n) => {
-          // Notification PDR REQUEST → rendu enrichi avec actions
+          // ━━━ NOTIFICATION PDR REQUEST (côté magasinier) ━━━
           if (n.type === 'pdr_request') {
             const pending = (n.pdrStatus || 'pending') === 'pending';
-            const itemsHtml = (n.pdrItems || []).map(p => `
-              <li style="padding:.45rem .55rem;background:rgba(255,255,255,.03);border-radius:6px;margin-bottom:.35rem;font-size:.78rem;line-height:1.4">
-                <div style="font-weight:700;color:var(--accent-500,#00b4d8)">${ui.escape(p.label)} → <span style="font-family:var(--font-mono);color:var(--text-primary)">${ui.escape(p.ref)}</span></div>
-                <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-top:.2rem;color:var(--text-muted);font-size:.72rem">
-                  <span>📍 <b style="color:#ffb547">${ui.escape(p.emplacement)}</b></span>
-                  <span>📦 stock: <b>${ui.escape(p.stockQty)}</b></span>
-                </div>
-              </li>
-            `).join('');
+            const items = toArray(n.pdrItems);
+            const itemsHtml = items.length === 0
+              ? `<li style="padding:.5rem;color:var(--text-muted);font-size:.78rem;font-style:italic">⚠️ Détails PDR non disponibles — ouvrir le bon N°${ui.escape(String(n.interventionId||''))}</li>`
+              : items.map(p => `
+                <li style="padding:.55rem .65rem;background:rgba(255,255,255,.04);border-radius:7px;margin-bottom:.4rem;font-size:.8rem;line-height:1.5;border-left:3px solid var(--accent-500,#00b4d8)">
+                  <div style="font-weight:700;color:var(--accent-500,#00b4d8);font-size:.85rem">
+                    ${ui.escape(p.label || p.code || '?')}
+                  </div>
+                  <div style="font-family:var(--font-mono);color:var(--text-primary);font-size:.78rem;margin-top:.15rem">
+                    ${ui.escape(p.ref || '')}
+                  </div>
+                  <div style="display:flex;gap:.85rem;flex-wrap:wrap;margin-top:.25rem;font-size:.74rem;color:var(--text-muted)">
+                    <span>📍 <b style="color:#ffb547">${ui.escape(p.emplacement || '?')}</b></span>
+                    <span>📦 stock dispo : <b style="color:${(parseInt(p.stockQty)||0) > 0 ? '#00e5a0' : '#ff3d5a'}">${ui.escape(String(p.stockQty || '?'))}</b></span>
+                  </div>
+                </li>
+              `).join('');
+
             const actionsHtml = pending ? `
-              <div style="display:flex;gap:.5rem;margin-top:.6rem">
+              <div style="display:flex;gap:.5rem;margin-top:.7rem">
                 <button data-pdr-action="ready" data-notif-id="${n.id}" style="
-                    flex:1;padding:.5rem;font-size:.78rem;font-weight:700;
+                    flex:1;padding:.6rem;font-size:.85rem;font-weight:700;
                     background:linear-gradient(135deg,#00e5a0,#00b890);color:#0a1628;
-                    border:none;border-radius:6px;cursor:pointer;transition:all .15s">
+                    border:none;border-radius:7px;cursor:pointer;transition:all .15s;
+                    box-shadow:0 2px 8px rgba(0,229,160,.25)">
                   ✅ Rassemblées
                 </button>
                 <button data-pdr-action="unavailable" data-notif-id="${n.id}" style="
-                    flex:1;padding:.5rem;font-size:.78rem;font-weight:700;
+                    flex:1;padding:.6rem;font-size:.85rem;font-weight:700;
                     background:linear-gradient(135deg,#ff3d5a,#cc1f3a);color:#fff;
-                    border:none;border-radius:6px;cursor:pointer;transition:all .15s">
+                    border:none;border-radius:7px;cursor:pointer;transition:all .15s;
+                    box-shadow:0 2px 8px rgba(255,61,90,.25)">
                   ❌ Non disponible
                 </button>
               </div>
             ` : `
-              <div style="margin-top:.5rem;padding:.4rem;border-radius:6px;font-size:.75rem;font-weight:700;text-align:center;${
+              <div style="margin-top:.5rem;padding:.5rem;border-radius:7px;font-size:.8rem;font-weight:700;text-align:center;${
                 n.pdrStatus === 'ready'
-                  ? 'background:rgba(0,229,160,.15);color:#00e5a0'
-                  : 'background:rgba(255,61,90,.15);color:#ff3d5a'
+                  ? 'background:rgba(0,229,160,.15);color:#00e5a0;border:1px solid rgba(0,229,160,.3)'
+                  : 'background:rgba(255,61,90,.15);color:#ff3d5a;border:1px solid rgba(255,61,90,.3)'
               }">
-                ${n.pdrStatus === 'ready' ? '✅ Marquées comme prêtes' : '❌ Marquées comme non disponibles'}
-                ${n.pdrResponseBy ? '<br><span style="font-size:.68rem;font-weight:500;opacity:.8">par ' + ui.escape(n.pdrResponseBy) + '</span>' : ''}
+                ${n.pdrStatus === 'ready' ? '✅ Rassemblées' : '❌ Non disponibles'}
+                ${n.pdrResponseBy ? '<br><span style="font-size:.7rem;font-weight:500;opacity:.85">par ' + ui.escape(n.pdrResponseBy) + '</span>' : ''}
               </div>
             `;
+
             return `
-              <li data-notif-id="${n.id}" style="padding:var(--sp-3);border-bottom:1px solid var(--border-soft);background:linear-gradient(180deg,rgba(0,180,216,.06),transparent)">
-                <div style="font-size:.82rem;font-weight:700;color:var(--text-primary);margin-bottom:.4rem">
-                  🔧 Demande PDR — Bon N°${ui.escape(n.interventionId || '')}
+              <li data-notif-id="${n.id}" style="padding:var(--sp-3);border-bottom:1px solid var(--border-soft);background:linear-gradient(180deg,rgba(0,180,216,.10),rgba(0,180,216,.02));border-left:4px solid var(--accent-500,#00b4d8)">
+                <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.45rem">
+                  <span style="font-size:1rem">🔧</span>
+                  <span style="font-size:.85rem;font-weight:700;color:var(--text-primary);flex:1">
+                    Demande PDR — Bon N°${ui.escape(String(n.interventionId || ''))}
+                  </span>
+                  <span style="background:var(--accent-500,#00b4d8);color:#0a1628;font-weight:700;font-size:.7rem;padding:.15rem .5rem;border-radius:999px;font-family:var(--font-mono)">
+                    ${items.length || n.pdrItemsCount || 0}
+                  </span>
                 </div>
-                <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.4rem">
-                  Demandé par <b>${ui.escape(n.requesterName || '—')}</b>${n.requesterMatricule ? ' (' + ui.escape(n.requesterMatricule) + ')' : ''}
-                  ${n.toolInfo ? ' · ' + ui.escape(n.toolInfo) : ''}
+                <div style="font-size:.74rem;color:var(--text-muted);margin-bottom:.5rem;padding-bottom:.4rem;border-bottom:1px dashed var(--border-soft)">
+                  Demandé par <b style="color:var(--text-secondary)">${ui.escape(n.requesterName || '—')}</b>${n.requesterMatricule ? ' <span style="opacity:.7">('+ui.escape(n.requesterMatricule)+')</span>' : ''}
+                  ${n.toolInfo ? '<br>📦 ' + ui.escape(n.toolInfo) : ''}
                 </div>
                 <ul style="list-style:none;padding:0;margin:0">${itemsHtml}</ul>
                 ${actionsHtml}
-                <div style="font-size:.65rem;color:var(--text-muted);margin-top:.4rem;text-align:right">${fmt.dateTime(n.createdAt)}</div>
+                <div style="font-size:.65rem;color:var(--text-muted);margin-top:.5rem;text-align:right">${fmt.dateTime(n.createdAt)}</div>
               </li>`;
           }
-          // Notification standard (validated, rejected, pdr_ready, pdr_unavailable, etc.)
+
+          // ━━━ NOTIFICATION RETOUR PDR (côté technicien crimping) ━━━
+          if (n.type === 'pdr_ready' || n.type === 'pdr_unavailable') {
+            const isReady = n.type === 'pdr_ready';
+            const accent = isReady ? '#00e5a0' : '#ff3d5a';
+            const bg = isReady ? 'rgba(0,229,160,.10)' : 'rgba(255,61,90,.10)';
+            const icon = isReady ? '📦' : '⚠️';
+            return `
+              <li data-notif-id="${n.id}" style="padding:var(--sp-3);border-bottom:1px solid var(--border-soft);background:linear-gradient(180deg,${bg},transparent);border-left:4px solid ${accent};cursor:pointer">
+                <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem">
+                  <span style="font-size:1.05rem">${icon}</span>
+                  <span style="font-size:.85rem;font-weight:700;color:${accent}">
+                    ${isReady ? 'PDR rassemblées' : 'PDR non disponibles'}
+                  </span>
+                </div>
+                <div style="font-size:.82rem;color:var(--text-primary);white-space:pre-line;line-height:1.45">${ui.escape(n.message || '')}</div>
+                <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:var(--sp-2);display:flex;justify-content:space-between;align-items:center;gap:.5rem">
+                  <span>${fmt.dateTime(n.createdAt)}</span>
+                  <span style="color:${accent};font-weight:600">✓ Marquer lu</span>
+                </div>
+              </li>`;
+          }
+
+          // ━━━ NOTIFICATION STANDARD (validated, rejected, etc.) ━━━
           return `
             <li data-notif-id="${n.id}" style="padding:var(--sp-3);border-bottom:1px solid var(--border-soft);cursor:pointer;transition:background .15s">
-              <div style="font-size:var(--fs-sm);white-space:pre-line">${ui.escape(n.message)}</div>
+              <div style="font-size:var(--fs-sm);white-space:pre-line;line-height:1.5">${ui.escape(n.message || '')}</div>
               <div style="font-size:var(--fs-xs);color:var(--text-muted);margin-top:var(--sp-1);display:flex;justify-content:space-between;align-items:center;gap:.5rem">
                 <span>${fmt.dateTime(n.createdAt)}</span>
                 <span style="color:var(--accent-500,#00b4d8);font-weight:600">✓ Marquer lu</span>
@@ -10196,7 +10317,7 @@ Erreur Firebase : ${e.message}`;
               const action = btn.dataset.pdrAction;
               if (action === 'unavailable') {
                 const reason = prompt('Raison de la non-disponibilité (optionnel) :', '');
-                if (reason === null) return; // cancel
+                if (reason === null) return;
                 btn.disabled = true;
                 await db.respondPDRRequest(notifId, 'unavailable', reason.trim() || null);
               } else {
@@ -10217,7 +10338,7 @@ Erreur Firebase : ${e.message}`;
                 try { views.intervention.open(n.interventionId); $('#notif-panel').hidden = true; } catch(e){}
               }
             });
-            li.addEventListener('mouseenter', () => li.style.background = 'var(--bg-elevated, rgba(255,255,255,.04))');
+            li.addEventListener('mouseenter', () => li.style.background = 'rgba(255,255,255,.03)');
             li.addEventListener('mouseleave', () => li.style.background = '');
           }
         });
@@ -11563,6 +11684,74 @@ Erreur Firebase : ${e.message}`;
     ConnMonitor.init();
     console.log('[LEONI] Raccourcis : Alt+H Hub · Alt+N Nouveau · Alt+M Magasin · Alt+P Performance');
     console.log('[LEONI] 💡 En cas de problème Firebase, tapez : diagnoseLEONI()');
+    console.log('[LEONI] 🔧 Pour tester les notifs PDR magasinier, tapez : diagPDR()');
+
+    // ── Diagnostic PDR — trace toute la chaîne magasinier ↔ technicien ──
+    window.diagPDR = async function() {
+      console.group('🔧 DIAGNOSTIC NOTIFICATIONS PDR');
+      try {
+        if (!fbAuth.currentUser) {
+          console.error('❌ Pas connecté');
+          console.groupEnd(); return;
+        }
+        const uid = fbAuth.currentUser.uid;
+        console.log('👤 Utilisateur courant :', uid, state.profile?.displayName, '(' + state.role + ')');
+
+        // 1. Lister magasiniers
+        console.log('\n1️⃣ Recherche magasiniers...');
+        try {
+          const snap = await fbDb.ref('users').orderByChild('role').equalTo('magasinier').once('value');
+          const mags = snap.val() || {};
+          console.log(`   ✅ ${Object.keys(mags).length} magasinier(s) trouvé(s) (via orderByChild) :`, Object.entries(mags).map(([u,p]) => p.displayName || u));
+        } catch(e) {
+          console.warn('   ⚠️ orderByChild a échoué :', e.message);
+          try {
+            const snap = await fbDb.ref('users').once('value');
+            const all = snap.val() || {};
+            const mags = Object.entries(all).filter(([u,p]) => p?.role === 'magasinier');
+            console.log(`   ✅ ${mags.length} magasinier(s) trouvé(s) (via fallback) :`, mags.map(([u,p]) => p.displayName));
+          } catch(e2) {
+            console.error('   ❌ Lecture users impossible :', e2.message);
+          }
+        }
+
+        // 2. Mes notifications
+        console.log('\n2️⃣ Mes notifications (10 dernières) :');
+        try {
+          const snap = await fbDb.ref(`notifications/${uid}`).limitToLast(10).once('value');
+          const arr = [];
+          snap.forEach(c => arr.push({ id: c.key, ...c.val() }));
+          arr.reverse();
+          console.table(arr.map(n => ({
+            id: n.id.slice(-6),
+            type: n.type,
+            read: n.read,
+            pdrStatus: n.pdrStatus || '',
+            message: (n.shortMessage || n.message || '').slice(0,60),
+            interventionId: n.interventionId,
+            createdAt: new Date(n.createdAt).toLocaleString('fr-FR')
+          })));
+        } catch(e) {
+          console.error('   ❌ Lecture notifications impossible :', e.message);
+        }
+
+        // 3. Tester l'écriture sur un autre user (simulation)
+        console.log('\n3️⃣ Test écriture notification cross-user :');
+        try {
+          const testRef = fbDb.ref(`notifications/${uid}/__diag_test`);
+          await testRef.set({ test: true, at: Date.now() });
+          await testRef.remove();
+          console.log('   ✅ Écriture dans MES notifications : OK');
+        } catch(e) {
+          console.error('   ❌ Écriture KO :', e.message);
+        }
+
+        console.log('\n✅ Diag terminé. Si tu vois "permission_denied" ci-dessus, les règles Firebase doivent être assouplies pour /users (read) et /notifications (write cross-user).');
+      } catch(e) {
+        console.error('❌ Erreur diag :', e);
+      }
+      console.groupEnd();
+    };
 
     // Stats period change triggers re-render
     const statsPeriod = document.getElementById('stats-period');

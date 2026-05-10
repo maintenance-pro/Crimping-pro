@@ -7496,6 +7496,77 @@ section[data-view][hidden],
         if (btnExport) {
           btnExport.addEventListener('click', () => this.exportExcel());
         }
+
+        // ── Event delegation pour les boutons Modifier / Supprimer ──
+        const grid = $('#catalog-grid');
+        if (grid) {
+          grid.addEventListener('click', async (e) => {
+            const btn = e.target.closest('button[data-tool-action]');
+            if (!btn) return;
+            e.stopPropagation();
+            const action = btn.dataset.toolAction;
+            const id = btn.dataset.toolId;
+            const tool = state.tools[id];
+            if (!tool) {
+              ui.toast('Outil introuvable', 'danger');
+              return;
+            }
+            if (action === 'edit') {
+              this.openModal(tool);
+            } else if (action === 'delete') {
+              await this.deleteWithConfirm(tool);
+            }
+          });
+        }
+      },
+
+      /**
+       * Suppression d'un outil avec double confirmation
+       * (ouvert pour admin / super_admin uniquement)
+       */
+      async deleteWithConfirm(tool) {
+        if (!['admin','super_admin'].includes(state.role)) {
+          ui.toast('🚫 Suppression réservée aux admins', 'danger');
+          return;
+        }
+        const id = tool.id || tool.outilId;
+        const label = tool.outilId || tool.refOutil || id;
+
+        // 1ʳᵉ confirmation : choix oui/non
+        const ok1 = confirm(
+          `⚠️ Supprimer définitivement cet outil ?\n\n` +
+          `🔧 ${label}\n` +
+          `   Réf : ${tool.refOutil || '—'}\n` +
+          `   Fab : ${tool.fabricant || '—'}\n\n` +
+          `Cette action est IRRÉVERSIBLE.\n` +
+          `Les bons d'intervention déjà liés ne seront PAS modifiés.`
+        );
+        if (!ok1) return;
+
+        // 2ᵉ confirmation : taper l'ID pour valider
+        const typed = prompt(
+          `🛑 Pour confirmer, tape exactement :\n\n${label}`
+        );
+        if (typed === null) return; // cancel
+        if (typed.trim() !== String(label).trim()) {
+          ui.toast('Texte non identique — suppression annulée', 'warn');
+          return;
+        }
+
+        // Suppression
+        try {
+          ui.showLoader('Suppression…');
+          await db.deleteTool(id);
+          // Audit log
+          try { db.audit('tool.delete', id, { label, refOutil: tool.refOutil || '', fabricant: tool.fabricant || '' }); } catch(e){}
+          ui.hideLoader();
+          ui.toast(`🗑️ Outil "${label}" supprimé`, 'success');
+          // Le listener sur tools/ va re-render automatiquement
+        } catch(e) {
+          ui.hideLoader();
+          console.error('[deleteTool]', e);
+          ui.toast(`⛔ Suppression refusée par Firebase (${e.code || e.message})`, 'danger');
+        }
       },
 
       /* ── Export Catalogue vers Excel ── */
@@ -7654,19 +7725,55 @@ section[data-view][hidden],
           (t.fabricant || '').toLowerCase().includes(q)
         );
         const grid = $('#catalog-grid');
-        grid.innerHTML = list.slice(0, 100).map(t => `
-          <article class="card" style="padding:var(--sp-5)">
-            <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-3)">
-              <strong>${ui.escape(t.outilId || t.id)}</strong>
-              <span class="badge badge--auto">${ui.escape(t.fabricant || '')}</span>
-            </header>
-            <div style="color:var(--text-secondary);font-size:var(--fs-sm);font-family:var(--font-mono)">
-              <div>Réf: ${ui.escape(t.refOutil || '—')}</div>
-              <div>Fab: ${ui.escape(t.refFabricant || '—')}</div>
-              <div>Cycles: ${fmt.number(t.frequenceCycle || 0)}</div>
-            </div>
-          </article>
-        `).join('') || '<p style="color:var(--text-muted)">Aucun outil</p>';
+        const canEdit   = ['admin','super_admin','responsable'].includes(state.role);
+        const canDelete = ['admin','super_admin'].includes(state.role);
+
+        grid.innerHTML = list.slice(0, 100).map(t => {
+          const tid = t.id || t.outilId || '';
+          const actionsHtml = (canEdit || canDelete) ? `
+            <footer style="display:flex;gap:.4rem;margin-top:.75rem;padding-top:.6rem;border-top:1px solid var(--border-soft)">
+              ${canEdit ? `
+                <button data-tool-action="edit" data-tool-id="${ui.escape(tid)}" title="Modifier" style="
+                    flex:1;padding:.4rem;font-size:.78rem;font-weight:600;
+                    background:rgba(0,212,255,.10);color:var(--accent-500);
+                    border:1px solid rgba(0,212,255,.3);border-radius:6px;cursor:pointer;
+                    transition:all .15s">
+                  ✏️ Modifier
+                </button>` : ''}
+              ${canDelete ? `
+                <button data-tool-action="delete" data-tool-id="${ui.escape(tid)}" title="Supprimer définitivement" style="
+                    flex:1;padding:.4rem;font-size:.78rem;font-weight:600;
+                    background:rgba(255,61,90,.10);color:#ff3d5a;
+                    border:1px solid rgba(255,61,90,.3);border-radius:6px;cursor:pointer;
+                    transition:all .15s">
+                  🗑️ Supprimer
+                </button>` : ''}
+            </footer>` : '';
+
+          return `
+            <article class="card" style="padding:var(--sp-5)">
+              <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-3)">
+                <strong>${ui.escape(t.outilId || t.id)}</strong>
+                <span class="badge badge--auto">${ui.escape(t.fabricant || '')}</span>
+              </header>
+              <div style="color:var(--text-secondary);font-size:var(--fs-sm);font-family:var(--font-mono)">
+                <div>Réf: ${ui.escape(t.refOutil || '—')}</div>
+                <div>Fab: ${ui.escape(t.refFabricant || '—')}</div>
+                <div>Cycles: ${fmt.number(t.frequenceCycle || 0)}</div>
+              </div>
+              ${actionsHtml}
+            </article>`;
+        }).join('') || '<p style="color:var(--text-muted)">Aucun outil</p>';
+
+        // Hover effects
+        grid.querySelectorAll('button[data-tool-action="edit"]').forEach(b => {
+          b.addEventListener('mouseenter', () => b.style.background = 'rgba(0,212,255,.20)');
+          b.addEventListener('mouseleave', () => b.style.background = 'rgba(0,212,255,.10)');
+        });
+        grid.querySelectorAll('button[data-tool-action="delete"]').forEach(b => {
+          b.addEventListener('mouseenter', () => b.style.background = 'rgba(255,61,90,.20)');
+          b.addEventListener('mouseleave', () => b.style.background = 'rgba(255,61,90,.10)');
+        });
       },
       openModal(tool = null) {
         const modal = $('#modal-tool');

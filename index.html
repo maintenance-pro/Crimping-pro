@@ -4074,9 +4074,53 @@ section[data-view][hidden],
           </div>
         </header>
 
+        <!-- 📊 KPI Strip -->
+        <div id="catalog-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem;margin:1rem 0;font-family:var(--font-mono)">
+          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid var(--accent-500)">
+            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">📦 Total</div>
+            <div id="cat-kpi-total" style="font-size:1.6rem;font-weight:700;color:var(--accent-500)">0</div>
+          </div>
+          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #00e5a0">
+            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">✅ Complets</div>
+            <div id="cat-kpi-complete" style="font-size:1.6rem;font-weight:700;color:#00e5a0">0</div>
+          </div>
+          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #ff3d5a">
+            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">⚠️ Incomplets</div>
+            <div id="cat-kpi-incomplete" style="font-size:1.6rem;font-weight:700;color:#ff3d5a">0</div>
+          </div>
+          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #ffb547">
+            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">🏭 Fabricants</div>
+            <div id="cat-kpi-fabricants" style="font-size:1.6rem;font-weight:700;color:#ffb547">0</div>
+          </div>
+        </div>
+
+        <!-- 🔧 Filters bar -->
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;padding:.65rem .85rem;background:var(--bg-elevated);border-radius:9px;border:1px solid var(--border-soft)">
+          <select id="cat-filter-fab" class="filter__input" style="font-size:.85rem;min-width:160px">
+            <option value="">🏭 Tous fabricants</option>
+          </select>
+          <select id="cat-filter-status" class="filter__input" style="font-size:.85rem;min-width:160px">
+            <option value="complete" selected>✅ Complets seulement</option>
+            <option value="all">🔁 Tous</option>
+            <option value="incomplete">⚠️ Incomplets seulement</option>
+          </select>
+          <select id="cat-filter-sort" class="filter__input" style="font-size:.85rem;min-width:160px">
+            <option value="name">📝 Trier par nom</option>
+            <option value="cycles">🔄 Trier par cycles</option>
+            <option value="recent">🕒 Récents d'abord</option>
+          </select>
+          <span id="cat-result-count" style="margin-left:auto;font-size:.78rem;color:var(--text-muted);font-weight:600">— résultat(s)</span>
+          <button class="btn btn--secondary" id="btn-catalog-clean" data-requires-role="admin,super_admin"
+                  title="Supprimer tous les outils sans réf, sans fab et sans nom"
+                  style="background:rgba(255,61,90,.12);color:#ff3d5a;border:1px solid rgba(255,61,90,.3);font-size:.78rem;padding:.4rem .8rem">
+            🧹 Nettoyer incomplets
+          </button>
+        </div>
+
         <div class="catalog__grid" id="catalog-grid">
           <!-- cards injected -->
         </div>
+        <div id="catalog-loadmore" style="text-align:center;margin-top:1rem"></div>
       </section>
 
 
@@ -7482,8 +7526,16 @@ section[data-view][hidden],
     /* ========== CATALOG ========== */
     catalog: {
       init() {
-        $('#catalog-search').addEventListener('input', debounce(() => this.render(), 200));
+        $('#catalog-search').addEventListener('input', debounce(() => { this._page = 1; this.render(); }, 200));
         $('#btn-catalog-add').addEventListener('click', () => this.openModal());
+
+        // ── Filtres ──
+        document.getElementById('cat-filter-fab')?.addEventListener('change', () => { this._page = 1; this.render(); });
+        document.getElementById('cat-filter-status')?.addEventListener('change', () => { this._page = 1; this.render(); });
+        document.getElementById('cat-filter-sort')?.addEventListener('change', () => { this._page = 1; this.render(); });
+
+        // ── Nettoyer outils incomplets ──
+        document.getElementById('btn-catalog-clean')?.addEventListener('click', () => this.bulkCleanIncomplete());
 
         // ── Import Excel ──
         const btnImport = $('#btn-catalog-import');
@@ -7497,7 +7549,7 @@ section[data-view][hidden],
           btnExport.addEventListener('click', () => this.exportExcel());
         }
 
-        // ── Event delegation pour les boutons Modifier / Supprimer ──
+        // ── Event delegation pour les boutons Modifier / Supprimer / Load More ──
         const grid = $('#catalog-grid');
         if (grid) {
           grid.addEventListener('click', async (e) => {
@@ -7517,6 +7569,68 @@ section[data-view][hidden],
               await this.deleteWithConfirm(tool);
             }
           });
+        }
+        // ── Load More ──
+        document.getElementById('catalog-loadmore')?.addEventListener('click', (e) => {
+          if (e.target.matches('[data-loadmore]')) {
+            this._page = (this._page || 1) + 1;
+            this.render();
+          }
+        });
+      },
+
+      _page: 1,
+      _pageSize: 60,
+
+      /**
+       * Détermine si un outil est "complet" (a au moins un identifiant utile)
+       */
+      _isComplete(t) {
+        return !!(
+          (t.outilId && String(t.outilId).trim()) ||
+          (t.refOutil && String(t.refOutil).trim()) ||
+          (t.fabricant && String(t.fabricant).trim()) ||
+          (t.refFabricant && String(t.refFabricant).trim())
+        );
+      },
+
+      /**
+       * Suppression en masse des outils incomplets
+       * (admin/super_admin uniquement)
+       */
+      async bulkCleanIncomplete() {
+        if (!['admin','super_admin'].includes(state.role)) {
+          ui.toast('🚫 Réservé aux admins', 'danger');
+          return;
+        }
+        const all = Object.entries(state.tools);
+        const incomplete = all.filter(([id, t]) => !this._isComplete(t));
+        if (incomplete.length === 0) {
+          ui.toast('✨ Aucun outil incomplet à nettoyer', 'success');
+          return;
+        }
+        const ok = confirm(
+          `🧹 Nettoyer ${incomplete.length} outil(s) incomplet(s) ?\n\n` +
+          `Ces outils n'ont ni nom, ni référence, ni fabricant.\n` +
+          `Ils sont probablement des entrées corrompues.\n\n` +
+          `⚠️ Cette action est IRRÉVERSIBLE.\n\n` +
+          `Continuer ?`
+        );
+        if (!ok) return;
+
+        ui.showLoader(`Nettoyage en cours (${incomplete.length} outils)…`);
+        try {
+          // Multi-update atomique (plus rapide qu'une boucle de remove)
+          const updates = {};
+          incomplete.forEach(([id]) => { updates[`tools/${id}`] = null; });
+          await fbDb.ref().update(updates);
+          try { db.audit('tools.bulkCleanIncomplete', '', { count: incomplete.length }); } catch(e){}
+          ui.hideLoader();
+          ui.toast(`🧹 ${incomplete.length} outil(s) incomplet(s) supprimé(s)`, 'success');
+        } catch(e) {
+          ui.hideLoader();
+          console.error('[bulkCleanIncomplete]', e);
+          ui.toast(`⛔ Refusé par Firebase (${e.code || e.message})`, 'danger');
         }
       },
 
@@ -7717,53 +7831,131 @@ section[data-view][hidden],
         input.click();
       },
       render() {
-        const q = $('#catalog-search').value.trim().toLowerCase();
-        let list = Object.values(state.tools);
+        const q = ($('#catalog-search')?.value || '').trim().toLowerCase();
+        const filterFab    = document.getElementById('cat-filter-fab')?.value || '';
+        const filterStatus = document.getElementById('cat-filter-status')?.value || 'complete';
+        const sortBy       = document.getElementById('cat-filter-sort')?.value || 'name';
+        const allTools = Object.values(state.tools);
+
+        // ── KPIs (sur l'ensemble complet) ──
+        const completeAll   = allTools.filter(t => this._isComplete(t));
+        const incompleteAll = allTools.length - completeAll.length;
+        const fabSet = new Set(completeAll.map(t => (t.fabricant || '').trim()).filter(Boolean));
+
+        const kpiTotal      = document.getElementById('cat-kpi-total');
+        const kpiComplete   = document.getElementById('cat-kpi-complete');
+        const kpiIncomplete = document.getElementById('cat-kpi-incomplete');
+        const kpiFabs       = document.getElementById('cat-kpi-fabricants');
+        if (kpiTotal)      kpiTotal.textContent = allTools.length;
+        if (kpiComplete)   kpiComplete.textContent = completeAll.length;
+        if (kpiIncomplete) kpiIncomplete.textContent = incompleteAll;
+        if (kpiFabs)       kpiFabs.textContent = fabSet.size;
+
+        // ── Peupler le dropdown fabricant ──
+        const fabSelect = document.getElementById('cat-filter-fab');
+        if (fabSelect && fabSelect.options.length <= 1 + fabSet.size) {
+          const current = fabSelect.value;
+          fabSelect.innerHTML = '<option value="">🏭 Tous fabricants</option>' +
+            [...fabSet].sort().map(f => `<option value="${ui.escape(f)}" ${f === current ? 'selected' : ''}>${ui.escape(f)}</option>`).join('');
+        }
+
+        // ── Filtrage ──
+        let list = allTools.slice();
+        if (filterStatus === 'complete')        list = list.filter(t => this._isComplete(t));
+        else if (filterStatus === 'incomplete') list = list.filter(t => !this._isComplete(t));
+        // 'all' → pas de filtre
+
+        if (filterFab) list = list.filter(t => (t.fabricant || '').trim() === filterFab);
+
         if (q) list = list.filter(t =>
           (t.refOutil || '').toLowerCase().includes(q) ||
           (t.outilId || '').toLowerCase().includes(q) ||
-          (t.fabricant || '').toLowerCase().includes(q)
+          (t.fabricant || '').toLowerCase().includes(q) ||
+          (t.refFabricant || '').toLowerCase().includes(q)
         );
+
+        // ── Tri ──
+        if (sortBy === 'name') {
+          list.sort((a, b) => String(a.outilId || a.refOutil || '').localeCompare(String(b.outilId || b.refOutil || '')));
+        } else if (sortBy === 'cycles') {
+          list.sort((a, b) => (b.frequenceCycle || 0) - (a.frequenceCycle || 0));
+        } else if (sortBy === 'recent') {
+          list.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+        }
+
+        // ── Compteur ──
+        const cnt = document.getElementById('cat-result-count');
+        if (cnt) cnt.textContent = `${list.length} résultat${list.length>1?'s':''}`;
+
+        // ── Pagination ──
+        const page = this._page || 1;
+        const size = this._pageSize || 60;
+        const slice = list.slice(0, page * size);
+
         const grid = $('#catalog-grid');
         const canEdit   = ['admin','super_admin','responsable'].includes(state.role);
         const canDelete = ['admin','super_admin'].includes(state.role);
 
-        grid.innerHTML = list.slice(0, 100).map(t => {
+        if (slice.length === 0) {
+          grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--text-muted);background:var(--bg-elevated);border-radius:10px">
+            <div style="font-size:2.5rem;opacity:.5">🔧</div>
+            <div style="margin-top:.5rem">Aucun outil correspondant aux filtres</div>
+          </div>`;
+          const lm = document.getElementById('catalog-loadmore');
+          if (lm) lm.innerHTML = '';
+          return;
+        }
+
+        grid.innerHTML = slice.map(t => {
           const tid = t.id || t.outilId || '';
+          const complete = this._isComplete(t);
+          const titleText = t.outilId || t.refOutil || t.refFabricant || (complete ? '(sans nom)' : '⚠️ Outil incomplet');
+          const accentBorder = complete ? 'var(--accent-500)' : '#ff3d5a';
+          const badge = complete
+            ? `<span class="badge badge--auto">${ui.escape(t.fabricant || '—')}</span>`
+            : `<span style="background:rgba(255,61,90,.15);color:#ff3d5a;font-size:.65rem;padding:.15rem .5rem;border-radius:999px;font-weight:700">⚠️ INCOMPLET</span>`;
+
           const actionsHtml = (canEdit || canDelete) ? `
-            <footer style="display:flex;gap:.4rem;margin-top:.75rem;padding-top:.6rem;border-top:1px solid var(--border-soft)">
+            <footer style="display:flex;gap:.4rem;margin-top:.6rem;padding-top:.5rem;border-top:1px solid var(--border-soft)">
               ${canEdit ? `
                 <button data-tool-action="edit" data-tool-id="${ui.escape(tid)}" title="Modifier" style="
-                    flex:1;padding:.4rem;font-size:.78rem;font-weight:600;
+                    flex:1;padding:.4rem;font-size:.75rem;font-weight:600;
                     background:rgba(0,212,255,.10);color:var(--accent-500);
                     border:1px solid rgba(0,212,255,.3);border-radius:6px;cursor:pointer;
-                    transition:all .15s">
-                  ✏️ Modifier
-                </button>` : ''}
+                    transition:all .15s">✏️ Modifier</button>` : ''}
               ${canDelete ? `
                 <button data-tool-action="delete" data-tool-id="${ui.escape(tid)}" title="Supprimer définitivement" style="
-                    flex:1;padding:.4rem;font-size:.78rem;font-weight:600;
+                    flex:1;padding:.4rem;font-size:.75rem;font-weight:600;
                     background:rgba(255,61,90,.10);color:#ff3d5a;
                     border:1px solid rgba(255,61,90,.3);border-radius:6px;cursor:pointer;
-                    transition:all .15s">
-                  🗑️ Supprimer
-                </button>` : ''}
+                    transition:all .15s">🗑️ Supprimer</button>` : ''}
             </footer>` : '';
 
           return `
-            <article class="card" style="padding:var(--sp-5)">
-              <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-3)">
-                <strong>${ui.escape(t.outilId || t.id)}</strong>
-                <span class="badge badge--auto">${ui.escape(t.fabricant || '')}</span>
+            <article class="card" style="padding:1rem;border-left:3px solid ${accentBorder};display:flex;flex-direction:column;gap:.35rem">
+              <header style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
+                <strong style="font-size:.95rem;color:${complete ? 'var(--text-primary)' : '#ff3d5a'};word-break:break-word">${ui.escape(titleText)}</strong>
+                ${badge}
               </header>
-              <div style="color:var(--text-secondary);font-size:var(--fs-sm);font-family:var(--font-mono)">
+              <div style="color:var(--text-secondary);font-size:.78rem;font-family:var(--font-mono);line-height:1.55">
                 <div>Réf: ${ui.escape(t.refOutil || '—')}</div>
                 <div>Fab: ${ui.escape(t.refFabricant || '—')}</div>
                 <div>Cycles: ${fmt.number(t.frequenceCycle || 0)}</div>
               </div>
               ${actionsHtml}
             </article>`;
-        }).join('') || '<p style="color:var(--text-muted)">Aucun outil</p>';
+        }).join('');
+
+        // Bouton "Charger plus"
+        const lm = document.getElementById('catalog-loadmore');
+        if (lm) {
+          if (slice.length < list.length) {
+            const remaining = list.length - slice.length;
+            lm.innerHTML = `<button data-loadmore class="btn btn--secondary" style="font-size:.85rem">⬇️ Charger ${Math.min(size, remaining)} de plus (${remaining} restant${remaining>1?'s':''})</button>`;
+          } else {
+            lm.innerHTML = '';
+          }
+        }
 
         // Hover effects
         grid.querySelectorAll('button[data-tool-action="edit"]').forEach(b => {

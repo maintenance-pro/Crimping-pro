@@ -6196,12 +6196,17 @@ section[data-view][hidden],
           return;
         }
 
-        // 3. Résoudre chaque PDR
+        // 3. Résoudre chaque PDR (utilise l'helper pdrRef qui gère tool.pieces[code] ET tool[code])
         const tool = itv.tool || {};
-        const toolPieces = tool.pieces || {};
         const labelFn = (typeof pdrLabel === 'function') ? pdrLabel : (c => c);
+        const refFn = (typeof pdrRef === 'function') ? pdrRef : ((c, t) => (t?.pieces?.[c] || t?.[c] || ''));
         const pdrItems = pdrCodes.map(code => {
-          const ref = (toolPieces[code] || '').trim();
+          // Récupère la référence depuis l'outil (essaie plusieurs emplacements)
+          let ref = String(refFn(code, tool) || '').trim();
+          // Si pdrRef retourne le label (ex: "P-AR"), c'est qu'il n'a pas trouvé la vraie référence
+          const fallbackLabel = labelFn(code);
+          if (ref === fallbackLabel || ref === code) ref = '';
+
           let emplacement = '', stockQty = null;
           if (ref && state.stock) {
             for (const [sid, item] of Object.entries(state.stock)) {
@@ -6212,11 +6217,12 @@ section[data-view][hidden],
               }
             }
           }
+          console.log(`${TAG} 🔎 ${code} → ref="${ref}" emplacement="${emplacement}" stock="${stockQty}"`);
           return {
             code,
             label: labelFn(code),
             ref: ref || '(non renseigné)',
-            emplacement: emplacement || '⚠️ non répertorié',
+            emplacement: emplacement || (ref ? '⚠️ non répertorié' : '—'),
             stockQty: stockQty != null ? String(stockQty) : '?'
           };
         });
@@ -10690,10 +10696,45 @@ Erreur Firebase : ${e.message}`;
         const fmtDate = ts => ts ? new Date(ts).toLocaleString('fr-FR') : '—';
 
         container.innerHTML = list.map(req => {
-          const items = toArray(req.pdrItems);
+          let items = toArray(req.pdrItems);
           const status = req.status || 'pending';
           const accent = status === 'pending' ? '#ffb547' : (status === 'ready' ? '#00e5a0' : '#ff3d5a');
           const statusLabel = status === 'pending' ? '📋 EN ATTENTE' : (status === 'ready' ? '✅ RASSEMBLÉES' : '❌ NON DISPONIBLES');
+
+          // 🔧 RÉPARATION À LA VOLÉE : si la ref est manquante/buggée, on essaie
+          // de la recalculer depuis l'intervention liée + state.stock (utile pour les anciennes demandes)
+          const itv = state.interventions?.[req.interventionId];
+          const tool = itv?.tool || {};
+          const refFn = (typeof pdrRef === 'function') ? pdrRef : null;
+          const labelFn = (typeof pdrLabel === 'function') ? pdrLabel : (c => c);
+
+          items = items.map(p => {
+            const code = p.code || '';
+            const enriched = { ...p };
+            const isMissingRef = !p.ref || p.ref === '(non renseigné)' || p.ref === '—' || p.ref === code || p.ref === labelFn(code);
+
+            if (isMissingRef && refFn && code && tool) {
+              let resolvedRef = String(refFn(code, tool) || '').trim();
+              if (resolvedRef && resolvedRef !== code && resolvedRef !== labelFn(code)) {
+                enriched.ref = resolvedRef;
+              }
+            }
+            // Si emplacement manquant + on a une vraie ref → chercher dans le stock
+            const isMissingEmp = !enriched.emplacement || enriched.emplacement === '—' || enriched.emplacement.includes('non répertorié');
+            if (isMissingEmp && enriched.ref && enriched.ref !== '(non renseigné)' && state.stock) {
+              for (const [sid, item] of Object.entries(state.stock)) {
+                if ((item.nom || '').trim() === enriched.ref) {
+                  enriched.emplacement = (item.empl || '').trim() || enriched.emplacement;
+                  if (!enriched.stockQty || enriched.stockQty === '?') {
+                    const q = item.qdispo || item.qty;
+                    if (q != null) enriched.stockQty = String(q);
+                  }
+                  break;
+                }
+              }
+            }
+            return enriched;
+          });
 
           const itemsHtml = items.length === 0
             ? '<div style="padding:.5rem;color:var(--text-muted);font-style:italic">⚠️ Pas de détails de pièces</div>'

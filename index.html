@@ -6206,10 +6206,45 @@ section[data-view][hidden],
 
         // 4. Résoudre les refs/emplacements
         const tool = itv.tool || {};
+        // 🔧 Fallback : si l'intervention n'a pas tool.pieces, chercher dans state.tools (catalogue)
+        let effectiveTool = tool;
+        const needsFallback = !tool.pieces || Object.keys(tool.pieces).length === 0;
+        if (needsFallback && state.tools) {
+          let catalogTool = null;
+          // 1. Essayer par toolId
+          if (tool.toolId && state.tools[tool.toolId]) {
+            catalogTool = state.tools[tool.toolId];
+          }
+          // 2. Sinon, chercher par refOutil ou outilId
+          if (!catalogTool) {
+            const r = (tool.refOutil || '').toLowerCase();
+            const o = (tool.outilId  || '').toLowerCase();
+            for (const t of Object.values(state.tools)) {
+              if (!t) continue;
+              const tRef = (t.refOutil || '').toLowerCase();
+              const tOid = (t.outilId  || '').toLowerCase();
+              if ((r && (tRef === r || tOid === r)) || (o && (tRef === o || tOid === o))) {
+                catalogTool = t;
+                break;
+              }
+            }
+          }
+          if (catalogTool) {
+            // Construire pieces depuis le catalogue (gère les 2 structures)
+            const catPieces = (catalogTool.pieces && Object.keys(catalogTool.pieces).length) ? { ...catalogTool.pieces } : {};
+            ['pAr','pAv','eAr','eAv','cAr','cAv','ejector','couteauBanda'].forEach(k => {
+              if (!catPieces[k] && catalogTool[k]) catPieces[k] = catalogTool[k];
+            });
+            effectiveTool = { ...tool, pieces: catPieces };
+            console.log(`${TAG} 🔄 Fallback catalogue OK → ${Object.keys(catPieces).length} pieces récupérées`);
+          } else {
+            console.warn(`${TAG} ⚠️ Aucun outil correspondant dans le catalogue (refOutil="${tool.refOutil}", outilId="${tool.outilId}")`);
+          }
+        }
         const labelFn = (typeof pdrLabel === 'function') ? pdrLabel : (c => c);
         const refFn = (typeof pdrRef === 'function') ? pdrRef : ((c, t) => (t?.pieces?.[c] || t?.[c] || ''));
         const pdrItems = pdrCodes.map(code => {
-          let ref = String(refFn(code, tool) || '').trim();
+          let ref = String(refFn(code, effectiveTool) || '').trim();
           const fallbackLabel = labelFn(code);
           if (ref === fallbackLabel || ref === code) ref = '';
           let emplacement = '', stockQty = null;
@@ -7184,13 +7219,51 @@ section[data-view][hidden],
         // Pas de fallback sur le profil connecté (sinon admin/responsable apparaît partout)
         const crimpName = $('#crimp-tech-name')?.value.trim() || '';
         const crimpMat  = $('#crimp-tech-mat')?.value.trim()  || '';
+
+        // 🔧 Récupérer les références fabricant de l'outil sélectionné (P-AR, P-AV, E-AR, E-AV, etc.)
+        // pour les embarquer dans le snapshot et permettre au magasinier de les voir
+        const refOutil  = $('#int-tool-search').value.trim();
+        const outilId   = $('#int-outil-id').value.trim();
+        const fabricant = $('#int-fabricant').value.trim();
+        let toolKey = this.currentToolKey || '';
+        let selectedTool = (toolKey && state.tools && state.tools[toolKey]) || null;
+
+        // 🔄 Fallback : si toolKey vide ou non trouvé, chercher dans state.tools par refOutil/outilId
+        if (!selectedTool && (refOutil || outilId) && state.tools) {
+          const needle1 = refOutil.toLowerCase();
+          const needle2 = outilId.toLowerCase();
+          for (const [tid, t] of Object.entries(state.tools)) {
+            if (!t) continue;
+            const tRef = (t.refOutil || '').toLowerCase();
+            const tOid = (t.outilId  || '').toLowerCase();
+            if ((needle1 && (tRef === needle1 || tOid === needle1)) ||
+                (needle2 && (tRef === needle2 || tOid === needle2))) {
+              selectedTool = t;
+              toolKey = tid;
+              this.currentToolKey = tid; // Mémoriser pour les prochains save
+              console.log(`[collectCrimpingData] 🔄 Outil retrouvé par fallback : ${tid}`);
+              break;
+            }
+          }
+        }
+
+        // Construire l'objet pieces (gère les 2 structures possibles : tool.pieces.{xxx} OU tool.{xxx})
+        const toolPieces = (selectedTool && selectedTool.pieces) ? { ...selectedTool.pieces } : {};
+        if (selectedTool) {
+          ['pAr','pAv','eAr','eAv','cAr','cAv','ejector','couteauBanda'].forEach(k => {
+            if (!toolPieces[k] && selectedTool[k]) toolPieces[k] = selectedTool[k];
+          });
+        }
+        console.log(`[collectCrimpingData] 🔧 Tool=${toolKey || '(none)'}, pieces=`, toolPieces);
+
         return {
           tool: {
-            toolId: this.currentToolKey || '',
-            refOutil: $('#int-tool-search').value,
-            outilId: $('#int-outil-id').value,
-            fabricant: $('#int-fabricant').value,
-            refFabricant: $('#tc-ref-fab').textContent
+            toolId: toolKey,
+            refOutil: refOutil,
+            outilId: outilId,
+            fabricant: fabricant,
+            refFabricant: $('#tc-ref-fab').textContent,
+            pieces: toolPieces                          // ← contient maintenant pAr/pAv/eAr/eAv
           },
           date: $('#int-date').value ? new Date($('#int-date').value).getTime() : Date.now(),
           cycles: parseInt($('#int-cycles').value) || 0,
@@ -10635,7 +10708,30 @@ Erreur Firebase : ${e.message}`;
 
           // Enrichissement à la volée pour anciennes données
           const itv = req._intervention;
-          const tool = itv?.tool || {};
+          let tool = itv?.tool || {};
+          // 🔧 Fallback catalogue si tool.pieces vide (cherche par toolId OU refOutil OU outilId)
+          const needsFallback = !tool.pieces || Object.keys(tool.pieces).length === 0;
+          if (needsFallback && state.tools) {
+            let cat = null;
+            if (tool.toolId && state.tools[tool.toolId]) cat = state.tools[tool.toolId];
+            if (!cat) {
+              const r = (tool.refOutil || '').toLowerCase();
+              const o = (tool.outilId  || '').toLowerCase();
+              for (const t of Object.values(state.tools)) {
+                if (!t) continue;
+                const tRef = (t.refOutil || '').toLowerCase();
+                const tOid = (t.outilId  || '').toLowerCase();
+                if ((r && (tRef === r || tOid === r)) || (o && (tRef === o || tOid === o))) { cat = t; break; }
+              }
+            }
+            if (cat) {
+              const catPieces = (cat.pieces && Object.keys(cat.pieces).length) ? { ...cat.pieces } : {};
+              ['pAr','pAv','eAr','eAv','cAr','cAv','ejector','couteauBanda'].forEach(k => {
+                if (!catPieces[k] && cat[k]) catPieces[k] = cat[k];
+              });
+              tool = { ...tool, pieces: catPieces };
+            }
+          }
           items = items.map(p => {
             const enriched = { ...p };
             const code = p.code || '';

@@ -6177,7 +6177,7 @@ section[data-view][hidden],
     async notifyMagasinier(reg) {
       const TAG = '[notifyMagasinier]';
       try {
-        console.log(`${TAG} 🚀 Création demande PDR partagée pour bon N°${reg}`);
+        console.log(`${TAG} 🚀 Création/MAJ demande PDR partagée pour bon N°${reg}`);
 
         // 1. Charger l'intervention
         const itvSnap = await fbDb.ref(`interventions/${reg}`).once('value');
@@ -6192,7 +6192,7 @@ section[data-view][hidden],
         const pdrCodes = Object.entries(piecesChanged).filter(([k,v]) => v).map(([k]) => k);
         console.log(`${TAG} 📋 PDR cochées :`, pdrCodes);
         if (pdrCodes.length === 0) {
-          console.log(`${TAG} ℹ️ Aucune PDR → pas de demande créée`);
+          console.log(`${TAG} ℹ️ Aucune PDR cochée → pas de demande`);
           return;
         }
 
@@ -6201,12 +6201,9 @@ section[data-view][hidden],
         const labelFn = (typeof pdrLabel === 'function') ? pdrLabel : (c => c);
         const refFn = (typeof pdrRef === 'function') ? pdrRef : ((c, t) => (t?.pieces?.[c] || t?.[c] || ''));
         const pdrItems = pdrCodes.map(code => {
-          // Récupère la référence depuis l'outil (essaie plusieurs emplacements)
           let ref = String(refFn(code, tool) || '').trim();
-          // Si pdrRef retourne le label (ex: "P-AR"), c'est qu'il n'a pas trouvé la vraie référence
           const fallbackLabel = labelFn(code);
           if (ref === fallbackLabel || ref === code) ref = '';
-
           let emplacement = '', stockQty = null;
           if (ref && state.stock) {
             for (const [sid, item] of Object.entries(state.stock)) {
@@ -6217,7 +6214,6 @@ section[data-view][hidden],
               }
             }
           }
-          console.log(`${TAG} 🔎 ${code} → ref="${ref}" emplacement="${emplacement}" stock="${stockQty}"`);
           return {
             code,
             label: labelFn(code),
@@ -6231,7 +6227,38 @@ section[data-view][hidden],
         const pdrItemsObj = {};
         pdrItems.forEach((it, i) => { pdrItemsObj['p' + i] = it; });
 
-        // 4. ÉCRITURE UNIQUE dans la collection partagée pdrRequests/
+        // 4. UPSERT — chercher si une demande existe déjà pour ce bon
+        let existingId = null;
+        let existingStatus = null;
+        try {
+          const exist = await fbDb.ref('pdrRequests').orderByChild('interventionId').equalTo(String(reg)).limitToFirst(1).once('value');
+          if (exist.exists()) {
+            exist.forEach(c => { existingId = c.key; existingStatus = c.val()?.status; });
+            console.log(`${TAG} ℹ️ Demande existante trouvée : ${existingId} (status: ${existingStatus})`);
+          }
+        } catch(e) {
+          console.warn(`${TAG} ⚠️ orderByChild échoué (index ?), fallback scan complet`);
+          try {
+            const all = await fbDb.ref('pdrRequests').once('value');
+            all.forEach(c => {
+              if (!existingId && c.val()?.interventionId === String(reg)) {
+                existingId = c.key;
+                existingStatus = c.val()?.status;
+              }
+            });
+          } catch(e2) {
+            console.error(`${TAG} ❌ Lecture pdrRequests impossible :`, e2);
+          }
+        }
+
+        // Si déjà traitée (ready ou unavailable) → ne pas écraser, mais informer
+        if (existingId && existingStatus && existingStatus !== 'pending') {
+          console.log(`${TAG} ℹ️ Demande ${existingId} déjà ${existingStatus}, pas de MAJ`);
+          ui.toast(`ℹ️ Demande PDR du bon N°${reg} déjà traitée (${existingStatus === 'ready' ? '✅ Prête' : '❌ Non dispo'})`, 'info');
+          return;
+        }
+
+        // 5. Écrire (update si existante en pending, sinon push)
         const payload = {
           status: 'pending',
           interventionId: String(reg),
@@ -6241,16 +6268,25 @@ section[data-view][hidden],
           requesterUid: state.user?.uid || '',
           requesterName: state.profile?.displayName || '?',
           requesterMatricule: state.profile?.matricule || '',
-          createdAt: Date.now()
+          updatedAt: Date.now()
         };
 
         try {
-          const ref = await fbDb.ref('pdrRequests').push(payload);
-          console.log(`${TAG} ✅ Demande créée : ${ref.key}`);
-          ui.toast(`📦 Demande PDR créée pour bon N°${reg} (${pdrItems.length} réfs) — visible dans "Demandes PDR"`, 'success');
+          if (existingId) {
+            // MAJ : on garde createdAt original
+            await fbDb.ref(`pdrRequests/${existingId}`).update(payload);
+            console.log(`${TAG} ✅ Demande mise à jour : ${existingId}`);
+            ui.toast(`🔄 Demande PDR du bon N°${reg} mise à jour (${pdrItems.length} réfs)`, 'success');
+          } else {
+            // Nouvelle création
+            payload.createdAt = Date.now();
+            const ref = await fbDb.ref('pdrRequests').push(payload);
+            console.log(`${TAG} ✅ Nouvelle demande : ${ref.key}`);
+            ui.toast(`📦 Demande PDR créée pour bon N°${reg} (${pdrItems.length} réfs) — visible dans "Demandes PDR"`, 'success');
+          }
         } catch(e) {
           console.error(`${TAG} ❌ Écriture pdrRequests refusée :`, e);
-          ui.toast(`⛔ Création demande refusée par Firebase (${e.code || 'erreur'}) — règles à corriger`, 'danger');
+          ui.toast(`⛔ Écriture demande refusée par Firebase (${e.code || 'erreur'}) — règles à corriger`, 'danger');
         }
       } catch (e) {
         console.error('[notifyMagasinier] Erreur globale:', e);
@@ -7301,6 +7337,9 @@ section[data-view][hidden],
             ui.toast(`Bon N°${reg} soumis au labo ✅`, 'success');
             this.setStatus('submitted');
           } else {
+            // 📦 En mode brouillon : créer/MAJ la demande PDR si des PDR sont cochées
+            // (utile pour que le magasinier puisse commencer à préparer dès la sauvegarde)
+            try { await db.notifyMagasinier(reg); } catch(e) { console.warn('notifyMagasinier (draft):', e); }
             ui.toast(`Brouillon N°${reg} enregistré`, 'success');
           }
           $('#int-num').textContent = reg;

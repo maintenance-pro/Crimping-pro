@@ -3783,85 +3783,6 @@ section[data-view][hidden],
                   <label class="field__label" for="lab-section-cable">Section câble</label>
                   <input class="field__input" id="lab-section-cable" name="sectionCable" type="text" placeholder="Ex: 0,35 IR" / autocomplete="off">
                 </div>
-                <div class="field">
-                  <label class="field__label" for="lab-indice">Indice paramétrique</label>
-                  <input class="field__input" id="lab-indice" name="indiceParametrique" type="text" / autocomplete="off">
-                </div>
-              </div>
-            </div>
-
-            <!-- Mesures -->
-            <div class="intervention__subsection">
-              <h3 class="intervention__sub-title">Mesures dimensionnelles</h3>
-              <div class="intervention__grid intervention__grid--2">
-                <div class="field">
-                  <label class="field__label" for="lab-largeur-ame">Largeur âme</label>
-                  <input class="field__input" id="lab-largeur-ame" name="largeurAme" type="number" step="0.001" / autocomplete="off">
-                </div>
-                <div class="field">
-                  <label class="field__label" for="lab-largeur-isolant">Largeur isolant</label>
-                  <input class="field__input" id="lab-largeur-isolant" name="largeurIsolant" type="number" step="0.001" / autocomplete="off">
-                </div>
-              </div>
-
-              <table class="measure-table">
-                <caption class="measure-table__caption">5 mesures successives</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">#</th>
-                    <th scope="col">Hauteur isolant</th>
-                    <th scope="col">Effort</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr><th scope="row">1</th>
-                    <td><input class="measure-table__input" name="hi1" type="number" step="0.001" / autocomplete="off"></td>
-                    <td><input class="measure-table__input" name="ef1" type="number" step="0.01" / autocomplete="off"></td>
-                  </tr>
-                  <tr><th scope="row">2</th>
-                    <td><input class="measure-table__input" name="hi2" type="number" step="0.001" / autocomplete="off"></td>
-                    <td><input class="measure-table__input" name="ef2" type="number" step="0.01" / autocomplete="off"></td>
-                  </tr>
-                  <tr><th scope="row">3</th>
-                    <td><input class="measure-table__input" name="hi3" type="number" step="0.001" / autocomplete="off"></td>
-                    <td><input class="measure-table__input" name="ef3" type="number" step="0.01" / autocomplete="off"></td>
-                  </tr>
-                  <tr><th scope="row">4</th>
-                    <td><input class="measure-table__input" name="hi4" type="number" step="0.001" / autocomplete="off"></td>
-                    <td><input class="measure-table__input" name="ef4" type="number" step="0.01" / autocomplete="off"></td>
-                  </tr>
-                  <tr><th scope="row">5</th>
-                    <td><input class="measure-table__input" name="hi5" type="number" step="0.001" / autocomplete="off"></td>
-                    <td><input class="measure-table__input" name="ef5" type="number" step="0.01" / autocomplete="off"></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Capabilité (calculé auto) -->
-            <div class="intervention__subsection">
-              <h3 class="intervention__sub-title">Capabilité <span class="badge badge--auto">Calcul auto</span></h3>
-              <div class="intervention__grid intervention__grid--4">
-                <div class="field field--readonly">
-                  <label class="field__label" aria-label="Hauteur âme moy.">Hauteur âme moy.</label>
-                  <output class="field__output" id="capa-ame-moy">—</output>
-                </div>
-                <div class="field field--readonly">
-                  <label class="field__label" aria-label="Cm âme">Cm âme</label>
-                  <output class="field__output" id="capa-cm">—</output>
-                </div>
-                <div class="field field--readonly">
-                  <label class="field__label" aria-label="Cmk âme">Cmk âme</label>
-                  <output class="field__output" id="capa-cmk">—</output>
-                </div>
-                <div class="field field--readonly">
-                  <label class="field__label" aria-label="Cm effort">Cm effort</label>
-                  <output class="field__output" id="capa-cm-effort">—</output>
-                </div>
-              </div>
-              <div class="field">
-                <label class="field__label" for="lab-chute-tension">Chute tension (mV)</label>
-                <input class="field__input" id="lab-chute-tension" name="chuteTension" type="number" step="0.01" / autocomplete="off">
               </div>
             </div>
 
@@ -7010,23 +6931,10 @@ section[data-view][hidden],
         if (lab.connexion) {
           $('#lab-ref-connexion').value = lab.connexion.refConnexion || '';
           $('#lab-section-cable').value = lab.connexion.sectionCable || '';
-          $('#lab-indice').value = lab.connexion.indiceParametrique || '';
-        }
-        if (lab.mesures) {
-          $('#lab-largeur-ame').value = lab.mesures.largeurAme || '';
-          $('#lab-largeur-isolant').value = lab.mesures.largeurIsolant || '';
-          (lab.mesures.hauteurIsolant || []).forEach((v, i) => {
-            const inp = $(`[name="hi${i+1}"]`); if (inp) inp.value = v;
-          });
-          (lab.mesures.effort || []).forEach((v, i) => {
-            const inp = $(`[name="ef${i+1}"]`); if (inp) inp.value = v;
-          });
         }
         if (lab.conformites) {
           $$('input[name="conf"]').forEach(cb => { cb.checked = !!lab.conformites[cb.value]; });
         }
-        $('#lab-chute-tension').value = (lab.capabilite && lab.capabilite.chuteTension) || '';
-        this.recalcCapa();
 
         // Coupe metallo link
         if (lab.coupeMetallo && lab.coupeMetallo.downloadUrl) {
@@ -7079,13 +6987,8 @@ section[data-view][hidden],
       },
 
       recalcCapa() {
-        const hi = [1,2,3,4,5].map(i => parseFloat($(`[name="hi${i}"]`).value));
-        const ef = [1,2,3,4,5].map(i => parseFloat($(`[name="ef${i}"]`).value));
-        const result = capa.compute({ hauteurIsolant: hi, effort: ef });
-        $('#capa-ame-moy').textContent = result.hauteurAmeMoyenne != null ? result.hauteurAmeMoyenne.toFixed(3) : '—';
-        $('#capa-cm').textContent      = result.cmAme    != null ? result.cmAme.toFixed(2) : '—';
-        $('#capa-cmk').textContent     = result.cmkAme   != null ? result.cmkAme.toFixed(2) : '—';
-        $('#capa-cm-effort').textContent = result.cmEffort != null ? result.cmEffort.toFixed(2) : '—';
+        // ⚠️ Section capabilité supprimée du formulaire — méthode conservée pour compat (no-op)
+        return;
       },
 
       setStatus(status) {
@@ -7137,9 +7040,6 @@ section[data-view][hidden],
       collectLabData() {
         const conf = {};
         $$('input[name="conf"]').forEach(cb => { conf[cb.value] = cb.checked; });
-        const hi = [1,2,3,4,5].map(i => parseFloat($(`[name="hi${i}"]`).value) || null);
-        const ef = [1,2,3,4,5].map(i => parseFloat($(`[name="ef${i}"]`).value) || null);
-        const computed = capa.compute({ hauteurIsolant: hi, effort: ef });
         // Technicien labo : champs manuels OU profil connecté
         const laboName = $('#labo-tech-name')?.value.trim() || state.profile?.displayName || '';
         const laboMat  = $('#labo-tech-mat')?.value.trim()  || state.profile?.matricule   || '';
@@ -7148,18 +7048,7 @@ section[data-view][hidden],
           technicienMatricule: laboMat,
           connexion: {
             refConnexion: $('#lab-ref-connexion').value,
-            sectionCable: $('#lab-section-cable').value,
-            indiceParametrique: $('#lab-indice').value
-          },
-          mesures: {
-            largeurAme: parseFloat($('#lab-largeur-ame').value) || null,
-            largeurIsolant: parseFloat($('#lab-largeur-isolant').value) || null,
-            hauteurIsolant: hi,
-            effort: ef
-          },
-          capabilite: {
-            ...computed,
-            chuteTension: parseFloat($('#lab-chute-tension').value) || null
+            sectionCable: $('#lab-section-cable').value
           },
           conformites: conf
         };

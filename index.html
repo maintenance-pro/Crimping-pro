@@ -2370,6 +2370,187 @@ legend { padding: 0; }
 [data-theme="light"] .status-pill--rejected  { background: rgba(200,40,60,.12) !important;  color: #8a0020 !important; }
 [data-theme="light"] .status-pill--draft     { background: rgba(0,0,0,.06) !important;      color: #4a6580 !important; }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   LIGHT MODE — Form fields, intervention, stepper, buttons
+   Override globaux pour avoir un excellent contraste en thème clair
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Formulaires : fond blanc, texte noir, bordures nettes ── */
+[data-theme="light"] .field__input,
+[data-theme="light"] .field__output,
+[data-theme="light"] select.field__input,
+[data-theme="light"] textarea.field__input {
+  background: #ffffff !important;
+  color: #0a1628 !important;
+  border: 1px solid #b8d0e8 !important;
+}
+[data-theme="light"] .field__input:focus {
+  background: #ffffff !important;
+  border-color: #0095cc !important;
+  box-shadow: 0 0 0 3px rgba(0,180,255,.18) !important;
+}
+[data-theme="light"] .field__input:read-only,
+[data-theme="light"] .field__input[readonly] {
+  background: #f0f4fa !important;
+  color: #4a6580 !important;
+}
+[data-theme="light"] .field__input::placeholder {
+  color: #8aa5c0 !important;
+}
+[data-theme="light"] .field__label {
+  color: #254060 !important;
+}
+
+/* ── Intervention section : carte avec fond blanc cassé ── */
+[data-theme="light"] .intervention__section {
+  background: linear-gradient(135deg, #ffffff, #f5f8fc) !important;
+  border: 1px solid #c8dcee !important;
+  box-shadow: 0 2px 12px rgba(0,80,140,.06) !important;
+}
+[data-theme="light"] .intervention__sub-title,
+[data-theme="light"] .intervention__title {
+  color: #0a1628 !important;
+}
+[data-theme="light"] .intervention__subtitle {
+  color: #4a6580 !important;
+}
+
+/* ── Stepper visible ── */
+[data-theme="light"] .stepper__num {
+  background: #e0eaf5 !important;
+  color: #4a6580 !important;
+  border: 2px solid #c8dcee !important;
+}
+[data-theme="light"] .stepper__step--active .stepper__num {
+  background: #0095cc !important;
+  color: #ffffff !important;
+  border-color: #0095cc !important;
+}
+[data-theme="light"] .stepper__label {
+  color: #4a6580 !important;
+}
+[data-theme="light"] .stepper__step--active .stepper__label {
+  color: #0095cc !important;
+  font-weight: 700;
+}
+[data-theme="light"] .stepper__step:not(:last-child)::after {
+  background: #c8dcee !important;
+}
+[data-theme="light"] .stepper__step--active:not(:last-child)::after {
+  background: #0095cc !important;
+}
+
+/* ── Checkboxes ── */
+[data-theme="light"] .checkbox {
+  background: #ffffff !important;
+  border: 1px solid #c8dcee !important;
+  color: #0a1628 !important;
+}
+[data-theme="light"] .checkbox:hover {
+  border-color: #0095cc !important;
+  background: #f0f8ff !important;
+}
+[data-theme="light"] .checkbox input:checked + span {
+  color: #0095cc !important;
+  font-weight: 600;
+}
+
+/* ── Buttons ── */
+[data-theme="light"] .btn--secondary {
+  background: #ffffff !important;
+  color: #254060 !important;
+  border: 1px solid #b8d0e8 !important;
+}
+[data-theme="light"] .btn--secondary:hover {
+  background: #f0f8ff !important;
+  border-color: #0095cc !important;
+  color: #0095cc !important;
+}
+[data-theme="light"] .btn--ghost {
+  color: #254060 !important;
+  border: 1px solid transparent !important;
+}
+[data-theme="light"] .btn--ghost:hover {
+  background: #f0f8ff !important;
+  border-color: #b8d0e8 !important;
+}
+
+/* ── Action bar du bas ── */
+[data-theme="light"] .action-bar,
+[data-theme="light"] .intervention__actions,
+[data-theme="light"] .sticky-bar {
+  background: #ffffff !important;
+  border-top: 1px solid #c8dcee !important;
+  box-shadow: 0 -4px 16px rgba(0,80,140,.08) !important;
+}
+
+/* ── Decision buttons (Valider / Refuser) ── */
+[data-theme="light"] .decision__btn--validate {
+  background: #00a878 !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+[data-theme="light"] .decision__btn--validate:hover { background: #008a64 !important; }
+[data-theme="light"] .decision__btn--reject {
+  background: #d83e5a !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+[data-theme="light"] .decision__btn--reject:hover { background: #b5304a !important; }
+
+/* ── Tool card (Fiche technique) ── */
+[data-theme="light"] .tool-card {
+  background: #f5f8fc !important;
+  border: 1px solid #c8dcee !important;
+  color: #0a1628 !important;
+}
+[data-theme="light"] .tool-card__title { color: #0a1628 !important; }
+[data-theme="light"] .tool-card__row dt { color: #4a6580 !important; }
+[data-theme="light"] .tool-card__row dd { color: #0a1628 !important; }
+
+/* ── Modals ── */
+[data-theme="light"] .modal__content,
+[data-theme="light"] .modal__dialog {
+  background: #ffffff !important;
+  color: #0a1628 !important;
+  border: 1px solid #c8dcee !important;
+}
+[data-theme="light"] .modal__title { color: #0a1628 !important; }
+
+/* ── Badges ── */
+[data-theme="light"] .badge--auto {
+  background: rgba(0,150,210,.15) !important;
+  color: #006a8a !important;
+}
+
+/* ── Topbar search & avatar ── */
+[data-theme="light"] .topbar__search input,
+[data-theme="light"] .topbar__search {
+  background: #ffffff !important;
+  color: #0a1628 !important;
+  border: 1px solid #c8dcee !important;
+}
+[data-theme="light"] .topbar__user-name,
+[data-theme="light"] .topbar__user-role { color: #0a1628 !important; }
+
+/* ── Sidebar links ── */
+[data-theme="light"] .sidebar__link {
+  color: #254060 !important;
+}
+[data-theme="light"] .sidebar__link:hover {
+  background: #d9e8f6 !important;
+  color: #0095cc !important;
+}
+[data-theme="light"] .sidebar__link--active {
+  background: rgba(0,180,255,.12) !important;
+  color: #0095cc !important;
+}
+
+/* ── Body text overall ── */
+[data-theme="light"] body { color: #0a1628; }
+[data-theme="light"] h1, [data-theme="light"] h2, [data-theme="light"] h3,
+[data-theme="light"] h4, [data-theme="light"] h5 { color: #0a1628 !important; }
+
 
 /* ============================================================================
    MAGASIN MODULE — Sidebar badges + Stock styles

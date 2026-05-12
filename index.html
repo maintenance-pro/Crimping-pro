@@ -6177,7 +6177,7 @@ section[data-view][hidden],
     async notifyMagasinier(reg) {
       const TAG = '[notifyMagasinier]';
       try {
-        console.log(`${TAG} 🚀 Création/MAJ demande PDR partagée pour bon N°${reg}`);
+        console.log(`${TAG} 🚀 Création demande PDR sur intervention N°${reg}`);
 
         // 1. Charger l'intervention
         const itvSnap = await fbDb.ref(`interventions/${reg}`).once('value');
@@ -6192,11 +6192,19 @@ section[data-view][hidden],
         const pdrCodes = Object.entries(piecesChanged).filter(([k,v]) => v).map(([k]) => k);
         console.log(`${TAG} 📋 PDR cochées :`, pdrCodes);
         if (pdrCodes.length === 0) {
-          console.log(`${TAG} ℹ️ Aucune PDR cochée → pas de demande`);
+          console.log(`${TAG} ℹ️ Aucune PDR → pas de demande`);
           return;
         }
 
-        // 3. Résoudre chaque PDR (utilise l'helper pdrRef qui gère tool.pieces[code] ET tool[code])
+        // 3. Vérifier si une demande existe déjà et est déjà traitée
+        const existing = itv.pdrPreparation || null;
+        if (existing && existing.status && existing.status !== 'pending') {
+          console.log(`${TAG} ℹ️ Demande déjà ${existing.status}, pas de MAJ`);
+          ui.toast(`ℹ️ Demande PDR du bon N°${reg} déjà traitée`, 'info');
+          return;
+        }
+
+        // 4. Résoudre les refs/emplacements
         const tool = itv.tool || {};
         const labelFn = (typeof pdrLabel === 'function') ? pdrLabel : (c => c);
         const refFn = (typeof pdrRef === 'function') ? pdrRef : ((c, t) => (t?.pieces?.[c] || t?.[c] || ''));
@@ -6223,143 +6231,77 @@ section[data-view][hidden],
           };
         });
 
-        const toolInfo = `${tool.fabricant || '?'} — ${tool.refOutil || tool.outilId || '?'}`;
         const pdrItemsObj = {};
         pdrItems.forEach((it, i) => { pdrItemsObj['p' + i] = it; });
+        const toolInfo = `${tool.fabricant || '?'} — ${tool.refOutil || tool.outilId || '?'}`;
 
-        // 4. UPSERT — chercher si une demande existe déjà pour ce bon
-        let existingId = null;
-        let existingStatus = null;
-        try {
-          const exist = await fbDb.ref('pdrRequests').orderByChild('interventionId').equalTo(String(reg)).limitToFirst(1).once('value');
-          if (exist.exists()) {
-            exist.forEach(c => { existingId = c.key; existingStatus = c.val()?.status; });
-            console.log(`${TAG} ℹ️ Demande existante trouvée : ${existingId} (status: ${existingStatus})`);
-          }
-        } catch(e) {
-          console.warn(`${TAG} ⚠️ orderByChild échoué (index ?), fallback scan complet`);
-          try {
-            const all = await fbDb.ref('pdrRequests').once('value');
-            all.forEach(c => {
-              if (!existingId && c.val()?.interventionId === String(reg)) {
-                existingId = c.key;
-                existingStatus = c.val()?.status;
-              }
-            });
-          } catch(e2) {
-            console.error(`${TAG} ❌ Lecture pdrRequests impossible :`, e2);
-          }
-        }
-
-        // Si déjà traitée (ready ou unavailable) → ne pas écraser, mais informer
-        if (existingId && existingStatus && existingStatus !== 'pending') {
-          console.log(`${TAG} ℹ️ Demande ${existingId} déjà ${existingStatus}, pas de MAJ`);
-          ui.toast(`ℹ️ Demande PDR du bon N°${reg} déjà traitée (${existingStatus === 'ready' ? '✅ Prête' : '❌ Non dispo'})`, 'info');
-          return;
-        }
-
-        // 5. Écrire (update si existante en pending, sinon push)
+        // 5. ÉCRITURE DIRECTE sur l'intervention (pas de collection séparée)
         const payload = {
           status: 'pending',
-          interventionId: String(reg),
           pdrItems: pdrItemsObj,
           pdrItemsCount: pdrItems.length,
           toolInfo,
           requesterUid: state.user?.uid || '',
           requesterName: state.profile?.displayName || '?',
           requesterMatricule: state.profile?.matricule || '',
+          requestedAt: existing?.requestedAt || Date.now(),
           updatedAt: Date.now()
         };
 
         try {
-          if (existingId) {
-            // MAJ : on garde createdAt original
-            await fbDb.ref(`pdrRequests/${existingId}`).update(payload);
-            console.log(`${TAG} ✅ Demande mise à jour : ${existingId}`);
-            ui.toast(`🔄 Demande PDR du bon N°${reg} mise à jour (${pdrItems.length} réfs)`, 'success');
-          } else {
-            // Nouvelle création
-            payload.createdAt = Date.now();
-            const ref = await fbDb.ref('pdrRequests').push(payload);
-            console.log(`${TAG} ✅ Nouvelle demande : ${ref.key}`);
-            ui.toast(`📦 Demande PDR créée pour bon N°${reg} (${pdrItems.length} réfs) — visible dans "Demandes PDR"`, 'success');
-          }
+          await fbDb.ref(`interventions/${reg}/pdrPreparation`).update(payload);
+          console.log(`${TAG} ✅ pdrPreparation écrit sur interventions/${reg}`);
+          ui.toast(`📦 Demande PDR ${existing ? 'mise à jour' : 'créée'} pour bon N°${reg} (${pdrItems.length} réfs) — voir "Demandes PDR"`, 'success');
         } catch(e) {
-          console.error(`${TAG} ❌ Écriture pdrRequests refusée :`, e);
-          ui.toast(`⛔ Écriture demande refusée par Firebase (${e.code || 'erreur'}) — règles à corriger`, 'danger');
+          console.error(`${TAG} ❌ Écriture refusée :`, e);
+          ui.toast(`⛔ Écriture refusée par Firebase (${e.code || 'erreur'})`, 'danger');
         }
       } catch (e) {
-        console.error('[notifyMagasinier] Erreur globale:', e);
-        ui.toast('Erreur création demande PDR : ' + e.message, 'danger');
+        console.error('[notifyMagasinier] Erreur:', e);
+        ui.toast('Erreur demande PDR : ' + e.message, 'danger');
       }
     },
 
     /**
-     * Réponse du magasinier à une demande PDR :
-     * decision = 'ready' (rassemblées) | 'unavailable' (non disponible)
+     * Réponse à une demande PDR (ready / unavailable) — modifie directement
+     * interventions/{reg}/pdrPreparation
      */
-    /**
-     * Réponse du magasinier — modifie directement pdrRequests/{requestId}
-     * decision = 'ready' | 'unavailable'
-     */
-    async respondPDRRequest(requestId, decision, reason = null) {
+    async respondPDRRequest(reg, decision, reason = null) {
       const TAG = '[respondPDRRequest]';
       if (!state.user) return;
       try {
-        console.log(`${TAG} 🚀 Réponse "${decision}" pour demande ${requestId}`);
-
-        // 1. Charger la demande
-        const reqRef = fbDb.ref(`pdrRequests/${requestId}`);
-        const snap = await reqRef.once('value');
-        const req = snap.val();
-        if (!req) {
-          console.warn(`${TAG} ❌ Demande introuvable`);
-          ui.toast('Demande introuvable', 'danger');
+        console.log(`${TAG} 🚀 Réponse "${decision}" pour bon N°${reg}`);
+        if (!['admin','super_admin','magasinier'].includes(state.role)) {
+          ui.toast('Action réservée aux magasiniers', 'danger');
           return;
         }
-        if (req.status && req.status !== 'pending') {
+        const ref = fbDb.ref(`interventions/${reg}/pdrPreparation`);
+        const snap = await ref.once('value');
+        const cur = snap.val();
+        if (!cur) {
+          ui.toast('Demande introuvable sur ce bon', 'danger');
+          return;
+        }
+        if (cur.status && cur.status !== 'pending') {
           ui.toast('Cette demande a déjà été traitée', 'warn');
           return;
         }
-
-        // 2. Mettre à jour le statut + réponse
-        const update = {
+        await ref.update({
           status: decision,
+          respondedAt: Date.now(),
           responderUid: state.user.uid,
           responderName: state.profile?.displayName || '?',
           responderMatricule: state.profile?.matricule || '',
-          respondedAt: Date.now(),
           responseReason: reason || null
-        };
-        try {
-          await reqRef.update(update);
-          console.log(`${TAG} ✅ Demande mise à jour`);
-        } catch(e) {
-          console.error(`${TAG} ❌ Update KO :`, e);
-          ui.toast(`⛔ Mise à jour refusée par Firebase (${e.code || 'erreur'})`, 'danger');
-          return;
-        }
-
-        // 3. Tracer sur l'intervention (best-effort, non bloquant)
-        try {
-          await fbDb.ref(`interventions/${req.interventionId}/pdrPreparation`).set({
-            status: decision,
-            by: { uid: state.user.uid, name: update.responderName, at: update.respondedAt },
-            reason: reason || null
-          });
-        } catch(e) {
-          console.warn(`${TAG} ⚠️ Trace intervention KO (non bloquant):`, e);
-        }
-
-        // 4. Audit
-        try { this.audit('pdr.' + decision, req.interventionId, { reason: reason || null }); } catch(e){}
-
+        });
+        console.log(`${TAG} ✅ Statut mis à jour : ${decision}`);
+        try { this.audit('pdr.' + decision, reg, { reason: reason || null }); } catch(e){}
         ui.toast(decision === 'ready'
-          ? '✅ Réponse envoyée : PDR prêtes — le technicien va voir la mise à jour'
-          : '⚠️ Réponse envoyée : non disponibles', 'success');
+          ? '✅ Marquées comme rassemblées'
+          : '⚠️ Marquées comme non disponibles', 'success');
       } catch (e) {
         console.error('[respondPDRRequest] Erreur:', e);
-        ui.toast('Erreur : ' + e.message, 'danger');
+        ui.toast(`⛔ Erreur : ${e.code || e.message}`, 'danger');
       }
     },
 
@@ -10577,129 +10519,60 @@ Erreur Firebase : ${e.message}`;
 
     /* ========== DEMANDES PDR — collection partagée (NOUVELLE MÉTHODE) ========== */
     demandesPdr: {
-      _all: [],
-      _listenerAttached: false,
-      _seenIds: new Set(),
-      _initBaseline: false,
+      _badgeListenerAttached: false,
 
       init() {
-        if (this._listenerAttached) return;
-        // 🔄 Bouton Actualiser → force re-fetch + render
-        document.getElementById('btn-pdr-req-refresh')?.addEventListener('click', async () => {
-          await this.forceRefresh();
-        });
+        document.getElementById('btn-pdr-req-refresh')?.addEventListener('click', () => this.render());
         document.getElementById('pdr-req-filter')?.addEventListener('change', () => this.render());
-        // Lance le listener Firebase
-        this.attachListener();
+        // Mettre à jour le badge à chaque changement d'interventions
+        // (le listener interventions est déjà branché → on s'y accroche)
+        if (!this._badgeListenerAttached) {
+          this._badgeListenerAttached = true;
+          // Refresh badge périodique (les interventions changent rarement)
+          setInterval(() => this.updateBadge(), 5000);
+        }
       },
 
       /**
-       * Force un re-fetch complet depuis Firebase (bypass listener cache)
+       * Récupère toutes les demandes PDR depuis state.interventions
+       * Chaque intervention avec pdrPreparation devient une "demande"
        */
-      async forceRefresh() {
-        try {
-          ui.showLoader('Rechargement…');
-          const snap = await fbDb.ref('pdrRequests').once('value');
-          const all = [];
-          snap.forEach(c => all.push({ id: c.key, ...c.val() }));
-          all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-          this._all = all;
-          all.forEach(r => this._seenIds.add(r.id));
-          this.updateBadge();
-          this.render();
-          ui.hideLoader();
-          ui.toast(`🔄 ${all.length} demande(s) chargée(s)`, 'success');
-        } catch(e) {
-          ui.hideLoader();
-          console.error('[demandesPdr.forceRefresh]', e);
-          ui.toast(`⛔ Lecture refusée : ${e.code || e.message}`, 'danger');
-        }
-      },
-
-      attachListener() {
-        if (this._listenerAttached) return;
-        if (!fbAuth.currentUser) {
-          fbAuth.onAuthStateChanged(u => { if (u) this.attachListener(); });
-          return;
-        }
-        this._listenerAttached = true;
-        this._seenIds = new Set();
-        this._initBaseline = false;
-
-        const ref = fbDb.ref('pdrRequests').limitToLast(100);
-        ref.on('value', snap => {
-          const all = [];
-          snap.forEach(c => all.push({ id: c.key, ...c.val() }));
-          all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-          this._all = all;
-          console.log(`[demandesPdr] 📥 Listener fired → ${all.length} demande(s)`, all.map(r => ({ id: r.id.slice(-6), bonId: r.interventionId, status: r.status })));
-
-          // Détection de NOUVEAUTÉS pour alertes
-          if (this._initBaseline) {
-            const fresh = all.filter(r => !this._seenIds.has(r.id));
-            fresh.forEach(r => this._maybeAlert(r));
-          } else {
-            this._initBaseline = true;
-          }
-          all.forEach(r => this._seenIds.add(r.id));
-
-          // Mise à jour badge sidebar
-          this.updateBadge();
-          // Re-render si on est sur la vue
-          if (state.currentView === 'demandes-pdr') this.render();
-        }, err => {
-          console.error('[demandesPdr] Listener KO :', err);
-          ui.toast(`⛔ Lecture pdrRequests refusée (${err.code || 'erreur'})`, 'danger');
-        });
-      },
-
-      _maybeAlert(req) {
-        // Alerter selon le rôle de l'utilisateur courant
-        const role = state.role;
-        const myUid = state.user?.uid;
-        let shouldAlert = false;
-        let alertMessage = '';
-
-        // Magasinier : alerter sur nouvelle demande "pending"
-        if (['magasinier','admin','super_admin'].includes(role) && req.status === 'pending') {
-          shouldAlert = true;
-          alertMessage = `🔧 Nouvelle demande PDR — bon N°${req.interventionId} (${req.pdrItemsCount || '?'} réfs)`;
-        }
-        // Technicien : alerter sur sa propre demande qui passe à ready/unavailable
-        if (req.requesterUid === myUid && req.status && req.status !== 'pending' && req.respondedAt) {
-          // Vérifier si c'est récent (< 30s pour éviter de re-alerter à chaque connexion)
-          if (Date.now() - req.respondedAt < 30000) {
-            shouldAlert = true;
-            alertMessage = req.status === 'ready'
-              ? `📦 Tes PDR (bon N°${req.interventionId}) sont PRÊTES — par ${req.responderName}`
-              : `⚠️ PDR non dispo (bon N°${req.interventionId})${req.responseReason ? ' — '+req.responseReason : ''} (par ${req.responderName})`;
-          }
-        }
-
-        if (shouldAlert) {
-          try { ui.toast(alertMessage, req.status === 'unavailable' ? 'warn' : 'success'); } catch(e){}
-          // Réutiliser notifAlert pour son + desktop notif si dispo
-          if (typeof notifAlert !== 'undefined' && notifAlert.fire) {
-            notifAlert.fire({
-              type: req.status === 'pending' ? 'pdr_request' : `pdr_${req.status}`,
-              message: alertMessage,
-              interventionId: req.interventionId
+      _getAllRequests() {
+        const out = [];
+        const interventions = state.interventions || {};
+        Object.entries(interventions).forEach(([reg, itv]) => {
+          if (itv && itv.pdrPreparation) {
+            out.push({
+              id: reg,                                // l'ID est le numéro de bon
+              interventionId: reg,
+              ...itv.pdrPreparation,                  // status, pdrItems, requesterName, etc.
+              _intervention: itv                      // pour ref/enrichissement
             });
           }
+        });
+        // Tri : les plus récents en premier
+        out.sort((a, b) => (b.requestedAt || b.updatedAt || 0) - (a.requestedAt || a.updatedAt || 0));
+        return out;
+      },
+
+      _filteredForRole(all) {
+        const role = state.role;
+        const myUid = state.user?.uid;
+        if (['crimp','crimping'].includes(role)) {
+          return all.filter(r => r.requesterUid === myUid);
         }
+        return all;
       },
 
       updateBadge() {
+        const all = this._getAllRequests();
+        const filtered = this._filteredForRole(all);
         const role = state.role;
-        const myUid = state.user?.uid;
         let count = 0;
         if (['magasinier','admin','super_admin','responsable'].includes(role)) {
-          count = this._all.filter(r => r.status === 'pending').length;
+          count = filtered.filter(r => r.status === 'pending').length;
         } else if (['crimp','crimping'].includes(role)) {
-          // Pour le technicien, badge = nb de ses demandes répondues récemment ET pas encore vues
-          count = this._all.filter(r =>
-            r.requesterUid === myUid && r.status && r.status !== 'pending'
-          ).length;
+          count = filtered.filter(r => r.status && r.status !== 'pending').length;
         }
         const badge = document.getElementById('nav-pdr-req-count');
         if (badge) {
@@ -10708,60 +10581,30 @@ Erreur Firebase : ${e.message}`;
         }
       },
 
-      _filteredForRole() {
-        const role = state.role;
-        const myUid = state.user?.uid;
-        let list = this._all || [];
-        if (['crimp','crimping'].includes(role)) {
-          // Technicien : voir uniquement ses propres demandes
-          list = list.filter(r => r.requesterUid === myUid);
-        }
-        // admin/super_admin/responsable/magasinier voient tout
-        return list;
-      },
-
       render() {
         if (!['admin','super_admin','responsable','magasinier','crimp','crimping'].includes(state.role)) {
           location.hash = '#hub';
           return;
         }
-        // 🔄 Auto re-fetch silencieux si on rentre dans la vue (au cas où le listener aurait raté un update)
-        // Le listener temps réel reste actif en parallèle pour les updates suivants
-        if (!this._lastRefreshAt || (Date.now() - this._lastRefreshAt) > 3000) {
-          this._lastRefreshAt = Date.now();
-          fbDb.ref('pdrRequests').once('value').then(snap => {
-            const all = [];
-            snap.forEach(c => all.push({ id: c.key, ...c.val() }));
-            all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-            if (all.length !== this._all.length) {
-              console.log(`[demandesPdr] 🔄 Auto-refresh : ${this._all.length} → ${all.length} demande(s)`);
-              this._all = all;
-              all.forEach(r => this._seenIds.add(r.id));
-              this.updateBadge();
-              this._doRender();
-            }
-          }).catch(e => console.warn('[demandesPdr] auto-refresh KO:', e));
-        }
-        this._doRender();
-      },
+        const all = this._getAllRequests();
+        const list0 = this._filteredForRole(all);
 
-      _doRender() {
-        const filterStatus = document.getElementById('pdr-req-filter')?.value || 'pending';
-        let list = this._filteredForRole();
-
-        // KPIs (sur l'ensemble visible pour ce rôle, avant filtre statut)
+        // KPIs (sur l'ensemble visible avant filtre statut)
         const kpis = {
-          pending: list.filter(r => r.status === 'pending').length,
-          ready: list.filter(r => r.status === 'ready').length,
-          unavailable: list.filter(r => r.status === 'unavailable').length,
-          total: list.length
+          pending: list0.filter(r => r.status === 'pending').length,
+          ready: list0.filter(r => r.status === 'ready').length,
+          unavailable: list0.filter(r => r.status === 'unavailable').length,
+          total: list0.length
         };
-        document.getElementById('kpi-req-pending').textContent = kpis.pending;
-        document.getElementById('kpi-req-ready').textContent = kpis.ready;
-        document.getElementById('kpi-req-unavailable').textContent = kpis.unavailable;
-        document.getElementById('kpi-req-total').textContent = kpis.total;
+        const setEl = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+        setEl('kpi-req-pending', kpis.pending);
+        setEl('kpi-req-ready', kpis.ready);
+        setEl('kpi-req-unavailable', kpis.unavailable);
+        setEl('kpi-req-total', kpis.total);
 
         // Filtre statut
+        const filterStatus = document.getElementById('pdr-req-filter')?.value || 'pending';
+        let list = list0;
         if (filterStatus !== 'all') {
           list = list.filter(r => (r.status || 'pending') === filterStatus);
         }
@@ -10772,15 +10615,17 @@ Erreur Firebase : ${e.message}`;
           container.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--text-muted);background:var(--bg-elevated);border-radius:10px">
             <div style="font-size:2.5rem;opacity:.5">${filterStatus === 'pending' ? '✨' : '📭'}</div>
             <div style="margin-top:.5rem">Aucune demande ${filterStatus !== 'all' ? '("'+filterStatus+'")' : ''}</div>
+            <div style="margin-top:.5rem;font-size:.78rem;color:var(--text-muted)">Total interventions chargées : ${Object.keys(state.interventions||{}).length}</div>
           </div>`;
           return;
         }
 
         const role = state.role;
         const canRespond = ['magasinier','admin','super_admin'].includes(role);
-
         const toArray = (v) => Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
         const fmtDate = ts => ts ? new Date(ts).toLocaleString('fr-FR') : '—';
+        const labelFn = (typeof pdrLabel === 'function') ? pdrLabel : (c => c);
+        const refFn = (typeof pdrRef === 'function') ? pdrRef : null;
 
         container.innerHTML = list.map(req => {
           let items = toArray(req.pdrItems);
@@ -10788,32 +10633,23 @@ Erreur Firebase : ${e.message}`;
           const accent = status === 'pending' ? '#ffb547' : (status === 'ready' ? '#00e5a0' : '#ff3d5a');
           const statusLabel = status === 'pending' ? '📋 EN ATTENTE' : (status === 'ready' ? '✅ RASSEMBLÉES' : '❌ NON DISPONIBLES');
 
-          // 🔧 RÉPARATION À LA VOLÉE : si la ref est manquante/buggée, on essaie
-          // de la recalculer depuis l'intervention liée + state.stock (utile pour les anciennes demandes)
-          const itv = state.interventions?.[req.interventionId];
+          // Enrichissement à la volée pour anciennes données
+          const itv = req._intervention;
           const tool = itv?.tool || {};
-          const refFn = (typeof pdrRef === 'function') ? pdrRef : null;
-          const labelFn = (typeof pdrLabel === 'function') ? pdrLabel : (c => c);
-
           items = items.map(p => {
-            const code = p.code || '';
             const enriched = { ...p };
-            const isMissingRef = !p.ref || p.ref === '(non renseigné)' || p.ref === '—' || p.ref === code || p.ref === labelFn(code);
-
-            if (isMissingRef && refFn && code && tool) {
-              let resolvedRef = String(refFn(code, tool) || '').trim();
-              if (resolvedRef && resolvedRef !== code && resolvedRef !== labelFn(code)) {
-                enriched.ref = resolvedRef;
-              }
+            const code = p.code || '';
+            const isMissing = !p.ref || p.ref === '(non renseigné)' || p.ref === '—' || p.ref === code || p.ref === labelFn(code);
+            if (isMissing && refFn && code && tool) {
+              const r = String(refFn(code, tool) || '').trim();
+              if (r && r !== code && r !== labelFn(code)) enriched.ref = r;
             }
-            // Si emplacement manquant + on a une vraie ref → chercher dans le stock
-            const isMissingEmp = !enriched.emplacement || enriched.emplacement === '—' || enriched.emplacement.includes('non répertorié');
-            if (isMissingEmp && enriched.ref && enriched.ref !== '(non renseigné)' && state.stock) {
-              for (const [sid, item] of Object.entries(state.stock)) {
-                if ((item.nom || '').trim() === enriched.ref) {
-                  enriched.emplacement = (item.empl || '').trim() || enriched.emplacement;
+            if ((!enriched.emplacement || enriched.emplacement.includes('non répertorié')) && enriched.ref && state.stock) {
+              for (const [sid, it] of Object.entries(state.stock)) {
+                if ((it.nom || '').trim() === enriched.ref) {
+                  enriched.emplacement = (it.empl || '').trim() || enriched.emplacement;
                   if (!enriched.stockQty || enriched.stockQty === '?') {
-                    const q = item.qdispo || item.qty;
+                    const q = it.qdispo || it.qty;
                     if (q != null) enriched.stockQty = String(q);
                   }
                   break;
@@ -10856,7 +10692,7 @@ Erreur Firebase : ${e.message}`;
           ` : '');
 
           return `
-            <article style="background:var(--bg-elevated);border:1px solid ${accent};border-left:5px solid ${accent};border-radius:10px;padding:1rem;box-shadow:0 4px 14px rgba(0,0,0,.20)">
+            <article style="background:var(--bg-elevated);border:1px solid ${accent};border-left:5px solid ${accent};border-radius:10px;padding:1rem;box-shadow:0 4px 14px rgba(0,0,0,.20);margin-bottom:1rem">
               <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem;flex-wrap:wrap;margin-bottom:.6rem">
                 <div>
                   <div style="font-size:1rem;font-weight:700;color:var(--text-primary)">
@@ -10865,7 +10701,7 @@ Erreur Firebase : ${e.message}`;
                   <div style="font-size:.78rem;color:var(--text-muted);margin-top:.15rem">
                     Demandé par <b style="color:var(--text-secondary)">${ui.escape(req.requesterName || '?')}</b>
                     ${req.requesterMatricule ? ' (' + ui.escape(req.requesterMatricule) + ')' : ''}
-                    · ${fmtDate(req.createdAt)}
+                    · ${fmtDate(req.requestedAt || req.updatedAt)}
                   </div>
                   ${req.toolInfo ? '<div style="font-size:.78rem;color:var(--text-muted);margin-top:.1rem">📦 ' + ui.escape(req.toolInfo) + '</div>' : ''}
                 </div>

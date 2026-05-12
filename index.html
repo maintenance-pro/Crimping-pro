@@ -10584,10 +10584,36 @@ Erreur Firebase : ${e.message}`;
 
       init() {
         if (this._listenerAttached) return;
-        document.getElementById('btn-pdr-req-refresh')?.addEventListener('click', () => this.render());
+        // 🔄 Bouton Actualiser → force re-fetch + render
+        document.getElementById('btn-pdr-req-refresh')?.addEventListener('click', async () => {
+          await this.forceRefresh();
+        });
         document.getElementById('pdr-req-filter')?.addEventListener('change', () => this.render());
         // Lance le listener Firebase
         this.attachListener();
+      },
+
+      /**
+       * Force un re-fetch complet depuis Firebase (bypass listener cache)
+       */
+      async forceRefresh() {
+        try {
+          ui.showLoader('Rechargement…');
+          const snap = await fbDb.ref('pdrRequests').once('value');
+          const all = [];
+          snap.forEach(c => all.push({ id: c.key, ...c.val() }));
+          all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          this._all = all;
+          all.forEach(r => this._seenIds.add(r.id));
+          this.updateBadge();
+          this.render();
+          ui.hideLoader();
+          ui.toast(`🔄 ${all.length} demande(s) chargée(s)`, 'success');
+        } catch(e) {
+          ui.hideLoader();
+          console.error('[demandesPdr.forceRefresh]', e);
+          ui.toast(`⛔ Lecture refusée : ${e.code || e.message}`, 'danger');
+        }
       },
 
       attachListener() {
@@ -10606,6 +10632,7 @@ Erreur Firebase : ${e.message}`;
           snap.forEach(c => all.push({ id: c.key, ...c.val() }));
           all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           this._all = all;
+          console.log(`[demandesPdr] 📥 Listener fired → ${all.length} demande(s)`, all.map(r => ({ id: r.id.slice(-6), bonId: r.interventionId, status: r.status })));
 
           // Détection de NOUVEAUTÉS pour alertes
           if (this._initBaseline) {
@@ -10698,6 +10725,27 @@ Erreur Firebase : ${e.message}`;
           location.hash = '#hub';
           return;
         }
+        // 🔄 Auto re-fetch silencieux si on rentre dans la vue (au cas où le listener aurait raté un update)
+        // Le listener temps réel reste actif en parallèle pour les updates suivants
+        if (!this._lastRefreshAt || (Date.now() - this._lastRefreshAt) > 3000) {
+          this._lastRefreshAt = Date.now();
+          fbDb.ref('pdrRequests').once('value').then(snap => {
+            const all = [];
+            snap.forEach(c => all.push({ id: c.key, ...c.val() }));
+            all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            if (all.length !== this._all.length) {
+              console.log(`[demandesPdr] 🔄 Auto-refresh : ${this._all.length} → ${all.length} demande(s)`);
+              this._all = all;
+              all.forEach(r => this._seenIds.add(r.id));
+              this.updateBadge();
+              this._doRender();
+            }
+          }).catch(e => console.warn('[demandesPdr] auto-refresh KO:', e));
+        }
+        this._doRender();
+      },
+
+      _doRender() {
         const filterStatus = document.getElementById('pdr-req-filter')?.value || 'pending';
         let list = this._filteredForRole();
 

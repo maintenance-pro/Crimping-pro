@@ -3740,15 +3740,15 @@ section[data-view][hidden],
         <ol class="stepper" id="int-stepper" aria-label="Workflow">
           <li class="stepper__step stepper__step--active" data-step="draft">
             <span class="stepper__num">1</span>
-            <span class="stepper__label">Saisie crimping</span>
+            <span class="stepper__label" data-i18n="step.crimpingEntry">Saisie crimping</span>
           </li>
           <li class="stepper__step" data-step="submitted">
             <span class="stepper__num">2</span>
-            <span class="stepper__label">Soumission</span>
+            <span class="stepper__label" data-i18n="step.submission">Soumission</span>
           </li>
           <li class="stepper__step" data-step="lab">
             <span class="stepper__num">3</span>
-            <span class="stepper__label">Validation labo</span>
+            <span class="stepper__label" data-i18n="step.labValidation">Validation labo</span>
           </li>
           <li class="stepper__step" data-step="done">
             <span class="stepper__num">4</span>
@@ -3787,7 +3787,7 @@ section[data-view][hidden],
             <aside class="tool-card" id="int-tool-card">
               <header class="tool-card__header">
                 <span class="tool-card__icon">⚙</span>
-                <h3 class="tool-card__title">Fiche technique</h3>
+                <h3 class="tool-card__title" data-i18n="section.techCard">Fiche technique</h3>
                 <span class="tool-card__cycle" id="tool-cycle">— cycles</span>
               </header>
               <dl class="tool-card__list">
@@ -3969,7 +3969,7 @@ section[data-view][hidden],
 
             <!-- Conformités -->
             <div class="intervention__subsection">
-              <h3 class="intervention__sub-title">Conformités</h3>
+              <h3 class="intervention__sub-title" data-i18n="section.conformities">Conformités</h3>
               <div class="checkbox-group checkbox-group--lab">
                 <label class="checkbox"><input type="checkbox" name="conf" value="chanfrein" / autocomplete="off"><span>Conformité chanfrein</span></label>
                 <label class="checkbox"><input type="checkbox" name="conf" value="temoinCoupe" / autocomplete="off"><span>Conformité témoin coupe</span></label>
@@ -3979,7 +3979,7 @@ section[data-view][hidden],
 
             <!-- Coupe métallographique -->
             <div class="intervention__subsection">
-              <h3 class="intervention__sub-title">Coupe métallographique</h3>
+              <h3 class="intervention__sub-title" data-i18n="section.metallographic">Coupe métallographique</h3>
               <div class="upload" id="upload-coupe">
                 <input type="file" id="file-coupe" accept="application/pdf,image/*" hidden / autocomplete="off">
                 <button class="upload__btn" type="button" data-target="file-coupe">📎 Joindre PDF / image</button>
@@ -3990,7 +3990,7 @@ section[data-view][hidden],
 
             <!-- Décision labo -->
             <div class="intervention__subsection intervention__subsection--decision">
-              <h3 class="intervention__sub-title">Décision laboratoire</h3>
+              <h3 class="intervention__sub-title" data-i18n="section.labDecision">Décision laboratoire</h3>
               <div class="decision" data-requires-role="admin,super_admin,responsable,labo">
                 <button class="decision__btn decision__btn--validate" type="button" id="btn-validate">
                   ✅ Valider le bon
@@ -11760,6 +11760,54 @@ Erreur Firebase : ${e.message}`;
 
     translations: {
       fr: {
+        // ── Sections (nouvelles) ──
+        'step.crimpingEntry': 'Saisie crimping',
+        'step.submission': 'Soumission',
+        'step.labValidation': 'Validation labo',
+        'step.closure': 'Clôture',
+        'section.identity': 'Identité',
+        'section.connection': 'Connexion',
+        'section.conformities': 'Conformités',
+        'section.metallographic': 'Coupe métallographique',
+        'section.labDecision': 'Décision laboratoire',
+        'section.techCard': 'Fiche technique',
+        'nav.pdrRequests': 'Demandes PDR',
+        'nav.pdrTracking': 'Suivi PDR',
+        'pdrTracking.title': 'Suivi des Pièces De Rechange (PDR)',
+        'pdrRequests.title': '📦 Demandes PDR',
+        'stock.title': 'Pièces de Rechange & Stock',
+
+        // ── Clés manquantes (ajoutées) ──
+        'action.export': 'Exporter',
+        'action.exportExcel': 'Exporter Excel',
+        'action.refresh': 'Actualiser',
+        'filter.allPeriods': 'Toutes les périodes',
+        'filter.today': 'Aujourd\'hui',
+        'filter.week': 'Cette semaine',
+        'filter.month': 'Ce mois',
+        'filter.quarter': 'Ce trimestre',
+        'filter.year': 'Cette année',
+        'form.tool': 'Outil',
+        'form.piecesChanged': 'Pièces changées',
+        'kpi.totalFiltered': 'Total filtré',
+        'kpi.thisMonth': 'Ce mois',
+        'kpi.toolsImpacted': 'Outils impactés',
+        'kpi.topPieces': 'Top pièces',
+        'login.title': 'Connexion',
+        'login.subtitle': 'Plateforme de maintenance LEONI',
+        'login.email': 'Email',
+        'login.password': 'Mot de passe',
+        'login.remember': 'Se souvenir de moi',
+        'login.forgotten': 'Mot de passe oublié ?',
+        'login.signin': 'Se connecter',
+        'pdr.tab.list': 'Liste',
+        'pdr.tab.top20': 'Top 20',
+        'stock.allStockNum': 'Tous N° Stock',
+        'stock.injectionHistory': 'Historique des injections',
+        'top20.title': 'Top 20 PDR',
+        'top20.history': 'Historique',
+        'user.new': 'Nouvel utilisateur',
+
         // Navigation
         'nav.hub': 'Hub',
         'nav.intervention': 'Bon d\'intervention',
@@ -12054,6 +12102,54 @@ Erreur Firebase : ${e.message}`;
         'role.magasinier': 'Magasinier'
       },
       en: {
+        // ── Sections (new) ──
+        'step.crimpingEntry': 'Crimping entry',
+        'step.submission': 'Submission',
+        'step.labValidation': 'Lab validation',
+        'step.closure': 'Closure',
+        'section.identity': 'Identity',
+        'section.connection': 'Connection',
+        'section.conformities': 'Conformities',
+        'section.metallographic': 'Metallographic section',
+        'section.labDecision': 'Laboratory decision',
+        'section.techCard': 'Technical sheet',
+        'nav.pdrRequests': 'PDR Requests',
+        'nav.pdrTracking': 'PDR Tracking',
+        'pdrTracking.title': 'Spare Parts Tracking (PDR)',
+        'pdrRequests.title': '📦 PDR Requests',
+        'stock.title': 'Spare Parts & Stock',
+
+        // ── Missing keys (added) ──
+        'action.export': 'Export',
+        'action.exportExcel': 'Export Excel',
+        'action.refresh': 'Refresh',
+        'filter.allPeriods': 'All periods',
+        'filter.today': 'Today',
+        'filter.week': 'This week',
+        'filter.month': 'This month',
+        'filter.quarter': 'This quarter',
+        'filter.year': 'This year',
+        'form.tool': 'Tool',
+        'form.piecesChanged': 'Pieces changed',
+        'kpi.totalFiltered': 'Total filtered',
+        'kpi.thisMonth': 'This month',
+        'kpi.toolsImpacted': 'Tools impacted',
+        'kpi.topPieces': 'Top pieces',
+        'login.title': 'Sign in',
+        'login.subtitle': 'LEONI Maintenance Platform',
+        'login.email': 'Email',
+        'login.password': 'Password',
+        'login.remember': 'Remember me',
+        'login.forgotten': 'Forgot password?',
+        'login.signin': 'Sign in',
+        'pdr.tab.list': 'List',
+        'pdr.tab.top20': 'Top 20',
+        'stock.allStockNum': 'All Stock #',
+        'stock.injectionHistory': 'Injection history',
+        'top20.title': 'Top 20 Spare Parts',
+        'top20.history': 'History',
+        'user.new': 'New user',
+
         // Navigation
         'nav.hub': 'Dashboard',
         'nav.intervention': 'Maintenance Order',

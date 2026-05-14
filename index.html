@@ -3535,7 +3535,7 @@ section[data-view][hidden],
           <!-- 📦 Demandes PDR : technicien crimping voit ses demandes, magasinier voit les pending -->
           <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping,magasinier">
             <button class="sidebar__link" data-nav="demandes-pdr">
-              <span class="sidebar__icon">📦</span><span class="sidebar__label">Demandes PDR</span>
+              <span class="sidebar__icon">📦</span><span class="sidebar__label" data-i18n="t.demandes_pdr">Demandes PDR</span>
               <span class="sidebar__pill" id="nav-pdr-req-count" style="background:#ffb547;color:#0a1628">0</span>
             </button>
           </li>
@@ -3572,7 +3572,7 @@ section[data-view][hidden],
             flex:1;font-size:.92rem;font-weight:500;
             color:var(--text-primary,#e6f1ff);
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-            min-width:0">Nouvelle notification</span>
+            min-width:0" data-i18n="t.nouvelle_notification">Nouvelle notification</span>
         <button id="unread-bar-view" style="
             padding:.35rem .85rem;font-size:.78rem;font-weight:600;
             background:var(--accent-500,#00b4d8);color:#fff;border:none;
@@ -3668,9 +3668,9 @@ section[data-view][hidden],
             <header class="card__header">
               <h2 class="card__title" data-i18n="hub.interventionsWeek">Interventions / semaine</h2>
               <select class="card__filter" id="chart-period">
-                <option value="4">4 dernières semaines</option>
-                <option value="12" selected>12 dernières semaines</option>
-                <option value="26">26 dernières semaines</option>
+                <option value="4" data-i18n="t.4_dernieres_semaines">4 dernières semaines</option>
+                <option value="12" selected data-i18n="t.12_dernieres_semaines">12 dernières semaines</option>
+                <option value="26" data-i18n="t.26_dernieres_semaines">26 dernières semaines</option>
               </select>
             </header>
             <div class="card__body">
@@ -3724,11 +3724,11 @@ section[data-view][hidden],
           </div>
 
           <div class="intervention__status" id="int-status">
-            <span class="status-pill status-pill--draft" data-status="draft">Brouillon</span>
+            <span class="status-pill status-pill--draft" data-status="draft" data-i18n="t.brouillon">Brouillon</span>
             <span class="status-pill status-pill--submitted" data-status="submitted" hidden>En attente labo</span>
-            <span class="status-pill status-pill--validated" data-status="validated" hidden>Validé</span>
-            <span class="status-pill status-pill--rejected" data-status="rejected" hidden>Refusé</span>
-            <span class="status-pill status-pill--cancelled" data-status="cancelled" hidden>Annulé</span>
+            <span class="status-pill status-pill--validated" data-status="validated" hidden data-i18n="t.valide">Validé</span>
+            <span class="status-pill status-pill--rejected" data-status="rejected" hidden data-i18n="t.refuse">Refusé</span>
+            <span class="status-pill status-pill--cancelled" data-status="cancelled" hidden data-i18n="t.annule">Annulé</span>
           </div>
 
           <div class="intervention__qr">
@@ -3752,7 +3752,7 @@ section[data-view][hidden],
           </li>
           <li class="stepper__step" data-step="done">
             <span class="stepper__num">4</span>
-            <span class="stepper__label">Clôturé</span>
+            <span class="stepper__label" data-i18n="t.cloture">Clôturé</span>
           </li>
         </ol>
 
@@ -3767,7 +3767,7 @@ section[data-view][hidden],
 
             <div class="intervention__grid intervention__grid--3">
               <div class="field">
-                <label class="field__label" for="int-tool-search">Référence outil</label>
+                <label class="field__label" for="int-tool-search" data-i18n="t.reference_outil">Référence outil</label>
                 <input class="field__input" id="int-tool-search" name="toolSearch" type="text" list="datalist-tools" placeholder="Ex: 2158S" required / autocomplete="off">
                 <datalist id="datalist-tools"></datalist>
               </div>
@@ -3778,7 +3778,7 @@ section[data-view][hidden],
               </div>
 
               <div class="field">
-                <label class="field__label" for="int-fabricant">Fabricant</label>
+                <label class="field__label" for="int-fabricant" data-i18n="t.fabricant">Fabricant</label>
                 <input class="field__input" id="int-fabricant" name="fabricant" type="text" readonly / autocomplete="off">
               </div>
             </div>
@@ -3830,7 +3830,7 @@ section[data-view][hidden],
                   style="background:rgba(255,255,255,.07);font-weight:500" / autocomplete="off">
               </div>
               <div class="field" style="margin-bottom:0">
-                <label class="field__label" for="crimp-tech-mat">
+                <label class="field__label" for="crimp-tech-mat" data-i18n="t.matricule_technicien_crimping">
                   🪪 Matricule technicien crimping
                 </label>
                 <input class="field__input" id="crimp-tech-mat" name="crimpTechMatricule"
@@ -3846,17 +3846,17 @@ section[data-view][hidden],
               </div>
 
               <div class="field">
-                <label class="field__label" for="int-cycles">Cycles compteur</label>
+                <label class="field__label" for="int-cycles" data-i18n="t.cycles_compteur">Cycles compteur</label>
                 <input class="field__input" id="int-cycles" name="cycles" type="number" min="0" inputmode="numeric" required / autocomplete="off">
                 <button class="field__addon" type="button" id="btn-photo-cycles" title="Prendre photo du compteur">📷</button>
               </div>
 
               <div class="field">
-                <label class="field__label" for="int-type">Type d'intervention</label>
+                <label class="field__label" for="int-type" data-i18n="t.type_dintervention">Type d'intervention</label>
                 <select class="field__input" id="int-type" name="type" required>
                   <option value="">— Choisir —</option>
-                  <option value="preventive">Préventive</option>
-                  <option value="curative">Curative</option>
+                  <option value="preventive" data-i18n="t.preventive">Préventive</option>
+                  <option value="curative" data-i18n="t.curative">Curative</option>
                   <option value="requalification">Requalification</option>
                 </select>
               </div>
@@ -3865,14 +3865,14 @@ section[data-view][hidden],
             <div class="field field--full">
               <label class="field__label" aria-label="<span data-i18n="form.piecesChanged">Pièces changées</span>">Pièces changées</label>
               <div class="checkbox-group" id="pieces-group">
-                <label class="checkbox"><input type="checkbox" name="piece" value="pAr" / autocomplete="off"><span>P-AR · Poinçon Arrière</span></label>
-                <label class="checkbox"><input type="checkbox" name="piece" value="pAv" / autocomplete="off"><span>P-AV · Poinçon Avant</span></label>
-                <label class="checkbox"><input type="checkbox" name="piece" value="eAr" / autocomplete="off"><span>E-AR · Enclume Arrière</span></label>
-                <label class="checkbox"><input type="checkbox" name="piece" value="eAv" / autocomplete="off"><span>E-AV · Enclume Avant</span></label>
-                <label class="checkbox"><input type="checkbox" name="piece" value="cAr" / autocomplete="off"><span>C-AR · Couteau Arrière</span></label>
-                <label class="checkbox"><input type="checkbox" name="piece" value="cAv" / autocomplete="off"><span>C-AV · Couteau Avant</span></label>
-                <label class="checkbox"><input type="checkbox" name="piece" value="ejector" / autocomplete="off"><span>Éjecteur</span></label>
-                <label class="checkbox"><input type="checkbox" name="piece" value="couteauBanda" / autocomplete="off"><span>Couteau / Banda</span></label>
+                <label class="checkbox"><input type="checkbox" name="piece" value="pAr" / autocomplete="off"><span data-i18n="t.p-ar_poincon_arriere">P-AR · Poinçon Arrière</span></label>
+                <label class="checkbox"><input type="checkbox" name="piece" value="pAv" / autocomplete="off"><span data-i18n="t.p-av_poincon_avant">P-AV · Poinçon Avant</span></label>
+                <label class="checkbox"><input type="checkbox" name="piece" value="eAr" / autocomplete="off"><span data-i18n="t.e-ar_enclume_arriere">E-AR · Enclume Arrière</span></label>
+                <label class="checkbox"><input type="checkbox" name="piece" value="eAv" / autocomplete="off"><span data-i18n="t.e-av_enclume_avant">E-AV · Enclume Avant</span></label>
+                <label class="checkbox"><input type="checkbox" name="piece" value="cAr" / autocomplete="off"><span data-i18n="t.c-ar_couteau_arriere">C-AR · Couteau Arrière</span></label>
+                <label class="checkbox"><input type="checkbox" name="piece" value="cAv" / autocomplete="off"><span data-i18n="t.c-av_couteau_avant">C-AV · Couteau Avant</span></label>
+                <label class="checkbox"><input type="checkbox" name="piece" value="ejector" / autocomplete="off"><span data-i18n="t.ejecteur">Éjecteur</span></label>
+                <label class="checkbox"><input type="checkbox" name="piece" value="couteauBanda" / autocomplete="off"><span data-i18n="t.couteau_banda">Couteau / Banda</span></label>
               </div>
             </div>
 
@@ -3886,13 +3886,13 @@ section[data-view][hidden],
             <div class="field" id="field-duration" style="background:rgba(0,212,255,.05);border:1px solid var(--border-base);border-radius:10px;padding:.875rem 1rem;margin-top:1rem">
               <label class="field__label" for="int-duration" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
                 ⏱ Temps réel d'intervention (en minutes)
-                <span style="font-size:.7rem;color:var(--text-muted);font-weight:normal">— Saisi par le technicien après l'intervention</span>
+                <span style="font-size:.7rem;color:var(--text-muted);font-weight:normal" data-i18n="t.saisi_par_le_technicien_apres_lintervent">— Saisi par le technicien après l'intervention</span>
               </label>
               <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
                 <input class="field__input" id="int-duration" name="duration" type="number" min="1" max="9999"
                   placeholder="Ex: 45" style="flex:1;min-width:140px;max-width:200px"/ autocomplete="off">
                 <span style="color:var(--text-muted);font-size:.85rem;font-family:var(--font-mono)" id="int-duration-display">—</span>
-                <button type="button" class="btn btn--secondary" id="btn-save-duration" style="padding:.5rem 1rem;font-size:.8rem">
+                <button type="button" class="btn btn--secondary" id="btn-save-duration" style="padding:.5rem 1rem;font-size:.8rem" data-i18n="t.enregistrer_le_temps">
                   💾 Enregistrer le temps
                 </button>
               </div>
@@ -3904,7 +3904,7 @@ section[data-view][hidden],
               <label class="field__label" aria-label="Photo compteur (optionnelle)">Photo compteur (optionnelle)</label>
               <div class="upload" id="upload-cycles">
                 <input type="file" id="file-cycles" accept="image/*" capture="environment" hidden / autocomplete="off">
-                <button class="upload__btn" type="button" data-target="file-cycles">📷 Ajouter une photo</button>
+                <button class="upload__btn" type="button" data-target="file-cycles" data-i18n="t.ajouter_une_photo">📷 Ajouter une photo</button>
                 <div class="upload__preview" id="preview-cycles"></div>
               </div>
             </div>
@@ -3914,7 +3914,7 @@ section[data-view][hidden],
               <div class="signature" id="sign-crimp">
                 <canvas class="signature__pad" id="sign-crimp-pad" width="600" height="160"></canvas>
                 <div class="signature__actions">
-                  <button type="button" class="btn btn--ghost" id="btn-sign-crimp-clear">Effacer</button>
+                  <button type="button" class="btn btn--ghost" id="btn-sign-crimp-clear" data-i18n="t.effacer">Effacer</button>
                   <span class="signature__name" id="sign-crimp-name">—</span>
                 </div>
               </div>
@@ -3942,7 +3942,7 @@ section[data-view][hidden],
                     style="background:rgba(255,255,255,.07);font-weight:500" / autocomplete="off">
                 </div>
                 <div class="field" style="margin-bottom:0">
-                  <label class="field__label" for="labo-tech-mat">
+                  <label class="field__label" for="labo-tech-mat" data-i18n="t.matricule_technicien_laboratoire">
                     🪪 Matricule technicien laboratoire
                   </label>
                   <input class="field__input" id="labo-tech-mat" name="laboTechMatricule"
@@ -3954,14 +3954,14 @@ section[data-view][hidden],
 
             <!-- Connexion -->
             <div class="intervention__subsection">
-              <h3 class="intervention__sub-title">Cordon testé</h3>
+              <h3 class="intervention__sub-title" data-i18n="t.cordon_teste">Cordon testé</h3>
               <div class="intervention__grid intervention__grid--3">
                 <div class="field">
-                  <label class="field__label" for="lab-ref-connexion">Réf. connexion</label>
+                  <label class="field__label" for="lab-ref-connexion" data-i18n="t.ref_connexion">Réf. connexion</label>
                   <input class="field__input" id="lab-ref-connexion" name="refConnexion" type="text" / autocomplete="off">
                 </div>
                 <div class="field">
-                  <label class="field__label" for="lab-section-cable">Section câble</label>
+                  <label class="field__label" for="lab-section-cable" data-i18n="t.section_cable">Section câble</label>
                   <input class="field__input" id="lab-section-cable" name="sectionCable" type="text" placeholder="Ex: 0,35 IR" / autocomplete="off">
                 </div>
               </div>
@@ -3971,9 +3971,9 @@ section[data-view][hidden],
             <div class="intervention__subsection">
               <h3 class="intervention__sub-title" data-i18n="section.conformities">Conformités</h3>
               <div class="checkbox-group checkbox-group--lab">
-                <label class="checkbox"><input type="checkbox" name="conf" value="chanfrein" / autocomplete="off"><span>Conformité chanfrein</span></label>
-                <label class="checkbox"><input type="checkbox" name="conf" value="temoinCoupe" / autocomplete="off"><span>Conformité témoin coupe</span></label>
-                <label class="checkbox"><input type="checkbox" name="conf" value="flexion" / autocomplete="off"><span>Conformité flexion</span></label>
+                <label class="checkbox"><input type="checkbox" name="conf" value="chanfrein" / autocomplete="off"><span data-i18n="t.conformite_chanfrein">Conformité chanfrein</span></label>
+                <label class="checkbox"><input type="checkbox" name="conf" value="temoinCoupe" / autocomplete="off"><span data-i18n="t.conformite_temoin_coupe">Conformité témoin coupe</span></label>
+                <label class="checkbox"><input type="checkbox" name="conf" value="flexion" / autocomplete="off"><span data-i18n="t.conformite_flexion">Conformité flexion</span></label>
               </div>
             </div>
 
@@ -3992,10 +3992,10 @@ section[data-view][hidden],
             <div class="intervention__subsection intervention__subsection--decision">
               <h3 class="intervention__sub-title" data-i18n="section.labDecision">Décision laboratoire</h3>
               <div class="decision" data-requires-role="admin,super_admin,responsable,labo">
-                <button class="decision__btn decision__btn--validate" type="button" id="btn-validate">
+                <button class="decision__btn decision__btn--validate" type="button" id="btn-validate" data-i18n="t.valider_le_bon">
                   ✅ Valider le bon
                 </button>
-                <button class="decision__btn decision__btn--reject" type="button" id="btn-reject">
+                <button class="decision__btn decision__btn--reject" type="button" id="btn-reject" data-i18n="t.refuser_renvoyer_au_crimping">
                   ❌ Refuser & renvoyer au crimping
                 </button>
               </div>
@@ -4005,7 +4005,7 @@ section[data-view][hidden],
                 <div class="signature" id="sign-lab">
                   <canvas class="signature__pad" id="sign-lab-pad" width="600" height="160"></canvas>
                   <div class="signature__actions">
-                    <button type="button" class="btn btn--ghost" id="btn-sign-lab-clear">Effacer</button>
+                    <button type="button" class="btn btn--ghost" id="btn-sign-lab-clear" data-i18n="t.effacer">Effacer</button>
                     <span class="signature__name" id="sign-lab-name">—</span>
                   </div>
                 </div>
@@ -4036,9 +4036,9 @@ section[data-view][hidden],
             <div class="intervention__actions-right">
               <button type="button" class="btn btn--ghost" id="btn-int-print">🖨 Imprimer A4</button>
               <button type="button" class="btn btn--ghost" id="btn-int-export">📤 Export PDF</button>
-              <button type="button" class="btn btn--danger btn--ghost" id="btn-int-delete" data-requires-role="responsable,super_admin,admin">🗑 Supprimer</button>
-              <button type="button" class="btn btn--secondary" id="btn-int-save" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">💾 Enregistrer brouillon</button>
-              <button type="submit" class="btn btn--primary" id="btn-int-submit" data-requires-role="admin,super_admin,responsable,crimp,crimping">📨 Soumettre au labo</button>
+              <button type="button" class="btn btn--danger btn--ghost" id="btn-int-delete" data-requires-role="responsable,super_admin,admin" data-i18n="t.supprimer">🗑 Supprimer</button>
+              <button type="button" class="btn btn--secondary" id="btn-int-save" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo" data-i18n="t.enregistrer_brouillon">💾 Enregistrer brouillon</button>
+              <button type="submit" class="btn btn--primary" id="btn-int-submit" data-requires-role="admin,super_admin,responsable,crimp,crimping" data-i18n="t.soumettre_au_labo">📨 Soumettre au labo</button>
             </div>
           </footer>
         </form>
@@ -4051,12 +4051,12 @@ section[data-view][hidden],
       <section class="history" id="view-history" data-view="history" hidden>
         <header class="history__header">
           <h1 class="history__title" data-i18n="history.title">Suivi des maintenances</h1>
-          <p class="history__subtitle">Validation des outils de sertissage</p>
+          <p class="history__subtitle" data-i18n="t.validation_des_outils_de_sertissage">Validation des outils de sertissage</p>
         </header>
 
         <div class="history__filters" id="history-filters">
           <div class="filter">
-            <label class="filter__label" for="filter-tool">Outil</label>
+            <label class="filter__label" for="filter-tool" data-i18n="t.outil">Outil</label>
             <input class="filter__input" id="filter-tool" type="text" list="datalist-tools" placeholder="Tous les outils" / autocomplete="off">
           </div>
 
@@ -4073,31 +4073,31 @@ section[data-view][hidden],
           <div class="filter">
             <label class="filter__label" for="filter-type">Type</label>
             <select class="filter__input" id="filter-type">
-              <option value="">Tous</option>
-              <option value="preventive">Préventive</option>
-              <option value="curative">Curative</option>
+              <option value="" data-i18n="t.tous">Tous</option>
+              <option value="preventive" data-i18n="t.preventive">Préventive</option>
+              <option value="curative" data-i18n="t.curative">Curative</option>
               <option value="requalification">Requalification</option>
             </select>
           </div>
 
           <div class="filter">
-            <label class="filter__label" for="filter-status">Statut</label>
+            <label class="filter__label" for="filter-status" data-i18n="t.statut">Statut</label>
             <select class="filter__input" id="filter-status">
-              <option value="">Tous</option>
-              <option value="draft">Brouillon</option>
+              <option value="" data-i18n="t.tous">Tous</option>
+              <option value="draft" data-i18n="t.brouillon">Brouillon</option>
               <option value="submitted">En attente</option>
-              <option value="validated">Validé</option>
-              <option value="rejected">Refusé</option>
+              <option value="validated" data-i18n="t.valide">Validé</option>
+              <option value="rejected" data-i18n="t.refuse">Refusé</option>
             </select>
           </div>
 
           <div class="filter">
-            <label class="filter__label" for="filter-tech">Technicien</label>
+            <label class="filter__label" for="filter-tech" data-i18n="t.technicien">Technicien</label>
             <input class="filter__input" id="filter-tech" type="text" / autocomplete="off">
           </div>
 
           <div class="filter filter--actions">
-            <button class="btn btn--ghost" id="btn-filter-reset">Réinitialiser</button>
+            <button class="btn btn--ghost" id="btn-filter-reset" data-i18n="t.reinitialiser">Réinitialiser</button>
             <button class="btn btn--secondary" id="btn-filter-export">📤 Excel</button>
             <button class="btn btn--secondary" id="btn-filter-print">🖨 Imprimer</button>
           </div>
@@ -4109,13 +4109,13 @@ section[data-view][hidden],
               <tr>
                 <th><input type="checkbox" id="check-all" / autocomplete="off"></th>
                 <th data-sort="numBon">N° Bon</th>
-                <th data-sort="outilId">Outil</th>
-                <th data-sort="date">Date</th>
-                <th data-sort="cycles">Cycles</th>
+                <th data-sort="outilId" data-i18n="t.outil">Outil</th>
+                <th data-sort="date" data-i18n="t.date">Date</th>
+                <th data-sort="cycles" data-i18n="t.cycles">Cycles</th>
                 <th data-sort="type">Type</th>
-                <th>Observation</th>
-                <th>Coupe métallo</th>
-                <th data-sort="status">Statut</th>
+                <th data-i18n="t.observation">Observation</th>
+                <th data-i18n="t.coupe_metallo">Coupe métallo</th>
+                <th data-sort="status" data-i18n="t.statut">Statut</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -4126,7 +4126,7 @@ section[data-view][hidden],
         </div>
 
         <footer class="history__pagination">
-          <span class="history__total" id="history-total">— résultats</span>
+          <span class="history__total" id="history-total" data-i18n="t.resultats">— résultats</span>
           <div class="history__pager">
             <button class="btn btn--ghost" id="page-prev">←</button>
             <span id="page-info">1 / 1</span>
@@ -4149,10 +4149,10 @@ section[data-view][hidden],
         <header class="queue-view__header">
           <h1 class="queue-view__title" data-i18n="queue.title">Ma file d'attente</h1>
           <div class="queue-view__tabs" role="tablist">
-            <button class="tab tab--active" role="tab" data-tab="all">Tous</button>
-            <button class="tab" role="tab" data-tab="mine">Les miens</button>
+            <button class="tab tab--active" role="tab" data-tab="all" data-i18n="t.tous">Tous</button>
+            <button class="tab" role="tab" data-tab="mine" data-i18n="t.les_miens">Les miens</button>
             <button class="tab" role="tab" data-tab="todo">À traiter</button>
-            <button class="tab" role="tab" data-tab="rejected">Refusés</button>
+            <button class="tab" role="tab" data-tab="rejected" data-i18n="t.refuses">Refusés</button>
           </div>
         </header>
 
@@ -4169,7 +4169,7 @@ section[data-view][hidden],
         <header class="catalog__header">
           <h1 class="catalog__title" data-i18n="catalog.title">Catalogue outils</h1>
           <div class="catalog__actions">
-            <input class="catalog__search" id="catalog-search" type="search" placeholder="Rechercher un outil…" / autocomplete="off">
+            <input class="catalog__search" id="catalog-search" type="search" placeholder="Rechercher par serial, groupe, projet, fournisseur…" / autocomplete="off">
             <button class="btn btn--secondary" id="btn-catalog-import">📥 Importer Excel</button>
             <button class="btn btn--secondary" id="btn-catalog-export"><span data-i18n="action.exportExcel">📤 Exporter Excel</span></button>
             <button class="btn btn--primary" id="btn-catalog-add" data-requires-role="responsable,super_admin,admin">＋ Nouvel outil</button>
@@ -4209,9 +4209,9 @@ section[data-view][hidden],
           <select id="cat-filter-sort" class="filter__input" style="font-size:.85rem;min-width:160px">
             <option value="name">📝 Trier par nom</option>
             <option value="cycles">🔄 Trier par cycles</option>
-            <option value="recent">🕒 Récents d'abord</option>
+            <option value="recent" data-i18n="t.recents_dabord">🕒 Récents d'abord</option>
           </select>
-          <span id="cat-result-count" style="margin-left:auto;font-size:.78rem;color:var(--text-muted);font-weight:600">— résultat(s)</span>
+          <span id="cat-result-count" style="margin-left:auto;font-size:.78rem;color:var(--text-muted);font-weight:600" data-i18n="t.resultats_2">— résultat(s)</span>
           <button class="btn btn--secondary" id="btn-catalog-clean" data-requires-role="admin,super_admin"
                   title="Supprimer tous les outils sans réf, sans fab et sans nom"
                   style="background:rgba(255,61,90,.12);color:#ff3d5a;border:1px solid rgba(255,61,90,.3);font-size:.78rem;padding:.4rem .8rem">
@@ -4242,9 +4242,9 @@ section[data-view][hidden],
               <th>Matricule</th>
               <th>Email</th>
               <th>🔑 Mot de passe</th>
-              <th>Rôle</th>
-              <th>Statut</th>
-              <th>Dernière connexion</th>
+              <th data-i18n="t.role">Rôle</th>
+              <th data-i18n="t.statut">Statut</th>
+              <th data-i18n="t.derniere_connexion">Dernière connexion</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -4260,7 +4260,7 @@ section[data-view][hidden],
         <header class="view-header">
           <div>
             <h1 class="view-header__title" data-i18n="pdr.title">🔧 Suivi des Pièces De Rechange (PDR)</h1>
-            <p class="view-header__subtitle">📋 Lecture seule — Suivi des pièces remplacées dans les bons d'intervention</p>
+            <p class="view-header__subtitle" data-i18n="t.lecture_seule_suivi_des_pieces_remplacee">📋 Lecture seule — Suivi des pièces remplacées dans les bons d'intervention</p>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
             <button class="btn btn--ghost" id="btn-pdr-export" title="Télécharger la liste filtrée en Excel">📥 Exporter Excel</button>
@@ -4303,7 +4303,7 @@ section[data-view][hidden],
 
         <!-- Filtre période -->
         <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center;background:var(--bg-2);padding:.85rem 1rem;border-radius:10px;border:1px solid var(--border-base)">
-          <span style="font-size:.78rem;font-weight:600;color:var(--text-muted)">📅 Période :</span>
+          <span style="font-size:.78rem;font-weight:600;color:var(--text-muted)" data-i18n="t.periode">📅 Période :</span>
           <select class="field__input" id="pdr-filter-period" style="max-width:200px;font-size:.9rem;font-weight:600">
             <option value="all" data-i18n="filter.allPeriods">Toutes périodes</option>
             <option value="today" data-i18n="filter.today">Aujourd'hui</option>
@@ -4312,7 +4312,7 @@ section[data-view][hidden],
             <option value="quarter" data-i18n="filter.quarter">Ce trimestre</option>
             <option value="year" data-i18n="filter.year">Cette année</option>
           </select>
-          <span style="margin-left:auto;font-size:.85rem;color:var(--accent-500);font-weight:600" id="pdr-results-count">0 résultat(s)</span>
+          <span style="margin-left:auto;font-size:.85rem;color:var(--accent-500);font-weight:600" id="pdr-results-count" data-i18n="t.0_resultats">0 résultat(s)</span>
         </div>
 
         <!-- Tableau -->
@@ -4324,8 +4324,8 @@ section[data-view][hidden],
                 <th>📋 N° Bon</th>
                 <th>🛠 N° Outil</th>
                 <th>🏭 Fabricant</th>
-                <th>📐 Réf. Outil</th>
-                <th>🔧 PDR Changée(s)</th>
+                <th data-i18n="t.ref_outil">📐 Réf. Outil</th>
+                <th data-i18n="t.pdr_changees">🔧 PDR Changée(s)</th>
                 <th>👤 Technicien</th>
                 <th>📊 Statut</th>
               </tr>
@@ -4373,8 +4373,8 @@ section[data-view][hidden],
               <thead>
                 <tr style="background:#0a3548">
                   <th style="padding:.7rem;text-align:left;color:#00d4ff;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Rang</th>
-                  <th style="padding:.7rem;text-align:left;color:#00d4ff;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Référence Fabricant</th>
-                  <th style="padding:.7rem;text-align:left;color:#00d4ff;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Type Pièce</th>
+                  <th style="padding:.7rem;text-align:left;color:#00d4ff;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em" data-i18n="t.reference_fabricant">Référence Fabricant</th>
+                  <th style="padding:.7rem;text-align:left;color:#00d4ff;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em" data-i18n="t.type_piece">Type Pièce</th>
                   <th style="padding:.7rem;text-align:left;color:#00d4ff;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Outil(s)</th>
                   <th style="padding:.7rem;text-align:center;color:#00d4ff;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Nb changements</th>
                   <th style="padding:.7rem;text-align:left;color:#00d4ff;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">Tendance</th>
@@ -4411,16 +4411,16 @@ section[data-view][hidden],
       <section class="history" id="view-demandes-pdr" data-view="demandes-pdr" hidden>
         <header class="history__header">
           <div>
-            <h1 class="history__title">📦 Demandes PDR</h1>
+            <h1 class="history__title" data-i18n="t.demandes_pdr_2">📦 Demandes PDR</h1>
             <p style="color:var(--text-secondary);font-size:.875rem">
               Coordination directe entre techniciens crimping et magasiniers — sans cross-user notifications
             </p>
           </div>
           <div style="display:flex;gap:.5rem;align-items:center">
             <select id="pdr-req-filter" class="filter__input" style="font-size:.85rem;font-weight:600">
-              <option value="all">Toutes les demandes</option>
+              <option value="all" data-i18n="t.toutes_les_demandes">Toutes les demandes</option>
               <option value="pending" selected>📋 En attente</option>
-              <option value="ready">✅ Rassemblées</option>
+              <option value="ready" data-i18n="t.rassemblees">✅ Rassemblées</option>
               <option value="unavailable">❌ Non disponibles</option>
             </select>
             <button class="btn btn--secondary" id="btn-pdr-req-refresh">↻ Actualiser</button>
@@ -4472,8 +4472,8 @@ section[data-view][hidden],
       <!-- ================================================================= -->
       <section class="history" id="view-auditlog" data-view="auditlog" hidden>
         <header class="history__header">
-          <h1 class="history__title">Journal d'audit</h1>
-          <p style="color:var(--text-secondary);font-size:.875rem">100 dernières actions administrateur</p>
+          <h1 class="history__title" data-i18n="t.journal_daudit">Journal d'audit</h1>
+          <p style="color:var(--text-secondary);font-size:.875rem" data-i18n="t.100_dernieres_actions_administrateur">100 dernières actions administrateur</p>
         </header>
         <div class="history__tablewrap">
           <table class="data-table">
@@ -4482,7 +4482,7 @@ section[data-view][hidden],
                 <th>Date & heure</th>
                 <th>Utilisateur</th>
                 <th>Action</th>
-                <th>Entité</th>
+                <th data-i18n="t.entite">Entité</th>
                 <th>UID</th>
               </tr>
             </thead>
@@ -4501,7 +4501,7 @@ section[data-view][hidden],
         <header class="history__header">
           <div>
             <h1 class="history__title">🔩 <span data-i18n="stock.title">Pièces de Rechange & Stock</span></h1>
-            <p style="color:var(--text-secondary);font-size:.875rem" id="pc-lbl">— Aucun fichier chargé</p>
+            <p style="color:var(--text-secondary);font-size:.875rem" id="pc-lbl" data-i18n="t.aucun_fichier_charge">— Aucun fichier chargé</p>
           </div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap" id="pc-actions">
 
@@ -4523,7 +4523,7 @@ section[data-view][hidden],
                 📥 Importer
                 <input type="file" accept=".xlsx,.xls" id="pc-orders-xl-input" style="position:absolute;inset:0;opacity:0;cursor:pointer;z-index:1"/ autocomplete="off">
               </label>
-              <button class="btn btn--secondary" id="pc-orders-template-btn" title="Télécharger un modèle Excel vide à remplir">📋 Modèle</button>
+              <button class="btn btn--secondary" id="pc-orders-template-btn" title="Télécharger un modèle Excel vide à remplir" data-i18n="t.modele">📋 Modèle</button>
             </div>
 
             <button class="btn btn--secondary" id="pc-refresh-btn" title="Recharger les données">↻ Actualiser</button>
@@ -4577,8 +4577,8 @@ section[data-view][hidden],
         <details id="pc-history-block" style="background:rgba(0,212,255,.04);border:1px solid var(--border-base);border-radius:10px;margin-bottom:1rem">
           <summary style="cursor:pointer;padding:.7rem 1rem;font-size:.82rem;font-weight:600;color:var(--accent-500);display:flex;align-items:center;gap:.5rem;list-style:none">
             <span>📋</span>
-            <span>Historique des injections</span>
-            <span style="margin-left:auto;color:var(--text-muted);font-weight:400;font-size:.72rem" id="pc-history-count">— enregistrements</span>
+            <span data-i18n="t.historique_des_injections">Historique des injections</span>
+            <span style="margin-left:auto;color:var(--text-muted);font-weight:400;font-size:.72rem" id="pc-history-count" data-i18n="t.enregistrements">— enregistrements</span>
           </summary>
           <div id="pc-history" style="padding:.4rem .2rem"></div>
         </details>
@@ -4644,7 +4644,7 @@ section[data-view][hidden],
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:.72rem;color:var(--text-muted);padding:.4rem .2rem">
             <span id="pc-col-info">— colonnes</span>
-            <span>Données depuis fichier Excel</span>
+            <span data-i18n="t.donnees_depuis_fichier_excel">Données depuis fichier Excel</span>
           </div>
         </div>
       </section>
@@ -4656,7 +4656,7 @@ section[data-view][hidden],
         <header class="history__header">
           <div>
             <h1 class="history__title">📊 Performance Équipe</h1>
-            <p style="color:var(--text-secondary);font-size:.875rem">Temps de travail des techniciens crimping par intervention</p>
+            <p style="color:var(--text-secondary);font-size:.875rem" data-i18n="t.temps_de_travail_des_techniciens_crimpin">Temps de travail des techniciens crimping par intervention</p>
           </div>
           <div style="display:flex;gap:.5rem">
             <select class="filter__input" id="perf-period" style="min-width:160px">
@@ -4709,7 +4709,7 @@ section[data-view][hidden],
         <div class="hub__grid" style="grid-template-columns:1fr 1fr;gap:1.25rem">
           <article class="card" style="padding:1.5rem">
             <header class="card__header" style="margin-bottom:1rem">
-              <h2 class="card__title">📊 Heures totales par technicien</h2>
+              <h2 class="card__title" data-i18n="t.heures_totales_par_technicien">📊 Heures totales par technicien</h2>
             </header>
             <div style="height:280px;position:relative">
               <canvas id="chart-perf-total"></canvas>
@@ -4725,7 +4725,7 @@ section[data-view][hidden],
           </article>
           <article class="card" style="padding:1.5rem;grid-column:1/-1">
             <header class="card__header" style="margin-bottom:1rem">
-              <h2 class="card__title">📈 Évolution des heures travaillées (par semaine)</h2>
+              <h2 class="card__title" data-i18n="t.evolution_des_heures_travaillees_par_sem">📈 Évolution des heures travaillées (par semaine)</h2>
             </header>
             <div style="height:300px;position:relative">
               <canvas id="chart-perf-trend"></canvas>
@@ -4736,15 +4736,15 @@ section[data-view][hidden],
         <!-- Tableau détaillé -->
         <article class="card" style="margin-top:1.5rem;padding:1.5rem">
           <header class="card__header" style="margin-bottom:1rem">
-            <h2 class="card__title">📋 Détail par technicien</h2>
+            <h2 class="card__title" data-i18n="t.detail_par_technicien">📋 Détail par technicien</h2>
           </header>
           <div class="history__tablewrap">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Technicien</th>
+                  <th data-i18n="t.technicien">Technicien</th>
                   <th>Matricule</th>
-                  <th style="text-align:right">Bons traités</th>
+                  <th style="text-align:right" data-i18n="t.bons_traites">Bons traités</th>
                   <th style="text-align:right">Temps total</th>
                   <th style="text-align:right">Temps moyen</th>
                   <th style="text-align:right">Plus long</th>
@@ -4770,7 +4770,7 @@ section[data-view][hidden],
         <button id="btn-notif-close" aria-label="Fermer">×</button>
       </header>
       <div id="notif-perm-banner" hidden style="padding:.75rem 1rem;background:rgba(255,180,0,.10);border-bottom:1px solid var(--border-soft);font-size:var(--fs-sm);display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
-        <span style="flex:1">🔔 Active les alertes système pour ne rater aucun bon</span>
+        <span style="flex:1" data-i18n="t.active_les_alertes_systeme_pour_ne_rater">🔔 Active les alertes système pour ne rater aucun bon</span>
         <button id="btn-notif-enable" class="btn btn--primary" style="padding:.4rem .8rem;font-size:.78rem;font-weight:600">Activer</button>
       </div>
       <ul class="notif-panel__list" id="notif-list"></ul>
@@ -4788,15 +4788,15 @@ section[data-view][hidden],
     <div class="modal__backdrop" data-close></div>
     <div class="modal__panel">
       <header class="modal__header">
-        <h2 class="modal__title" id="confirm-title">Confirmer</h2>
+        <h2 class="modal__title" id="confirm-title" data-i18n="t.confirmer">Confirmer</h2>
         <button class="modal__close" data-close aria-label="Fermer">×</button>
       </header>
       <div class="modal__body">
-        <p id="confirm-message">Êtes-vous sûr ?</p>
+        <p id="confirm-message" data-i18n="t.etes-vous_sur">Êtes-vous sûr ?</p>
       </div>
       <footer class="modal__footer">
-        <button class="btn btn--ghost" data-close>Annuler</button>
-        <button class="btn btn--primary" id="confirm-ok">Confirmer</button>
+        <button class="btn btn--ghost" data-close data-i18n="t.annuler">Annuler</button>
+        <button class="btn btn--primary" id="confirm-ok" data-i18n="t.confirmer">Confirmer</button>
       </footer>
     </div>
   </div>
@@ -4806,7 +4806,7 @@ section[data-view][hidden],
     <div class="modal__backdrop" data-close></div>
     <div class="modal__panel">
       <header class="modal__header">
-        <h2 class="modal__title">Refuser le bon</h2>
+        <h2 class="modal__title" data-i18n="t.refuser_le_bon">Refuser le bon</h2>
         <button class="modal__close" data-close aria-label="Fermer">×</button>
       </header>
       <div class="modal__body">
@@ -4816,7 +4816,7 @@ section[data-view][hidden],
         </div>
       </div>
       <footer class="modal__footer">
-        <button class="btn btn--ghost" data-close>Annuler</button>
+        <button class="btn btn--ghost" data-close data-i18n="t.annuler">Annuler</button>
         <button class="btn btn--danger" id="btn-confirm-reject">Refuser & renvoyer</button>
       </footer>
     </div>
@@ -4831,21 +4831,68 @@ section[data-view][hidden],
         <button class="modal__close" data-close aria-label="Fermer">×</button>
       </header>
       <form class="modal__body" id="form-tool">
+        <!-- ── Section 1 : Identification ── -->
+        <div style="margin-bottom:.5rem;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-500);font-weight:700">
+          🆔 Identification
+        </div>
         <div class="intervention__grid intervention__grid--2">
-          <div class="field"><label aria-label="Réf outil">Réf outil</label><input name="refOutil" required / autocomplete="off"></div>
-          <div class="field"><label aria-label="OUTIL ID">OUTIL ID</label><input name="outilId" required / autocomplete="off"></div>
-          <div class="field"><label aria-label="Fabricant">Fabricant</label><input name="fabricant" / autocomplete="off"></div>
-          <div class="field"><label aria-label="Réf fabricant">Réf fabricant</label><input name="refFabricant" / autocomplete="off"></div>
-          <div class="field"><label aria-label="P-AR">P-AR</label><input name="pAr" / autocomplete="off"></div>
-          <div class="field"><label aria-label="P-AV">P-AV</label><input name="pAv" / autocomplete="off"></div>
-          <div class="field"><label aria-label="E-AR">E-AR</label><input name="eAr" / autocomplete="off"></div>
-          <div class="field"><label aria-label="E-AV">E-AV</label><input name="eAv" / autocomplete="off"></div>
-          <div class="field"><label aria-label="Fréquence cycle">Fréquence cycle</label><input name="frequenceCycle" type="number" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Groupe">Groupe</label><input name="groupe" placeholder="Ex: 7188, 8051J" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Connection">Connection</label><input name="connection" placeholder="Ex: P00118418" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Terminal">Terminal</label><input name="terminal" / autocomplete="off"></div>
+          <div class="field"><label aria-label="N° Contact">N° Contact - Outils</label><input name="numContact" / autocomplete="off"></div>
+          <div class="field"><label aria-label="D'Outils">D'Outils</label><input name="doutils" placeholder="Ex: WZ7144" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Serial">Serial (unique) *</label><input name="serial" placeholder="Ex: S1214" / autocomplete="off"></div>
+          <div class="field"><label aria-label="N° Inventaire">N° Inventaire D'Outils</label><input name="numInventaire" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Fréquence cycle" data-i18n="t.frequence_cycle">Fréquence cycle</label><input name="frequenceCycle" type="number" / autocomplete="off"></div>
+        </div>
+
+        <!-- ── Section 2 : Compatibilité ancienne ── -->
+        <div style="margin:1.25rem 0 .5rem;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-500);font-weight:700">
+          📋 Compatibilité (anciens champs)
+        </div>
+        <div class="intervention__grid intervention__grid--2">
+          <div class="field"><label aria-label="Réf outil" data-i18n="t.ref_outil_2">Réf outil</label><input name="refOutil" / autocomplete="off"></div>
+          <div class="field"><label aria-label="OUTIL ID">OUTIL ID</label><input name="outilId" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Fabricant" data-i18n="t.fabricant">Fabricant</label><input name="fabricant" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Réf fabricant" data-i18n="t.ref_fabricant">Réf fabricant</label><input name="refFabricant" / autocomplete="off"></div>
+        </div>
+
+        <!-- ── Section 3 : Pièces (poinçons, enclumes, couteaux) ── -->
+        <div style="margin:1.25rem 0 .5rem;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:#ffb547;font-weight:700">
+          🔧 Pièces (PDR)
+        </div>
+        <div class="intervention__grid intervention__grid--2">
+          <div class="field"><label aria-label="Poinçon condu">P-AR · Poinçon condu (Wire Crimper)</label><input name="pAr" placeholder="Ex: 3C-1.27-2.6-7.0" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Poinçon isolant">P-AV · Poinçon isolant (Ins Crimper)</label><input name="pAv" placeholder="Ex: 3IO-3.05-3.2-8.0" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Enclume condu">E-AR · Enclume condu (Anvil)</label><input name="eAr" placeholder="Ex: 3AC-1.28-3.0-F" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Enclume isolant">E-AV · Enclume Isolant (Anvil)</label><input name="eAv" placeholder="Ex: 3AIO-3.05-3.6-0.8" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Couteaux">C-AR · Couteaux (Floating Shear)</label><input name="cAr" placeholder="Ex: YJM-S300A-04-05" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Martrice couteau">C-AV · Matrice couteau (Shear)</label><input name="cAv" placeholder="Ex: YJM-S300A-04-10" / autocomplete="off"></div>
+        </div>
+
+        <!-- ── Section 4 : Presseur & Matrices ── -->
+        <div style="margin:1.25rem 0 .5rem;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:#00e5a0;font-weight:700">
+          ⚙️ Presseur & Matrices
+        </div>
+        <div class="intervention__grid intervention__grid--2">
+          <div class="field"><label aria-label="Presseur">Presseur (hold down)</label><input name="presseur" placeholder="Ex: AS3B2E-18-19.19.75" / autocomplete="off"></div>
+          <div class="field"></div>
+          <div class="field"><label aria-label="Matrice avant">Matrice -AVANT</label><input name="matriceAvant" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Matrice arrière">Matrice -ARRIERE</label><input name="matriceArriere" / autocomplete="off"></div>
+        </div>
+
+        <!-- ── Section 5 : Logistique ── -->
+        <div style="margin:1.25rem 0 .5rem;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:#ff8b6b;font-weight:700">
+          🏭 Logistique
+        </div>
+        <div class="intervention__grid intervention__grid--2">
+          <div class="field"><label aria-label="Fournisseur">Fournisseur</label><input name="fournisseur" placeholder="Ex: THB" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Projet">Projet</label><input name="projet" placeholder="Ex: C-NEO" / autocomplete="off"></div>
         </div>
       </form>
       <footer class="modal__footer">
-        <button class="btn btn--ghost" data-close>Annuler</button>
-        <button class="btn btn--primary" id="btn-tool-save">Enregistrer</button>
+        <button class="btn btn--ghost" data-close data-i18n="t.annuler">Annuler</button>
+        <button class="btn btn--primary" id="btn-tool-save" data-i18n="t.enregistrer">Enregistrer</button>
       </footer>
     </div>
   </div>
@@ -4877,16 +4924,16 @@ section[data-view][hidden],
 
         <div class="intervention__grid intervention__grid--2">
           <div class="field">
-            <label class="field__label" for="user-matricule">Matricule *</label>
+            <label class="field__label" for="user-matricule" data-i18n="t.matricule">Matricule *</label>
             <input class="field__input" id="user-matricule" name="matricule" required placeholder="Ex: LN-C-003" autocomplete="off" style="font-family:var(--font-mono);font-weight:600"/>
           </div>
           <div class="field">
-            <label class="field__label" for="user-role">Rôle *</label>
+            <label class="field__label" for="user-role" data-i18n="t.role_2">Rôle *</label>
             <select class="field__input" id="user-role" name="role" required>
               <option value="crimp">🟢 Technicien Crimping</option>
               <option value="labo">🔵 Technicien Laboratoire</option>
               <option value="magasinier">📦 Magasinier</option>
-              <option value="responsable">🟡 Responsable Maintenance</option>
+              <option value="responsable" data-i18n="t.responsable_maintenance">🟡 Responsable Maintenance</option>
               <option value="admin">🔴 Administrateur</option>
             </select>
           </div>
@@ -4913,11 +4960,11 @@ section[data-view][hidden],
                    style="font-family:var(--font-mono);font-size:1rem;flex:1"/>
             <button type="button" id="btn-pwd-generate" class="btn btn--ghost"
                     style="font-size:.78rem;padding:.55rem .85rem;white-space:nowrap"
-                    title="Générer un mot de passe aléatoire">
+                    title="Générer un mot de passe aléatoire" data-i18n="t.generer">
               🎲 Générer
             </button>
           </div>
-          <span style="font-size:.7rem;color:var(--warn-500);margin-top:.25rem;display:block">⚠ Notez ce mot de passe et communiquez-le à l'utilisateur</span>
+          <span style="font-size:.7rem;color:var(--warn-500);margin-top:.25rem;display:block" data-i18n="t.notez_ce_mot_de_passe_et_communiquez-le_">⚠ Notez ce mot de passe et communiquez-le à l'utilisateur</span>
         </div>
 
         <!-- Champs cachés pour compatibilité (PIN désactivé mais on garde le champ pour ne pas casser le code existant) -->
@@ -4929,8 +4976,8 @@ section[data-view][hidden],
 
       </form>
       <footer class="modal__footer">
-        <button class="btn btn--ghost" data-close>Annuler</button>
-        <button class="btn btn--primary" id="btn-user-save">✓ Créer l'utilisateur</button>
+        <button class="btn btn--ghost" data-close data-i18n="t.annuler">Annuler</button>
+        <button class="btn btn--primary" id="btn-user-save" data-i18n="t.creer_lutilisateur">✓ Créer l'utilisateur</button>
       </footer>
     </div>
   </div>
@@ -4944,33 +4991,33 @@ section[data-view][hidden],
     <div class="modal__backdrop"></div>
     <div class="modal__panel" style="max-width:520px">
       <div class="modal__header">
-        <h2 class="modal__title" id="modal-stock-title">📦 Nouvelle pièce</h2>
+        <h2 class="modal__title" id="modal-stock-title" data-i18n="t.nouvelle_piece">📦 Nouvelle pièce</h2>
         <button class="modal__close" id="btn-stock-close" type="button">✕</button>
       </div>
       <div class="modal__body">
         <div class="intervention__grid intervention__grid--2">
           <div class="field">
-            <label class="field__label" for="stock-ref">Référence *</label><input class="field__input" id="stock-ref" type="text" placeholder="Ex: P-WZ-2158-001" required/ autocomplete="off">
+            <label class="field__label" for="stock-ref" data-i18n="t.reference">Référence *</label><input class="field__input" id="stock-ref" type="text" placeholder="Ex: P-WZ-2158-001" required/ autocomplete="off">
           </div>
           <div class="field">
-            <label class="field__label" for="stock-cat">Catégorie</label><input class="field__input" id="stock-cat" type="text" placeholder="Ex: Poinçon, Enclume, Lame" list="stock-cat-list"/ autocomplete="off">
+            <label class="field__label" for="stock-cat" data-i18n="t.categorie">Catégorie</label><input class="field__input" id="stock-cat" type="text" placeholder="Ex: Poinçon, Enclume, Lame" list="stock-cat-list"/ autocomplete="off">
             <datalist id="stock-cat-list"></datalist>
           </div>
         </div>
         <div class="field">
-          <label class="field__label" for="stock-desig">Désignation *</label><input class="field__input" id="stock-desig" type="text" placeholder="Description de la pièce" required/ autocomplete="off">
+          <label class="field__label" for="stock-desig" data-i18n="t.designation">Désignation *</label><input class="field__input" id="stock-desig" type="text" placeholder="Description de la pièce" required/ autocomplete="off">
         </div>
         <div class="intervention__grid intervention__grid--2">
           <div class="field">
-            <label class="field__label" for="stock-supplier">Fournisseur</label><input class="field__input" id="stock-supplier" type="text" placeholder="Ex: WEZAG"/ autocomplete="off">
+            <label class="field__label" for="stock-supplier" data-i18n="t.fournisseur">Fournisseur</label><input class="field__input" id="stock-supplier" type="text" placeholder="Ex: WEZAG"/ autocomplete="off">
           </div>
           <div class="field">
-            <label class="field__label" for="stock-supplier-ref">Réf. fournisseur</label><input class="field__input" id="stock-supplier-ref" type="text"/ autocomplete="off">
+            <label class="field__label" for="stock-supplier-ref" data-i18n="t.ref_fournisseur">Réf. fournisseur</label><input class="field__input" id="stock-supplier-ref" type="text"/ autocomplete="off">
           </div>
         </div>
         <div class="intervention__grid intervention__grid--3">
           <div class="field">
-            <label class="field__label" for="stock-qty">Quantité actuelle *</label><input class="field__input" id="stock-qty" type="number" min="0" required/ autocomplete="off">
+            <label class="field__label" for="stock-qty" data-i18n="t.quantite_actuelle">Quantité actuelle *</label><input class="field__input" id="stock-qty" type="number" min="0" required/ autocomplete="off">
           </div>
           <div class="field">
             <label class="field__label" for="stock-min">Seuil minimum *</label><input class="field__input" id="stock-min" type="number" min="0" placeholder="5" required/ autocomplete="off">
@@ -4980,12 +5027,12 @@ section[data-view][hidden],
           </div>
         </div>
         <div class="field">
-          <label class="field__label" for="stock-location">Emplacement</label><input class="field__input" id="stock-location" type="text" placeholder="Ex: Étagère A3-12"/ autocomplete="off">
+          <label class="field__label" for="stock-location" data-i18n="t.emplacement">Emplacement</label><input class="field__input" id="stock-location" type="text" placeholder="Ex: Étagère A3-12"/ autocomplete="off">
         </div>
       </div>
       <div class="modal__footer">
-        <button class="btn btn--ghost" id="btn-stock-cancel" type="button">Annuler</button>
-        <button class="btn btn--primary" id="btn-stock-save" type="button">💾 Enregistrer</button>
+        <button class="btn btn--ghost" id="btn-stock-cancel" type="button" data-i18n="t.annuler">Annuler</button>
+        <button class="btn btn--primary" id="btn-stock-save" type="button" data-i18n="t.enregistrer_2">💾 Enregistrer</button>
       </div>
     </div>
   </div>
@@ -5022,7 +5069,7 @@ section[data-view][hidden],
         </div>
       </div>
       <div class="modal__footer">
-        <button class="btn btn--ghost" id="btn-import-cancel" type="button">Fermer</button>
+        <button class="btn btn--ghost" id="btn-import-cancel" type="button" data-i18n="t.fermer">Fermer</button>
       </div>
     </div>
   </div>
@@ -5034,12 +5081,12 @@ section[data-view][hidden],
     <div class="modal__backdrop"></div>
     <div class="modal__panel" style="max-width:380px;text-align:center">
       <div style="font-size:2.5rem;margin-bottom:.5rem">⏰</div>
-      <h2 class="modal__title" style="margin-bottom:.5rem">Session sur le point d'expirer</h2>
+      <h2 class="modal__title" style="margin-bottom:.5rem" data-i18n="t.session_sur_le_point_dexpirer">Session sur le point d'expirer</h2>
       <p style="color:var(--text-secondary);font-size:.875rem;margin-bottom:1.25rem">
         Votre session va expirer dans <strong id="session-countdown">120</strong> secondes.<br/>
         Cliquez pour rester connecté.
       </p>
-      <button class="btn btn--primary" id="btn-session-extend" style="width:100%">
+      <button class="btn btn--primary" id="btn-session-extend" style="width:100%" data-i18n="t.rester_connecte">
         ✅ Rester connecté
       </button>
     </div>
@@ -5960,7 +6007,13 @@ section[data-view][hidden],
     },
 
     async saveTool(tool) {
-      const id = tool.id || (tool.outilId || '').toLowerCase().replace(/[^a-z0-9]/g, '-');
+      // Génération ID intelligente : SERIAL > doutils > outilId > refOutil
+      let id = tool.id;
+      if (!id) {
+        const idSource = (tool.serial || tool.doutils || tool.outilId || tool.refOutil || '').toString().trim();
+        id = idSource.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        if (!id) id = 'tool-' + Date.now();
+      }
       tool.id = id;
       tool.updatedAt = Date.now();
       tool.createdAt = tool.createdAt || Date.now();
@@ -6746,7 +6799,7 @@ section[data-view][hidden],
         const hsEl = document.getElementById('hub-health-score');
         if (!hsEl) return;
         const total = list.length;
-        if (!total) { hsEl.innerHTML = '<span style="color:var(--text-muted);font-size:.85rem">Pas de données</span>'; return; }
+        if (!total) { hsEl.innerHTML = '<span style="color:var(--text-muted);font-size:.85rem" data-i18n="t.pas_de_donnees">Pas de données</span>'; return; }
 
         const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
         const monthList = list.filter(i => (i.createdAt||0) >= monthStart.getTime());
@@ -7646,7 +7699,7 @@ section[data-view][hidden],
               <div>👤 ${ui.escape((i.crimping && i.crimping.filledBy && i.crimping.filledBy.name) || '—')}</div>
             </div>
           </article>
-        `).join('') || '<p style="color:var(--text-muted)">Aucun bon dans cette catégorie</p>';
+        `).join('') || '<p style="color:var(--text-muted)" data-i18n="t.aucun_bon_dans_cette_categorie">Aucun bon dans cette catégorie</p>';
         grid.querySelectorAll('[data-reg]').forEach(el => {
           el.addEventListener('click', () => views.intervention.open(el.dataset.reg));
         });
@@ -7831,43 +7884,60 @@ section[data-view][hidden],
         try {
           await loadXLSX();
 
+          // 🎯 NOUVEAU FORMAT : 18 colonnes
+          // Récupère les pièces depuis tool.pieces (structure imbriquée) OU racine (rétro-compat)
+          const piece = (t, k) => (t.pieces && t.pieces[k]) || t[k] || '';
+
           const rows = list.map(t => ({
-            'Réf Outil'       : t.refOutil        || '',
-            'Outil ID'        : t.outilId         || '',
-            'Fabricant'       : t.fabricant       || '',
-            'Réf Fabricant'   : t.refFabricant    || '',
-            'P-AR'            : t.pAr             || '',
-            'P-AV'            : t.pAv             || '',
-            'E-AR'            : t.eAr             || '',
-            'E-AV'            : t.eAv             || '',
-            'Fréquence Cycle' : t.frequenceCycle  || 0,
+            'GROUPE'                       : t.groupe         || '',
+            'CONNECTION'                   : t.connection     || '',
+            'TERMINAL'                     : t.terminal       || '',
+            'N° DE CONTACT -OUTILS'        : t.numContact     || '',
+            "D'OUTILS"                     : t.doutils        || t.outilId || '',
+            'SERIAL'                       : t.serial         || '',
+            "N° D'INVENTAIRE D'OUTILS"     : t.numInventaire  || '',
+            'Poinçon condu (Wire Crimper)' : piece(t, 'pAr'),
+            'Poinçon isolant (Ins Crimper)': piece(t, 'pAv'),
+            'Enclume condu (Anvil)'        : piece(t, 'eAr'),
+            'Enclume Isolant (Anvil)'      : piece(t, 'eAv'),
+            'Couteaux (Floating Shear)'    : piece(t, 'cAr'),
+            'Matrice couteau (Shear)'      : piece(t, 'cAv'),
+            'PRESSEUR (hold down)'         : t.presseur       || '',
+            'MATRICE -AVANT'               : t.matriceAvant   || '',
+            'MATRICE -ARRIERE'             : t.matriceArriere || '',
+            'FOURNISSEUR'                  : t.fournisseur    || '',
+            'PROJET'                       : t.projet         || '',
+            'Fabricant'                    : t.fabricant      || '',
+            'Réf Fabricant'                : t.refFabricant   || '',
+            'Fréquence Cycle'              : t.frequenceCycle || 0
           }));
 
           const wb = XLSX.utils.book_new();
           const ws = XLSX.utils.json_to_sheet(rows);
 
-          // Style colonnes largeur auto
+          // Largeurs colonnes ajustées pour les 21 colonnes
           ws['!cols'] = [
-            {wch:12},{wch:16},{wch:14},{wch:16},
-            {wch:8},{wch:8},{wch:8},{wch:8},{wch:16}
+            {wch:10},{wch:14},{wch:10},{wch:14},{wch:12},{wch:10},{wch:14},
+            {wch:22},{wch:22},{wch:22},{wch:22},{wch:22},{wch:22},
+            {wch:22},{wch:14},{wch:14},{wch:14},{wch:14},
+            {wch:14},{wch:14},{wch:14}
           ];
 
-          XLSX.utils.book_append_sheet(wb, ws, 'Catalogue Outils');
+          XLSX.utils.book_append_sheet(wb, ws, 'PDR BZK TOTAL');
 
           const date = new Date().toLocaleDateString('fr-FR').replace(/\//g, '-');
           XLSX.writeFile(wb, 'LEONI_Catalogue_Outils_' + date + '.xlsx');
 
           ui.hideLoader();
-          ui.toast(list.length + ' outil(s) exporté(s) ✅', 'success');
+          ui.toast(list.length + ' outil(s) exporté(s) ✅ (nouveau format riche)', 'success');
         } catch (err) {
           ui.hideLoader();
           ui.toast('Erreur export : ' + err.message, 'danger');
         }
       },
 
-      /* ── Import Excel avec SheetJS ── */
+      /* ── Import Excel avec SheetJS (supporte format ancien ET nouveau) ── */
       importExcel() {
-        // Charger SheetJS si pas encore chargé
         const loadXLSX = () => new Promise((resolve, reject) => {
           if (window.XLSX) return resolve();
           const s = document.createElement('script');
@@ -7902,53 +7972,157 @@ section[data-view][hidden],
               return ui.toast('Fichier vide ou format non reconnu', 'warn');
             }
 
-            // Mapping colonnes → champs (insensible à la casse)
+            // 📋 Mapping complet : ANCIEN + NOUVEAU format, insensible à la casse/accents/espaces
+            // Le mapping est appliqué après normalisation : minuscules + suppression des espaces/accents/parenthèses
             const MAP = {
-              'ref outil'        : 'refOutil',   'réf outil'       : 'refOutil',
-              'ref'              : 'refOutil',   'reference'       : 'refOutil',
-              'outil id'         : 'outilId',    'outilid'         : 'outilId',
-              'id'               : 'outilId',    'outil'           : 'outilId',
-              'fabricant'        : 'fabricant',  'manufacturer'    : 'fabricant',
-              'ref fabricant'    : 'refFabricant','réf fabricant'  : 'refFabricant',
-              'p-ar'             : 'pAr',        'par'             : 'pAr',
-              'p-av'             : 'pAv',        'pav'             : 'pAv',
-              'e-ar'             : 'eAr',        'ear'             : 'eAr',
-              'e-av'             : 'eAv',        'eav'             : 'eAv',
-              'frequence cycle'  : 'frequenceCycle', 'fréquence cycle': 'frequenceCycle',
-              'cycles'           : 'frequenceCycle', 'frequence'    : 'frequenceCycle',
+              // ── Identification (NOUVEAU) ──
+              'groupe'                  : 'groupe',
+              'connection'              : 'connection',
+              'connexion'               : 'connection',
+              'terminal'                : 'terminal',
+              'numerodecontactoutils'   : 'numContact',
+              'ndecontactoutils'        : 'numContact',
+              'ncontactoutils'          : 'numContact',
+              'doutils'                 : 'doutils',
+              'serial'                  : 'serial',
+              'serie'                   : 'serial',
+              'numerodinventairedoutils': 'numInventaire',
+              'ndinventairedoutils'     : 'numInventaire',
+              'ninventaire'             : 'numInventaire',
+
+              // ── Compatibilité ANCIEN format ──
+              'refoutil'                : 'refOutil',
+              'reference'               : 'refOutil',
+              'reference outil'         : 'refOutil',
+              'outilid'                 : 'outilId',
+              'id'                      : 'outilId',
+              'outil'                   : 'outilId',
+              'fabricant'               : 'fabricant',
+              'manufacturer'            : 'fabricant',
+              'reffabricant'            : 'refFabricant',
+              'referencefabricant'      : 'refFabricant',
+
+              // ── Pièces : NOUVEAUX NOMS (cellules avec parenthèses dépouillées) ──
+              'poinconconduwirecrimper' : 'pAr',
+              'poinconcondu'            : 'pAr',
+              'wirecrimper'             : 'pAr',
+              'poinconisolantinscrimper': 'pAv',
+              'poinconisolant'          : 'pAv',
+              'inscrimper'              : 'pAv',
+              'enclumeconduanvil'       : 'eAr',
+              'enclumecondu'            : 'eAr',
+              'enclumeisolantanvil'     : 'eAv',
+              'enclumeisolant'          : 'eAv',
+              'couteauxfloatingshear'   : 'cAr',
+              'couteaux'                : 'cAr',
+              'floatingshear'           : 'cAr',
+              'matricecouteaushear'     : 'cAv',
+              'matricecouteau'          : 'cAv',
+              'shear'                   : 'cAv',
+
+              // ── Pièces : ANCIEN format ──
+              'par'                     : 'pAr',
+              'pav'                     : 'pAv',
+              'ear'                     : 'eAr',
+              'eav'                     : 'eAv',
+              'car'                     : 'cAr',
+              'cav'                     : 'cAv',
+              'ejecteur'                : 'ejector',
+              'ejector'                 : 'ejector',
+              'couteaubanda'            : 'couteauBanda',
+
+              // ── Presseur & Matrices (NOUVEAU) ──
+              'presseurholddown'        : 'presseur',
+              'presseur'                : 'presseur',
+              'holddown'                : 'presseur',
+              'matriceavant'            : 'matriceAvant',
+              'matricearriere'          : 'matriceArriere',
+
+              // ── Logistique (NOUVEAU) ──
+              'fournisseur'             : 'fournisseur',
+              'supplier'                : 'fournisseur',
+              'projet'                  : 'projet',
+              'project'                 : 'projet',
+
+              // ── Cycle ──
+              'frequencecycle'          : 'frequenceCycle',
+              'cycles'                  : 'frequenceCycle',
+              'frequence'               : 'frequenceCycle',
             };
 
-            const normalize = (k) => (k || '').toString().toLowerCase().trim();
+            // Normalisation agressive : retire accents, espaces, parenthèses, tirets, points
+            const normalize = (k) => (k || '').toString()
+              .toLowerCase()
+              .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip accents
+              .replace(/[\s\-_().,°ºº]/g, '')                       // strip spaces, dashes, parens, etc.
+              .trim();
+
+            // ── Détection du format (pour log / debug) ──
+            const firstRowCols = Object.keys(rows[0]).map(normalize);
+            const isNewFormat = firstRowCols.some(c =>
+              c.includes('poincon') || c.includes('groupe') || c === 'serial' || c === 'doutils'
+            );
+            console.log(`[Import] Format détecté: ${isNewFormat ? '🆕 NOUVEAU (riche)' : '📋 ANCIEN (simple)'}, ${rows.length} lignes`);
 
             let imported = 0, skipped = 0;
-            for (const row of rows) {
+            const errors = [];
+
+            for (const [idx, row] of rows.entries()) {
               const tool = {};
               for (const [col, val] of Object.entries(row)) {
                 const field = MAP[normalize(col)];
-                if (field) tool[field] = val;
+                if (field && val !== '' && val != null) {
+                  tool[field] = String(val).trim();
+                }
               }
 
-              // Fallback: si colonnes non reconnues, essayer par position
-              const vals = Object.values(row);
-              if (!tool.refOutil && vals[0]) tool.refOutil = String(vals[0]).trim();
-              if (!tool.outilId  && vals[1]) tool.outilId  = String(vals[1]).trim();
-              if (!tool.fabricant&& vals[2]) tool.fabricant= String(vals[2]).trim();
+              // ID : SERIAL (unique) > doutils > outilId > refOutil
+              const idSource = (tool.serial || tool.doutils || tool.outilId || tool.refOutil || '').trim();
+              if (!idSource) {
+                skipped++;
+                errors.push(`Ligne ${idx+2} : aucun identifiant`);
+                continue;
+              }
 
-              if (!tool.refOutil && !tool.outilId) { skipped++; continue; }
-
-              const id = (tool.outilId || tool.refOutil || '')
-                .toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+              const id = idSource.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
               tool.id = id || ('tool-' + Date.now() + '-' + imported);
+
+              // Si on a un serial et pas d'outilId, on remplit outilId = doutils-serial pour rétro-compat
+              if (!tool.outilId && tool.serial) {
+                tool.outilId = tool.doutils ? `${tool.doutils}-${tool.serial}` : tool.serial;
+              }
+              // Si pas de refOutil, on utilise doutils ou outilId
+              if (!tool.refOutil) tool.refOutil = tool.doutils || tool.outilId || tool.serial || '';
+
+              // Construire tool.pieces (structure imbriquée) pour la compatibilité avec pdrRef
+              tool.pieces = {
+                pAr: tool.pAr || '',
+                pAv: tool.pAv || '',
+                eAr: tool.eAr || '',
+                eAv: tool.eAv || '',
+                cAr: tool.cAr || '',
+                cAv: tool.cAv || ''
+              };
+
               tool.frequenceCycle = parseInt(tool.frequenceCycle) || 0;
               tool.createdAt = Date.now();
               tool.updatedAt = Date.now();
 
-              await fbDb.ref('tools/' + tool.id).set(tool);
-              imported++;
+              try {
+                await fbDb.ref('tools/' + tool.id).set(tool);
+                imported++;
+              } catch (e) {
+                skipped++;
+                errors.push(`Ligne ${idx+2} : ${e.code || e.message}`);
+              }
             }
 
             ui.hideLoader();
-            ui.toast(imported + ' outil(s) importé(s) ✅' + (skipped ? ' (' + skipped + ' ignoré(s))' : ''), 'success');
+            const formatLabel = isNewFormat ? '🆕 nouveau format' : '📋 ancien format';
+            let msg = `${imported} outil(s) importé(s) (${formatLabel})`;
+            if (skipped) msg += ` — ${skipped} ignoré(s)`;
+            ui.toast(msg + ' ✅', 'success');
+            if (errors.length) console.warn('[Import] Erreurs:', errors.slice(0, 10));
             this.render();
 
           } catch (err) {
@@ -8001,7 +8175,13 @@ section[data-view][hidden],
           (t.refOutil || '').toLowerCase().includes(q) ||
           (t.outilId || '').toLowerCase().includes(q) ||
           (t.fabricant || '').toLowerCase().includes(q) ||
-          (t.refFabricant || '').toLowerCase().includes(q)
+          (t.refFabricant || '').toLowerCase().includes(q) ||
+          (t.serial || '').toLowerCase().includes(q) ||
+          (t.groupe || '').toLowerCase().includes(q) ||
+          (t.doutils || '').toLowerCase().includes(q) ||
+          (t.connection || '').toLowerCase().includes(q) ||
+          (t.projet || '').toLowerCase().includes(q) ||
+          (t.fournisseur || '').toLowerCase().includes(q)
         );
 
         // ── Tri ──
@@ -8039,11 +8219,24 @@ section[data-view][hidden],
         grid.innerHTML = slice.map(t => {
           const tid = t.id || t.outilId || '';
           const complete = this._isComplete(t);
-          const titleText = t.outilId || t.refOutil || t.refFabricant || (complete ? '(sans nom)' : '⚠️ Outil incomplet');
+          // Titre : SERIAL (unique) > doutils > outilId > refOutil
+          const titleText = t.serial || t.doutils || t.outilId || t.refOutil || t.refFabricant || (complete ? '(sans nom)' : '⚠️ Outil incomplet');
           const accentBorder = complete ? 'var(--accent-500)' : '#ff3d5a';
+
+          // Badge fabricant ou état incomplet
           const badge = complete
-            ? `<span class="badge badge--auto">${ui.escape(t.fabricant || '—')}</span>`
+            ? `<span class="badge badge--auto">${ui.escape(t.fabricant || t.fournisseur || '—')}</span>`
             : `<span style="background:rgba(255,61,90,.15);color:#ff3d5a;font-size:.65rem;padding:.15rem .5rem;border-radius:999px;font-weight:700">⚠️ INCOMPLET</span>`;
+
+          // Badge projet (si disponible)
+          const projetBadge = t.projet
+            ? `<span style="background:rgba(255,139,107,.15);color:#ff8b6b;font-size:.62rem;padding:.12rem .45rem;border-radius:5px;font-weight:700;letter-spacing:.04em">📋 ${ui.escape(t.projet)}</span>`
+            : '';
+
+          // Badge groupe (si disponible)
+          const groupeBadge = t.groupe
+            ? `<span style="background:rgba(0,229,160,.12);color:#00e5a0;font-size:.62rem;padding:.12rem .45rem;border-radius:5px;font-weight:700;letter-spacing:.04em">🏷 ${ui.escape(t.groupe)}</span>`
+            : '';
 
           const actionsHtml = (canEdit || canDelete) ? `
             <footer style="display:flex;gap:.4rem;margin-top:.6rem;padding-top:.5rem;border-top:1px solid var(--border-soft)">
@@ -8052,24 +8245,34 @@ section[data-view][hidden],
                     flex:1;padding:.4rem;font-size:.75rem;font-weight:600;
                     background:rgba(0,212,255,.10);color:var(--accent-500);
                     border:1px solid rgba(0,212,255,.3);border-radius:6px;cursor:pointer;
-                    transition:all .15s">✏️ Modifier</button>` : ''}
+                    transition:all .15s" data-i18n="t.modifier">✏️ Modifier</button>` : ''}
               ${canDelete ? `
                 <button data-tool-action="delete" data-tool-id="${ui.escape(tid)}" title="Supprimer définitivement" style="
                     flex:1;padding:.4rem;font-size:.75rem;font-weight:600;
                     background:rgba(255,61,90,.10);color:#ff3d5a;
                     border:1px solid rgba(255,61,90,.3);border-radius:6px;cursor:pointer;
-                    transition:all .15s">🗑️ Supprimer</button>` : ''}
+                    transition:all .15s" data-i18n="t.supprimer_2">🗑️ Supprimer</button>` : ''}
             </footer>` : '';
+
+          // Détails additionnels conditionnels
+          const extraDetails = [];
+          if (t.connection)  extraDetails.push(`<div>🔌 Conn: ${ui.escape(t.connection)}</div>`);
+          if (t.doutils && t.doutils !== titleText) extraDetails.push(`<div>🔧 D'Outils: ${ui.escape(t.doutils)}</div>`);
+          if (t.fournisseur) extraDetails.push(`<div>🏭 Fournisseur: ${ui.escape(t.fournisseur)}</div>`);
 
           return `
             <article class="card" style="padding:1rem;border-left:3px solid ${accentBorder};display:flex;flex-direction:column;gap:.35rem">
-              <header style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
-                <strong style="font-size:.95rem;color:${complete ? 'var(--text-primary)' : '#ff3d5a'};word-break:break-word">${ui.escape(titleText)}</strong>
-                ${badge}
+              <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
+                <strong style="font-size:.95rem;color:${complete ? 'var(--text-primary)' : '#ff3d5a'};word-break:break-word;font-family:var(--font-mono)">${ui.escape(titleText)}</strong>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.18rem">
+                  ${badge}
+                </div>
               </header>
-              <div style="color:var(--text-secondary);font-size:.78rem;font-family:var(--font-mono);line-height:1.55">
+              ${groupeBadge || projetBadge ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap">${groupeBadge}${projetBadge}</div>` : ''}
+              <div style="color:var(--text-secondary);font-size:.74rem;font-family:var(--font-mono);line-height:1.5">
                 <div>Réf: ${ui.escape(t.refOutil || '—')}</div>
                 <div>Fab: ${ui.escape(t.refFabricant || '—')}</div>
+                ${extraDetails.join('')}
                 <div>Cycles: ${fmt.number(t.frequenceCycle || 0)}</div>
               </div>
               ${actionsHtml}
@@ -8104,10 +8307,18 @@ section[data-view][hidden],
         const form = $('#form-tool');
         form.reset();
         if (tool) {
+          // Pour les champs simples, charger directement
           Object.entries(tool).forEach(([k, v]) => {
             const inp = form.querySelector(`[name="${k}"]`);
-            if (inp) inp.value = v;
+            if (inp && typeof v !== 'object') inp.value = v;
           });
+          // Pour tool.pieces, charger chaque champ depuis l'objet imbriqué
+          if (tool.pieces && typeof tool.pieces === 'object') {
+            ['pAr','pAv','eAr','eAv','cAr','cAv','ejector','couteauBanda'].forEach(k => {
+              const inp = form.querySelector(`[name="${k}"]`);
+              if (inp && tool.pieces[k]) inp.value = tool.pieces[k];
+            });
+          }
         }
         modal.querySelectorAll('[data-close]').forEach(el => {
           el.addEventListener('click', () => { modal.hidden = true; }, { once: true });
@@ -8115,10 +8326,38 @@ section[data-view][hidden],
         $('#btn-tool-save').onclick = async () => {
           const data = {};
           new FormData(form).forEach((v, k) => { data[k] = v; });
-          data.pieces = { pAr: data.pAr, pAv: data.pAv, eAr: data.eAr, eAv: data.eAv };
+
+          // 🔑 Génération intelligente de l'ID : priorité au SERIAL (unique par modèle)
+          // Sinon doutils, puis outilId, puis refOutil
+          if (!tool) {
+            const idSource = (data.serial || data.doutils || data.outilId || data.refOutil || '').trim();
+            if (!idSource) {
+              ui.toast('⚠️ Au moins un identifiant requis : Serial, D\'Outils, OUTIL ID ou Réf outil', 'danger');
+              return;
+            }
+          }
+
+          // Conserver à la fois tool.pieces (structure imbriquée) ET les champs au niveau racine
+          // pour rétro-compatibilité avec les anciens bons et la fonction pdrRef
+          const pieces = {
+            pAr: data.pAr || '',
+            pAv: data.pAv || '',
+            eAr: data.eAr || '',
+            eAv: data.eAv || '',
+            cAr: data.cAr || '',
+            cAv: data.cAv || ''
+          };
+          data.pieces = pieces;
+
+          // Convertir frequenceCycle en nombre
+          if (data.frequenceCycle) data.frequenceCycle = parseInt(data.frequenceCycle) || 0;
+
+          // Conserver l'ID original si on modifie
+          if (tool && tool.id) data.id = tool.id;
+
           await db.saveTool(data);
           modal.hidden = true;
-          ui.toast('Outil enregistré', 'success');
+          ui.toast('Outil enregistré ✅', 'success');
         };
       }
     },
@@ -8223,7 +8462,7 @@ section[data-view][hidden],
             <td>
               <div style="display:flex;gap:.3rem;flex-wrap:wrap">
                 <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem"
-                  data-action="edit" data-uid="${ui.escape(u.uid || '')}">✏️ Modifier</button>
+                  data-action="edit" data-uid="${ui.escape(u.uid || '')}" data-i18n="t.modifier">✏️ Modifier</button>
                 <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem;color:var(--accent-500)"
                   data-action="set-pass" data-uid="${ui.escape(u.uid || '')}" data-email="${ui.escape(u.email || '')}" data-name="${ui.escape(u.displayName || u.email || '')}">🔑 Changer MDP</button>
                 <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem;color:${isActive ? 'var(--danger-500)' : 'var(--success-500)'}"
@@ -8476,13 +8715,13 @@ section[data-view][hidden],
                   style="opacity:.5;cursor:not-allowed" />
               </div>
               <div class="field">
-                <label class="field__label">Rôle</label>
+                <label class="field__label" data-i18n="t.role">Rôle</label>
                 <select class="field__input" id="edit-role">
                   <option value="admin"      ${u.role === 'admin'      ? 'selected' : ''}>🔴 Administrateur</option>
                   <option value="labo"       ${u.role === 'labo'       ? 'selected' : ''}>🔵 Technicien Labo</option>
                   <option value="magasinier" ${u.role === 'magasinier' ? 'selected' : ''}>📦 Magasinier</option>
                   <option value="crimp"      ${u.role === 'crimp'      ? 'selected' : ''}>🟢 Technicien Crimping</option>
-                  <option value="responsable"${u.role === 'responsable'? 'selected' : ''}>🟡 Responsable Maintenance</option>
+                  <option value="responsable"${u.role === 'responsable'? 'selected' : ''} data-i18n="t.responsable_maintenance">🟡 Responsable Maintenance</option>
                 </select>
               </div>
               <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);
@@ -8494,14 +8733,14 @@ section[data-view][hidden],
                   Un email sera envoyé à <strong>${ui.escape(u.email)}</strong> pour choisir un nouveau mot de passe.
                 </div>
                 <button id="btn-send-reset" class="btn btn--ghost"
-                  style="width:100%;font-size:.85rem;color:var(--warn-500);border-color:rgba(245,158,11,.3)">
+                  style="width:100%;font-size:.85rem;color:var(--warn-500);border-color:rgba(245,158,11,.3)" data-i18n="t.envoyer_lemail_de_reinitialisation">
                   📧 Envoyer l'email de réinitialisation
                 </button>
               </div>
             </div>
             <footer class="modal__footer">
-              <button class="btn btn--ghost" id="btn-edit-cancel">Annuler</button>
-              <button class="btn btn--primary" id="btn-edit-save">💾 Enregistrer</button>
+              <button class="btn btn--ghost" id="btn-edit-cancel" data-i18n="t.annuler">Annuler</button>
+              <button class="btn btn--primary" id="btn-edit-save" data-i18n="t.enregistrer_2">💾 Enregistrer</button>
             </footer>
           </div>`;
 
@@ -8676,7 +8915,7 @@ section[data-view][hidden],
           const logs = [];
           snap.forEach(c => logs.unshift({ id: c.key, ...c.val() }));
           if (!logs.length) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--text-muted)">Aucune action enregistrée</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--text-muted)" data-i18n="t.aucune_action_enregistree">Aucune action enregistrée</td></tr>';
             return;
           }
           tbody.innerHTML = logs.map(l => {
@@ -9162,7 +9401,7 @@ Erreur Firebase : ${e.message}`;
               const keyStyle = isKey ? 'color:var(--accent-500);font-weight:800;' : 'color:var(--text-primary);';
               return `<th style="${align}${keyStyle}min-width:${c.w||100}px;white-space:nowrap;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;padding:.65rem .85rem;font-family:var(--font-display)">${c.label}</th>`;
             }).join('') +
-            '<th style="white-space:nowrap;color:var(--text-primary);font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;padding:.65rem .85rem;font-family:var(--font-display)">Statut</th></tr>';
+            '<th style="white-space:nowrap;color:var(--text-primary);font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;padding:.65rem .85rem;font-family:var(--font-display)" data-i18n="t.statut">Statut</th></tr>';
         }
         document.getElementById('pc-col-info').textContent = cols.length + ' / ' + this._COLS.length + ' colonnes affichées';
         this._cols = cols;
@@ -9230,7 +9469,7 @@ Erreur Firebase : ${e.message}`;
         if (!tbody) return;
         const cols = this._cols || this._COLS;
         if (!data.length) {
-          tbody.innerHTML = '<tr><td colspan="' + (cols.length+1) + '" style="text-align:center;padding:2rem;color:var(--text-muted)">Aucun résultat</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="' + (cols.length+1) + '" style="text-align:center;padding:2rem;color:var(--text-muted)" data-i18n="t.aucun_resultat">Aucun résultat</td></tr>';
           return;
         }
 
@@ -9302,7 +9541,7 @@ Erreur Firebase : ${e.message}`;
         }).join('');
 
         if (data.length > 500) {
-          tbody.innerHTML += '<tr><td colspan="' + (cols.length+1) + '" style="text-align:center;padding:.75rem;color:var(--text-muted);font-size:.78rem;font-style:italic">+ ' + (data.length - 500) + ' lignes supplémentaires (filtrer pour affiner)</td></tr>';
+          tbody.innerHTML += '<tr><td colspan="' + (cols.length+1) + '" style="text-align:center;padding:.75rem;color:var(--text-muted);font-size:.78rem;font-style:italic" data-i18n="t.datalength_-_500_lignes_supplementaires_">+ ' + (data.length - 500) + ' lignes supplémentaires (filtrer pour affiner)</td></tr>';
         }
 
         // 🔔 Wire-up des inputs éditables (qcom, statutCom)
@@ -10169,13 +10408,13 @@ Erreur Firebase : ${e.message}`;
         const records = this._filtered;
         document.getElementById('pdr-results-count').textContent = records.length + ' résultat(s)';
         if (records.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem">Aucune PDR changée pour cette période</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem" data-i18n="t.aucune_pdr_changee_pour_cette_periode">Aucune PDR changée pour cette période</td></tr>';
           return;
         }
         const statusBadges = {
           'submitted': '<span style="background:rgba(255,181,71,.15);color:#ffb547;padding:.15rem .5rem;border-radius:5px;font-size:.72rem;font-weight:600">⏳ Soumis</span>',
-          'validated': '<span style="background:rgba(0,229,160,.15);color:#00e5a0;padding:.15rem .5rem;border-radius:5px;font-size:.72rem;font-weight:600">✅ Validé</span>',
-          'rejected': '<span style="background:rgba(255,61,90,.15);color:#ff3d5a;padding:.15rem .5rem;border-radius:5px;font-size:.72rem;font-weight:600">❌ Rejeté</span>',
+          'validated': '<span style="background:rgba(0,229,160,.15);color:#00e5a0;padding:.15rem .5rem;border-radius:5px;font-size:.72rem;font-weight:600" data-i18n="t.valide_2">✅ Validé</span>',
+          'rejected': '<span style="background:rgba(255,61,90,.15);color:#ff3d5a;padding:.15rem .5rem;border-radius:5px;font-size:.72rem;font-weight:600" data-i18n="t.rejete">❌ Rejeté</span>',
           'draft': '<span style="background:rgba(155,155,155,.15);color:#999;padding:.15rem .5rem;border-radius:5px;font-size:.72rem;font-weight:600">📝 Brouillon</span>',
           'unknown': '<span style="color:var(--text-muted);font-size:.72rem">—</span>'
         };
@@ -10329,7 +10568,7 @@ Erreur Firebase : ${e.message}`;
         document.getElementById('top20-tools').textContent = toolsCount;
 
         if (!monthData || totalChanges === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem">Aucun changement de pièce ce mois-ci</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem" data-i18n="t.aucun_changement_de_piece_ce_mois-ci">Aucun changement de pièce ce mois-ci</td></tr>';
           return;
         }
 
@@ -10770,7 +11009,7 @@ Erreur Firebase : ${e.message}`;
 
           const actionsHtml = (status === 'pending' && canRespond) ? `
             <div style="display:flex;gap:.5rem;margin-top:.85rem">
-              <button data-pdr-req-action="ready" data-req-id="${req.id}" style="flex:1;padding:.7rem;font-size:.9rem;font-weight:700;background:linear-gradient(135deg,#00e5a0,#00b890);color:#0a1628;border:none;border-radius:7px;cursor:pointer;box-shadow:0 2px 8px rgba(0,229,160,.25)">
+              <button data-pdr-req-action="ready" data-req-id="${req.id}" style="flex:1;padding:.7rem;font-size:.9rem;font-weight:700;background:linear-gradient(135deg,#00e5a0,#00b890);color:#0a1628;border:none;border-radius:7px;cursor:pointer;box-shadow:0 2px 8px rgba(0,229,160,.25)" data-i18n="t.rassemblees">
                 ✅ Rassemblées
               </button>
               <button data-pdr-req-action="unavailable" data-req-id="${req.id}" style="flex:1;padding:.7rem;font-size:.9rem;font-weight:700;background:linear-gradient(135deg,#ff3d5a,#cc1f3a);color:#fff;border:none;border-radius:7px;cursor:pointer;box-shadow:0 2px 8px rgba(255,61,90,.25)">
@@ -11099,7 +11338,7 @@ Erreur Firebase : ${e.message}`;
                     flex:1;padding:.6rem;font-size:.85rem;font-weight:700;
                     background:linear-gradient(135deg,#00e5a0,#00b890);color:#0a1628;
                     border:none;border-radius:7px;cursor:pointer;transition:all .15s;
-                    box-shadow:0 2px 8px rgba(0,229,160,.25)">
+                    box-shadow:0 2px 8px rgba(0,229,160,.25)" data-i18n="t.rassemblees">
                   ✅ Rassemblées
                 </button>
                 <button data-pdr-action="unavailable" data-notif-id="${n.id}" style="
@@ -11761,6 +12000,132 @@ Erreur Firebase : ${e.message}`;
     translations: {
       fr: {
         // ── Sections (nouvelles) ──
+        // ── Auto-traductions sweep ──
+        't.demandes_pdr': 'Demandes PDR',
+        't.nouvelle_notification': 'Nouvelle notification',
+        't.4_dernieres_semaines': '4 dernières semaines',
+        't.12_dernieres_semaines': '12 dernières semaines',
+        't.26_dernieres_semaines': '26 dernières semaines',
+        't.brouillon': 'Brouillon',
+        't.valide': 'Validé',
+        't.refuse': 'Refusé',
+        't.annule': 'Annulé',
+        't.cloture': 'Clôturé',
+        't.reference_outil': 'Référence outil',
+        't.fabricant': 'Fabricant',
+        't.matricule_technicien_crimping': '🪪 Matricule technicien crimping',
+        't.cycles_compteur': 'Cycles compteur',
+        't.type_dintervention': 'Type d\'intervention',
+        't.preventive': 'Préventive',
+        't.curative': 'Curative',
+        't.p-ar_poincon_arriere': 'P-AR · Poinçon Arrière',
+        't.p-av_poincon_avant': 'P-AV · Poinçon Avant',
+        't.e-ar_enclume_arriere': 'E-AR · Enclume Arrière',
+        't.e-av_enclume_avant': 'E-AV · Enclume Avant',
+        't.c-ar_couteau_arriere': 'C-AR · Couteau Arrière',
+        't.c-av_couteau_avant': 'C-AV · Couteau Avant',
+        't.ejecteur': 'Éjecteur',
+        't.couteau_banda': 'Couteau / Banda',
+        't.saisi_par_le_technicien_apres_lintervent': '— Saisi par le technicien après l\'intervention',
+        't.enregistrer_le_temps': '💾 Enregistrer le temps',
+        't.ajouter_une_photo': '📷 Ajouter une photo',
+        't.effacer': 'Effacer',
+        't.matricule_technicien_laboratoire': '🪪 Matricule technicien laboratoire',
+        't.cordon_teste': 'Cordon testé',
+        't.ref_connexion': 'Réf. connexion',
+        't.section_cable': 'Section câble',
+        't.conformite_chanfrein': 'Conformité chanfrein',
+        't.conformite_temoin_coupe': 'Conformité témoin coupe',
+        't.conformite_flexion': 'Conformité flexion',
+        't.valider_le_bon': '✅ Valider le bon',
+        't.refuser_renvoyer_au_crimping': '❌ Refuser & renvoyer au crimping',
+        't.supprimer': '🗑 Supprimer',
+        't.enregistrer_brouillon': '💾 Enregistrer brouillon',
+        't.soumettre_au_labo': '📨 Soumettre au labo',
+        't.validation_des_outils_de_sertissage': 'Validation des outils de sertissage',
+        't.outil': 'Outil',
+        't.tous': 'Tous',
+        't.statut': 'Statut',
+        't.technicien': 'Technicien',
+        't.reinitialiser': 'Réinitialiser',
+        't.date': 'Date',
+        't.cycles': 'Cycles',
+        't.observation': 'Observation',
+        't.coupe_metallo': 'Coupe métallo',
+        't.resultats': '— résultats',
+        't.les_miens': 'Les miens',
+        't.refuses': 'Refusés',
+        't.recents_dabord': '🕒 Récents d\'abord',
+        't.resultats_2': '— résultat(s)',
+        't.role': 'Rôle',
+        't.derniere_connexion': 'Dernière connexion',
+        't.lecture_seule_suivi_des_pieces_remplacee': '📋 Lecture seule — Suivi des pièces remplacées dans les bons d\'intervention',
+        't.periode': '📅 Période :',
+        't.0_resultats': '0 résultat(s)',
+        't.ref_outil': '📐 Réf. Outil',
+        't.pdr_changees': '🔧 PDR Changée(s)',
+        't.reference_fabricant': 'Référence Fabricant',
+        't.type_piece': 'Type Pièce',
+        't.demandes_pdr_2': '📦 Demandes PDR',
+        't.toutes_les_demandes': 'Toutes les demandes',
+        't.rassemblees': '✅ Rassemblées',
+        't.journal_daudit': 'Journal d\'audit',
+        't.100_dernieres_actions_administrateur': '100 dernières actions administrateur',
+        't.entite': 'Entité',
+        't.aucun_fichier_charge': '— Aucun fichier chargé',
+        't.modele': '📋 Modèle',
+        't.historique_des_injections': 'Historique des injections',
+        't.enregistrements': '— enregistrements',
+        't.donnees_depuis_fichier_excel': 'Données depuis fichier Excel',
+        't.temps_de_travail_des_techniciens_crimpin': 'Temps de travail des techniciens crimping par intervention',
+        't.heures_totales_par_technicien': '📊 Heures totales par technicien',
+        't.evolution_des_heures_travaillees_par_sem': '📈 Évolution des heures travaillées (par semaine)',
+        't.detail_par_technicien': '📋 Détail par technicien',
+        't.bons_traites': 'Bons traités',
+        't.active_les_alertes_systeme_pour_ne_rater': '🔔 Active les alertes système pour ne rater aucun bon',
+        't.confirmer': 'Confirmer',
+        't.etes-vous_sur': 'Êtes-vous sûr ?',
+        't.annuler': 'Annuler',
+        't.refuser_le_bon': 'Refuser le bon',
+        't.ref_outil_2': 'Réf outil',
+        't.ref_fabricant': 'Réf fabricant',
+        't.frequence_cycle': 'Fréquence cycle',
+        't.enregistrer': 'Enregistrer',
+        't.matricule': 'Matricule *',
+        't.role_2': 'Rôle *',
+        't.responsable_maintenance': '🟡 Responsable Maintenance',
+        't.generer': '🎲 Générer',
+        't.notez_ce_mot_de_passe_et_communiquez-le_': '⚠ Notez ce mot de passe et communiquez-le à l\'utilisateur',
+        't.creer_lutilisateur': '✓ Créer l\'utilisateur',
+        't.nouvelle_piece': '📦 Nouvelle pièce',
+        't.reference': 'Référence *',
+        't.categorie': 'Catégorie',
+        't.designation': 'Désignation *',
+        't.fournisseur': 'Fournisseur',
+        't.ref_fournisseur': 'Réf. fournisseur',
+        't.quantite_actuelle': 'Quantité actuelle *',
+        't.emplacement': 'Emplacement',
+        't.enregistrer_2': '💾 Enregistrer',
+        't.fermer': 'Fermer',
+        't.session_sur_le_point_dexpirer': 'Session sur le point d\'expirer',
+        't.rester_connecte': '✅ Rester connecté',
+        't.pas_de_donnees': 'Pas de données',
+        't.aucun_bon_dans_cette_categorie': 'Aucun bon dans cette catégorie',
+        't.modifier': '✏️ Modifier',
+        't.supprimer_2': '🗑️ Supprimer',
+        't.envoyer_lemail_de_reinitialisation': '📧 Envoyer l\'email de réinitialisation',
+        't.aucune_action_enregistree': 'Aucune action enregistrée',
+        't.aucun_resultat': 'Aucun résultat',
+        't.datalength_-_500_lignes_supplementaires_': '+ \' + (data.length - 500) + \' lignes supplémentaires (filtrer pour affiner)',
+        't.aucune_pdr_changee_pour_cette_periode': 'Aucune PDR changée pour cette période',
+        't.valide_2': '✅ Validé',
+        't.rejete': '❌ Rejeté',
+        't.aucun_changement_de_piece_ce_mois-ci': 'Aucun changement de pièce ce mois-ci',
+        't.nom_affiche': 'Nom affiché',
+        't.changer_le_mot_de_passe': '🔑 Changer le mot de passe',
+        't.confirmer_le_nouveau_mot_de_passe': 'Confirmer le nouveau mot de passe',
+        't.modifier_2': '🔑 Modifier',
+
         'step.crimpingEntry': 'Saisie crimping',
         'step.submission': 'Soumission',
         'step.labValidation': 'Validation labo',
@@ -12103,6 +12468,132 @@ Erreur Firebase : ${e.message}`;
       },
       en: {
         // ── Sections (new) ──
+        // ── Auto-translation sweep ──
+        't.demandes_pdr': 'PDR Requests',
+        't.nouvelle_notification': 'New notification',
+        't.4_dernieres_semaines': 'Last 4 weeks',
+        't.12_dernieres_semaines': 'Last 12 weeks',
+        't.26_dernieres_semaines': 'Last 26 weeks',
+        't.brouillon': 'Draft',
+        't.valide': 'Validated',
+        't.refuse': 'Rejected',
+        't.annule': 'Cancelled',
+        't.cloture': 'Closed',
+        't.reference_outil': 'Tool reference',
+        't.fabricant': 'Manufacturer',
+        't.matricule_technicien_crimping': '🪪 Crimping technician ID',
+        't.cycles_compteur': 'Counter cycles',
+        't.type_dintervention': 'Intervention type',
+        't.preventive': 'Preventive',
+        't.curative': 'Corrective',
+        't.p-ar_poincon_arriere': 'P-AR · Rear Punch',
+        't.p-av_poincon_avant': 'P-AV · Front Punch',
+        't.e-ar_enclume_arriere': 'E-AR · Rear Anvil',
+        't.e-av_enclume_avant': 'E-AV · Front Anvil',
+        't.c-ar_couteau_arriere': 'C-AR · Rear Cutter',
+        't.c-av_couteau_avant': 'C-AV · Front Cutter',
+        't.ejecteur': 'Ejector',
+        't.couteau_banda': 'Cutter / Banda',
+        't.saisi_par_le_technicien_apres_lintervent': '— Entered by technician after intervention',
+        't.enregistrer_le_temps': '💾 Save time',
+        't.ajouter_une_photo': '📷 Add photo',
+        't.effacer': 'Clear',
+        't.matricule_technicien_laboratoire': '🪪 Lab technician ID',
+        't.cordon_teste': 'Cord tested',
+        't.ref_connexion': 'Connection ref.',
+        't.section_cable': 'Cable section',
+        't.conformite_chanfrein': 'Chamfer conformity',
+        't.conformite_temoin_coupe': 'Cut witness conformity',
+        't.conformite_flexion': 'Bending conformity',
+        't.valider_le_bon': '✅ Validate order',
+        't.refuser_renvoyer_au_crimping': '❌ Reject & return to crimping',
+        't.supprimer': '🗑 Delete',
+        't.enregistrer_brouillon': '💾 Enregistrer brouillon',
+        't.soumettre_au_labo': '📨 Soumettre au labo',
+        't.validation_des_outils_de_sertissage': 'Validation des outils de sertissage',
+        't.outil': 'Tool',
+        't.tous': 'All',
+        't.statut': 'Status',
+        't.technicien': 'Technician',
+        't.reinitialiser': 'Reset',
+        't.date': 'Date',
+        't.cycles': 'Cycles',
+        't.observation': 'Observation',
+        't.coupe_metallo': 'Metallographic section',
+        't.resultats': '— results',
+        't.les_miens': 'Les miens',
+        't.refuses': 'Rejected',
+        't.recents_dabord': '🕒 Recent first',
+        't.resultats_2': '— result(s)',
+        't.role': 'Role',
+        't.derniere_connexion': 'Last login',
+        't.lecture_seule_suivi_des_pieces_remplacee': '📋 Read-only — Tracking of parts replaced in maintenance orders',
+        't.periode': '📅 Period:',
+        't.0_resultats': '0 result(s)',
+        't.ref_outil': '📐 Tool Ref.',
+        't.pdr_changees': '🔧 PDR Changed',
+        't.reference_fabricant': 'Manufacturer Reference',
+        't.type_piece': 'Part Type',
+        't.demandes_pdr_2': '📦 Demandes PDR',
+        't.toutes_les_demandes': 'Toutes les demandes',
+        't.rassemblees': '✅ Gathered',
+        't.journal_daudit': 'Audit Log',
+        't.100_dernieres_actions_administrateur': 'Last 100 admin actions',
+        't.entite': 'Entity',
+        't.aucun_fichier_charge': '— No file loaded',
+        't.modele': '📋 Template',
+        't.historique_des_injections': 'Injection history',
+        't.enregistrements': '— enregistrements',
+        't.donnees_depuis_fichier_excel': 'Data from Excel file',
+        't.temps_de_travail_des_techniciens_crimpin': 'Temps de travail des techniciens crimping par intervention',
+        't.heures_totales_par_technicien': '📊 Heures totales par technicien',
+        't.evolution_des_heures_travaillees_par_sem': '📈 Worked hours trend (by week)',
+        't.detail_par_technicien': '📋 Detail by technician',
+        't.bons_traites': 'Orders processed',
+        't.active_les_alertes_systeme_pour_ne_rater': '🔔 Enable system alerts to never miss an order',
+        't.confirmer': 'Confirm',
+        't.etes-vous_sur': 'Are you sure?',
+        't.annuler': 'Cancel',
+        't.refuser_le_bon': 'Refuser le bon',
+        't.ref_outil_2': 'Tool ref',
+        't.ref_fabricant': 'Mfr ref',
+        't.frequence_cycle': 'Cycle frequency',
+        't.enregistrer': 'Save',
+        't.matricule': 'ID *',
+        't.role_2': 'Role *',
+        't.responsable_maintenance': '🟡 Responsable Maintenance',
+        't.generer': '🎲 Generate',
+        't.notez_ce_mot_de_passe_et_communiquez-le_': '⚠ Note this password and share it with the user',
+        't.creer_lutilisateur': '✓ Create user',
+        't.nouvelle_piece': '📦 New part',
+        't.reference': 'Reference *',
+        't.categorie': 'Category',
+        't.designation': 'Designation *',
+        't.fournisseur': 'Supplier',
+        't.ref_fournisseur': 'Supplier ref.',
+        't.quantite_actuelle': 'Current quantity *',
+        't.emplacement': 'Location',
+        't.enregistrer_2': '💾 Enregistrer',
+        't.fermer': 'Close',
+        't.session_sur_le_point_dexpirer': 'Session sur le point d\'expirer',
+        't.rester_connecte': '✅ Stay connected',
+        't.pas_de_donnees': 'No data',
+        't.aucun_bon_dans_cette_categorie': 'No order in this category',
+        't.modifier': '✏️ Edit',
+        't.supprimer_2': '🗑️ Delete',
+        't.envoyer_lemail_de_reinitialisation': '📧 Send reset email',
+        't.aucune_action_enregistree': 'No action recorded',
+        't.aucun_resultat': 'No results',
+        't.datalength_-_500_lignes_supplementaires_': '+ \' + (data.length - 500) + \' more rows (filter to narrow down)',
+        't.aucune_pdr_changee_pour_cette_periode': 'No PDR changed in this period',
+        't.valide_2': '✅ Validated',
+        't.rejete': '❌ Rejected',
+        't.aucun_changement_de_piece_ce_mois-ci': 'No part change this month',
+        't.nom_affiche': 'Display name',
+        't.changer_le_mot_de_passe': '🔑 Change password',
+        't.confirmer_le_nouveau_mot_de_passe': 'Confirmer le nouveau mot de passe',
+        't.modifier_2': '🔑 Modifier',
+
         'step.crimpingEntry': 'Crimping entry',
         'step.submission': 'Submission',
         'step.labValidation': 'Lab validation',
@@ -12786,7 +13277,7 @@ Erreur Firebase : ${e.message}`;
         </div>
         <!-- Champs modifiables -->
         <div class="field">
-          <label class="field__label" for="profile-displayname">Nom affiché</label><input class="field__input" id="profile-displayname" type="text" placeholder="Votre nom complet"/ autocomplete="off">
+          <label class="field__label" for="profile-displayname" data-i18n="t.nom_affiche">Nom affiché</label><input class="field__input" id="profile-displayname" type="text" placeholder="Votre nom complet"/ autocomplete="off">
         </div>
         <div class="field">
           <label class="field__label" for="profile-matricule">Matricule</label><input class="field__input" id="profile-matricule" type="text" placeholder="Ex: LN-A-001"/ autocomplete="off">
@@ -12799,8 +13290,8 @@ Erreur Firebase : ${e.message}`;
         </div>
       </div>
       <div class="modal__footer">
-        <button class="btn btn--ghost" id="btn-profile-cancel" type="button">Annuler</button>
-        <button class="btn btn--primary" id="btn-profile-save" type="button">💾 Enregistrer</button>
+        <button class="btn btn--ghost" id="btn-profile-cancel" type="button" data-i18n="t.annuler">Annuler</button>
+        <button class="btn btn--primary" id="btn-profile-save" type="button" data-i18n="t.enregistrer_2">💾 Enregistrer</button>
       </div>
     </div>
   </div>
@@ -12812,7 +13303,7 @@ Erreur Firebase : ${e.message}`;
     <div class="modal__backdrop"></div>
     <div class="modal__panel" style="max-width:400px">
       <div class="modal__header">
-        <h2 class="modal__title">🔑 Changer le mot de passe</h2>
+        <h2 class="modal__title" data-i18n="t.changer_le_mot_de_passe">🔑 Changer le mot de passe</h2>
         <button class="modal__close" id="btn-password-close" type="button">✕</button>
       </div>
       <div class="modal__body">
@@ -12833,7 +13324,7 @@ Erreur Firebase : ${e.message}`;
           </div>
         </div>
         <div class="field">
-          <label class="field__label" aria-label="Confirmer le nouveau mot de passe">Confirmer le nouveau mot de passe</label>
+          <label class="field__label" aria-label="Confirmer le nouveau mot de passe" data-i18n="t.confirmer_le_nouveau_mot_de_passe">Confirmer le nouveau mot de passe</label>
           <div style="position:relative">
             <input class="field__input" id="pass-confirm" type="password" placeholder="Répétez le nouveau mot de passe" style="padding-right:2.5rem"/ autocomplete="off">
             <button type="button" onclick="togglePassVis('pass-confirm',this)" style="position:absolute;right:.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:.9rem">👁</button>
@@ -12852,8 +13343,8 @@ Erreur Firebase : ${e.message}`;
       </form>
       </div>
       <div class="modal__footer">
-        <button class="btn btn--ghost" id="btn-password-cancel" type="button">Annuler</button>
-        <button class="btn btn--primary" id="btn-password-save" type="button">🔑 Modifier</button>
+        <button class="btn btn--ghost" id="btn-password-cancel" type="button" data-i18n="t.annuler">Annuler</button>
+        <button class="btn btn--primary" id="btn-password-save" type="button" data-i18n="t.modifier_2">🔑 Modifier</button>
       </div>
     </div>
   </div>

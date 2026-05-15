@@ -4902,6 +4902,24 @@ section[data-view][hidden],
     </div>
   </div>
 
+  <!-- Modal: détails outil (lecture seule, toutes les informations) -->
+  <div class="modal" id="modal-tool-details" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel modal__panel--lg">
+      <header class="modal__header">
+        <h2 class="modal__title" id="tool-details-title">🔧 Détails de l'outil</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body" id="tool-details-body">
+        <!-- Contenu injecté dynamiquement -->
+      </div>
+      <footer class="modal__footer">
+        <button class="btn btn--ghost" data-close>Fermer</button>
+        <button class="btn btn--secondary" id="btn-tool-details-edit" style="background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3)">✏️ Modifier</button>
+      </footer>
+    </div>
+  </div>
+
   <!-- Modal: nouvel utilisateur -->
   <div class="modal" id="modal-user" role="dialog" aria-modal="true" hidden>
     <div class="modal__backdrop" data-close></div>
@@ -7740,24 +7758,28 @@ section[data-view][hidden],
           btnExport.addEventListener('click', () => this.exportExcel());
         }
 
-        // ── Event delegation pour les boutons Modifier / Supprimer / Load More ──
+        // ── Event delegation pour les boutons Modifier / Supprimer / clic carte ──
         const grid = $('#catalog-grid');
         if (grid) {
           grid.addEventListener('click', async (e) => {
+            // 1️⃣ Bouton d'action (Modifier / Supprimer) ?
             const btn = e.target.closest('button[data-tool-action]');
-            if (!btn) return;
-            e.stopPropagation();
-            const action = btn.dataset.toolAction;
-            const id = btn.dataset.toolId;
-            const tool = state.tools[id];
-            if (!tool) {
-              ui.toast('Outil introuvable', 'danger');
+            if (btn) {
+              e.stopPropagation();
+              const action = btn.dataset.toolAction;
+              const id = btn.dataset.toolId;
+              const tool = state.tools[id];
+              if (!tool) { ui.toast('Outil introuvable', 'danger'); return; }
+              if (action === 'edit') this.openModal(tool);
+              else if (action === 'delete') await this.deleteWithConfirm(tool);
               return;
             }
-            if (action === 'edit') {
-              this.openModal(tool);
-            } else if (action === 'delete') {
-              await this.deleteWithConfirm(tool);
+            // 2️⃣ Sinon : clic sur la carte → afficher les détails
+            const card = e.target.closest('article[data-tool-card]');
+            if (card) {
+              const id = card.dataset.toolId;
+              const tool = state.tools[id];
+              if (tool) this.showDetails(tool);
             }
           });
         }
@@ -7889,6 +7911,112 @@ section[data-view][hidden],
           console.error('[bulkDeleteAll]', e);
           ui.toast(`⛔ Refusé par Firebase (${e.code || e.message})`, 'danger');
         }
+      },
+
+      /**
+       * 🔍 Affiche TOUS les détails de l'outil dans une modal lecture seule
+       * organisée en 5 sections logiques.
+       */
+      showDetails(tool) {
+        if (!tool) return;
+        const modal = document.getElementById('modal-tool-details');
+        if (!modal) return;
+
+        // Récupère les pièces depuis tool.pieces OU racine (rétro-compat)
+        const piece = (k) => (tool.pieces && tool.pieces[k]) || tool[k] || '';
+
+        const title = tool.serial || tool.doutils || tool.outilId || tool.refOutil || '(sans nom)';
+        document.getElementById('tool-details-title').innerHTML =
+          `🔧 ${ui.escape(title)}` +
+          (tool.groupe ? ` <span style="font-size:.7em;background:rgba(0,229,160,.15);color:#00e5a0;padding:.18rem .55rem;border-radius:5px;letter-spacing:.04em;vertical-align:middle">🏷 ${ui.escape(tool.groupe)}</span>` : '') +
+          (tool.projet ? ` <span style="font-size:.7em;background:rgba(255,139,107,.15);color:#ff8b6b;padding:.18rem .55rem;border-radius:5px;letter-spacing:.04em;vertical-align:middle">📋 ${ui.escape(tool.projet)}</span>` : '');
+
+        // Helper pour générer une ligne d'info (label + valeur)
+        const row = (label, value, mono = true) => {
+          const v = value && String(value).trim() ? String(value) : '—';
+          const isEmpty = v === '—';
+          return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:.45rem .65rem;border-bottom:1px solid var(--border-soft);gap:.75rem">
+            <span style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;white-space:nowrap">${ui.escape(label)}</span>
+            <span style="${mono ? 'font-family:var(--font-mono);' : ''}font-size:.86rem;color:${isEmpty ? 'var(--text-muted)' : 'var(--text-primary)'};font-weight:600;text-align:right;word-break:break-word;${isEmpty ? 'font-style:italic;' : ''}">${ui.escape(v)}</span>
+          </div>`;
+        };
+
+        // Helper pour titre de section
+        const sectionTitle = (emoji, label, color) =>
+          `<div style="margin:1.1rem 0 .35rem;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:${color};font-weight:700;padding:0 .65rem">${emoji} ${label}</div>`;
+
+        // Construire le contenu sections par sections
+        const body = document.getElementById('tool-details-body');
+        const fmtDate = (ts) => ts ? new Date(ts).toLocaleString('fr-FR') : '—';
+        body.innerHTML = `
+          <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
+            ${sectionTitle('🆔', 'Identification', 'var(--accent-500)')}
+            ${row('Serial', tool.serial)}
+            ${row("D'Outils", tool.doutils)}
+            ${row('Groupe', tool.groupe)}
+            ${row('Connection', tool.connection)}
+            ${row('Terminal', tool.terminal)}
+            ${row('N° Contact - Outils', tool.numContact)}
+            ${row("N° d'inventaire D'Outils", tool.numInventaire)}
+          </div>
+
+          <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
+            ${sectionTitle('📋', 'Compatibilité (ancien format)', 'var(--text-muted)')}
+            ${row('Réf Outil', tool.refOutil)}
+            ${row('Outil ID', tool.outilId)}
+            ${row('Fabricant', tool.fabricant, false)}
+            ${row('Réf Fabricant', tool.refFabricant)}
+            ${row('Fréquence cycle', tool.frequenceCycle ? fmt.number(tool.frequenceCycle) + ' cycles' : '—')}
+          </div>
+
+          <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
+            ${sectionTitle('🔧', 'Pièces (PDR)', '#ffb547')}
+            ${row('P-AR · Poinçon condu (Wire Crimper)', piece('pAr'))}
+            ${row('P-AV · Poinçon isolant (Ins Crimper)', piece('pAv'))}
+            ${row('E-AR · Enclume condu (Anvil)', piece('eAr'))}
+            ${row('E-AV · Enclume isolant (Anvil)', piece('eAv'))}
+            ${row('C-AR · Couteaux (Floating Shear)', piece('cAr'))}
+            ${row('C-AV · Matrice couteau (Shear)', piece('cAv'))}
+          </div>
+
+          <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
+            ${sectionTitle('⚙️', 'Presseur & Matrices', '#00e5a0')}
+            ${row('Presseur (hold down)', tool.presseur)}
+            ${row('Matrice avant', tool.matriceAvant)}
+            ${row('Matrice arrière', tool.matriceArriere)}
+          </div>
+
+          <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
+            ${sectionTitle('🏭', 'Logistique', '#ff8b6b')}
+            ${row('Fournisseur', tool.fournisseur, false)}
+            ${row('Projet', tool.projet, false)}
+          </div>
+
+          <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0">
+            ${sectionTitle('📅', 'Métadonnées', 'var(--text-muted)')}
+            ${row('ID interne', tool.id)}
+            ${row('Créé le', fmtDate(tool.createdAt), false)}
+            ${row('Modifié le', fmtDate(tool.updatedAt), false)}
+          </div>
+        `;
+
+        // Bouton Modifier branché
+        const editBtn = document.getElementById('btn-tool-details-edit');
+        if (editBtn) {
+          const canEdit = ['admin','super_admin','responsable'].includes(state.role);
+          editBtn.style.display = canEdit ? '' : 'none';
+          editBtn.onclick = () => {
+            modal.hidden = true;
+            this.openModal(tool);
+          };
+        }
+
+        // Wire close buttons (once)
+        modal.querySelectorAll('[data-close]').forEach(el => {
+          el.addEventListener('click', () => { modal.hidden = true; }, { once: true });
+        });
+
+        modal.hidden = false;
       },
 
       /**
@@ -8335,7 +8463,7 @@ section[data-view][hidden],
           if (t.fournisseur) extraDetails.push(`<div>🏭 Fournisseur: ${ui.escape(t.fournisseur)}</div>`);
 
           return `
-            <article class="card" style="padding:1rem;border-left:3px solid ${accentBorder};display:flex;flex-direction:column;gap:.35rem">
+            <article class="card" data-tool-card data-tool-id="${ui.escape(tid)}" style="padding:1rem;border-left:3px solid ${accentBorder};display:flex;flex-direction:column;gap:.35rem;cursor:pointer;transition:transform .12s,box-shadow .12s" title="Cliquer pour voir tous les détails">
               <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
                 <strong style="font-size:.95rem;color:${complete ? 'var(--text-primary)' : '#ff3d5a'};word-break:break-word;font-family:var(--font-mono)">${ui.escape(titleText)}</strong>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.18rem">
@@ -8352,6 +8480,18 @@ section[data-view][hidden],
               ${actionsHtml}
             </article>`;
         }).join('');
+
+        // Hover effect on cards
+        grid.querySelectorAll('article[data-tool-card]').forEach(c => {
+          c.addEventListener('mouseenter', () => {
+            c.style.transform = 'translateY(-2px)';
+            c.style.boxShadow = '0 8px 20px rgba(0,212,255,.12)';
+          });
+          c.addEventListener('mouseleave', () => {
+            c.style.transform = '';
+            c.style.boxShadow = '';
+          });
+        });
 
         // Bouton "Charger plus"
         const lm = document.getElementById('catalog-loadmore');

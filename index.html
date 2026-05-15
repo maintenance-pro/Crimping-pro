@@ -4217,6 +4217,11 @@ section[data-view][hidden],
                   style="background:rgba(255,61,90,.12);color:#ff3d5a;border:1px solid rgba(255,61,90,.3);font-size:.78rem;padding:.4rem .8rem">
             🧹 Nettoyer incomplets
           </button>
+          <button class="btn btn--secondary" id="btn-catalog-delete-all" data-requires-role="admin,super_admin"
+                  title="⚠️ DANGER : Supprimer TOUS les outils du catalogue d'un coup"
+                  style="background:#ff3d5a;color:#fff;border:1px solid #cc1f3a;font-size:.78rem;padding:.4rem .8rem;font-weight:700">
+            ☠️ Supprimer TOUT
+          </button>
         </div>
 
         <div class="catalog__grid" id="catalog-grid">
@@ -7720,6 +7725,9 @@ section[data-view][hidden],
         // ── Nettoyer outils incomplets ──
         document.getElementById('btn-catalog-clean')?.addEventListener('click', () => this.bulkCleanIncomplete());
 
+        // ── ☠️ Supprimer TOUS les outils (super-protégé) ──
+        document.getElementById('btn-catalog-delete-all')?.addEventListener('click', () => this.bulkDeleteAll());
+
         // ── Import Excel ──
         const btnImport = $('#btn-catalog-import');
         if (btnImport) {
@@ -7813,6 +7821,72 @@ section[data-view][hidden],
         } catch(e) {
           ui.hideLoader();
           console.error('[bulkCleanIncomplete]', e);
+          ui.toast(`⛔ Refusé par Firebase (${e.code || e.message})`, 'danger');
+        }
+      },
+
+      /**
+       * ☠️ Suppression de TOUS les outils du catalogue (TRIPLE confirmation)
+       * Réservé super_admin/admin uniquement, avec saisie du mot exact pour valider.
+       */
+      async bulkDeleteAll() {
+        if (!['admin','super_admin'].includes(state.role)) {
+          ui.toast('🚫 Réservé aux admins', 'danger');
+          return;
+        }
+        const all = Object.entries(state.tools);
+        const count = all.length;
+        if (count === 0) {
+          ui.toast('ℹ️ Le catalogue est déjà vide', 'info');
+          return;
+        }
+
+        // ── 1ʳᵉ confirmation : avertissement initial ──
+        const ok1 = confirm(
+          `☠️ DANGER : Suppression de TOUS les outils\n\n` +
+          `Tu vas supprimer ${count} outil(s) du catalogue.\n\n` +
+          `⚠️ TOUS les outils seront effacés DÉFINITIVEMENT.\n` +
+          `⚠️ Les bons d'intervention liés à ces outils\n` +
+          `   garderont leur snapshot mais le catalogue sera VIDE.\n\n` +
+          `Continuer vers les confirmations suivantes ?`
+        );
+        if (!ok1) return;
+
+        // ── 2ᵉ confirmation : seconde alerte ──
+        const ok2 = confirm(
+          `🛑 SECONDE CONFIRMATION\n\n` +
+          `Es-tu ABSOLUMENT SÛR de vouloir effacer\n` +
+          `LES ${count} OUTILS du catalogue ?\n\n` +
+          `Cette action est IRRÉVERSIBLE.\n` +
+          `Il n'y aura PAS de corbeille, PAS de récupération.\n\n` +
+          `Si tu n'es pas sûr → clique Annuler maintenant.`
+        );
+        if (!ok2) return;
+
+        // ── 3ᵉ confirmation : saisie du mot ──
+        const typed = prompt(
+          `🔴 DERNIÈRE CONFIRMATION\n\n` +
+          `Pour confirmer la suppression de ${count} outils,\n` +
+          `tape exactement le mot :\n\n` +
+          `SUPPRIMER`
+        );
+        if (typed === null) return;
+        if (typed.trim().toUpperCase() !== 'SUPPRIMER') {
+          ui.toast('Texte non identique — suppression annulée', 'warn');
+          return;
+        }
+
+        // ── Exécution ──
+        ui.showLoader(`Suppression de ${count} outils en cours…`);
+        try {
+          // Multi-update atomique : tout le nœud tools devient null
+          await fbDb.ref('tools').remove();
+          try { db.audit('tools.bulkDeleteAll', '', { count }); } catch(e){}
+          ui.hideLoader();
+          ui.toast(`☠️ ${count} outil(s) supprimé(s) — Catalogue vidé`, 'success');
+        } catch(e) {
+          ui.hideLoader();
+          console.error('[bulkDeleteAll]', e);
           ui.toast(`⛔ Refusé par Firebase (${e.code || e.message})`, 'danger');
         }
       },

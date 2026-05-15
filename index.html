@@ -5934,17 +5934,37 @@ Cette action est irréversible.`)) return;
           presseur:       tool.presseur || ''
         };
 
-        // Dessiner chaque champ
+        // Dessiner chaque champ : EFFACE d'abord l'ancien texte, PUIS écrit le nouveau
+        // Pour les champs sans valeur, on EFFACE quand même les anciens placeholders du PDF
         for (const [field, pos] of Object.entries(tpl.fields || {})) {
+          if (!pos) continue;
           const value = fieldValues[field];
-          if (!value || !pos) continue;
-          page.drawText(String(value), {
-            x: Number(pos.x) || 300,
-            y: Number(pos.y) || 600,
-            size: Number(pos.size) || 9,
-            font: font,
-            color: PDFLib.rgb(0, 0, 0)
+
+          // ✨ ÉTAPE 1 : Effacer TOUJOURS l'ancien contenu avec un rectangle blanc
+          // (les anciennes valeurs P00002100, WZ796J-03/... etc. sont des éléments visuels du PDF)
+          const eraseW = Number(pos.eraseW) || 175;
+          const eraseH = Number(pos.eraseH) || 13;
+          const eraseX = (pos.eraseX != null) ? Number(pos.eraseX) : (Number(pos.x) - 75);
+          const eraseY = (pos.eraseY != null) ? Number(pos.eraseY) : (Number(pos.y) - 2);
+
+          page.drawRectangle({
+            x: eraseX,
+            y: eraseY,
+            width: eraseW,
+            height: eraseH,
+            color: PDFLib.rgb(1, 1, 1)            // blanc opaque
           });
+
+          // ✨ ÉTAPE 2 : Écrire le nouveau texte par-dessus (si valeur présente)
+          if (value) {
+            page.drawText(String(value), {
+              x: Number(pos.x) || 300,
+              y: Number(pos.y) || 600,
+              size: Number(pos.size) || 9,
+              font: font,
+              color: PDFLib.rgb(0, 0, 0)
+            });
+          }
         }
 
         const pdfBytes = await pdfDoc.save();

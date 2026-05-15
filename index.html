@@ -4915,7 +4915,7 @@ section[data-view][hidden],
       </div>
       <footer class="modal__footer" style="justify-content:space-between;flex-wrap:wrap;gap:.5rem">
         <button class="btn btn--secondary" id="btn-tool-details-form" style="background:rgba(255,139,107,.12);color:#ff8b6b;border:1px solid rgba(255,139,107,.3);font-weight:700">
-          📝 Remplir un formulaire
+          📝 Choisir Annex 5
         </button>
         <div style="display:flex;gap:.5rem">
           <button class="btn btn--ghost" data-close>Fermer</button>
@@ -5032,6 +5032,57 @@ section[data-view][hidden],
         <button class="btn btn--ghost" data-close>Annuler</button>
         <button class="btn btn--primary" id="btn-add-tpl-submit" style="background:#00e5a0;color:#0a1628;border:none;font-weight:700">
           ✅ Enregistrer le modèle
+        </button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: ajouter un fichier joint à un outil -->
+  <div class="modal" id="modal-attachment-add" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:560px">
+      <header class="modal__header">
+        <h2 class="modal__title">📎 Joindre un fichier à <span id="attach-tool-name" style="color:var(--accent-500)">l'outil</span></h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body">
+        <form id="form-attachment" onsubmit="return false">
+          <div class="field" style="margin-bottom:.85rem">
+            <label class="field__label" for="attach-file">📎 Fichier (PDF, XLSX, XLS) *</label>
+            <input class="field__input" id="attach-file" type="file" accept=".pdf,.xlsx,.xls,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" required>
+            <small style="font-size:.72rem;color:var(--text-muted);margin-top:.25rem;display:block">
+              Taille max recommandée : 5 MB. Le fichier sera partagé avec tous les utilisateurs.
+            </small>
+          </div>
+          <div class="intervention__grid intervention__grid--2" style="margin-bottom:.85rem">
+            <div class="field">
+              <label class="field__label" for="attach-category">📁 Catégorie *</label>
+              <select class="field__input" id="attach-category">
+                <option value="Annex 4">Annex 4</option>
+                <option value="Annex 5">Annex 5</option>
+                <option value="Annex 6">Annex 6</option>
+                <option value="DOSSIER MASTER">DOSSIER MASTER</option>
+                <option value="Fiche technique">Fiche technique</option>
+                <option value="Plan / Dessin">Plan / Dessin</option>
+                <option value="Manuel">Manuel</option>
+                <option value="Autre">Autre…</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field__label" for="attach-custom-cat">Catégorie personnalisée (si "Autre")</label>
+              <input class="field__input" id="attach-custom-cat" placeholder="Ex: Procédure qualité">
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:.85rem">
+            <label class="field__label" for="attach-description">Description (optionnelle)</label>
+            <input class="field__input" id="attach-description" placeholder="Ex: Document Q4 2025">
+          </div>
+        </form>
+      </div>
+      <footer class="modal__footer">
+        <button class="btn btn--ghost" data-close>Annuler</button>
+        <button class="btn btn--primary" id="btn-attach-submit" style="background:#00e5a0;color:#0a1628;border:none;font-weight:700">
+          ✅ Téléverser
         </button>
       </footer>
     </div>
@@ -5999,6 +6050,238 @@ Cette action est irréversible.`)) return;
   // Expose globalement
   window.formTemplates = formTemplates;
   window.PDF_FIELD_PRESETS = PDF_FIELD_PRESETS;
+
+
+  /* ════════════════════════════════════════════════════════════════════════
+     📎 SYSTÈME DE PIÈCES JOINTES PAR OUTIL
+     ════════════════════════════════════════════════════════════════════════
+     Stockage Firebase RTDB : toolAttachments/{toolId}/{fileId}
+     • Admin/super_admin/responsable : upload + suppression
+     • Tous les rôles : téléchargement
+     ════════════════════════════════════════════════════════════════════════ */
+  const toolAttachments = {
+    _all: {},                                            // { toolId: { fileId: {...} } }
+    _listenerAttached: false,
+    _currentTool: null,
+
+    /** Listener Firebase lazy-init */
+    init() {
+      if (this._listenerAttached) return;
+      if (!fbAuth.currentUser) {
+        fbAuth.onAuthStateChanged(u => { if (u) this.init(); });
+        return;
+      }
+      this._listenerAttached = true;
+      fbDb.ref('toolAttachments').on('value', snap => {
+        this._all = snap.val() || {};
+        console.log(`[toolAttachments] 📥 ${Object.keys(this._all).length} outil(s) avec fichiers`);
+        // Si la modal détails est ouverte, re-render
+        if (this._currentTool && !document.getElementById('modal-tool-details')?.hidden) {
+          this.renderForTool(this._currentTool);
+        }
+      });
+    },
+
+    /** Conversion fichier → base64 */
+    _fileToB64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    },
+
+    /** Rend la section "Documents associés" dans la modal détails d'un outil */
+    renderForTool(tool) {
+      this.init();                                       // lazy init listener
+      this._currentTool = tool;
+      const container = document.getElementById('tool-attachments-section');
+      if (!container) return;
+
+      const toolId = tool.id;
+      const files = this._all[toolId] || {};
+      const list = Object.entries(files).sort((a, b) => (b[1].uploadedAt || 0) - (a[1].uploadedAt || 0));
+
+      const canManage = ['admin','super_admin','responsable'].includes(state.role);
+      const isAdmin = ['admin','super_admin'].includes(state.role);
+
+      const fmtSize = (kb) => kb >= 1024 ? (kb/1024).toFixed(1) + ' MB' : kb + ' KB';
+      const fmtDate = (ts) => ts ? new Date(ts).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+      const iconForMime = (mime, name) => {
+        const n = (name || '').toLowerCase();
+        if (mime === 'application/pdf' || n.endsWith('.pdf')) return '📕';
+        if (mime?.includes('spreadsheet') || n.endsWith('.xlsx') || n.endsWith('.xls')) return '📊';
+        return '📄';
+      };
+
+      let html = `<div style="margin:1.1rem 0 .35rem;display:flex;justify-content:space-between;align-items:center;padding:0 .65rem">
+        <span style="font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:#00d4ff;font-weight:700">📎 Documents associés (${list.length})</span>
+        ${canManage ? `<button id="btn-attach-add" style="background:rgba(0,229,160,.15);color:#00e5a0;border:1px solid rgba(0,229,160,.35);border-radius:6px;padding:.3rem .65rem;font-size:.72rem;font-weight:700;cursor:pointer">➕ Ajouter</button>` : ''}
+      </div>`;
+
+      if (list.length === 0) {
+        html += `<div style="padding:.85rem 1rem;text-align:center;color:var(--text-muted);font-size:.78rem;font-style:italic">
+          Aucun document joint à cet outil
+        </div>`;
+      } else {
+        html += list.map(([fid, f]) => `
+          <div data-att-id="${ui.escape(fid)}" style="display:flex;align-items:center;gap:.65rem;padding:.55rem .85rem;border-bottom:1px solid var(--border-soft)">
+            <span style="font-size:1.4rem">${iconForMime(f.mime, f.name)}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.84rem;color:var(--text-primary);word-break:break-word">${ui.escape(f.name || 'sans nom')}</div>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;font-size:.7rem;color:var(--text-muted);margin-top:.15rem">
+                <span style="background:rgba(0,212,255,.15);color:#00d4ff;padding:.05rem .4rem;border-radius:4px;font-weight:600">${ui.escape(f.category || 'Autre')}</span>
+                <span>${fmtSize(f.sizeKB || 0)}</span>
+                <span>${fmtDate(f.uploadedAt)}</span>
+                ${f.uploadedByName ? `<span>par ${ui.escape(f.uploadedByName)}</span>` : ''}
+              </div>
+              ${f.description ? `<div style="font-size:.72rem;color:var(--text-secondary);font-style:italic;margin-top:.1rem">${ui.escape(f.description)}</div>` : ''}
+            </div>
+            <button data-att-download="${ui.escape(fid)}" title="Télécharger" style="
+                padding:.35rem .55rem;background:rgba(0,212,255,.12);color:var(--accent-500);
+                border:1px solid rgba(0,212,255,.3);border-radius:5px;cursor:pointer;font-size:.78rem">
+              ⬇️
+            </button>
+            ${isAdmin ? `
+              <button data-att-delete="${ui.escape(fid)}" title="Supprimer" style="
+                  padding:.35rem .55rem;background:rgba(255,61,90,.12);color:#ff3d5a;
+                  border:1px solid rgba(255,61,90,.3);border-radius:5px;cursor:pointer;font-size:.78rem">
+                🗑️
+              </button>` : ''}
+          </div>
+        `).join('');
+      }
+      container.innerHTML = html;
+
+      // Wire actions
+      const addBtn = document.getElementById('btn-attach-add');
+      if (addBtn) addBtn.onclick = () => this.openAddForm(tool);
+
+      container.querySelectorAll('button[data-att-download]').forEach(b => {
+        b.onclick = () => this.download(toolId, b.dataset.attDownload);
+      });
+      container.querySelectorAll('button[data-att-delete]').forEach(b => {
+        b.onclick = () => this.delete(toolId, b.dataset.attDelete);
+      });
+    },
+
+    /** Ouvre le formulaire d'ajout */
+    openAddForm(tool) {
+      if (!['admin','super_admin','responsable'].includes(state.role)) {
+        ui.toast('🚫 Action réservée aux admins/responsables', 'danger');
+        return;
+      }
+      const modal = document.getElementById('modal-attachment-add');
+      if (!modal) return;
+      const nameSpan = document.getElementById('attach-tool-name');
+      if (nameSpan) nameSpan.textContent = tool.serial || tool.doutils || tool.outilId || tool.refOutil || 'l\'outil';
+
+      // Reset form
+      document.getElementById('form-attachment').reset();
+      document.getElementById('attach-custom-cat').value = '';
+
+      const submitBtn = document.getElementById('btn-attach-submit');
+      submitBtn.onclick = async () => {
+        try {
+          const fileInput = document.getElementById('attach-file');
+          const file = fileInput.files[0];
+          if (!file) return ui.toast('⚠️ Sélectionne un fichier', 'warn');
+
+          const allowedExt = /\.(pdf|xlsx|xls)$/i;
+          if (!allowedExt.test(file.name)) return ui.toast('⚠️ Format non supporté (PDF, XLSX, XLS uniquement)', 'warn');
+
+          const sizeMB = file.size / (1024 * 1024);
+          if (sizeMB > 8) return ui.toast(`⚠️ Fichier trop gros (${sizeMB.toFixed(1)} MB) — max 8 MB`, 'warn');
+
+          const cat = document.getElementById('attach-category').value;
+          const customCat = document.getElementById('attach-custom-cat').value.trim();
+          const finalCat = (cat === 'Autre' && customCat) ? customCat : cat;
+          const description = document.getElementById('attach-description').value.trim();
+
+          ui.showLoader('Téléversement en cours…');
+          const b64 = await this._fileToB64(file);
+          const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+          const payload = {
+            name: file.name,
+            category: finalCat,
+            description,
+            mime: file.type,
+            sizeKB: Math.round(file.size / 1024),
+            b64,
+            uploadedAt: Date.now(),
+            uploadedBy: state.user?.uid || '',
+            uploadedByName: state.profile?.displayName || '?'
+          };
+          await fbDb.ref(`toolAttachments/${tool.id}/${fid}`).set(payload);
+          try { db.audit('toolAttachment.add', tool.id, { name: file.name, sizeKB: payload.sizeKB, category: finalCat }); } catch(e){}
+          ui.hideLoader();
+          ui.toast(`📎 "${file.name}" téléversé (${this._fmtSize(payload.sizeKB)}) ✅`, 'success');
+          modal.hidden = true;
+          // Le listener va re-render automatiquement
+        } catch(e) {
+          ui.hideLoader();
+          console.error('[toolAttachments.add]', e);
+          ui.toast(`⛔ ${e.code || e.message}`, 'danger');
+        }
+      };
+
+      modal.querySelectorAll('[data-close]').forEach(el => {
+        el.addEventListener('click', () => { modal.hidden = true; }, { once: true });
+      });
+      modal.hidden = false;
+    },
+
+    /** Télécharge un fichier (n'importe quel rôle) */
+    download(toolId, fileId) {
+      const f = this._all?.[toolId]?.[fileId];
+      if (!f || !f.b64) return ui.toast('Fichier introuvable', 'danger');
+      try {
+        const bin = atob(f.b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const blob = new Blob([bytes], { type: f.mime || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = f.name || 'fichier';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+        ui.toast(`⬇️ "${f.name}" téléchargé`, 'success');
+      } catch(e) {
+        console.error('[toolAttachments.download]', e);
+        ui.toast('Erreur téléchargement : ' + e.message, 'danger');
+      }
+    },
+
+    /** Supprime un fichier (admin/super_admin uniquement) */
+    async delete(toolId, fileId) {
+      if (!['admin','super_admin'].includes(state.role)) {
+        ui.toast('🚫 Suppression réservée aux admins', 'danger');
+        return;
+      }
+      const f = this._all?.[toolId]?.[fileId];
+      if (!f) return;
+      if (!confirm(`Supprimer définitivement le fichier "${f.name}" ?\n\nCette action est irréversible.`)) return;
+      try {
+        await fbDb.ref(`toolAttachments/${toolId}/${fileId}`).remove();
+        try { db.audit('toolAttachment.delete', toolId, { name: f.name, fileId }); } catch(e){}
+        ui.toast(`🗑️ "${f.name}" supprimé`, 'success');
+        // Le listener va re-render automatiquement
+      } catch(e) {
+        console.error('[toolAttachments.delete]', e);
+        ui.toast(`⛔ ${e.code || e.message}`, 'danger');
+      }
+    },
+
+    _fmtSize(kb) {
+      return kb >= 1024 ? (kb/1024).toFixed(1) + ' MB' : kb + ' KB';
+    }
+  };
+
+  // Expose globalement
+  window.toolAttachments = toolAttachments;
 
   const fmt = {
     date: (ts) => {
@@ -8546,6 +8829,8 @@ Cette action est irréversible.`)) return;
             ${row('Projet', tool.projet, false)}
           </div>
 
+          <div id="tool-attachments-section" style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem"></div>
+
           <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0">
             ${sectionTitle('📅', 'Métadonnées', 'var(--text-muted)')}
             ${row('ID interne', tool.id)}
@@ -8553,6 +8838,9 @@ Cette action est irréversible.`)) return;
             ${row('Modifié le', fmtDate(tool.updatedAt), false)}
           </div>
         `;
+
+        // 📎 Charger et afficher la section des pièces jointes
+        toolAttachments.renderForTool(tool);
 
         // Bouton Modifier branché
         const editBtn = document.getElementById('btn-tool-details-edit');

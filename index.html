@@ -5685,6 +5685,7 @@ section[data-view][hidden],
 
     /** Ouvre la modal de sélection des modèles pour un outil */
     openChooser(tool) {
+      this.init();                                     // lazy init du listener Firebase
       const modal = document.getElementById('modal-form-chooser');
       if (!modal) return;
       const nameSpan = document.getElementById('form-chooser-tool-name');
@@ -5971,14 +5972,9 @@ Cette action est irréversible.`)) return;
     }
   };
 
-  // Lance le listener dès que possible
-  if (typeof fbAuth !== 'undefined') {
-    if (fbAuth.currentUser) {
-      formTemplates.init();
-    } else {
-      fbAuth.onAuthStateChanged(u => { if (u) formTemplates.init(); });
-    }
-  }
+  // Lazy init : le listener Firebase démarre à la première utilisation
+  // (évite l'erreur "Cannot access fbAuth before initialization" — TDZ)
+  // formTemplates.init() est appelé automatiquement dans openChooser/openManage
 
   // Expose globalement
   window.formTemplates = formTemplates;

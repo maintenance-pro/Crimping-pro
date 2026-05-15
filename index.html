@@ -4913,9 +4913,40 @@ section[data-view][hidden],
       <div class="modal__body" id="tool-details-body">
         <!-- Contenu injecté dynamiquement -->
       </div>
+      <footer class="modal__footer" style="justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+        <button class="btn btn--secondary" id="btn-tool-details-form" style="background:rgba(255,139,107,.12);color:#ff8b6b;border:1px solid rgba(255,139,107,.3);font-weight:700">
+          📝 Remplir un formulaire
+        </button>
+        <div style="display:flex;gap:.5rem">
+          <button class="btn btn--ghost" data-close>Fermer</button>
+          <button class="btn btn--secondary" id="btn-tool-details-edit" style="background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3)">✏️ Modifier</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: choix du formulaire à remplir -->
+  <div class="modal" id="modal-form-chooser" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:620px">
+      <header class="modal__header">
+        <h2 class="modal__title">📝 Choisir un formulaire</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body">
+        <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:1rem">
+          Sélectionnez le formulaire à pré-remplir avec les données de l'outil
+          <strong id="form-chooser-tool-name" style="color:var(--accent-500)">—</strong> :
+        </p>
+        <div id="form-chooser-list" style="display:flex;flex-direction:column;gap:.6rem">
+          <!-- Liste des templates injectée dynamiquement -->
+        </div>
+        <div style="margin-top:1.25rem;padding:.75rem 1rem;background:rgba(0,212,255,.05);border-left:3px solid var(--accent-500);border-radius:6px;font-size:.78rem;color:var(--text-secondary)">
+          💡 D'autres formulaires peuvent être ajoutés à la demande. Tu peux fournir le modèle Excel/PDF et je l'intègrerai au système.
+        </div>
+      </div>
       <footer class="modal__footer">
-        <button class="btn btn--ghost" data-close>Fermer</button>
-        <button class="btn btn--secondary" id="btn-tool-details-edit" style="background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3)">✏️ Modifier</button>
+        <button class="btn btn--ghost" data-close>Annuler</button>
       </footer>
     </div>
   </div>
@@ -5445,6 +5476,290 @@ section[data-view][hidden],
   
   window.pdrLabel = pdrLabel;
   window.pdrRef = pdrRef;
+
+  /* ════════════════════════════════════════════════════════════════════════
+     📝 SYSTÈME DE FORMULAIRES PRÉ-REMPLIS
+     ════════════════════════════════════════════════════════════════════════
+     Architecture extensible — ajout d'un nouveau formulaire :
+       formTemplates.register({ id, name, subtitle, icon, accent, buildHTML })
+     ════════════════════════════════════════════════════════════════════════ */
+  const formTemplates = {
+    /** Registre des templates de formulaires disponibles */
+    templates: {},
+
+    /** Récupère une pièce avec fallback (tool.pieces[k] || tool[k]) */
+    _piece(tool, k) {
+      return (tool.pieces && tool.pieces[k]) || tool[k] || '';
+    },
+
+    /** Enregistre un nouveau template */
+    register(tpl) {
+      if (!tpl || !tpl.id) throw new Error('Template doit avoir un id');
+      this.templates[tpl.id] = tpl;
+      console.log(`[formTemplates] ✅ Enregistré : ${tpl.id} (${tpl.name})`);
+    },
+
+    /** Ouvre la modal de sélection des modèles pour un outil donné */
+    openChooser(tool) {
+      const modal = document.getElementById('modal-form-chooser');
+      if (!modal) return;
+      const nameSpan = document.getElementById('form-chooser-tool-name');
+      if (nameSpan) nameSpan.textContent = tool.serial || tool.doutils || tool.outilId || tool.refOutil || '?';
+
+      const listEl = document.getElementById('form-chooser-list');
+      const all = Object.values(this.templates);
+      if (all.length === 0) {
+        listEl.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--text-muted)">
+          <div style="font-size:2.5rem;opacity:.5">📭</div>
+          <div style="margin-top:.5rem">Aucun formulaire disponible</div>
+        </div>`;
+      } else {
+        listEl.innerHTML = all.map(t => `
+          <button class="form-tpl-btn" data-tpl-id="${ui.escape(t.id)}" style="
+              display:flex;align-items:center;gap:.85rem;padding:.95rem 1rem;
+              background:var(--bg-elevated);border:1px solid var(--border-soft);
+              border-left:4px solid ${t.accent || 'var(--accent-500)'};
+              border-radius:8px;cursor:pointer;text-align:left;width:100%;
+              transition:all .15s;color:var(--text-primary)">
+            <span style="font-size:1.8rem">${t.icon || '📄'}</span>
+            <span style="flex:1">
+              <span style="display:block;font-weight:700;font-size:.95rem;color:var(--text-primary)">${ui.escape(t.name)}</span>
+              ${t.subtitle ? `<span style="display:block;font-size:.74rem;color:var(--text-muted);margin-top:.15rem">${ui.escape(t.subtitle)}</span>` : ''}
+              ${t.description ? `<span style="display:block;font-size:.72rem;color:var(--text-secondary);margin-top:.2rem;font-style:italic">${ui.escape(t.description)}</span>` : ''}
+            </span>
+            <span style="color:var(--accent-500);font-size:1.2rem">→</span>
+          </button>
+        `).join('');
+
+        // Hover & wire-up
+        listEl.querySelectorAll('.form-tpl-btn').forEach(b => {
+          b.addEventListener('mouseenter', () => {
+            b.style.background = 'rgba(0,212,255,.08)';
+            b.style.borderColor = 'var(--accent-500)';
+          });
+          b.addEventListener('mouseleave', () => {
+            b.style.background = 'var(--bg-elevated)';
+            b.style.borderColor = 'var(--border-soft)';
+          });
+          b.addEventListener('click', () => {
+            const tplId = b.dataset.tplId;
+            modal.hidden = true;
+            this.generate(tool, tplId);
+          });
+        });
+      }
+
+      modal.querySelectorAll('[data-close]').forEach(el => {
+        el.addEventListener('click', () => { modal.hidden = true; }, { once: true });
+      });
+      modal.hidden = false;
+    },
+
+    /** Génère le formulaire pré-rempli et l'ouvre dans une fenêtre d'impression A4 */
+    generate(tool, templateId) {
+      const tpl = this.templates[templateId];
+      if (!tpl) {
+        ui.toast('Modèle de formulaire introuvable', 'danger');
+        return;
+      }
+      try {
+        const innerHtml = tpl.buildHTML(tool, this._piece.bind(this));
+        const title = tpl.name.replace(/[^\w-]/g, '_');
+        const toolLabel = (tool.serial || tool.doutils || tool.outilId || 'outil').replace(/[^\w-]/g, '_');
+        const filename = `${title}_${toolLabel}.pdf`;
+
+        // Ouvrir une fenêtre dédiée pour impression A4
+        const w = window.open('', '_blank', 'width=900,height=1100');
+        if (!w) {
+          ui.toast('⚠️ Pop-ups bloqués — autorise les pop-ups pour ce site', 'danger');
+          return;
+        }
+        w.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>${tpl.name} — ${ui.escape(tool.serial || tool.doutils || 'outil')}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; color:#000; background:#fff; font-size:11pt; }
+  .form-page { padding: 0; max-width: 186mm; margin: 0 auto; }
+  .form-header { border-bottom: 2px solid #000; padding-bottom: 8mm; margin-bottom: 8mm; }
+  .form-title { font-size: 16pt; font-weight: 700; margin: 0 0 2mm; }
+  .form-subtitle { font-size: 10pt; color: #555; margin: 0 0 4mm; }
+  .form-meta { display: flex; gap: 8mm; font-size: 9pt; color: #444; }
+  .form-meta strong { color: #000; }
+  .info-table { width: 100%; border-collapse: collapse; margin: 4mm 0 8mm; }
+  .info-table td { padding: 2.2mm 3mm; border: 0.5pt solid #888; vertical-align: middle; }
+  .info-table td.label { background: #f5f5f5; font-weight: 600; width: 40%; font-size: 10pt; }
+  .info-table td.value { font-family: 'Courier New', monospace; font-size: 10pt; min-height: 6mm; }
+  .info-table td.value.empty::after { content: ''; }
+  .change-table { width: 100%; border-collapse: collapse; margin: 4mm 0; }
+  .change-table th, .change-table td { border: 0.5pt solid #000; padding: 2mm; font-size: 9pt; text-align: center; }
+  .change-table th { background: #e8e8e8; font-weight: 700; }
+  .change-table td { height: 8mm; }
+  .form-section-title { font-size: 11pt; font-weight: 700; margin: 6mm 0 2mm; padding: 1.5mm 3mm; background: #d8e6f3; border-left: 3pt solid #1565c0; }
+  .form-footer { margin-top: 8mm; padding-top: 4mm; border-top: 1pt solid #888; font-size: 7.5pt; color: #666; font-style: italic; line-height: 1.4; }
+  .signature-row { display: flex; gap: 8mm; margin-top: 6mm; }
+  .signature-box { flex: 1; padding: 2mm; border: 0.5pt solid #888; min-height: 18mm; }
+  .signature-box .label { font-size: 8pt; color: #666; text-transform: uppercase; }
+  @media print {
+    body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .no-print { display: none !important; }
+  }
+  .print-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+    background: #1565c0; color: #fff; padding: 8px 16px;
+    display: flex; gap: 12px; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  }
+  .print-bar button {
+    padding: 6px 14px; border: 0; border-radius: 5px; cursor: pointer;
+    font-weight: 700; font-size: 13px;
+  }
+  .print-bar .btn-print { background: #fff; color: #1565c0; }
+  .print-bar .btn-close { background: rgba(255,255,255,.2); color: #fff; }
+  body { padding-top: 50px; }
+  @media print { body { padding-top: 0; } }
+</style>
+</head>
+<body>
+  <div class="print-bar no-print">
+    <span>📄 ${ui.escape(tpl.name)} — Outil ${ui.escape(tool.serial || tool.doutils || 'sans nom')}</span>
+    <button class="btn-print" onclick="window.print()">🖨️ Imprimer / PDF</button>
+    <button class="btn-close" onclick="window.close()">✖ Fermer</button>
+  </div>
+  <div class="form-page">${innerHtml}</div>
+</body>
+</html>`);
+        w.document.close();
+        ui.toast(`📄 Formulaire "${tpl.name}" généré`, 'success');
+      } catch(e) {
+        console.error('[formTemplates.generate]', e);
+        ui.toast('Erreur génération formulaire : ' + e.message, 'danger');
+      }
+    }
+  };
+
+  /* ── Template #1 : Renault RN 3117 Annexe 5 ────────────────────────── */
+  formTemplates.register({
+    id: 'renault_rn3117',
+    name: 'Renault RN 3117 — Annexe 5',
+    subtitle: 'Wear and Tear Component Sheet — Crimping Tools',
+    description: 'Fiche de suivi des pièces d\'usure (outils de sertissage)',
+    icon: '📄',
+    accent: '#888',
+    buildHTML(tool, piece) {
+      const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      // Cellule valeur : italique sur fond blanc comme dans le modèle original
+      const cell = (v) => {
+        const val = (v == null || v === '') ? '' : String(v);
+        return `<td class="val">${esc(val)}</td>`;
+      };
+      // Ligne vide du tableau de suivi
+      const emptyRow = () => `<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+
+      return `
+        <style>
+          .rn-form { font-family: Arial, Helvetica, sans-serif; color: #000; font-size: 10pt; }
+          .rn-form table { border-collapse: collapse; width: 100%; }
+          .rn-form .header { margin-bottom: 6mm; }
+          .rn-form .title { font-weight: 700; font-size: 13pt; text-align: center; margin: 0 0 3mm; }
+          .rn-form .meta { font-size: 9pt; text-align: left; line-height: 1.5; margin-bottom: 4mm; }
+          .rn-form .meta div { padding: 0.5mm 0; }
+          .rn-form table.info td { border: 0.5pt solid #000; padding: 1.8mm 3mm; vertical-align: middle; height: 6mm; }
+          .rn-form table.info td.lbl { width: 50%; font-weight: 400; }
+          .rn-form table.info td.val { width: 50%; font-style: italic; text-align: center; font-family: 'Times New Roman', serif; font-size: 10.5pt; }
+          .rn-form table.changes { margin-top: 4mm; }
+          .rn-form table.changes th { border: 0.5pt solid #000; padding: 2mm 1.5mm; font-size: 8.5pt; font-weight: 700; text-align: center; background: #fff; }
+          .rn-form table.changes td { border: 0.5pt solid #000; padding: 1.8mm; height: 7mm; }
+          .rn-form .date-row { display: flex; gap: 0; margin-top: 0; }
+          .rn-form .date-row .box { flex: 1; border: 0.5pt solid #000; border-top: 0; padding: 2mm 3mm; font-size: 9pt; min-height: 8mm; }
+          .rn-form .footer { margin-top: 6mm; font-size: 7.5pt; font-style: italic; line-height: 1.4; text-align: justify; color: #000; }
+          .rn-form .spacer { height: 4mm; }
+        </style>
+
+        <div class="rn-form">
+          <div class="header">
+            <p class="title">Wear and Tear Component Sheet&nbsp;&nbsp;Crimping Tools</p>
+            <div class="meta">
+              <div>AA RN 3117</div>
+              <div>Annexe 5</div>
+              <div>Page 1 of 1</div>
+              <div>2013-07-08</div>
+            </div>
+          </div>
+
+          <table class="info">
+            <tr><td class="lbl">N° de contact - outil :</td>${cell(tool.numContact || tool.connection)}</tr>
+            <tr><td class="lbl">N° d'inventaire de l'outil :</td>${cell(tool.numInventaire || (tool.doutils && tool.serial ? tool.doutils + '/' + tool.serial : tool.doutils || tool.outilId))}</tr>
+            <tr><td class="lbl">Poincon - conducteur :</td>${cell(piece(tool, 'pAr'))}</tr>
+            <tr><td class="lbl">Poincon - isolant :</td>${cell(piece(tool, 'pAv'))}</tr>
+            <tr><td class="lbl">Enclume conducteur</td>${cell(piece(tool, 'eAr'))}</tr>
+            <tr><td class="lbl">Enclume isolant</td>${cell(piece(tool, 'eAv'))}</tr>
+            <tr><td class="lbl">couteau de bande :</td>${cell(piece(tool, 'cAr'))}</tr>
+            <tr><td class="lbl">Matrice de couteau :</td>${cell(piece(tool, 'cAv'))}</tr>
+            <tr><td class="lbl">Matrice - avant :</td>${cell(tool.matriceAvant)}</tr>
+            <tr><td class="lbl">Matrice - arrière :</td>${cell(tool.matriceArriere)}</tr>
+            <tr><td class="lbl">Presseur (Hold down):</td>${cell(tool.presseur)}</tr>
+          </table>
+
+          <div class="spacer"></div>
+
+          <table class="changes">
+            <thead>
+              <tr>
+                <th style="width:24%">Pièces d'usure changée</th>
+                <th style="width:12%">Pièce changée</th>
+                <th style="width:8%">cassée</th>
+                <th style="width:8%">Usée</th>
+                <th style="width:12%">Evolution</th>
+                <th style="width:12%">Compteur</th>
+                <th style="width:24%">Remarques</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${emptyRow()}${emptyRow()}${emptyRow()}${emptyRow()}${emptyRow()}
+            </tbody>
+          </table>
+          <div class="date-row">
+            <div class="box">Date :</div>
+            <div class="box">Technicien:</div>
+          </div>
+
+          <div class="spacer"></div>
+
+          <table class="changes">
+            <thead>
+              <tr>
+                <th>Pièces d'usure changée</th>
+                <th>Pièce changée</th>
+                <th>cassée</th>
+                <th>Usée</th>
+                <th>Evolution</th>
+                <th>Compteur</th>
+                <th>Remarques</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${emptyRow()}${emptyRow()}${emptyRow()}${emptyRow()}${emptyRow()}
+            </tbody>
+          </table>
+          <div class="date-row">
+            <div class="box">Date :</div>
+            <div class="box">Technicien:</div>
+          </div>
+
+          <p class="footer">
+            Handing over this document to a third party only with permission of Leoni Bordnetz-Systeme GmbH – All rights reserved. WSD employees have to check the validity of the document before use – only officially released documents published on LISA are valid.
+          </p>
+        </div>
+      `;
+    }
+  });
+
+  // Expose globalement pour debug + futurs ajouts depuis console
+  window.formTemplates = formTemplates;
 
   const fmt = {
     date: (ts) => {
@@ -8008,6 +8323,15 @@ section[data-view][hidden],
           editBtn.onclick = () => {
             modal.hidden = true;
             this.openModal(tool);
+          };
+        }
+
+        // 📝 Bouton "Remplir formulaire" → ouvre le sélecteur de modèles
+        const formBtn = document.getElementById('btn-tool-details-form');
+        if (formBtn) {
+          formBtn.onclick = () => {
+            modal.hidden = true;
+            formTemplates.openChooser(tool);
           };
         }
 

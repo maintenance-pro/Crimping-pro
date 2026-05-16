@@ -4066,12 +4066,7 @@ section[data-view][hidden],
         <header class="intervention__header">
           <div>
             <h1 class="intervention__title">📸 Préventive 5 jours</h1>
-            <p class="intervention__subtitle">Vérification visuelle rapide — 15 minutes par bon</p>
-          </div>
-          <div class="intervention__meta">
-            <div class="intervention__pill" style="background:rgba(0,229,160,.15);color:#00e5a0;border:1px solid rgba(0,229,160,.3)">
-              ⏱ Durée fixe : 15 min
-            </div>
+            <p class="intervention__subtitle">Vérification visuelle rapide</p>
           </div>
         </header>
 
@@ -8178,7 +8173,97 @@ Cette action est irréversible.`)) return;
         // Timeline
         this.renderTimeline(data.statusHistory || []);
 
+        // 🔒 VERROUILLAGE TOTAL pour bons VALIDÉS ou REJETÉS
+        // Aucune modification possible — sécurité absolue.
+        this._applyValidationLock(data);
+
         router.go('intervention');
+      },
+
+      /**
+       * 🔒 Verrouille TOUT le formulaire si le bon est validé ou rejeté.
+       * Désactive tous les champs, masque les boutons, affiche un bandeau "Lecture seule".
+       * Sécurité absolue — même super_admin ne peut pas modifier un bon validé.
+       */
+      _applyValidationLock(data) {
+        const form = document.getElementById('form-int') || document.querySelector('#view-intervention form');
+        const isLocked = (data.status === 'validated' || data.status === 'rejected');
+        const lockBanner = document.getElementById('int-lock-banner');
+
+        if (isLocked) {
+          // Désactiver TOUS les inputs, selects, textareas, checkboxes, radios + boutons internes
+          if (form) {
+            form.querySelectorAll('input, select, textarea, button').forEach(el => {
+              // Ne pas désactiver les boutons d'action read-only (PDF, retour, fermer, etc.)
+              if (el.id === 'btn-int-back' || el.id === 'btn-int-pdf' || el.id === 'btn-int-print' ||
+                  el.classList.contains('btn--ghost') || el.dataset.action === 'view' ||
+                  el.type === 'button' && el.textContent.match(/PDF|Imprimer|Retour|Fermer|Voir/i)) {
+                return;
+              }
+              el.disabled = true;
+              if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                el.readOnly = true;
+              }
+            });
+            form.style.position = 'relative';
+          }
+
+          // Masquer/désactiver tous les boutons de soumission
+          ['btn-int-submit','btn-int-save-draft','btn-int-validate','btn-int-reject'].forEach(id => {
+            const b = document.getElementById(id);
+            if (b) { b.style.display = 'none'; b.disabled = true; }
+          });
+
+          // Bandeau "Bon verrouillé"
+          if (!lockBanner) {
+            const banner = document.createElement('div');
+            banner.id = 'int-lock-banner';
+            banner.style.cssText = `
+              position:sticky;top:0;z-index:50;
+              background:${data.status === 'rejected'
+                ? 'linear-gradient(90deg, rgba(255,61,90,.18), rgba(255,61,90,.08))'
+                : 'linear-gradient(90deg, rgba(0,229,160,.18), rgba(0,229,160,.06))'};
+              color:${data.status === 'rejected' ? '#ff8b9b' : '#00e5a0'};
+              border:1px solid ${data.status === 'rejected' ? 'rgba(255,61,90,.4)' : 'rgba(0,229,160,.4)'};
+              border-radius:8px;padding:.85rem 1.1rem;margin:0 0 1rem;
+              display:flex;align-items:center;gap:.75rem;font-weight:600;
+              box-shadow:0 4px 14px rgba(0,229,160,.08);`;
+            banner.innerHTML = `
+              <span style="font-size:1.4rem">🔒</span>
+              <div style="flex:1">
+                <div style="font-size:.95rem;font-weight:700">
+                  ${data.status === 'rejected' ? 'BON REJETÉ' : 'BON VALIDÉ'} — LECTURE SEULE
+                </div>
+                <div style="font-size:.78rem;opacity:.85;font-weight:500;margin-top:.15rem">
+                  Ce bon est verrouillé. Aucune modification n'est possible une fois validé.
+                </div>
+              </div>`;
+            const viewEl = document.getElementById('view-intervention');
+            const headerEl = viewEl?.querySelector('.intervention__header');
+            if (headerEl) headerEl.insertAdjacentElement('afterend', banner);
+            else viewEl?.insertBefore(banner, viewEl.firstChild);
+          }
+        } else {
+          // Bon non validé → débloquer (au cas où on ouvre un brouillon après un bon validé)
+          if (lockBanner) lockBanner.remove();
+          if (form) {
+            form.querySelectorAll('input, select, textarea').forEach(el => {
+              // Restaurer si pas verrouillé par autre logique (labo lock, tool lock)
+              if (!el.hasAttribute('data-locked-by-role')) {
+                el.disabled = false;
+                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                  // Garder readOnly false sauf si explicitement marqué
+                  if (!el.hasAttribute('data-readonly-original')) el.readOnly = false;
+                }
+              }
+            });
+          }
+          // Restaurer les boutons
+          ['btn-int-submit','btn-int-save-draft','btn-int-validate','btn-int-reject'].forEach(id => {
+            const b = document.getElementById(id);
+            if (b) { b.style.display = ''; b.disabled = false; }
+          });
+        }
       },
 
       fillToolCard(tool) {
@@ -8328,6 +8413,14 @@ Cette action est irréversible.`)) return;
         const isEditing = !!state.currentInterventionId;
         const isLabo = (state.role === 'labo');
 
+        // 🔒 SÉCURITÉ : impossible de modifier un bon validé ou rejeté
+        if (isEditing && state.currentInterventionId) {
+          const existing = state.interventions?.[state.currentInterventionId];
+          if (existing && (existing.status === 'validated' || existing.status === 'rejected')) {
+            return ui.toast(`🔒 Ce bon est ${existing.status === 'validated' ? 'VALIDÉ' : 'REJETÉ'} — toute modification est interdite`, 'danger');
+          }
+        }
+
         if (isCreating && !auth.can('intervention.create')) {
           return ui.toast('🔒 Vous ne pouvez pas créer un nouveau bon d\'intervention', 'danger');
         }
@@ -8401,6 +8494,11 @@ Cette action est irréversible.`)) return;
         if (!auth.can('intervention.validate')) return ui.toast('Accès refusé', 'danger');
         const reg = state.currentInterventionId;
         if (!reg) return ui.toast('Aucun bon ouvert', 'warn');
+        // 🔒 Empêcher la re-validation d'un bon déjà validé ou rejeté
+        const existing = state.interventions?.[reg];
+        if (existing && (existing.status === 'validated' || existing.status === 'rejected')) {
+          return ui.toast(`🔒 Ce bon est déjà ${existing.status === 'validated' ? 'validé' : 'rejeté'} — verrouillé`, 'danger');
+        }
         ui.showLoader('Validation…');
         try {
           const labData = this.collectLabData();
@@ -8438,6 +8536,11 @@ Cette action est irréversible.`)) return;
         if (!auth.can('intervention.reject')) return ui.toast('Accès refusé', 'danger');
         const reg = state.currentInterventionId;
         if (!reg) return;
+        // 🔒 Empêcher la re-rejection d'un bon déjà validé ou rejeté
+        const existing = state.interventions?.[reg];
+        if (existing && (existing.status === 'validated' || existing.status === 'rejected')) {
+          return ui.toast(`🔒 Ce bon est déjà ${existing.status === 'validated' ? 'validé' : 'rejeté'} — verrouillé`, 'danger');
+        }
         // Ouvre modal refus
         const modal = $('#modal-reject');
         modal.hidden = false;
@@ -8695,7 +8798,7 @@ Cette action est irréversible.`)) return;
             },
             filledAt: Date.now()
           },
-          status: 'completed',
+          status: 'validated',                         // ✅ Validé directement (pas de phase labo)
           createdAt: Date.now(),
           updatedAt: Date.now()
         };

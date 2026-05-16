@@ -7853,8 +7853,8 @@ Cette action est irréversible.`)) return;
           // Section crimping
           drawSection('PARTIE CRIMPING — TECHNICIEN MAINTENANCE', [15, 118, 110]);
           if (data.crimping) {
-            drawRow('Technicien:', data.crimping.filledBy && data.crimping.filledBy.name);
-            drawRow('Matricule:', data.crimping.filledBy && data.crimping.filledBy.matricule);
+            drawRow('Technicien:', data.crimping.technicienNom || (data.crimping.filledBy && data.crimping.filledBy.name));
+            drawRow('Matricule:', data.crimping.technicienMatricule || (data.crimping.filledBy && data.crimping.filledBy.matricule));
             drawRow('Date:', data.crimping.date ? new Date(data.crimping.date).toLocaleDateString('fr-FR') : '—');
             drawRow('Cycles compteur:', data.crimping.cycles);
             drawRow('Type:', data.crimping.type ? {preventive:'Préventive',curative:'Curative',requalification:'Requalification'}[data.crimping.type] : '—');
@@ -7867,7 +7867,7 @@ Cette action est irréversible.`)) return;
           // Section labo
           if (data.lab) {
             drawSection('PARTIE LABORATOIRE — VALIDATION', [59, 130, 246]);
-            drawRow('Technicien labo:', data.lab.filledBy && data.lab.filledBy.name);
+            drawRow('Technicien labo:', data.lab.technicienNom || (data.lab.filledBy && data.lab.filledBy.name));
             drawRow('Réf. connexion:', data.lab.connexion && data.lab.connexion.refConnexion);
             drawRow('Section câble:', data.lab.connexion && data.lab.connexion.sectionCable);
             if (data.lab.capabilite) {
@@ -8425,7 +8425,10 @@ Cette action est irréversible.`)) return;
         if (f.to)     { const ts = new Date(f.to).getTime() + 86400000; list = list.filter(i => (i.crimping && i.crimping.date) <= ts); }
         if (f.type)   list = list.filter(i => i.crimping && i.crimping.type === f.type);
         if (f.status) list = list.filter(i => i.status === f.status);
-        if (f.tech)   list = list.filter(i => ((i.crimping && i.crimping.filledBy && i.crimping.filledBy.name) || '').toLowerCase().includes(f.tech));
+        if (f.tech)   list = list.filter(i => {
+          const techName = (i.crimping?.technicienNom || i.crimping?.filledBy?.name || '').toLowerCase();
+          return techName.includes(f.tech);
+        });
 
         // Sort
         const { field, dir } = state.sort;
@@ -8505,8 +8508,8 @@ Cette action est irréversible.`)) return;
             c.type || '',
             (c.observation || '').replace(/[\n\r;]/g, ' '),
             fmt.statusLabel(i.status),
-            (c.filledBy && c.filledBy.name) || '',
-            (lab.filledBy && lab.filledBy.name) || '',
+            (c.technicienNom || (c.filledBy && c.filledBy.name)) || '',
+            (lab.technicienNom || (lab.filledBy && lab.filledBy.name)) || '',
             cap.cmAme != null ? cap.cmAme.toFixed(2) : '',
             cap.cmkAme != null ? cap.cmkAme.toFixed(2) : ''
           ];
@@ -8556,7 +8559,7 @@ Cette action est irréversible.`)) return;
             <div style="color:var(--text-secondary);font-size:var(--fs-sm)">
               <div>🛠 ${ui.escape((i.tool && i.tool.outilId) || '—')}</div>
               <div>📅 ${fmt.date(i.crimping && i.crimping.date)}</div>
-              <div>👤 ${ui.escape((i.crimping && i.crimping.filledBy && i.crimping.filledBy.name) || '—')}</div>
+              <div>👤 ${ui.escape((i.crimping && (i.crimping.technicienNom || (i.crimping.filledBy && i.crimping.filledBy.name))) || '—')}</div>
             </div>
           </article>
         `).join('') || '<p style="color:var(--text-muted)" data-i18n="t.aucun_bon_dans_cette_categorie">Aucun bon dans cette catégorie</p>';
@@ -11172,11 +11175,19 @@ Erreur Firebase : ${e.message}`;
           .filter(i => i.crimping?.duration && (i.createdAt||0) >= since);
 
         // Group by technician
+        // 🔧 PRIORITÉ au nom SAISI dans le bon (i.crimping.technicienNom)
+        // et non au nom de session (filledBy.name) qui est l'utilisateur connecté.
+        // Sinon "master" apparaîtrait à la place de "KHALID" qui a vraiment fait le travail.
         const byTech = {};
         list.forEach(i => {
-          const name = i.crimping?.filledBy?.name || 'Inconnu';
-          const mat  = i.crimping?.filledBy?.matricule || '';
-          const key = name + '|' + mat;
+          const name = (i.crimping?.technicienNom || '').trim()
+                    || (i.crimping?.filledBy?.name || '').trim()
+                    || 'Inconnu';
+          const mat  = (i.crimping?.technicienMatricule || '').trim()
+                    || (i.crimping?.filledBy?.matricule || '').trim()
+                    || '';
+          // Normalise la clé (insensible casse, espaces collapsed) pour fusionner les variantes
+          const key = name.toLowerCase().replace(/\s+/g, ' ') + '|' + mat.toLowerCase();
           if (!byTech[key]) byTech[key] = { name, matricule: mat, total: 0, count: 0, durations: [] };
           byTech[key].total += i.crimping.duration;
           byTech[key].count++;
@@ -11294,10 +11305,11 @@ Erreur Firebase : ${e.message}`;
             for (let w = weeks-1; w >= 0; w--) {
               const e = new Date(); e.setDate(e.getDate() - w*7);
               const s = new Date(e); s.setDate(s.getDate() - 7);
-              const wMin = list.filter(i =>
-                (i.createdAt||0) >= s.getTime() && (i.createdAt||0) < e.getTime() &&
-                (i.crimping?.filledBy?.name === t.name)
-              ).reduce((sum,i) => sum + (i.crimping.duration||0), 0);
+              const wMin = list.filter(i => {
+                if ((i.createdAt||0) < s.getTime() || (i.createdAt||0) >= e.getTime()) return false;
+                const techName = (i.crimping?.technicienNom || i.crimping?.filledBy?.name || '').trim().toLowerCase();
+                return techName === t.name.trim().toLowerCase();
+              }).reduce((sum,i) => sum + (i.crimping.duration||0), 0);
               data.push(Math.round(wMin/60 * 10) / 10);
             }
             return {
@@ -11346,8 +11358,8 @@ Erreur Firebase : ${e.message}`;
         const rows = list.map(i => ({
           'N° Bon': i.numBon,
           'Outil': i.tool?.outilId || '',
-          'Technicien': i.crimping?.filledBy?.name || '',
-          'Matricule': i.crimping?.filledBy?.matricule || '',
+          'Technicien': i.crimping?.technicienNom || i.crimping?.filledBy?.name || '',
+          'Matricule': i.crimping?.technicienMatricule || i.crimping?.filledBy?.matricule || '',
           'Date': fmt.date(i.crimping?.date || i.createdAt),
           'Type': i.crimping?.type || '',
           'Durée (min)': i.crimping?.duration || 0,

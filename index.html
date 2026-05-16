@@ -4133,17 +4133,41 @@ section[data-view][hidden],
               </p>
               <input id="p5j-photos-input" type="file" accept="image/jpeg,image/png,image/webp" multiple
                      style="display:none">
-              <button type="button" id="btn-p5j-add-photo" class="btn btn--secondary"
-                      style="background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3)">
-                📷 Ajouter une photo
-              </button>
+              <div style="display:flex;gap:.55rem;flex-wrap:wrap">
+                <button type="button" id="btn-p5j-add-photo" class="btn btn--secondary"
+                        style="background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3)">
+                  📁 Charger une photo
+                </button>
+                <button type="button" id="btn-p5j-camera" class="btn btn--secondary"
+                        style="background:rgba(255,139,107,.12);color:#ff8b6b;border:1px solid rgba(255,139,107,.3);font-weight:700">
+                  📷 Capturer avec la caméra
+                </button>
+              </div>
               <div id="p5j-photos-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.6rem;margin-top:.85rem"></div>
             </div>
 
             <div class="intervention__section">
               <h2 class="intervention__section-title">
-                <span class="stepper__num">4</span> 📝 Observation (optionnelle)
+                <span class="stepper__num">4</span> ✓ Conformités & observation
               </h2>
+              <div style="margin-bottom:.9rem">
+                <label style="font-size:.74rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:.45rem">Conformités</label>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.55rem">
+                  <label class="check" style="display:flex;align-items:center;gap:.55rem;padding:.6rem .85rem;background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:6px;cursor:pointer;font-size:.85rem">
+                    <input type="checkbox" id="p5j-conf-chanfrein">
+                    <span>Conformité chanfrein</span>
+                  </label>
+                  <label class="check" style="display:flex;align-items:center;gap:.55rem;padding:.6rem .85rem;background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:6px;cursor:pointer;font-size:.85rem">
+                    <input type="checkbox" id="p5j-conf-temoin">
+                    <span>Conformité témoin coupe</span>
+                  </label>
+                  <label class="check" style="display:flex;align-items:center;gap:.55rem;padding:.6rem .85rem;background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:6px;cursor:pointer;font-size:.85rem">
+                    <input type="checkbox" id="p5j-conf-flexion">
+                    <span>Conformité flexion</span>
+                  </label>
+                </div>
+              </div>
+              <label style="font-size:.74rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:.35rem">Observation (optionnelle)</label>
               <textarea id="p5j-observation" rows="3"
                         placeholder="Remarques sur l'état visuel de l'outil…"
                         style="width:100%;padding:.7rem;background:var(--bg-elevated);
@@ -5157,6 +5181,53 @@ section[data-view][hidden],
         <button class="btn btn--primary" id="btn-add-tpl-submit" style="background:#00e5a0;color:#0a1628;border:none;font-weight:700">
           ✅ Enregistrer le modèle
         </button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: capture caméra en direct -->
+  <div class="modal" id="modal-camera" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:760px">
+      <header class="modal__header">
+        <h2 class="modal__title">📷 Capture caméra</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body" style="padding:1rem">
+        <div id="cam-error" style="display:none;padding:.8rem 1rem;background:rgba(255,61,90,.12);color:#ff3d5a;border:1px solid rgba(255,61,90,.3);border-radius:6px;margin-bottom:.85rem;font-size:.85rem"></div>
+
+        <div style="display:flex;flex-direction:column;gap:.85rem">
+          <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+            <label style="font-size:.78rem;color:var(--text-secondary);font-weight:600">Caméra :</label>
+            <select id="cam-device-select" style="flex:1;min-width:200px;padding:.45rem .6rem;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-soft);border-radius:5px;font-size:.85rem">
+              <option value="">Chargement…</option>
+            </select>
+            <button type="button" id="btn-cam-switch" style="padding:.45rem .85rem;background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3);border-radius:5px;cursor:pointer;font-size:.82rem;font-weight:600">🔄 Changer</button>
+          </div>
+
+          <div style="position:relative;background:#000;border-radius:8px;overflow:hidden;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center">
+            <video id="cam-video" autoplay playsinline muted
+                   style="width:100%;height:100%;object-fit:contain;background:#000"></video>
+            <div id="cam-loading" style="position:absolute;color:#fff;font-size:.9rem">⏳ Initialisation de la caméra…</div>
+          </div>
+
+          <canvas id="cam-canvas" style="display:none"></canvas>
+
+          <!-- Preview des photos capturées dans cette session -->
+          <div id="cam-snapshots" style="display:none;flex-wrap:wrap;gap:.5rem;padding:.5rem;background:var(--bg-elevated);border-radius:6px"></div>
+        </div>
+      </div>
+      <footer class="modal__footer" style="justify-content:space-between">
+        <div style="font-size:.78rem;color:var(--text-muted)">
+          <span id="cam-count">0</span> photo(s) capturée(s)
+        </div>
+        <div style="display:flex;gap:.55rem">
+          <button class="btn btn--ghost" data-close>Terminer</button>
+          <button type="button" id="btn-cam-capture" class="btn btn--primary"
+                  style="background:#ff8b6b;color:#0a1628;border:none;font-weight:700;font-size:.95rem;padding:.6rem 1.4rem">
+            📸 CAPTURER
+          </button>
+        </div>
       </footer>
     </div>
   </div>
@@ -8649,6 +8720,9 @@ Cette action est irréversible.`)) return;
         $('#btn-p5j-add-photo')?.addEventListener('click', () => $('#p5j-photos-input')?.click());
         $('#p5j-photos-input')?.addEventListener('change', (e) => this._handlePhotoFiles(e.target.files));
 
+        // 📷 Caméra
+        $('#btn-p5j-camera')?.addEventListener('click', () => this._openCamera());
+
         // Submit
         $('#form-p5j')?.addEventListener('submit', (e) => {
           e.preventDefault();
@@ -8657,6 +8731,202 @@ Cette action est irréversible.`)) return;
 
         // Reset
         $('#btn-p5j-reset')?.addEventListener('click', () => this._reset());
+      },
+
+      /* ─────────────── 📷 CAMÉRA EN DIRECT ─────────────── */
+      _camStream: null,
+      _camDevices: [],
+      _camCurrentDeviceId: null,
+      _camCapturedThisSession: [],
+
+      async _openCamera() {
+        const modal = document.getElementById('modal-camera');
+        if (!modal) return;
+        this._camCapturedThisSession = [];
+        this._updateCamSnapshots();
+
+        // Reset UI
+        const errEl = document.getElementById('cam-error');
+        errEl.style.display = 'none';
+        errEl.textContent = '';
+        document.getElementById('cam-loading').style.display = '';
+
+        modal.querySelectorAll('[data-close]').forEach(el => {
+          el.addEventListener('click', () => this._closeCamera(), { once: true });
+        });
+
+        // Boutons
+        document.getElementById('btn-cam-capture').onclick = () => this._captureFrame();
+        document.getElementById('btn-cam-switch').onclick = () => this._cycleCamera();
+        document.getElementById('cam-device-select').onchange = (e) => this._startCamera(e.target.value);
+
+        modal.hidden = false;
+
+        // Vérifier le support
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          this._showCamError('Caméra non supportée par ce navigateur. Essaie Chrome ou Edge.');
+          return;
+        }
+
+        try {
+          // Première demande d'accès (déclenche la prompt de permission)
+          const tmpStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          tmpStream.getTracks().forEach(t => t.stop());
+
+          // Lister les caméras disponibles
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          this._camDevices = devices.filter(d => d.kind === 'videoinput');
+
+          const sel = document.getElementById('cam-device-select');
+          if (this._camDevices.length === 0) {
+            this._showCamError('Aucune caméra détectée sur ce PC.');
+            return;
+          }
+          sel.innerHTML = this._camDevices.map((d, i) =>
+            `<option value="${d.deviceId}">${ui.escape(d.label || `Caméra ${i+1}`)}</option>`
+          ).join('');
+
+          // Cacher le bouton "Changer" si une seule caméra
+          document.getElementById('btn-cam-switch').style.display = this._camDevices.length > 1 ? '' : 'none';
+
+          await this._startCamera(this._camDevices[0].deviceId);
+        } catch (err) {
+          console.error('[Camera] enumerate error:', err);
+          if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            this._showCamError('🚫 Accès caméra refusé. Autorise la caméra dans les paramètres du navigateur (icône 🔒 dans la barre d\'adresse).');
+          } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+            this._showCamError('Aucune caméra détectée. Vérifie que ta caméra est branchée et reconnue par le système.');
+          } else {
+            this._showCamError('Erreur d\'accès à la caméra : ' + err.message);
+          }
+        }
+      },
+
+      async _startCamera(deviceId) {
+        // Stop ancien stream
+        if (this._camStream) {
+          this._camStream.getTracks().forEach(t => t.stop());
+          this._camStream = null;
+        }
+
+        document.getElementById('cam-loading').style.display = '';
+        try {
+          const constraints = {
+            video: deviceId
+              ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+              : { width: { ideal: 1920 }, height: { ideal: 1080 } }
+          };
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          this._camStream = stream;
+          this._camCurrentDeviceId = deviceId;
+
+          const video = document.getElementById('cam-video');
+          video.srcObject = stream;
+          video.onloadedmetadata = () => {
+            document.getElementById('cam-loading').style.display = 'none';
+          };
+        } catch (err) {
+          console.error('[Camera] start error:', err);
+          this._showCamError('Impossible de démarrer la caméra : ' + err.message);
+        }
+      },
+
+      _cycleCamera() {
+        if (this._camDevices.length < 2) return;
+        const currentIdx = this._camDevices.findIndex(d => d.deviceId === this._camCurrentDeviceId);
+        const next = this._camDevices[(currentIdx + 1) % this._camDevices.length];
+        document.getElementById('cam-device-select').value = next.deviceId;
+        this._startCamera(next.deviceId);
+      },
+
+      _captureFrame() {
+        const video = document.getElementById('cam-video');
+        if (!video || !video.videoWidth) {
+          ui.toast('⚠️ Caméra pas encore prête', 'warn');
+          return;
+        }
+        if (this._photos.length >= 5) {
+          ui.toast('⚠️ Maximum 5 photos par bon', 'warn');
+          return;
+        }
+
+        const canvas = document.getElementById('cam-canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob((blob) => {
+          if (!blob) return ui.toast('Erreur capture', 'danger');
+          if (blob.size > 3 * 1024 * 1024) {
+            ui.toast(`⚠️ Image trop grosse (${(blob.size/1024/1024).toFixed(1)} MB) — réduis la résolution`, 'warn');
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result;
+            const b64 = dataUrl.split(',')[1];
+            const ts = Date.now();
+            const photo = {
+              id: 'cam_' + ts + '_' + Math.random().toString(36).slice(2, 6),
+              name: `capture_${new Date(ts).toISOString().slice(0, 19).replace(/[T:]/g, '-')}.jpg`,
+              mime: 'image/jpeg',
+              sizeKB: Math.round(blob.size / 1024),
+              b64,
+              dataUrl
+            };
+            this._photos.push(photo);
+            this._camCapturedThisSession.push(photo);
+            this._renderPhotos();
+            this._updateCamSnapshots();
+
+            // Flash visual feedback
+            const video = document.getElementById('cam-video');
+            const flash = document.createElement('div');
+            flash.style.cssText = 'position:absolute;inset:0;background:#fff;opacity:.9;pointer-events:none';
+            video.parentElement.appendChild(flash);
+            setTimeout(() => {
+              flash.style.transition = 'opacity .25s';
+              flash.style.opacity = '0';
+              setTimeout(() => flash.remove(), 280);
+            }, 50);
+
+            ui.toast(`📷 Photo capturée (${photo.sizeKB} KB) — ${this._photos.length}/5`, 'success');
+          };
+          reader.readAsDataURL(blob);
+        }, 'image/jpeg', 0.85);
+      },
+
+      _updateCamSnapshots() {
+        const wrap = document.getElementById('cam-snapshots');
+        const count = document.getElementById('cam-count');
+        if (count) count.textContent = this._camCapturedThisSession.length;
+        if (!wrap) return;
+        if (this._camCapturedThisSession.length === 0) {
+          wrap.style.display = 'none';
+          return;
+        }
+        wrap.style.display = 'flex';
+        wrap.innerHTML = this._camCapturedThisSession.map(p =>
+          `<img src="${p.dataUrl}" alt="${p.name}" style="width:64px;height:48px;object-fit:cover;border-radius:4px;border:1px solid rgba(255,255,255,.15)">`
+        ).join('');
+      },
+
+      _showCamError(msg) {
+        const errEl = document.getElementById('cam-error');
+        errEl.textContent = msg;
+        errEl.style.display = '';
+        document.getElementById('cam-loading').style.display = 'none';
+      },
+
+      _closeCamera() {
+        if (this._camStream) {
+          this._camStream.getTracks().forEach(t => t.stop());
+          this._camStream = null;
+        }
+        const modal = document.getElementById('modal-camera');
+        if (modal) modal.hidden = true;
+        const video = document.getElementById('cam-video');
+        if (video) video.srcObject = null;
       },
 
       _renderToolCard() {
@@ -8752,6 +9022,13 @@ Cette action est irréversible.`)) return;
         const dateTs = dateStr ? new Date(dateStr).getTime() : Date.now();
         const observation = $('#p5j-observation')?.value.trim() || '';
 
+        // 📋 Conformités
+        const conformites = {
+          chanfrein: !!$('#p5j-conf-chanfrein')?.checked,
+          temoin:    !!$('#p5j-conf-temoin')?.checked,
+          flexion:   !!$('#p5j-conf-flexion')?.checked
+        };
+
         // Génération numBon : P5J-YYYY-NNN
         const year = new Date().getFullYear();
         const existingThisYear = Object.values(state.interventions || {})
@@ -8784,6 +9061,7 @@ Cette action est irréversible.`)) return;
             type: 'preventive',
             piecesChanged: {},
             observation,
+            conformites,                                // ✓ Conformités chanfrein/témoin/flexion
             photos: this._photos.map(p => ({           // photos stockées en base64
               id: p.id,
               name: p.name,
@@ -8825,6 +9103,11 @@ Cette action est irréversible.`)) return;
         $('#p5j-tool-id').value = '';
         $('#p5j-tool-fab').value = '';
         $('#p5j-tool-card').innerHTML = '';
+        // Reset conformity checkboxes
+        ['p5j-conf-chanfrein','p5j-conf-temoin','p5j-conf-flexion'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.checked = false;
+        });
         this._renderPhotos();
         this._fillDateToday();
       },
@@ -8867,6 +9150,19 @@ Cette action est irréversible.`)) return;
         const bon = Object.values(state.interventions || {}).find(i => i.numBon === numBon);
         if (!bon) return ui.toast('Bon introuvable', 'danger');
         const photos = bon.crimping?.photos || [];
+        const conf = bon.crimping?.conformites || {};
+        const confBadge = (key, label) => {
+          const ok = !!conf[key];
+          return `<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.18rem .55rem;border-radius:5px;font-size:.74rem;font-weight:600;background:${ok ? 'rgba(0,229,160,.15)' : 'rgba(255,61,90,.12)'};color:${ok ? '#00e5a0' : '#ff8b9b'};border:1px solid ${ok ? 'rgba(0,229,160,.3)' : 'rgba(255,61,90,.3)'}">${ok ? '✓' : '✗'} ${ui.escape(label)}</span>`;
+        };
+        const confHtml = (Object.keys(conf).length > 0)
+          ? `<div style="margin-top:.55rem;display:flex;flex-wrap:wrap;gap:.4rem">
+              ${confBadge('chanfrein', 'Conformité chanfrein')}
+              ${confBadge('temoin',    'Conformité témoin coupe')}
+              ${confBadge('flexion',   'Conformité flexion')}
+            </div>`
+          : '';
+
         const galleryHtml = photos.length
           ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.55rem;margin-top:.5rem">
               ${photos.map(p => `<a href="data:${p.mime};base64,${p.b64}" download="${ui.escape(p.name)}"
@@ -8889,6 +9185,7 @@ Cette action est irréversible.`)) return;
               <div><strong>Durée :</strong> ⏱ 15 minutes</div>
               ${bon.crimping?.observation ? `<div style="margin-top:.5rem"><strong>Observation :</strong> ${ui.escape(bon.crimping.observation)}</div>` : ''}
             </div>
+            ${confHtml}
             <h3 style="margin:1rem 0 .35rem;color:var(--accent-500);font-size:.95rem">📷 Photos (${photos.length})</h3>
             ${galleryHtml}
           </div>

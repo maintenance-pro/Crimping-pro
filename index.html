@@ -7918,26 +7918,10 @@ Cette action est irréversible.`)) return;
           router.go('queue');
           return;
         }
-        // Pré-remplir UNIQUEMENT si le user est un technicien crimping (pas admin/responsable)
-        // Sinon le champ reste vide pour que le technicien y inscrive son vrai nom
-        if ($('#crimp-tech-name') && state.profile) {
-          const isRealCrimper = (state.role === 'crimp' || state.role === 'crimping');
-          if (isRealCrimper && !$('#crimp-tech-name').value) {
-            $('#crimp-tech-name').value = state.profile.displayName || '';
-            $('#crimp-tech-mat').value  = state.profile.matricule   || '';
-          }
-          // Si admin/responsable, vider le champ pour forcer la saisie manuelle
-          if (!isRealCrimper && state.role !== 'super_admin' && !state.profile._allowAnyName) {
-            // Garder ce qui est déjà tapé, sinon vide
-          }
-        }
-        // Pré-remplir le technicien labo avec le profil connecté
-        if ($('#labo-tech-name') && state.profile) {
-          if (state.role === 'labo' && !$('#labo-tech-name').value) {
-            $('#labo-tech-name').value = state.profile.displayName || '';
-            $('#labo-tech-mat').value  = state.profile.matricule   || '';
-          }
-        }
+        // 🚫 PAS DE REMPLISSAGE AUTOMATIQUE du nom du technicien
+        // L'utilisateur doit TOUJOURS saisir manuellement le nom du technicien
+        // qui a vraiment effectué le travail (peut être différent de l'utilisateur connecté).
+        // Le champ est conservé tel quel — aucune écriture par l'app.
       },
 
       open(reg) {

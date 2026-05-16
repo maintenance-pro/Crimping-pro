@@ -4097,6 +4097,14 @@ section[data-view][hidden],
                 </div>
               </div>
               <div id="p5j-tool-card" style="margin-top:.75rem"></div>
+              <div style="margin-top:.85rem;padding-top:.85rem;border-top:1px dashed var(--border-soft)">
+                <div class="field" style="max-width:340px">
+                  <label class="field__label">⏱ Compteur cycles de l'outil</label>
+                  <input class="field__input" id="p5j-cycles" type="number" min="0"
+                         placeholder="Ex: 456 788" autocomplete="off"
+                         style="font-family:var(--font-mono);font-weight:600">
+                </div>
+              </div>
             </div>
 
             <div class="intervention__section">
@@ -9021,6 +9029,7 @@ Cette action est irréversible.`)) return;
         const dateStr = $('#p5j-date')?.value;
         const dateTs = dateStr ? new Date(dateStr).getTime() : Date.now();
         const observation = $('#p5j-observation')?.value.trim() || '';
+        const cyclesVal = parseInt($('#p5j-cycles')?.value, 10) || 0;
 
         // 📋 Conformités
         const conformites = {
@@ -9057,6 +9066,7 @@ Cette action est irréversible.`)) return;
             technicienNom: name,
             technicienMatricule: mat,
             date: dateTs,
+            cycles: cyclesVal,                          // 🔢 Compteur cycles saisi
             duration: 15,                              // ⏱ Durée FIXE 15 min
             type: 'preventive',
             piecesChanged: {},
@@ -9133,8 +9143,8 @@ Cette action est irréversible.`)) return;
               <span style="background:rgba(0,229,160,.15);color:#00e5a0;padding:.1rem .45rem;border-radius:4px;font-size:.68rem;font-weight:700">P5J</span>
               <span style="font-size:.82rem;color:var(--text-primary)">🔧 ${ui.escape(b.tool?.serial || b.tool?.doutils || b.tool?.outilId || '?')}</span>
               <span style="font-size:.78rem;color:var(--text-secondary)">👤 ${ui.escape(b.crimping?.technicienNom || '—')}</span>
+              ${b.crimping?.cycles ? `<span style="font-size:.78rem;color:var(--text-secondary)">⏱ ${fmt.number(b.crimping.cycles)} cycles</span>` : ''}
               <span style="font-size:.78rem;color:var(--text-muted)">📷 ${(b.crimping?.photos || []).length} photo(s)</span>
-              <span style="font-size:.78rem;color:var(--text-muted)">⏱ 15 min</span>
               <span style="margin-left:auto;font-size:.74rem;color:var(--text-muted)">${fmtDate(b.createdAt)}</span>
               <button data-p5j-view="${b.numBon}" style="padding:.3rem .55rem;background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3);border-radius:5px;cursor:pointer;font-size:.74rem;font-weight:600">👁 Voir</button>
             </div>
@@ -9182,7 +9192,8 @@ Cette action est irréversible.`)) return;
               <div><strong>Outil :</strong> ${ui.escape(bon.tool?.serial || bon.tool?.doutils || bon.tool?.outilId || '?')} (${ui.escape(bon.tool?.refOutil || '')})</div>
               <div><strong>Technicien :</strong> ${ui.escape(bon.crimping?.technicienNom || '—')} ${bon.crimping?.technicienMatricule ? '(' + ui.escape(bon.crimping.technicienMatricule) + ')' : ''}</div>
               <div><strong>Date :</strong> ${new Date(bon.crimping?.date || bon.createdAt).toLocaleString('fr-FR')}</div>
-              <div><strong>Durée :</strong> ⏱ 15 minutes</div>
+              ${bon.crimping?.cycles ? `<div><strong>Compteur cycles :</strong> ${fmt.number(bon.crimping.cycles)}</div>` : ''}
+              <div><strong>Type :</strong> 📸 Vérification visuelle</div>
               ${bon.crimping?.observation ? `<div style="margin-top:.5rem"><strong>Observation :</strong> ${ui.escape(bon.crimping.observation)}</div>` : ''}
             </div>
             ${confHtml}
@@ -9316,7 +9327,7 @@ Cette action est irréversible.`)) return;
           const numBonCell = isP5J
             ? `<strong style="color:#00e5a0">${i.numBon}</strong> <span style="background:rgba(0,229,160,.15);color:#00e5a0;font-size:.6rem;padding:.05rem .35rem;border-radius:3px;font-weight:700;letter-spacing:.04em;margin-left:.3rem">P5J</span>`
             : `<strong>${i.numBon}</strong>`;
-          const typeCell = isP5J ? '<span style="color:#00e5a0">📸 Visuelle</span>' : ui.escape(c.type || '—');
+          const typeCell = isP5J ? '<span style="color:#00e5a0">📸 Vérification visuelle</span>' : ui.escape(c.type || '—');
           const photoCount = (c.photos || []).length;
           const obsCell = isP5J && photoCount
             ? `${ui.escape(c.observation || '—')} <span style="color:#00e5a0;font-size:.72rem">· 📷 ${photoCount}</span>`
@@ -9327,7 +9338,7 @@ Cette action est irréversible.`)) return;
               <td>${numBonCell}</td>
               <td>${ui.escape((i.tool && (i.tool.serial || i.tool.outilId)) || '—')}</td>
               <td>${fmt.date(c.date)}</td>
-              <td>${isP5J ? '<em style="color:var(--text-muted)">⏱ 15min</em>' : fmt.number(c.cycles)}</td>
+              <td>${fmt.number(c.cycles)}</td>
               <td>${typeCell}</td>
               <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${ui.escape(c.observation || '')}">${obsCell}</td>
               <td>${coupe && coupe.downloadUrl ? `<a href="${coupe.downloadUrl}" target="_blank" rel="noopener">📎 ${ui.escape(coupe.fileName || 'Fichier')}</a>` : '—'}</td>

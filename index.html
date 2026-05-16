@@ -3480,6 +3480,12 @@ section[data-view][hidden],
               <span class="sidebar__icon">📝</span><span class="sidebar__label" data-i18n="nav.intervention">Bon d'intervention</span>
             </button>
           </li>
+          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping">
+            <button class="sidebar__link" data-nav="preventive5j">
+              <span class="sidebar__icon">📸</span><span class="sidebar__label" data-i18n="nav.preventive5j">Préventive 5 jours</span>
+              <span class="sidebar__pill" id="nav-p5j-count" style="background:rgba(0,229,160,.18);color:#00e5a0">0</span>
+            </button>
+          </li>
           <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">
             <button class="sidebar__link" data-nav="history">
               <span class="sidebar__icon">📋</span><span class="sidebar__label" data-i18n="nav.history">Historique</span>
@@ -4050,6 +4056,121 @@ section[data-view][hidden],
             </div>
           </footer>
         </form>
+      </section>
+
+
+      <!-- ================================================================= -->
+      <!-- VIEW — PRÉVENTIVE 5 JOURS (vérification visuelle rapide)          -->
+      <!-- ================================================================= -->
+      <section class="intervention" id="view-preventive5j" data-view="preventive5j" hidden>
+        <header class="intervention__header">
+          <div>
+            <h1 class="intervention__title">📸 Préventive 5 jours</h1>
+            <p class="intervention__subtitle">Vérification visuelle rapide — 15 minutes par bon</p>
+          </div>
+          <div class="intervention__meta">
+            <div class="intervention__pill" style="background:rgba(0,229,160,.15);color:#00e5a0;border:1px solid rgba(0,229,160,.3)">
+              ⏱ Durée fixe : 15 min
+            </div>
+          </div>
+        </header>
+
+        <!-- Vue 2 colonnes : formulaire + historique récent -->
+        <div style="display:grid;grid-template-columns:1fr;gap:1rem">
+
+          <!-- Formulaire nouveau bon -->
+          <form id="form-p5j" class="intervention__form" style="margin:0">
+            <div class="intervention__section">
+              <h2 class="intervention__section-title">
+                <span class="stepper__num">1</span> 🔧 Outil concerné
+              </h2>
+              <div class="intervention__grid intervention__grid--3">
+                <div class="field">
+                  <label class="field__label">Recherche outil (serial/doutils/ref)</label>
+                  <input class="field__input" id="p5j-tool-search" type="text"
+                         list="datalist-tools-p5j" placeholder="Tapez un serial, doutils ou réf…"
+                         autocomplete="off">
+                  <datalist id="datalist-tools-p5j"></datalist>
+                </div>
+                <div class="field">
+                  <label class="field__label">Serial / Outil ID</label>
+                  <input class="field__input" id="p5j-tool-id" type="text" readonly style="opacity:.7">
+                </div>
+                <div class="field">
+                  <label class="field__label">Fabricant</label>
+                  <input class="field__input" id="p5j-tool-fab" type="text" readonly style="opacity:.7">
+                </div>
+              </div>
+              <div id="p5j-tool-card" style="margin-top:.75rem"></div>
+            </div>
+
+            <div class="intervention__section">
+              <h2 class="intervention__section-title">
+                <span class="stepper__num">2</span> 👤 Technicien & date
+              </h2>
+              <div class="intervention__grid intervention__grid--3">
+                <div class="field">
+                  <label class="field__label">👤 Nom technicien</label>
+                  <input class="field__input" id="p5j-tech-name" type="text"
+                         placeholder="Ex: Ahmed Benali"
+                         autocomplete="off" autocorrect="off" spellcheck="false" data-form-type="other">
+                </div>
+                <div class="field">
+                  <label class="field__label">🪪 Matricule</label>
+                  <input class="field__input" id="p5j-tech-mat" type="text"
+                         placeholder="Ex: LN-C-001"
+                         autocomplete="off" autocorrect="off" spellcheck="false" data-form-type="other"
+                         style="font-family:var(--font-mono)">
+                </div>
+                <div class="field">
+                  <label class="field__label">📅 Date</label>
+                  <input class="field__input" id="p5j-date" type="date" autocomplete="off">
+                </div>
+              </div>
+            </div>
+
+            <div class="intervention__section">
+              <h2 class="intervention__section-title">
+                <span class="stepper__num">3</span> 📷 Photos de vérification
+              </h2>
+              <p style="font-size:.78rem;color:var(--text-muted);margin:.2rem 0 .8rem">
+                Joindre 1 à 5 photos de l'outil (JPG, PNG — max 3 MB par photo).
+              </p>
+              <input id="p5j-photos-input" type="file" accept="image/jpeg,image/png,image/webp" multiple
+                     style="display:none">
+              <button type="button" id="btn-p5j-add-photo" class="btn btn--secondary"
+                      style="background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3)">
+                📷 Ajouter une photo
+              </button>
+              <div id="p5j-photos-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.6rem;margin-top:.85rem"></div>
+            </div>
+
+            <div class="intervention__section">
+              <h2 class="intervention__section-title">
+                <span class="stepper__num">4</span> 📝 Observation (optionnelle)
+              </h2>
+              <textarea id="p5j-observation" rows="3"
+                        placeholder="Remarques sur l'état visuel de l'outil…"
+                        style="width:100%;padding:.7rem;background:var(--bg-elevated);
+                               color:var(--text-primary);border:1px solid var(--border-soft);
+                               border-radius:6px;resize:vertical;font-family:inherit;font-size:.86rem"></textarea>
+            </div>
+
+            <footer class="intervention__footer" style="margin-top:1rem;padding:1rem;background:var(--bg-elevated);border-radius:8px;display:flex;gap:.75rem;justify-content:flex-end">
+              <button type="button" class="btn btn--ghost" id="btn-p5j-reset">↺ Réinitialiser</button>
+              <button type="submit" class="btn btn--primary" id="btn-p5j-submit"
+                      style="background:#00e5a0;color:#0a1628;border:none;font-weight:700">
+                ✅ Enregistrer (15 min)
+              </button>
+            </footer>
+          </form>
+
+          <!-- Liste des derniers P5J -->
+          <div class="card" style="padding:1rem;margin-top:1rem">
+            <h2 style="margin:0 0 .8rem;font-size:1rem;color:var(--text-primary)">📋 Derniers bons P5J (20 plus récents)</h2>
+            <div id="p5j-recent-list"></div>
+          </div>
+        </div>
       </section>
 
 
@@ -6902,6 +7023,9 @@ Cette action est irréversible.`)) return;
         if (state.currentView === 'history') views.history.render();
         if (state.currentView === 'queue')   views.queue.render();
         if (state.currentView === 'performance') views.performance.render();
+        if (state.currentView === 'preventive5j') views.preventive5j.render();
+        // Toujours rafraîchir le badge P5J de la sidebar
+        if (views.preventive5j && views.preventive5j._updateBadge) views.preventive5j._updateBadge();
       };
       ref.on('value', handler);
       state.listeners.push(() => ref.off('value', handler));
@@ -7455,7 +7579,7 @@ Cette action est irréversible.`)) return;
     },
     handleHash() {
       const hash = window.location.hash.replace('#', '') || 'hub';
-      const valid = ['hub','intervention','history','queue','catalog','users','stats','auditlog','magasin','performance','pdr','demandes-pdr'];
+      const valid = ['hub','intervention','preventive5j','history','queue','catalog','users','stats','auditlog','magasin','performance','pdr','demandes-pdr'];
       let view = valid.includes(hash) ? hash : 'hub';
 
       // ── Restrictions par rôle ──
@@ -8360,6 +8484,338 @@ Cette action est irréversible.`)) return;
       }
     },
 
+    /* ========== PRÉVENTIVE 5 JOURS ========== */
+    preventive5j: {
+      _photos: [],                                       // [{ id, name, mime, sizeKB, b64, dataUrl }]
+      _selectedTool: null,
+      _initialized: false,
+
+      init() {
+        if (this._initialized) return;
+        this._initialized = true;
+        this._wire();
+        this._fillDateToday();
+        this._renderDatalist();
+      },
+
+      render() {
+        this.init();
+        this._fillDateToday();
+        this._renderDatalist();
+        this._renderRecentList();
+        this._updateBadge();
+      },
+
+      _fillDateToday() {
+        const el = $('#p5j-date');
+        if (el && !el.value) el.value = new Date().toISOString().slice(0, 10);
+      },
+
+      _renderDatalist() {
+        const dl = $('#datalist-tools-p5j');
+        if (!dl) return;
+        dl.innerHTML = Object.values(state.tools || {})
+          .map(t => `<option value="${ui.escape(t.serial || t.doutils || t.outilId || t.refOutil || t.id)}">${ui.escape(t.refOutil || '')} ${ui.escape(t.fabricant || '')}</option>`)
+          .join('');
+      },
+
+      _wire() {
+        // Tool search
+        const search = $('#p5j-tool-search');
+        if (search) {
+          search.addEventListener('input', () => {
+            const q = (search.value || '').trim().toLowerCase();
+            if (!q) { this._selectedTool = null; this._renderToolCard(); return; }
+            // Find tool by serial, doutils, outilId, refOutil
+            const found = Object.values(state.tools || {}).find(t =>
+              (t.serial || '').toLowerCase() === q ||
+              (t.doutils || '').toLowerCase() === q ||
+              (t.outilId || '').toLowerCase() === q ||
+              (t.refOutil || '').toLowerCase() === q
+            );
+            if (found) {
+              this._selectedTool = found;
+              $('#p5j-tool-id').value  = found.serial || found.doutils || found.outilId || found.refOutil || '';
+              $('#p5j-tool-fab').value = found.fabricant || '';
+              this._renderToolCard();
+            }
+          });
+        }
+
+        // Photo input
+        $('#btn-p5j-add-photo')?.addEventListener('click', () => $('#p5j-photos-input')?.click());
+        $('#p5j-photos-input')?.addEventListener('change', (e) => this._handlePhotoFiles(e.target.files));
+
+        // Submit
+        $('#form-p5j')?.addEventListener('submit', (e) => {
+          e.preventDefault();
+          this._submit();
+        });
+
+        // Reset
+        $('#btn-p5j-reset')?.addEventListener('click', () => this._reset());
+      },
+
+      _renderToolCard() {
+        const card = $('#p5j-tool-card');
+        if (!card) return;
+        if (!this._selectedTool) {
+          card.innerHTML = '';
+          return;
+        }
+        const t = this._selectedTool;
+        const piece = (k) => (t.pieces && t.pieces[k]) || t[k] || '—';
+        card.innerHTML = `
+          <div style="padding:.85rem 1rem;background:var(--bg-elevated);border-radius:8px;border-left:3px solid var(--accent-500)">
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:.78rem;color:var(--text-secondary);font-family:var(--font-mono)">
+              <div><strong style="color:var(--accent-500)">${ui.escape(t.serial || t.doutils || t.outilId || '?')}</strong></div>
+              <div>Réf: ${ui.escape(t.refOutil || '—')}</div>
+              ${t.groupe ? `<div>Groupe: ${ui.escape(t.groupe)}</div>` : ''}
+              ${t.projet ? `<div>Projet: ${ui.escape(t.projet)}</div>` : ''}
+              <div>P-AR: ${ui.escape(piece('pAr'))}</div>
+              <div>P-AV: ${ui.escape(piece('pAv'))}</div>
+            </div>
+          </div>
+        `;
+      },
+
+      async _handlePhotoFiles(files) {
+        if (!files || files.length === 0) return;
+        for (const file of files) {
+          if (!file.type.startsWith('image/')) {
+            ui.toast(`⚠️ "${file.name}" n'est pas une image`, 'warn');
+            continue;
+          }
+          if (file.size > 3 * 1024 * 1024) {
+            ui.toast(`⚠️ "${file.name}" trop gros (${(file.size/1024/1024).toFixed(1)} MB) — max 3 MB`, 'warn');
+            continue;
+          }
+          if (this._photos.length >= 5) {
+            ui.toast('⚠️ Maximum 5 photos par bon', 'warn');
+            break;
+          }
+          const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          const b64 = dataUrl.split(',')[1];
+          this._photos.push({
+            id: 'ph_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+            name: file.name,
+            mime: file.type,
+            sizeKB: Math.round(file.size / 1024),
+            b64,
+            dataUrl
+          });
+        }
+        $('#p5j-photos-input').value = '';
+        this._renderPhotos();
+      },
+
+      _renderPhotos() {
+        const wrap = $('#p5j-photos-list');
+        if (!wrap) return;
+        if (this._photos.length === 0) {
+          wrap.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);font-size:.78rem;padding:1rem;font-style:italic">Aucune photo ajoutée</div>`;
+          return;
+        }
+        wrap.innerHTML = this._photos.map(p => `
+          <div style="position:relative;border:1px solid var(--border-soft);border-radius:6px;overflow:hidden;background:var(--bg-elevated)">
+            <img src="${p.dataUrl}" alt="${ui.escape(p.name)}" style="width:100%;height:120px;object-fit:cover;display:block">
+            <div style="padding:.35rem .5rem;font-size:.7rem;color:var(--text-muted);background:rgba(0,0,0,.4);position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center">
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ui.escape(p.name)} (${p.sizeKB}KB)</span>
+              <button type="button" data-rm-photo="${p.id}" style="background:#ff3d5a;color:white;border:0;border-radius:4px;padding:.15rem .4rem;cursor:pointer;font-size:.75rem">✕</button>
+            </div>
+          </div>
+        `).join('');
+        wrap.querySelectorAll('button[data-rm-photo]').forEach(b => {
+          b.onclick = () => {
+            this._photos = this._photos.filter(x => x.id !== b.dataset.rmPhoto);
+            this._renderPhotos();
+          };
+        });
+      },
+
+      async _submit() {
+        if (!this._selectedTool) return ui.toast('⚠️ Sélectionne un outil', 'warn');
+        const name = $('#p5j-tech-name')?.value.trim();
+        const mat  = $('#p5j-tech-mat')?.value.trim();
+        if (!name) return ui.toast('⚠️ Renseigne le nom du technicien', 'warn');
+        if (this._photos.length === 0) return ui.toast('⚠️ Ajoute au moins une photo de vérification', 'warn');
+
+        const dateStr = $('#p5j-date')?.value;
+        const dateTs = dateStr ? new Date(dateStr).getTime() : Date.now();
+        const observation = $('#p5j-observation')?.value.trim() || '';
+
+        // Génération numBon : P5J-YYYY-NNN
+        const year = new Date().getFullYear();
+        const existingThisYear = Object.values(state.interventions || {})
+          .filter(i => i.kind === 'preventive5j' && (i.numBon || '').startsWith('P5J-' + year));
+        const num = existingThisYear.length + 1;
+        const numBon = `P5J-${year}-${String(num).padStart(3, '0')}`;
+
+        const id = 'p5j_' + Date.now();
+        const t = this._selectedTool;
+
+        const payload = {
+          kind: 'preventive5j',
+          numBon,
+          tool: {
+            id: t.id,
+            outilId: t.outilId || '',
+            refOutil: t.refOutil || '',
+            fabricant: t.fabricant || '',
+            refFabricant: t.refFabricant || '',
+            serial: t.serial || '',
+            doutils: t.doutils || '',
+            groupe: t.groupe || '',
+            projet: t.projet || ''
+          },
+          crimping: {
+            technicienNom: name,
+            technicienMatricule: mat,
+            date: dateTs,
+            duration: 15,                              // ⏱ Durée FIXE 15 min
+            type: 'preventive',
+            piecesChanged: {},
+            observation,
+            photos: this._photos.map(p => ({           // photos stockées en base64
+              id: p.id,
+              name: p.name,
+              mime: p.mime,
+              sizeKB: p.sizeKB,
+              b64: p.b64
+            })),
+            filledBy: {
+              uid: state.user?.uid || '',
+              name: state.profile?.displayName || '',
+              matricule: state.profile?.matricule || ''
+            },
+            filledAt: Date.now()
+          },
+          status: 'completed',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+
+        try {
+          ui.showLoader('Enregistrement…');
+          await fbDb.ref(`interventions/${id}`).set(payload);
+          try { db.audit('preventive5j.add', id, { numBon, tool: t.serial || t.outilId, photos: this._photos.length }); } catch(e){}
+          ui.hideLoader();
+          ui.toast(`✅ Bon ${numBon} enregistré (15 min · ${this._photos.length} photo(s))`, 'success');
+          this._reset();
+          this._renderRecentList();
+        } catch(e) {
+          ui.hideLoader();
+          console.error('[p5j.submit]', e);
+          ui.toast(`⛔ ${e.code || e.message}`, 'danger');
+        }
+      },
+
+      _reset() {
+        this._photos = [];
+        this._selectedTool = null;
+        $('#form-p5j')?.reset();
+        $('#p5j-tool-id').value = '';
+        $('#p5j-tool-fab').value = '';
+        $('#p5j-tool-card').innerHTML = '';
+        this._renderPhotos();
+        this._fillDateToday();
+      },
+
+      _renderRecentList() {
+        const wrap = $('#p5j-recent-list');
+        if (!wrap) return;
+        const list = Object.values(state.interventions || {})
+          .filter(i => i.kind === 'preventive5j')
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+          .slice(0, 20);
+
+        if (list.length === 0) {
+          wrap.innerHTML = `<div style="color:var(--text-muted);font-size:.85rem;text-align:center;padding:1rem;font-style:italic">Aucun bon P5J enregistré pour le moment</div>`;
+          return;
+        }
+
+        const fmtDate = (ts) => new Date(ts).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+        wrap.innerHTML = list.map(b => `
+          <div class="card" style="padding:.7rem 1rem;margin-bottom:.55rem;border-left:3px solid #00e5a0">
+            <div style="display:flex;gap:.7rem;align-items:center;flex-wrap:wrap">
+              <strong style="color:#00e5a0;font-family:var(--font-mono);font-size:.88rem">${ui.escape(b.numBon)}</strong>
+              <span style="background:rgba(0,229,160,.15);color:#00e5a0;padding:.1rem .45rem;border-radius:4px;font-size:.68rem;font-weight:700">P5J</span>
+              <span style="font-size:.82rem;color:var(--text-primary)">🔧 ${ui.escape(b.tool?.serial || b.tool?.doutils || b.tool?.outilId || '?')}</span>
+              <span style="font-size:.78rem;color:var(--text-secondary)">👤 ${ui.escape(b.crimping?.technicienNom || '—')}</span>
+              <span style="font-size:.78rem;color:var(--text-muted)">📷 ${(b.crimping?.photos || []).length} photo(s)</span>
+              <span style="font-size:.78rem;color:var(--text-muted)">⏱ 15 min</span>
+              <span style="margin-left:auto;font-size:.74rem;color:var(--text-muted)">${fmtDate(b.createdAt)}</span>
+              <button data-p5j-view="${b.numBon}" style="padding:.3rem .55rem;background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3);border-radius:5px;cursor:pointer;font-size:.74rem;font-weight:600">👁 Voir</button>
+            </div>
+            ${b.crimping?.observation ? `<div style="margin-top:.3rem;font-size:.76rem;color:var(--text-secondary);font-style:italic">"${ui.escape(b.crimping.observation)}"</div>` : ''}
+          </div>
+        `).join('');
+        wrap.querySelectorAll('button[data-p5j-view]').forEach(b => {
+          b.onclick = () => this._viewBon(b.dataset.p5jView);
+        });
+      },
+
+      _viewBon(numBon) {
+        const bon = Object.values(state.interventions || {}).find(i => i.numBon === numBon);
+        if (!bon) return ui.toast('Bon introuvable', 'danger');
+        const photos = bon.crimping?.photos || [];
+        const galleryHtml = photos.length
+          ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.55rem;margin-top:.5rem">
+              ${photos.map(p => `<a href="data:${p.mime};base64,${p.b64}" download="${ui.escape(p.name)}"
+                  style="display:block;border-radius:6px;overflow:hidden;border:1px solid var(--border-soft);text-decoration:none">
+                  <img src="data:${p.mime};base64,${p.b64}" style="width:100%;height:140px;object-fit:cover;display:block">
+                  <div style="padding:.35rem .5rem;background:var(--bg-elevated);font-size:.7rem;color:var(--text-secondary);display:flex;justify-content:space-between">
+                    <span>${ui.escape(p.name)}</span><span>⬇️</span>
+                  </div>
+                </a>`).join('')}
+            </div>`
+          : '<div style="color:var(--text-muted);font-style:italic">Aucune photo</div>';
+
+        const html = `
+          <div style="padding:1rem">
+            <h2 style="margin:0 0 .65rem;color:#00e5a0">📸 ${ui.escape(bon.numBon)}</h2>
+            <div style="font-size:.85rem;color:var(--text-secondary);line-height:1.7">
+              <div><strong>Outil :</strong> ${ui.escape(bon.tool?.serial || bon.tool?.doutils || bon.tool?.outilId || '?')} (${ui.escape(bon.tool?.refOutil || '')})</div>
+              <div><strong>Technicien :</strong> ${ui.escape(bon.crimping?.technicienNom || '—')} ${bon.crimping?.technicienMatricule ? '(' + ui.escape(bon.crimping.technicienMatricule) + ')' : ''}</div>
+              <div><strong>Date :</strong> ${new Date(bon.crimping?.date || bon.createdAt).toLocaleString('fr-FR')}</div>
+              <div><strong>Durée :</strong> ⏱ 15 minutes</div>
+              ${bon.crimping?.observation ? `<div style="margin-top:.5rem"><strong>Observation :</strong> ${ui.escape(bon.crimping.observation)}</div>` : ''}
+            </div>
+            <h3 style="margin:1rem 0 .35rem;color:var(--accent-500);font-size:.95rem">📷 Photos (${photos.length})</h3>
+            ${galleryHtml}
+          </div>
+        `;
+        // Simple inline modal using existing modal pattern
+        const m = document.createElement('div');
+        m.className = 'modal';
+        m.innerHTML = `<div class="modal__backdrop" data-close></div>
+          <div class="modal__panel modal__panel--lg" style="background:var(--bg-1)">
+            <header class="modal__header" style="display:flex;justify-content:space-between;align-items:center;padding:.85rem 1rem;border-bottom:1px solid var(--border-soft)">
+              <h2 class="modal__title" style="margin:0;font-size:1rem">Bon Préventive 5j</h2>
+              <button class="modal__close" data-close style="background:transparent;border:0;color:var(--text-primary);font-size:1.5rem;cursor:pointer">×</button>
+            </header>
+            <div class="modal__body" style="padding:0">${html}</div>
+            <footer class="modal__footer" style="padding:.7rem 1rem;border-top:1px solid var(--border-soft);display:flex;justify-content:flex-end;gap:.5rem">
+              <button class="btn btn--ghost" data-close>Fermer</button>
+            </footer>
+          </div>`;
+        document.body.appendChild(m);
+        m.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => m.remove()));
+      },
+
+      _updateBadge() {
+        const badge = document.getElementById('nav-p5j-count');
+        if (!badge) return;
+        const count = Object.values(state.interventions || {}).filter(i => i.kind === 'preventive5j').length;
+        badge.textContent = count;
+      }
+    },
+
     /* ========== HISTORY ========== */
     history: {
       init() {
@@ -8455,19 +8911,29 @@ Cette action est irréversible.`)) return;
           const c = i.crimping || {};
           const lab = i.lab || {};
           const coupe = lab.coupeMetallo;
+          // 📸 Marqueur Préventive 5j
+          const isP5J = i.kind === 'preventive5j';
+          const numBonCell = isP5J
+            ? `<strong style="color:#00e5a0">${i.numBon}</strong> <span style="background:rgba(0,229,160,.15);color:#00e5a0;font-size:.6rem;padding:.05rem .35rem;border-radius:3px;font-weight:700;letter-spacing:.04em;margin-left:.3rem">P5J</span>`
+            : `<strong>${i.numBon}</strong>`;
+          const typeCell = isP5J ? '<span style="color:#00e5a0">📸 Visuelle</span>' : ui.escape(c.type || '—');
+          const photoCount = (c.photos || []).length;
+          const obsCell = isP5J && photoCount
+            ? `${ui.escape(c.observation || '—')} <span style="color:#00e5a0;font-size:.72rem">· 📷 ${photoCount}</span>`
+            : ui.escape(c.observation || '—');
           return `
-            <tr data-reg="${i.numBon}">
+            <tr data-reg="${i.numBon}" ${isP5J ? 'data-kind="p5j"' : ''}>
               <td><input type="checkbox" data-reg="${i.numBon}" /></td>
-              <td><strong>${i.numBon}</strong></td>
-              <td>${ui.escape((i.tool && i.tool.outilId) || '—')}</td>
+              <td>${numBonCell}</td>
+              <td>${ui.escape((i.tool && (i.tool.serial || i.tool.outilId)) || '—')}</td>
               <td>${fmt.date(c.date)}</td>
-              <td>${fmt.number(c.cycles)}</td>
-              <td>${ui.escape(c.type || '—')}</td>
-              <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${ui.escape(c.observation || '')}">${ui.escape(c.observation || '—')}</td>
+              <td>${isP5J ? '<em style="color:var(--text-muted)">⏱ 15min</em>' : fmt.number(c.cycles)}</td>
+              <td>${typeCell}</td>
+              <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${ui.escape(c.observation || '')}">${obsCell}</td>
               <td>${coupe && coupe.downloadUrl ? `<a href="${coupe.downloadUrl}" target="_blank" rel="noopener">📎 ${ui.escape(coupe.fileName || 'Fichier')}</a>` : '—'}</td>
               <td><span class="status-pill status-pill--${i.status}">${fmt.statusLabel(i.status)}</span></td>
               <td>
-                <button class="btn btn--ghost" data-action="open" data-reg="${i.numBon}">Ouvrir</button>
+                <button class="btn btn--ghost" data-action="open" data-reg="${i.numBon}" data-kind="${i.kind || ''}">Ouvrir</button>
               </td>
             </tr>
           `;
@@ -8476,11 +8942,22 @@ Cette action est irréversible.`)) return;
         tbody.querySelectorAll('[data-action="open"]').forEach(btn => {
           btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            views.intervention.open(btn.dataset.reg);
+            // 📸 Les bons P5J s'ouvrent dans leur viewer dédié (galerie photos)
+            if (btn.dataset.kind === 'preventive5j') {
+              views.preventive5j._viewBon(btn.dataset.reg);
+            } else {
+              views.intervention.open(btn.dataset.reg);
+            }
           });
         });
         tbody.querySelectorAll('tr[data-reg]').forEach(tr => {
-          tr.addEventListener('click', () => views.intervention.open(tr.dataset.reg));
+          tr.addEventListener('click', () => {
+            if (tr.dataset.kind === 'p5j') {
+              views.preventive5j._viewBon(tr.dataset.reg);
+            } else {
+              views.intervention.open(tr.dataset.reg);
+            }
+          });
         });
 
         $('#history-total').textContent = `${list.length} résultat${list.length > 1 ? 's' : ''}`;

@@ -3825,17 +3825,21 @@ section[data-view][hidden],
                 <label class="field__label" for="crimp-tech-name">
                   👤 Nom du technicien crimping
                 </label>
-                <input class="field__input" id="crimp-tech-name" name="crimpTechName"
+                <input class="field__input" id="crimp-tech-name" name="crimp-tech-name-field"
                   type="text" placeholder="Ex: Ahmed Benali"
-                  style="background:rgba(255,255,255,.07);font-weight:500" / autocomplete="off">
+                  autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                  data-form-type="other"
+                  style="background:rgba(255,255,255,.07);font-weight:500">
               </div>
               <div class="field" style="margin-bottom:0">
                 <label class="field__label" for="crimp-tech-mat" data-i18n="t.matricule_technicien_crimping">
                   🪪 Matricule technicien crimping
                 </label>
-                <input class="field__input" id="crimp-tech-mat" name="crimpTechMatricule"
+                <input class="field__input" id="crimp-tech-mat" name="crimp-tech-mat-field"
                   type="text" placeholder="Ex: LN-C-001"
-                  style="background:rgba(255,255,255,.07);font-family:var(--font-mono)" / autocomplete="off">
+                  autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                  data-form-type="other"
+                  style="background:rgba(255,255,255,.07);font-family:var(--font-mono)">
               </div>
             </div>
 
@@ -3937,17 +3941,21 @@ section[data-view][hidden],
                   <label class="field__label" for="labo-tech-name">
                     👤 Nom du technicien laboratoire
                   </label>
-                  <input class="field__input" id="labo-tech-name" name="laboTechName"
+                  <input class="field__input" id="labo-tech-name" name="labo-tech-name-field"
                     type="text" placeholder="Ex: Fatima Zahra"
-                    style="background:rgba(255,255,255,.07);font-weight:500" / autocomplete="off">
+                    autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                    data-form-type="other"
+                    style="background:rgba(255,255,255,.07);font-weight:500">
                 </div>
                 <div class="field" style="margin-bottom:0">
                   <label class="field__label" for="labo-tech-mat" data-i18n="t.matricule_technicien_laboratoire">
                     🪪 Matricule technicien laboratoire
                   </label>
-                  <input class="field__input" id="labo-tech-mat" name="laboTechMatricule"
+                  <input class="field__input" id="labo-tech-mat" name="labo-tech-mat-field"
                     type="text" placeholder="Ex: LN-L-001"
-                    style="background:rgba(255,255,255,.07);font-family:var(--font-mono)" / autocomplete="off">
+                    autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                    data-form-type="other"
+                    style="background:rgba(255,255,255,.07);font-family:var(--font-mono)">
                 </div>
               </div>
             </div>
@@ -7985,9 +7993,11 @@ Cette action est irréversible.`)) return;
           $$('input[name="piece"]').forEach(cb => {
             cb.checked = !!(data.crimping.piecesChanged && data.crimping.piecesChanged[cb.value]);
           });
-          // Technicien crimping
-          if ($('#crimp-tech-name')) $('#crimp-tech-name').value = data.crimping.technicienNom || (data.crimping.filledBy && data.crimping.filledBy.name) || '';
-          if ($('#crimp-tech-mat'))  $('#crimp-tech-mat').value  = data.crimping.technicienMatricule || (data.crimping.filledBy && data.crimping.filledBy.matricule) || '';
+          // Technicien crimping — UNIQUEMENT depuis le champ saisi manuellement
+          // PAS DE FALLBACK sur filledBy.name (= utilisateur de session) pour éviter
+          // que le champ soit re-rempli avec le mauvais nom quand on rouvre le bon
+          if ($('#crimp-tech-name')) $('#crimp-tech-name').value = data.crimping.technicienNom || '';
+          if ($('#crimp-tech-mat'))  $('#crimp-tech-mat').value  = data.crimping.technicienMatricule || '';
         }
 
         // ── Verrouillage section CRIMPING pour le rôle LABO ──
@@ -8021,9 +8031,9 @@ Cette action est irréversible.`)) return;
         const canEditLab = ['submitted'].includes(data.status) && auth.can('intervention.editLab');
         labSection.disabled = !canEditLab && data.status !== 'validated' && data.status !== 'rejected';
 
-        // Technicien labo
-        if ($('#labo-tech-name')) $('#labo-tech-name').value = lab.technicienNom || (lab.filledBy && lab.filledBy.name) || '';
-        if ($('#labo-tech-mat'))  $('#labo-tech-mat').value  = lab.technicienMatricule || (lab.filledBy && lab.filledBy.matricule) || '';
+        // Technicien labo — UNIQUEMENT depuis le champ saisi manuellement
+        if ($('#labo-tech-name')) $('#labo-tech-name').value = lab.technicienNom || '';
+        if ($('#labo-tech-mat'))  $('#labo-tech-mat').value  = lab.technicienMatricule || '';
 
         if (lab.connexion) {
           $('#lab-ref-connexion').value = lab.connexion.refConnexion || '';

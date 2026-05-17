@@ -7469,9 +7469,15 @@ Cette action est irréversible.`)) return;
         crimping: {
           filledAt: now,
           filledBy: { uid: state.user.uid, name: state.profile.displayName, matricule: state.profile.matricule || '' },
+          // 🆕 Nom + matricule du technicien réel (saisi dans le formulaire, PAS la session)
+          technicienNom:       data.technicienNom       || '',
+          technicienMatricule: data.technicienMatricule || '',
           date: data.date || now,
           cycles: data.cycles || 0,
           type: data.type || 'preventive',
+          duration: data.duration || 0,                  // ⏱ durée saisie via les pills
+          subType: data.subType || '',                   // sous-type (coupe / binding) pour préventive
+          configurationsCount: data.configurationsCount || 0,  // pour homologation
           piecesChanged: data.piecesChanged || {},
           observation: data.observation || '',
           cyclesPhotoUrl: data.cyclesPhotoUrl || null,
@@ -8849,18 +8855,35 @@ Cette action est irréversible.`)) return;
             return ui.toast('⚠️ Veuillez renseigner le nom du technicien crimping', 'warn');
           }
           let reg = state.currentInterventionId;
+
+          // 📥 Récupérer les valeurs des pills/durée pour les sauvegarder AVEC le bon
+          const durationVal     = parseInt(document.getElementById('int-duration')?.value)    || 0;
+          const subTypeVal      = document.getElementById('int-subtype')?.value               || '';
+          const configsCountVal = parseInt(document.getElementById('int-configs')?.value)     || 0;
+
           if (!reg) {
+            // Création : on passe tout dans data
+            data.duration            = durationVal;
+            data.subType             = subTypeVal;
+            data.configurationsCount = configsCountVal;
             reg = await db.createIntervention(data);
             state.currentInterventionId = reg;
           } else {
-            await db.updateIntervention(reg, {
+            // Édition : update incluant TOUT (technicien + durée + sous-type + configs)
+            const updates = {
               tool: data.tool,
+              'crimping/technicienNom':       data.technicienNom,        // 🔧 BUG FIX : sauvegarde le nom saisi
+              'crimping/technicienMatricule': data.technicienMatricule,  // 🔧 BUG FIX : sauvegarde le matricule
               'crimping/date': data.date,
               'crimping/cycles': data.cycles,
               'crimping/type': data.type,
               'crimping/piecesChanged': data.piecesChanged,
-              'crimping/observation': data.observation
-            });
+              'crimping/observation': data.observation,
+              'crimping/duration': durationVal,                          // ⏱ AUTO : durée enregistrée au submit
+              'crimping/subType': subTypeVal,
+              'crimping/configurationsCount': configsCountVal
+            };
+            await db.updateIntervention(reg, updates);
           }
           // Upload signature crimping si présente
           const crimpDataUrl = this.crimpPad.toDataURL();
@@ -8878,7 +8901,8 @@ Cette action est irréversible.`)) return;
           }
           if (mode === 'submit') {
             await db.submitToLab(reg);
-            ui.toast(`Bon N°${reg} soumis au labo ✅`, 'success');
+            const durMsg = durationVal > 0 ? ` (⏱ ${durationVal} min enregistrés)` : '';
+            ui.toast(`Bon N°${reg} soumis au labo ✅${durMsg}`, 'success');
             this.setStatus('submitted');
           } else {
             // 📦 En mode brouillon : créer/MAJ la demande PDR si des PDR sont cochées

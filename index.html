@@ -3373,6 +3373,31 @@ section[data-view][hidden],
   transform: none;
 }
 
+/* === Pills de sous-type (Coupe / Binding) === */
+.sub-pill {
+  padding: .5rem 1rem;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 600;
+  transition: all .15s ease;
+  user-select: none;
+}
+.sub-pill:hover {
+  background: rgba(255, 139, 107, .1);
+  border-color: rgba(255, 139, 107, .4);
+  color: #ff8b6b;
+}
+.sub-pill[data-selected="true"] {
+  background: #ff8b6b;
+  color: #0a1628;
+  border-color: #ff8b6b;
+  box-shadow: 0 2px 8px rgba(255, 139, 107, .35);
+}
+
 </style>
 </head>
 
@@ -3928,18 +3953,14 @@ section[data-view][hidden],
             <div class="field" id="field-duration" style="background:rgba(0,212,255,.05);border:1px solid var(--border-base);border-radius:10px;padding:.875rem 1rem;margin-top:1rem">
               <label class="field__label" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
                 ⏱ Temps réel d'intervention
-                <span style="font-size:.7rem;color:var(--text-muted);font-weight:normal" data-i18n="t.saisi_par_le_technicien_apres_lintervent">— Choisis une durée puis enregistre</span>
+                <span style="font-size:.7rem;color:var(--text-muted);font-weight:normal" data-i18n="t.saisi_par_le_technicien_apres_lintervent">— Selon le type d'intervention sélectionné ci-dessus</span>
               </label>
-              <div id="int-duration-presets" style="display:flex;gap:.45rem;flex-wrap:wrap;margin:.6rem 0">
-                <button type="button" class="dur-pill" data-min="10">10 min</button>
-                <button type="button" class="dur-pill" data-min="15">15 min</button>
-                <button type="button" class="dur-pill" data-min="20">20 min</button>
-                <button type="button" class="dur-pill" data-min="30">30 min</button>
-                <button type="button" class="dur-pill" data-min="40">40 min</button>
-                <button type="button" class="dur-pill" data-min="60">1 h</button>
-              </div>
-              <!-- Champ caché pour conserver la valeur (compatible avec la logique save) -->
+              <!-- Conteneur dynamique qui s'adapte au type d'intervention -->
+              <div id="int-duration-smart" style="margin:.6rem 0"></div>
+              <!-- Champs cachés pour stocker les valeurs (compatible avec save) -->
               <input id="int-duration" name="duration" type="hidden" value="">
+              <input id="int-subtype" type="hidden" value="">
+              <input id="int-configs" type="hidden" value="">
               <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-top:.4rem">
                 <span style="color:var(--text-muted);font-size:.85rem;font-family:var(--font-mono)" id="int-duration-display">— aucune durée sélectionnée —</span>
                 <button type="button" class="btn btn--secondary" id="btn-save-duration" style="padding:.5rem 1rem;font-size:.8rem;margin-left:auto" data-i18n="t.enregistrer_le_temps">
@@ -8212,9 +8233,13 @@ Cette action est irréversible.`)) return;
           $('#int-type').value = data.crimping.type || '';
           $('#int-observation').value = data.crimping.observation || '';
           $('#obs-counter').textContent = `${(data.crimping.observation || '').length} / 1000`;
-          // Load duration — utilise le helper qui met à jour la pill + affichage
+          // Load duration + subType + configurations (helper met à jour pills + affichage)
           if (typeof window._setIntDurationFromValue === 'function') {
-            window._setIntDurationFromValue(data.crimping.duration || 0);
+            window._setIntDurationFromValue(
+              data.crimping.duration || 0,
+              data.crimping.subType || '',
+              data.crimping.configurationsCount || 0
+            );
           }
           const durEl = $('#int-duration');
           if (durEl) {
@@ -13737,66 +13762,212 @@ Erreur Firebase : ${e.message}`;
      TIME INTERVENTION FIELD — Saisie du temps par technicien
      ========================================================================== */
   function initDurationField() {
-    const btn = document.getElementById('btn-save-duration');
+    const btn         = document.getElementById('btn-save-duration');
     const hiddenInput = document.getElementById('int-duration');
-    const display = document.getElementById('int-duration-display');
-    const presets = document.getElementById('int-duration-presets');
+    const subInput    = document.getElementById('int-subtype');
+    const cfgInput    = document.getElementById('int-configs');
+    const display     = document.getElementById('int-duration-display');
+    const smartWrap   = document.getElementById('int-duration-smart');
+    const typeSelect  = document.getElementById('int-type');
 
-    // Helper : mettre à jour l'affichage formaté ("≈ 1h 30min")
-    function updateDisplay(min) {
-      if (!display) return;
-      if (!min || min < 1) { display.textContent = '— aucune durée sélectionnée —'; return; }
-      const h = Math.floor(min / 60);
-      const m = min % 60;
-      display.textContent = h > 0 ? `✓ ${h}h${m > 0 ? ' ' + m + 'min' : ''}` : `✓ ${m} minutes`;
+    // ╔════════════════════════════════════════════════════════════════════╗
+    // ║  Helpers                                                            ║
+    // ╚════════════════════════════════════════════════════════════════════╝
+    function fmtTime(min) {
+      if (!min || min < 1) return '— aucune durée sélectionnée —';
+      const h = Math.floor(min / 60), m = min % 60;
+      if (h > 0 && m === 0) return `✓ ${h}h`;
+      if (h > 0)            return `✓ ${h}h ${m}min`;
+      return `✓ ${m} minutes`;
     }
-
-    // Helper : mettre à jour l'état visuel des pills (sélection)
-    function highlightPill(min) {
-      if (!presets) return;
-      presets.querySelectorAll('.dur-pill').forEach(p => {
+    function setDuration(min) {
+      const v = parseInt(min) || 0;
+      if (hiddenInput) hiddenInput.value = v > 0 ? String(v) : '';
+      if (display) display.textContent = fmtTime(v);
+    }
+    function selectPill(container, min) {
+      container.querySelectorAll('.dur-pill').forEach(p => {
         p.dataset.selected = (parseInt(p.dataset.min) === min) ? 'true' : 'false';
       });
     }
 
-    // Wire des pills : un clic = sélectionne la valeur et met à jour l'affichage
-    if (presets) {
-      presets.addEventListener('click', (e) => {
-        const pill = e.target.closest('.dur-pill');
-        if (!pill || pill.disabled) return;
-        const min = parseInt(pill.dataset.min) || 0;
-        if (hiddenInput) hiddenInput.value = String(min);
-        highlightPill(min);
-        updateDisplay(min);
+    // ╔════════════════════════════════════════════════════════════════════╗
+    // ║  Construction d'un groupe de pills (durées)                         ║
+    // ╚════════════════════════════════════════════════════════════════════╝
+    function buildPills(values, preselect) {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;gap:.45rem;flex-wrap:wrap';
+      values.forEach(min => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'dur-pill';
+        b.dataset.min = String(min);
+        b.textContent = min >= 60 ? (min === 60 ? '1 h' : `${Math.floor(min/60)}h ${min%60}min`) : `${min} min`;
+        if (preselect && preselect === min) b.dataset.selected = 'true';
+        b.addEventListener('click', () => {
+          selectPill(wrap, min);
+          setDuration(min);
+        });
+        wrap.appendChild(b);
+      });
+      return wrap;
+    }
+
+    // ╔════════════════════════════════════════════════════════════════════╗
+    // ║  Rendu adaptatif selon le type d'intervention                       ║
+    // ╚════════════════════════════════════════════════════════════════════╝
+    // ► Préventive Coupe     : 15 / 20 min
+    // ► Préventive Binding   : 10 min (auto)
+    // ► Requalification      : 30 / 40 min
+    // ► Homologation         : N configurations × 30 min = total
+    // ► Vide / Curative legacy : pills par défaut (10/15/20/30/40/60)
+    function renderSmart(preserve) {
+      if (!smartWrap) return;
+      smartWrap.innerHTML = '';
+      const type = typeSelect?.value || '';
+      const currentDur = preserve ? (parseInt(hiddenInput.value) || 0) : 0;
+      const currentSub = preserve ? (subInput.value || '') : '';
+      const currentCfg = preserve ? (parseInt(cfgInput.value) || 0) : 0;
+
+      if (type === 'preventive') {
+        // Sub-type chooser
+        const subWrap = document.createElement('div');
+        subWrap.style.cssText = 'margin-bottom:.7rem';
+        subWrap.innerHTML = `<div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);font-weight:700;margin-bottom:.4rem">Sous-type préventive</div>`;
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:.5rem;flex-wrap:wrap';
+        ['coupe','binding'].forEach(sub => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'sub-pill';
+          b.dataset.sub = sub;
+          b.textContent = sub === 'coupe' ? '✂ Coupe' : '🔗 Binding';
+          if (currentSub === sub) b.dataset.selected = 'true';
+          b.addEventListener('click', () => {
+            btnRow.querySelectorAll('.sub-pill').forEach(x => x.dataset.selected = (x.dataset.sub === sub) ? 'true' : 'false');
+            subInput.value = sub;
+            renderTimeOptions(sub);
+          });
+          btnRow.appendChild(b);
+        });
+        subWrap.appendChild(btnRow);
+        smartWrap.appendChild(subWrap);
+
+        const timeWrap = document.createElement('div');
+        timeWrap.id = 'p5j-time-options';
+        smartWrap.appendChild(timeWrap);
+
+        function renderTimeOptions(sub) {
+          timeWrap.innerHTML = '';
+          if (sub === 'coupe') {
+            const pills = buildPills([15, 20], currentSub === 'coupe' ? currentDur : 0);
+            timeWrap.appendChild(pills);
+          } else if (sub === 'binding') {
+            const pills = buildPills([10], 10);
+            timeWrap.appendChild(pills);
+            setDuration(10);   // auto-applique 10 min pour binding
+          }
+        }
+        if (currentSub) renderTimeOptions(currentSub);
+
+      } else if (type === 'requalification') {
+        const pills = buildPills([30, 40], currentDur);
+        smartWrap.appendChild(pills);
+        subInput.value = '';
+
+      } else if (type === 'homologation') {
+        // N configurations × 30 min
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:.85rem;align-items:center;flex-wrap:wrap;padding:.5rem .65rem;background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:8px';
+        row.innerHTML = `
+          <label style="font-size:.85rem;color:var(--text-primary);font-weight:600">Combien de configurations ?</label>
+          <input id="int-configs-input" type="number" min="1" max="50" value="${currentCfg || ''}"
+                 style="width:90px;padding:.5rem .65rem;background:var(--bg-base);color:var(--text-primary);border:1px solid var(--border-soft);border-radius:6px;font-family:var(--font-mono);font-weight:700;font-size:1rem;text-align:center"
+                 autocomplete="off">
+          <span style="color:var(--text-muted);font-size:.85rem">× 30 min / configuration</span>
+          <span id="int-configs-total" style="margin-left:auto;font-family:var(--font-mono);color:#00e5a0;font-weight:700;font-size:1rem">${currentCfg ? (currentCfg * 30) + ' min' : '— min'}</span>
+        `;
+        smartWrap.appendChild(row);
+        const inp = row.querySelector('#int-configs-input');
+        const tot = row.querySelector('#int-configs-total');
+        inp.addEventListener('input', () => {
+          const n = Math.max(0, Math.min(50, parseInt(inp.value) || 0));
+          if (n !== parseInt(inp.value)) inp.value = String(n);
+          const total = n * 30;
+          cfgInput.value = n > 0 ? String(n) : '';
+          tot.textContent = total > 0 ? total + ' min' : '— min';
+          setDuration(total);
+        });
+        subInput.value = '';
+
+      } else {
+        // Vide ou curative legacy → fallback générique
+        const pills = buildPills([10, 15, 20, 30, 40, 60], currentDur);
+        smartWrap.appendChild(pills);
+        subInput.value = '';
+      }
+    }
+
+    // ╔════════════════════════════════════════════════════════════════════╗
+    // ║  Listener sur changement de type → re-render                        ║
+    // ╚════════════════════════════════════════════════════════════════════╝
+    if (typeSelect) {
+      typeSelect.addEventListener('change', () => {
+        // On reset les sélections quand on change de type pour éviter incohérences
+        if (hiddenInput) hiddenInput.value = '';
+        if (subInput)    subInput.value = '';
+        if (cfgInput)    cfgInput.value = '';
+        setDuration(0);
+        renderSmart(false);
       });
     }
 
-    // Expose pour le code qui ouvre un bon existant (intervention.open)
-    // → permet de pré-sélectionner la bonne pill depuis la valeur Firebase
-    window._setIntDurationFromValue = (min) => {
+    // Rendu initial
+    renderSmart(true);
+
+    // ╔════════════════════════════════════════════════════════════════════╗
+    // ║  Helper exposé pour pré-remplir depuis Firebase (intervention.open) ║
+    // ╚════════════════════════════════════════════════════════════════════╝
+    window._setIntDurationFromValue = (min, subType, configsCount) => {
       const v = parseInt(min) || 0;
       if (hiddenInput) hiddenInput.value = v > 0 ? String(v) : '';
-      highlightPill(v);
-      updateDisplay(v);
+      if (subInput)    subInput.value    = subType || '';
+      if (cfgInput)    cfgInput.value    = configsCount ? String(configsCount) : '';
+      setDuration(v);
+      renderSmart(true);
     };
 
+    // ╔════════════════════════════════════════════════════════════════════╗
+    // ║  Sauvegarde Firebase                                                ║
+    // ╚════════════════════════════════════════════════════════════════════╝
     if (btn) btn.addEventListener('click', async () => {
       const reg = state.currentInterventionId;
       if (!reg) return ui.toast('Ouvrez un bon d\u2019intervention', 'warn');
       const min = parseInt(hiddenInput?.value);
-      if (!min || min < 1) return ui.toast('Sélectionne une durée dans les boutons ci-dessus', 'warn');
+      if (!min || min < 1) return ui.toast('Sélectionne d\'abord une durée (selon le type)', 'warn');
+
       // 🔒 Sécurité : impossible de modifier le temps d'un bon validé/rejeté
       const existing = state.interventions?.[reg];
       if (existing && (existing.status === 'validated' || existing.status === 'rejected')) {
         return ui.toast('🔒 Ce bon est verrouillé — durée non modifiable', 'danger');
       }
+
+      const updates = {
+        ['interventions/' + reg + '/crimping/duration']: min
+      };
+      const subVal = subInput?.value || '';
+      const cfgVal = parseInt(cfgInput?.value) || 0;
+      if (subVal) updates['interventions/' + reg + '/crimping/subType'] = subVal;
+      if (cfgVal) updates['interventions/' + reg + '/crimping/configurationsCount'] = cfgVal;
+
       try {
-        await fbDb.ref('interventions/' + reg + '/crimping/duration').set(min);
+        await fbDb.ref().update(updates);
         await fbDb.ref('auditLog').push({
           timestamp: Date.now(), uid: state.user.uid, userName: state.profile?.displayName || '',
-          action: 'intervention.duration', entity: 'interventions/' + reg, meta: { duration: min }
+          action: 'intervention.duration', entity: 'interventions/' + reg,
+          meta: { duration: min, subType: subVal || null, configurationsCount: cfgVal || null }
         });
-        ui.toast('Temps enregistré : ' + min + ' min ✅', 'success');
+        ui.toast(`Temps enregistré : ${min} min ✅${cfgVal ? ` (${cfgVal} config × 30)` : ''}${subVal ? ` (${subVal})` : ''}`, 'success');
       } catch(e) { ui.toast('Erreur: ' + e.message, 'danger'); }
     });
   }

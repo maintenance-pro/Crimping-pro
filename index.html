@@ -4337,7 +4337,7 @@ section[data-view][hidden],
               <button type="button" class="btn btn--ghost" id="btn-p5j-reset">↺ Réinitialiser</button>
               <button type="submit" class="btn btn--primary" id="btn-p5j-submit"
                       style="background:#00e5a0;color:#0a1628;border:none;font-weight:700">
-                ✅ Enregistrer (15 min)
+                ✅ Enregistrer
               </button>
             </footer>
           </form>
@@ -9417,7 +9417,7 @@ Cette action est irréversible.`)) return;
             technicienMatricule: mat,
             date: dateTs,
             cycles: cyclesVal,                          // 🔢 Compteur cycles saisi
-            duration: 15,                              // ⏱ Durée FIXE 15 min
+            duration: 10,                              // ⏱ Durée FIXE 10 min (vérification visuelle rapide)
             type: 'preventive',
             piecesChanged: {},
             observation,
@@ -9446,7 +9446,7 @@ Cette action est irréversible.`)) return;
           await fbDb.ref(`interventions/${id}`).set(payload);
           try { db.audit('preventive5j.add', id, { numBon, tool: t.serial || t.outilId, photos: this._photos.length }); } catch(e){}
           ui.hideLoader();
-          ui.toast(`✅ Bon ${numBon} enregistré (15 min · ${this._photos.length} photo(s))`, 'success');
+          ui.toast(`✅ Bon ${numBon} enregistré (${this._photos.length} photo(s))`, 'success');
           this._reset();
           this._renderRecentList();
         } catch(e) {

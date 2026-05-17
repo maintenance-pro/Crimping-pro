@@ -4264,7 +4264,8 @@ section[data-view][hidden],
                 <div class="field">
                   <label class="field__label">👤 Nom technicien</label>
                   <input class="field__input" id="p5j-tech-name" type="text"
-                         placeholder="Ex: Ahmed Benali"
+                         placeholder="Tape ou sélectionne dans la liste"
+                         list="datalist-technicians"
                          autocomplete="off" autocorrect="off" spellcheck="false" data-form-type="other">
                 </div>
                 <div class="field">
@@ -4582,32 +4583,32 @@ section[data-view][hidden],
         <!-- Cartes récap équipes -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem;margin-bottom:1rem">
           <div class="card" style="padding:.85rem 1rem;border-left:3px solid #00d4ff">
-            <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">Équipe N · Normal</div>
+            <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">Équipe N</div>
             <div style="font-family:var(--font-mono);color:#00d4ff;font-weight:700;margin:.15rem 0;font-size:.95rem">
               <span id="team-count-N">0</span> techniciens
             </div>
-            <div style="font-size:.74rem;color:var(--text-secondary)">8h-17h Lun-Jeu · 8h-16h Ven · 44h/sem</div>
+            <div style="font-size:.74rem;color:var(--text-secondary)">Équipe normale (jour)</div>
           </div>
           <div class="card" style="padding:.85rem 1rem;border-left:3px solid #00e5a0">
-            <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">Équipe A · Matin</div>
+            <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">Équipe A</div>
             <div style="font-family:var(--font-mono);color:#00e5a0;font-weight:700;margin:.15rem 0;font-size:.95rem">
               <span id="team-count-A">0</span> techniciens
             </div>
-            <div style="font-size:.74rem;color:var(--text-secondary)">6h-14h Lun-Sam · 48h/sem</div>
+            <div style="font-size:.74rem;color:var(--text-secondary)">Rotation matin / après-midi / nuit</div>
           </div>
           <div class="card" style="padding:.85rem 1rem;border-left:3px solid #ffb547">
-            <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">Équipe B · Après-midi</div>
+            <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">Équipe B</div>
             <div style="font-family:var(--font-mono);color:#ffb547;font-weight:700;margin:.15rem 0;font-size:.95rem">
               <span id="team-count-B">0</span> techniciens
             </div>
-            <div style="font-size:.74rem;color:var(--text-secondary)">14h-22h Lun-Ven · 40h/sem</div>
+            <div style="font-size:.74rem;color:var(--text-secondary)">Rotation matin / après-midi / nuit</div>
           </div>
           <div class="card" style="padding:.85rem 1rem;border-left:3px solid #ff3d5a">
-            <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">Équipe C · Nuit</div>
+            <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">Équipe C</div>
             <div style="font-family:var(--font-mono);color:#ff3d5a;font-weight:700;margin:.15rem 0;font-size:.95rem">
               <span id="team-count-C">0</span> techniciens
             </div>
-            <div style="font-size:.74rem;color:var(--text-secondary)">22h-06h Dim-Jeu · 40h/sem</div>
+            <div style="font-size:.74rem;color:var(--text-secondary)">Rotation matin / après-midi / nuit</div>
           </div>
         </div>
 
@@ -4672,35 +4673,26 @@ section[data-view][hidden],
               </div>
               <div class="field" style="margin-bottom:.85rem">
                 <label class="field__label">🏭 Équipe *</label>
-                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem">
-                  <label class="team-card" data-team="N" style="display:flex;align-items:center;gap:.55rem;padding:.7rem .85rem;background:var(--bg-elevated);border:2px solid var(--border-soft);border-radius:8px;cursor:pointer">
-                    <input type="radio" name="tech-edit-team" value="N" style="accent-color:#00d4ff">
-                    <div>
-                      <div style="font-weight:700;color:#00d4ff;font-size:.92rem">N · Normal</div>
-                      <div style="font-size:.72rem;color:var(--text-muted)">8h-17h L-J · 8h-16h V</div>
-                    </div>
-                  </label>
-                  <label class="team-card" data-team="A" style="display:flex;align-items:center;gap:.55rem;padding:.7rem .85rem;background:var(--bg-elevated);border:2px solid var(--border-soft);border-radius:8px;cursor:pointer">
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem">
+                  <label class="team-card" data-team="A" style="display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.85rem .5rem;background:var(--bg-elevated);border:2px solid var(--border-soft);border-radius:8px;cursor:pointer;text-align:center">
                     <input type="radio" name="tech-edit-team" value="A" style="accent-color:#00e5a0">
-                    <div>
-                      <div style="font-weight:700;color:#00e5a0;font-size:.92rem">A · Matin</div>
-                      <div style="font-size:.72rem;color:var(--text-muted)">6h-14h Lun-Sam</div>
-                    </div>
+                    <div style="font-weight:700;color:#00e5a0;font-size:1.2rem;letter-spacing:.05em">A</div>
                   </label>
-                  <label class="team-card" data-team="B" style="display:flex;align-items:center;gap:.55rem;padding:.7rem .85rem;background:var(--bg-elevated);border:2px solid var(--border-soft);border-radius:8px;cursor:pointer">
+                  <label class="team-card" data-team="B" style="display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.85rem .5rem;background:var(--bg-elevated);border:2px solid var(--border-soft);border-radius:8px;cursor:pointer;text-align:center">
                     <input type="radio" name="tech-edit-team" value="B" style="accent-color:#ffb547">
-                    <div>
-                      <div style="font-weight:700;color:#ffb547;font-size:.92rem">B · Après-midi</div>
-                      <div style="font-size:.72rem;color:var(--text-muted)">14h-22h Lun-Ven</div>
-                    </div>
+                    <div style="font-weight:700;color:#ffb547;font-size:1.2rem;letter-spacing:.05em">B</div>
                   </label>
-                  <label class="team-card" data-team="C" style="display:flex;align-items:center;gap:.55rem;padding:.7rem .85rem;background:var(--bg-elevated);border:2px solid var(--border-soft);border-radius:8px;cursor:pointer">
+                  <label class="team-card" data-team="C" style="display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.85rem .5rem;background:var(--bg-elevated);border:2px solid var(--border-soft);border-radius:8px;cursor:pointer;text-align:center">
                     <input type="radio" name="tech-edit-team" value="C" style="accent-color:#ff3d5a">
-                    <div>
-                      <div style="font-weight:700;color:#ff3d5a;font-size:.92rem">C · Nuit</div>
-                      <div style="font-size:.72rem;color:var(--text-muted)">22h-06h Dim-Jeu</div>
-                    </div>
+                    <div style="font-weight:700;color:#ff3d5a;font-size:1.2rem;letter-spacing:.05em">C</div>
                   </label>
+                  <label class="team-card" data-team="N" style="display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.85rem .5rem;background:var(--bg-elevated);border:2px solid var(--border-soft);border-radius:8px;cursor:pointer;text-align:center">
+                    <input type="radio" name="tech-edit-team" value="N" style="accent-color:#00d4ff">
+                    <div style="font-weight:700;color:#00d4ff;font-size:1.2rem;letter-spacing:.05em">N</div>
+                  </label>
+                </div>
+                <div style="margin-top:.45rem;font-size:.72rem;color:var(--text-muted);font-style:italic">
+                  Les équipes A/B/C font une rotation matin/après-midi/nuit · N = équipe normale (jour fixe)
                 </div>
               </div>
               <div class="field">
@@ -5209,12 +5201,9 @@ section[data-view][hidden],
                 </div>
               </div>
             </header>
-            <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.5rem;font-size:.74rem;color:var(--text-muted);flex-wrap:wrap">
-              <span><span style="display:inline-block;width:14px;height:2px;background:#00d4ff;border-top:1px dashed #00d4ff;vertical-align:middle"></span> N (44h)</span>
-              <span><span style="display:inline-block;width:14px;height:2px;background:#00e5a0;border-top:1px dashed #00e5a0;vertical-align:middle"></span> A (48h)</span>
-              <span><span style="display:inline-block;width:14px;height:2px;background:#ffb547;border-top:1px dashed #ffb547;vertical-align:middle"></span> B (40h)</span>
-              <span><span style="display:inline-block;width:14px;height:2px;background:#ff3d5a;border-top:1px dashed #ff3d5a;vertical-align:middle"></span> C (40h)</span>
-              <span id="perf-objective-label" style="opacity:.8"></span>
+            <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.5rem;font-size:.78rem;color:var(--text-muted);flex-wrap:wrap">
+              <span><span style="display:inline-block;width:18px;height:2px;background:#ff3d5a;border-top:1px dashed #ff3d5a;vertical-align:middle"></span> Objectif <strong style="color:#ff3d5a">7h30 par jour, 7j/7</strong> <span id="perf-objective-label" style="opacity:.8"></span></span>
+              <span style="margin-left:auto;font-size:.72rem;opacity:.7">Équipes A/B/C/N = rotation matin/après-midi/nuit (identification seulement)</span>
             </div>
             <div style="height:300px;position:relative">
               <canvas id="chart-perf-trend"></canvas>
@@ -10726,10 +10715,10 @@ Cette action est irréversible.`)) return;
         }
 
         const TEAM_LABELS = {
-          N: { label: 'N · Normal',       hours: '8h-17h L-J · 8h-16h V' },
-          A: { label: 'A · Matin',         hours: '6h-14h Lun-Sam' },
-          B: { label: 'B · Après-midi',    hours: '14h-22h Lun-Ven' },
-          C: { label: 'C · Nuit',          hours: '22h-06h Dim-Jeu' }
+          N: { label: 'N · Normal',  hours: 'Jour fixe' },
+          A: { label: 'A',           hours: 'Rotation M/AM/N' },
+          B: { label: 'B',           hours: 'Rotation M/AM/N' },
+          C: { label: 'C',           hours: 'Rotation M/AM/N' }
         };
 
         body.innerHTML = list.map(t => {
@@ -12731,46 +12720,38 @@ Erreur Firebase : ${e.message}`;
           });
         }
 
-        // Chart 3: Trend by period (day / week / month) — with per-team objectives
+        // Chart 3: Trend by period (day / week / month) — fixed daily objective 7h30
         const c3 = document.getElementById('chart-perf-trend');
         if (c3) {
           if (this._charts.trend) this._charts.trend.destroy();
           const period = this._period || 'week';   // 'day' | 'week' | 'month'
 
           // ╔══════════════════════════════════════════════════════════════╗
-          // ║  OBJECTIFS PAR ÉQUIPE — Atelier Annex 5 LEONI                 ║
+          // ║  OBJECTIF SIMPLE — 7h30 par jour, 7 jours sur 7              ║
           // ╠══════════════════════════════════════════════════════════════╣
-          // ║  N (Normal) : 8h-17h Lun-Jeu (9h), 8h-16h Ven (8h) → 44h/sem ║
-          // ║  A (Matin)  : 6h-14h Lun-Sam (8h × 6 jours)        → 48h/sem ║
-          // ║  B (Après-m): 14h-22h Lun-Ven (8h × 5 jours)        → 40h/sem ║
-          // ║  C (Nuit)   : 22h-06h Dim-Jeu (8h × 5 nuits)        → 40h/sem ║
-          // ║  daysOfWeek : 0=Dim, 1=Lun, …, 5=Ven, 6=Sam                   ║
+          // ║  Les équipes A/B/C/N font une rotation matin/aprèsmidi/nuit,║
+          // ║  donc on garde un objectif fixe par jour quel que soit       ║
+          // ║  le poste. Les équipes servent uniquement à IDENTIFIER       ║
+          // ║  les techniciens (badge) et à filtrer la vue.                ║
+          // ║                                                              ║
+          // ║  Jour    : 7h30                                              ║
+          // ║  Semaine : 7 × 7h30 = 52h30                                  ║
+          // ║  Mois    : nb jours du mois × 7h30                           ║
           // ╚══════════════════════════════════════════════════════════════╝
-          const TEAM_OBJECTIVES = {
-            N: { daysOfWeek: {0:0, 1:9, 2:9, 3:9, 4:9, 5:8, 6:0}, weeklyTotal: 44, color: '#00d4ff' },
-            A: { daysOfWeek: {0:0, 1:8, 2:8, 3:8, 4:8, 5:8, 6:8}, weeklyTotal: 48, color: '#00e5a0' },
-            B: { daysOfWeek: {0:0, 1:8, 2:8, 3:8, 4:8, 5:8, 6:0}, weeklyTotal: 40, color: '#ffb547' },
-            C: { daysOfWeek: {0:8, 1:8, 2:8, 3:8, 4:8, 5:0, 6:0}, weeklyTotal: 40, color: '#ff3d5a' }
-          };
+          const DAILY_OBJ = 7.5;   // 7h30 = 7.5 heures
 
-          // Helper : objectif pour une équipe sur un bucket donné
-          const calcObjective = (bucket, team) => {
-            const obj = TEAM_OBJECTIVES[team];
-            if (!obj) return null;
-            if (period === 'day') {
-              return obj.daysOfWeek[new Date(bucket.start).getDay()] || 0;
-            }
-            if (period === 'week') {
-              return obj.weeklyTotal;
-            }
+          // Helper : objectif sur un bucket donné
+          const calcObjective = (bucket) => {
+            if (period === 'day') return DAILY_OBJ;
+            if (period === 'week') return 7 * DAILY_OBJ;        // 52.5h
             if (period === 'month') {
-              let total = 0;
-              for (let d = new Date(bucket.start); d < new Date(bucket.end); d.setDate(d.getDate() + 1)) {
-                total += (obj.daysOfWeek[d.getDay()] || 0);
-              }
-              return total;
+              const start = new Date(bucket.start);
+              const end = new Date(bucket.end);
+              let days = 0;
+              for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) days++;
+              return days * DAILY_OBJ;
             }
-            return null;
+            return DAILY_OBJ;
           };
 
           // ── Construction des buckets ──
@@ -12812,10 +12793,10 @@ Erreur Firebase : ${e.message}`;
             }
           }
 
-          // ── Filtre équipe pour la visualisation ──
-          const teamFilter = this._team || 'all';   // 'all' | 'N' | 'A' | 'B' | 'C'
+          // ── Filtre équipe pour la visualisation (juste pour filtrer les techs) ──
+          const teamFilter = this._team || 'all';
 
-          // Récupère l'équipe d'un tech depuis le registre
+          // Récupère l'équipe d'un tech depuis le registre (badge seulement)
           const teamOf = (name, mat) => views.technicians?.getTeamForTech(name, mat) || null;
 
           // Filtre les techs par équipe si nécessaire
@@ -12825,6 +12806,8 @@ Erreur Firebase : ${e.message}`;
           }
           const top5 = techsToPlot.slice(0, 5);
 
+          // 📊 IMPORTANT : agrégation par technicienNom (saisi dans le bon)
+          // et non par le nom de session — déjà géré dans le groupBy de "techs"
           const datasets = top5.map((t, idx) => {
             const team = teamOf(t.name, t.matricule);
             const data = buckets.map(b => {
@@ -12836,7 +12819,7 @@ Erreur Firebase : ${e.message}`;
               }).reduce((sum,i) => sum + (i.crimping?.duration||0), 0);
               return Math.round(totalMin/60 * 10) / 10;
             });
-            const teamLabel = team ? ` [${team}]` : ' [?]';
+            const teamLabel = team ? ` [${team}]` : '';
             return {
               label: t.name.split(' ')[0] + teamLabel,
               data, borderColor: COL[idx%COL.length],
@@ -12845,36 +12828,30 @@ Erreur Firebase : ${e.message}`;
             };
           });
 
-          // ── Lignes d'objectif ──
-          // Si une équipe spécifique est filtrée : 1 ligne pointillée de la couleur de l'équipe
-          // Si "Tous" : 4 lignes pointillées (une par équipe) en couleur de chaque équipe
-          const teamsToShowObj = (teamFilter === 'all') ? ['N','A','B','C'] : [teamFilter];
-          teamsToShowObj.forEach(team => {
-            const obj = TEAM_OBJECTIVES[team];
-            const objData = buckets.map(b => calcObjective(b, team));
-            datasets.push({
-              label: `🎯 Objectif ${team} (${obj.weeklyTotal}h/sem)`,
-              data: objData,
-              borderColor: obj.color,
-              backgroundColor: 'transparent',
-              borderWidth: 2,
-              borderDash: [6, 4],
-              tension: 0, fill: false,
-              pointRadius: 0,
-              pointHoverRadius: 4,
-              order: 99
-            });
+          // ── UNE seule ligne d'objectif (7h30/jour pour tous) ──
+          const objData = buckets.map(b => calcObjective(b));
+          datasets.push({
+            label: '🎯 Objectif (7h30/jour)',
+            data: objData,
+            borderColor: '#ff3d5a',
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            borderDash: [6, 4],
+            tension: 0, fill: false,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            order: 99
           });
 
           // Label sous le titre
           const objLabel = document.getElementById('perf-objective-label');
           if (objLabel) {
-            const periodMap = {
-              day:   'objectif quotidien selon jour de la semaine',
-              week:  'objectif hebdomadaire selon équipe',
-              month: 'objectif mensuel calculé selon le calendrier'
+            const map = {
+              day:   '7h30 par jour',
+              week:  '52h30 par semaine (7×7h30)',
+              month: '~225h/mois (jours réels × 7h30)'
             };
-            objLabel.textContent = `(${periodMap[period]})`;
+            objLabel.textContent = '(' + (map[period] || '7h30 par jour') + ')';
           }
 
           this._charts.trend = new Chart(c3, {
@@ -15863,6 +15840,34 @@ Erreur Firebase : ${e.message}`;
     if (views.technicians && views.technicians.init) views.technicians.init();
     userActions.initModals();
     initDurationField();
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 🪪 AUTO-REMPLISSAGE DU MATRICULE quand on choisit/tape un nom de tech
+    // ════════════════════════════════════════════════════════════════════════
+    // Quand l'utilisateur tape ou choisit un nom dans le datalist des techniciens,
+    // on récupère automatiquement le matricule depuis le registre.
+    // Couvre les 2 formulaires : intervention (crimp-tech-name) + P5J (p5j-tech-name).
+    function autoFillMatriculeFor(nameInputId, matriculeInputId) {
+      const nameEl = document.getElementById(nameInputId);
+      const matEl  = document.getElementById(matriculeInputId);
+      if (!nameEl || !matEl) return;
+      const tryFill = () => {
+        const typed = (nameEl.value || '').trim();
+        if (!typed) return;
+        const techs = (state.technicians) ? Object.values(state.technicians) : [];
+        const match = techs.find(t =>
+          (t.name || '').trim().toLowerCase() === typed.toLowerCase() && t.active !== false
+        );
+        if (match && match.matricule && !matEl.value) {
+          matEl.value = match.matricule;
+        }
+      };
+      nameEl.addEventListener('change', tryFill);
+      nameEl.addEventListener('input',  tryFill);
+      nameEl.addEventListener('blur',   tryFill);
+    }
+    autoFillMatriculeFor('crimp-tech-name', 'crimp-tech-mat');
+    autoFillMatriculeFor('p5j-tech-name',   'p5j-tech-mat');
     // Désactiver autocomplete sur tous les password fields (warnings DOM)
     document.querySelectorAll('input[type="password"]').forEach(input => {
       input.setAttribute('autocomplete', 'new-password');

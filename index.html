@@ -3445,6 +3445,153 @@ section[data-view][hidden],
   box-shadow: 0 1px 4px rgba(255, 139, 107, .25);
 }
 
+/* === COMMAND PALETTE (Ctrl+K) — Style moderne SaaS === */
+.modal.cmdk {
+  align-items: flex-start;
+  padding-top: 10vh;
+}
+.cmdk__panel {
+  background: var(--bg-1, #0a1628);
+  border: 1px solid rgba(0, 212, 255, .25);
+  border-radius: 14px;
+  width: min(90vw, 720px);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, .5),
+    0 0 0 1px rgba(0, 212, 255, .15),
+    0 0 40px rgba(0, 212, 255, .08);
+  position: relative;
+  overflow: hidden;
+}
+.cmdk__header {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+.cmdk__icon {
+  font-size: 1.2rem;
+  opacity: .8;
+}
+.cmdk__input {
+  flex: 1;
+  background: transparent;
+  color: var(--text-primary);
+  border: 0;
+  outline: 0;
+  font-size: 1.05rem;
+  font-weight: 500;
+  padding: .25rem 0;
+}
+.cmdk__input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.cmdk__kbd, kbd.cmdk__kbd {
+  display: inline-block;
+  padding: .15rem .4rem;
+  background: rgba(255, 255, 255, .08);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  line-height: 1;
+}
+.cmdk__results {
+  flex: 1;
+  overflow-y: auto;
+  padding: .5rem;
+}
+.cmdk__group-title {
+  font-size: .65rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+  font-weight: 700;
+  padding: .65rem .85rem .35rem;
+}
+.cmdk__item {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .65rem .85rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .12s ease;
+  color: var(--text-primary);
+}
+.cmdk__item:hover, .cmdk__item.cmdk__item--active {
+  background: rgba(0, 212, 255, .1);
+  color: var(--accent-500);
+}
+.cmdk__item-icon {
+  font-size: 1.05rem;
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+}
+.cmdk__item-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cmdk__item-title {
+  font-size: .9rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmdk__item-desc {
+  font-size: .72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmdk__item-tag {
+  font-size: .65rem;
+  padding: .1rem .45rem;
+  background: rgba(255, 255, 255, .08);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  flex-shrink: 0;
+}
+.cmdk__footer {
+  display: flex;
+  gap: 1rem;
+  padding: .6rem 1.1rem;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  font-size: .72rem;
+  color: var(--text-secondary);
+  align-items: center;
+  background: rgba(0, 0, 0, .15);
+}
+.cmdk__empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: .85rem;
+  font-style: italic;
+}
+
+/* Hover sur le bouton de palette dans la topbar */
+#btn-open-cmdk:hover {
+  background: var(--bg-2, rgba(255,255,255,.05)) !important;
+  border-color: var(--accent-500) !important;
+  color: var(--text-primary) !important;
+}
+
 /* === Cards de sélection d'équipe (modal technicien) === */
 .team-card {
   transition: all .15s ease;
@@ -3571,7 +3718,13 @@ section[data-view][hidden],
       </a>
 
       <div class="topbar__search">
-        <input class="topbar__search-input" id="global-search" type="search" placeholder="Rechercher un bon, un outil, un technicien…" data-i18n-placeholder="search.placeholder" / autocomplete="off">
+        <button type="button" id="btn-open-cmdk"
+                style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.55rem .85rem;background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:8px;cursor:pointer;color:var(--text-muted);font-size:.88rem;transition:all .15s ease">
+          <span style="font-size:1rem;opacity:.7">🔍</span>
+          <span style="flex:1;text-align:left">Rechercher partout — outils, bons, techniciens…</span>
+          <kbd class="cmdk__kbd">Ctrl</kbd><kbd class="cmdk__kbd">K</kbd>
+        </button>
+        <input class="topbar__search-input" id="global-search" type="search" placeholder="Rechercher un bon, un outil, un technicien…" data-i18n-placeholder="search.placeholder" autocomplete="off" style="display:none">
       </div>
 
       <div class="topbar__actions">
@@ -5509,6 +5662,56 @@ section[data-view][hidden],
       </footer>
     </div>
   </div>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!--  🔍 COMMAND PALETTE (Ctrl+K) — Recherche universelle               -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <div class="modal cmdk" id="modal-cmdk" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="cmdk__panel">
+      <header class="cmdk__header">
+        <span class="cmdk__icon">🔍</span>
+        <input type="text" id="cmdk-input" class="cmdk__input"
+               placeholder="Recherche outils, bons, techniciens, ou actions…"
+               autocomplete="off" autocorrect="off" spellcheck="false">
+        <kbd class="cmdk__kbd">ESC</kbd>
+      </header>
+      <div class="cmdk__results" id="cmdk-results">
+        <!-- Rendu dynamique par JS -->
+      </div>
+      <footer class="cmdk__footer">
+        <span><kbd class="cmdk__kbd">↑↓</kbd> Naviguer</span>
+        <span><kbd class="cmdk__kbd">↵</kbd> Sélectionner</span>
+        <span><kbd class="cmdk__kbd">ESC</kbd> Fermer</span>
+        <span style="margin-left:auto;color:var(--text-muted)">
+          <kbd class="cmdk__kbd">Ctrl</kbd>+<kbd class="cmdk__kbd">K</kbd> à tout moment
+        </span>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <!--  ⌨️ AIDE RACCOURCIS CLAVIER (touche ?)                            -->
+  <!-- ═════════════════════════════════════════════════════════════════ -->
+  <div class="modal" id="modal-shortcuts" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:580px">
+      <header class="modal__header">
+        <h2 class="modal__title">⌨️ Raccourcis clavier</h2>
+        <button class="modal__close" data-close>×</button>
+      </header>
+      <div class="modal__body" id="shortcuts-content">
+        <!-- Rendu dynamique -->
+      </div>
+      <footer class="modal__footer">
+        <span style="color:var(--text-muted);font-size:.78rem">
+          Astuce : presse <kbd class="cmdk__kbd">?</kbd> n'importe où pour ouvrir cette aide
+        </span>
+        <button class="btn btn--primary" data-close style="margin-left:auto">Fermer</button>
+      </footer>
+    </div>
+  </div>
+
 
   <!-- Modal: capture caméra en direct -->
   <div class="modal" id="modal-camera" role="dialog" aria-modal="true" hidden>
@@ -14669,14 +14872,306 @@ Erreur Firebase : ${e.message}`;
     showHelp() {
       const list = Object.entries(this.bindings).map(([key, b]) => {
         const label = key.replace('Key', '').replace('Slash', '/');
-        return `<div style="display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border-base)">
-          <span>${b.label}</span>
-          <kbd>${b.mod === 'alt' ? 'Alt+' : ''}${label}</kbd>
+        return `<div style="display:flex;justify-content:space-between;padding:.55rem .85rem;border-bottom:1px solid var(--border-soft);align-items:center">
+          <span style="font-size:.92rem;color:var(--text-primary)">${b.label}</span>
+          <span><kbd class="cmdk__kbd">${b.mod === 'alt' ? 'Alt' : ''}</kbd>${b.mod === 'alt' ? ' + ' : ''}<kbd class="cmdk__kbd">${label}</kbd></span>
         </div>`;
       }).join('');
-      ui.toast(`<div style="max-width:300px"><strong>Raccourcis clavier</strong>${list}</div>`, 'info');
+      const content = `
+        <div style="margin-bottom:.75rem;padding:.7rem .9rem;background:rgba(0,212,255,.08);border-left:3px solid var(--accent-500);border-radius:6px">
+          <strong style="color:var(--accent-500)">💡 Astuce</strong>
+          <div style="font-size:.85rem;color:var(--text-secondary);margin-top:.25rem">
+            La palette de commandes (<kbd class="cmdk__kbd">Ctrl</kbd>+<kbd class="cmdk__kbd">K</kbd>) permet de chercher outils, bons, techniciens et naviguer instantanément.
+          </div>
+        </div>
+        ${list}
+        <div style="display:flex;justify-content:space-between;padding:.55rem .85rem;border-bottom:1px solid var(--border-soft);align-items:center">
+          <span style="font-size:.92rem;color:var(--text-primary)">Palette de commandes</span>
+          <span><kbd class="cmdk__kbd">Ctrl</kbd>+<kbd class="cmdk__kbd">K</kbd></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:.55rem .85rem;align-items:center">
+          <span style="font-size:.92rem;color:var(--text-primary)">Cette aide</span>
+          <span><kbd class="cmdk__kbd">?</kbd></span>
+        </div>`;
+      const modal = document.getElementById('modal-shortcuts');
+      const body = document.getElementById('shortcuts-content');
+      if (modal && body) {
+        body.innerHTML = content;
+        modal.querySelectorAll('[data-close]').forEach(el => {
+          el.addEventListener('click', () => { modal.hidden = true; }, { once: true });
+        });
+        modal.hidden = false;
+      }
     }
   };
+
+
+  /* ╔══════════════════════════════════════════════════════════════════════╗
+     ║  🔍 COMMAND PALETTE — Recherche universelle Ctrl+K                   ║
+     ╠══════════════════════════════════════════════════════════════════════╣
+     ║  Cherche partout : outils, bons, techniciens, navigation, actions   ║
+     ║  Navigation flèches + Enter, Escape pour fermer                      ║
+     ╚══════════════════════════════════════════════════════════════════════╝ */
+  const CommandPalette = {
+    _activeIndex: 0,
+    _items: [],
+
+    init() {
+      // Raccourci Ctrl+K (ou Cmd+K sur Mac) global
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          this.open();
+        }
+        // "?" → ouvrir l'aide raccourcis (sauf dans inputs)
+        if (e.key === '?' && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) {
+          e.preventDefault();
+          if (typeof Shortcuts !== 'undefined') Shortcuts.showHelp();
+        }
+      });
+
+      // Input search
+      const input = document.getElementById('cmdk-input');
+      if (input) {
+        input.addEventListener('input', () => this.render(input.value));
+        input.addEventListener('keydown', (e) => this._handleKeyNav(e));
+      }
+
+      // Backdrop close
+      document.querySelectorAll('#modal-cmdk [data-close]').forEach(el => {
+        el.addEventListener('click', () => this.close());
+      });
+    },
+
+    open() {
+      const modal = document.getElementById('modal-cmdk');
+      const input = document.getElementById('cmdk-input');
+      if (!modal) return;
+      modal.hidden = false;
+      this._activeIndex = 0;
+      if (input) {
+        input.value = '';
+        setTimeout(() => input.focus(), 50);
+      }
+      this.render('');
+    },
+
+    close() {
+      const modal = document.getElementById('modal-cmdk');
+      if (modal) modal.hidden = true;
+    },
+
+    /** Construit la liste des items en fonction de la requête */
+    _buildItems(query) {
+      const q = (query || '').toLowerCase().trim();
+      const items = [];
+
+      // ── Actions de navigation (toujours présentes) ──
+      const navItems = [
+        { icon: '🏠', title: 'Tableau de bord (Hub)', desc: 'Vue d\'ensemble',          tag: 'NAV', action: () => router.go('hub') },
+        { icon: '📝', title: 'Nouveau bon d\'intervention', desc: 'Créer un bon',       tag: 'NAV', action: () => router.go('intervention') },
+        { icon: '📸', title: 'Préventive 5 jours',         desc: 'Vérification visuelle', tag: 'NAV', action: () => router.go('preventive5j') },
+        { icon: '📋', title: 'Historique / Suivi des maintenances', desc: 'Voir tous les bons', tag: 'NAV', action: () => router.go('history') },
+        { icon: '⏳', title: 'File d\'attente',             desc: 'Bons en cours',        tag: 'NAV', action: () => router.go('queue') },
+        { icon: '🔧', title: 'Catalogue outils',            desc: 'Tous les outils',      tag: 'NAV', action: () => router.go('catalog') },
+        { icon: '📦', title: 'Magasin',                     desc: 'Stock pièces',         tag: 'NAV', action: () => router.go('magasin') },
+        { icon: '📊', title: 'Performance Équipe',          desc: 'KPIs techniciens',     tag: 'NAV', action: () => router.go('performance') },
+        { icon: '👷', title: 'Gestion techniciens',         desc: 'Registre + équipes',   tag: 'NAV', action: () => router.go('technicians') },
+        { icon: '👥', title: 'Utilisateurs',                desc: 'Comptes app',          tag: 'NAV', action: () => router.go('users') },
+      ];
+
+      // ── Actions rapides ──
+      const quickActions = [
+        { icon: '⌨️', title: 'Voir les raccourcis clavier', desc: 'Touche ?', tag: 'AIDE', action: () => { this.close(); Shortcuts.showHelp(); } },
+        { icon: '🌗', title: 'Basculer thème clair/sombre', desc: 'Light / Dark', tag: 'PRÉF', action: () => {
+          const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+          const next = cur === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', next);
+          try { localStorage.setItem('theme', next); } catch(e){}
+          ui.toast('Thème : ' + next, 'success');
+        }},
+      ];
+
+      // Filtre items par query
+      const matches = (item) => {
+        if (!q) return true;
+        return (item.title.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q) || item.tag.toLowerCase().includes(q));
+      };
+
+      // Ajouter navigation
+      navItems.filter(matches).forEach(it => items.push({ ...it, group: 'Navigation' }));
+      quickActions.filter(matches).forEach(it => items.push({ ...it, group: 'Actions rapides' }));
+
+      // ── Recherche d'OUTILS (si query > 1 char) ──
+      if (q.length >= 2 && state.tools) {
+        const toolsList = Object.entries(state.tools).filter(([id, t]) => {
+          if (!t) return false;
+          const fields = [t.serial, t.doutils, t.outilId, t.refOutil, t.fabricant, t.projet, t.groupe]
+            .filter(Boolean).map(s => String(s).toLowerCase());
+          return fields.some(f => f.includes(q));
+        }).slice(0, 8);
+        toolsList.forEach(([id, t]) => {
+          items.push({
+            group: 'Outils',
+            icon: '🔧',
+            title: t.serial || t.doutils || t.outilId || t.refOutil || id,
+            desc: `${t.refOutil || ''} ${t.fabricant ? '· ' + t.fabricant : ''} ${t.projet ? '· ' + t.projet : ''}`.trim() || '—',
+            tag: 'OUTIL',
+            action: () => {
+              this.close();
+              router.go('catalog');
+              setTimeout(() => {
+                const search = document.getElementById('catalog-search');
+                if (search) {
+                  search.value = t.serial || t.doutils || t.outilId || '';
+                  search.dispatchEvent(new Event('input'));
+                }
+              }, 100);
+            }
+          });
+        });
+      }
+
+      // ── Recherche d'INTERVENTIONS (par numBon, technicien, observation) ──
+      if (q.length >= 2 && state.interventions) {
+        const interv = Object.values(state.interventions).filter(i => {
+          if (!i) return false;
+          const fields = [
+            i.numBon, i.crimping?.technicienNom, i.crimping?.observation,
+            i.tool?.serial, i.tool?.outilId, i.tool?.refOutil
+          ].filter(Boolean).map(s => String(s).toLowerCase());
+          return fields.some(f => f.includes(q));
+        }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 6);
+
+        interv.forEach(i => {
+          const isP5J = i.kind === 'preventive5j';
+          items.push({
+            group: 'Bons d\'intervention',
+            icon: isP5J ? '📸' : '📝',
+            title: `${i.numBon} · ${i.tool?.serial || i.tool?.outilId || '?'}`,
+            desc: `${i.crimping?.technicienNom || '—'} · ${i.status} · ${new Date(i.createdAt || 0).toLocaleDateString('fr-FR')}`,
+            tag: isP5J ? 'P5J' : 'BON',
+            action: () => {
+              this.close();
+              if (isP5J && views.preventive5j?._viewBon) {
+                views.preventive5j._viewBon(i.numBon);
+              } else if (views.intervention?.open) {
+                views.intervention.open(i.numBon);
+              }
+            }
+          });
+        });
+      }
+
+      // ── Recherche de TECHNICIENS ──
+      if (q.length >= 1 && state.technicians) {
+        const techs = Object.values(state.technicians).filter(t => {
+          if (!t || t.active === false) return false;
+          const fields = [t.name, t.matricule, t.team].filter(Boolean).map(s => String(s).toLowerCase());
+          return fields.some(f => f.includes(q));
+        }).slice(0, 5);
+        techs.forEach(t => {
+          items.push({
+            group: 'Techniciens',
+            icon: '👷',
+            title: t.name,
+            desc: `Matricule ${t.matricule || '—'} · Équipe ${t.team || '?'}`,
+            tag: t.team || '?',
+            action: () => {
+              this.close();
+              router.go('technicians');
+              setTimeout(() => {
+                const search = document.getElementById('tech-search');
+                if (search) {
+                  search.value = t.name;
+                  search.dispatchEvent(new Event('input'));
+                }
+              }, 100);
+            }
+          });
+        });
+      }
+
+      return items;
+    },
+
+    render(query) {
+      const wrap = document.getElementById('cmdk-results');
+      if (!wrap) return;
+      this._items = this._buildItems(query);
+
+      if (this._items.length === 0) {
+        wrap.innerHTML = `<div class="cmdk__empty">Aucun résultat pour "${ui.escape(query || '')}"</div>`;
+        return;
+      }
+
+      // Grouper
+      const groups = {};
+      this._items.forEach(it => {
+        if (!groups[it.group]) groups[it.group] = [];
+        groups[it.group].push(it);
+      });
+
+      let html = '';
+      let idx = 0;
+      for (const [groupName, list] of Object.entries(groups)) {
+        html += `<div class="cmdk__group-title">${ui.escape(groupName)}</div>`;
+        list.forEach(it => {
+          html += `
+            <div class="cmdk__item${idx === this._activeIndex ? ' cmdk__item--active' : ''}" data-cmdk-idx="${idx}">
+              <span class="cmdk__item-icon">${it.icon}</span>
+              <div class="cmdk__item-text">
+                <div class="cmdk__item-title">${ui.escape(it.title)}</div>
+                <div class="cmdk__item-desc">${ui.escape(it.desc)}</div>
+              </div>
+              <span class="cmdk__item-tag">${ui.escape(it.tag)}</span>
+            </div>`;
+          idx++;
+        });
+      }
+      wrap.innerHTML = html;
+
+      // Click handlers
+      wrap.querySelectorAll('.cmdk__item').forEach(el => {
+        el.addEventListener('click', () => {
+          const i = parseInt(el.dataset.cmdkIdx);
+          this._items[i]?.action?.();
+        });
+        el.addEventListener('mouseenter', () => {
+          this._activeIndex = parseInt(el.dataset.cmdkIdx);
+          this._updateActiveVisual();
+        });
+      });
+    },
+
+    _updateActiveVisual() {
+      const wrap = document.getElementById('cmdk-results');
+      if (!wrap) return;
+      wrap.querySelectorAll('.cmdk__item').forEach((el, i) => {
+        el.classList.toggle('cmdk__item--active', i === this._activeIndex);
+      });
+      // Scroll into view
+      const active = wrap.querySelector('.cmdk__item--active');
+      if (active) active.scrollIntoView({ block: 'nearest' });
+    },
+
+    _handleKeyNav(e) {
+      if (e.key === 'Escape') { e.preventDefault(); this.close(); return; }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this._activeIndex = Math.min(this._activeIndex + 1, this._items.length - 1);
+        this._updateActiveVisual();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        this._activeIndex = Math.max(this._activeIndex - 1, 0);
+        this._updateActiveVisual();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        this._items[this._activeIndex]?.action?.();
+      }
+    }
+  };
+  window.CommandPalette = CommandPalette;
 
 
   /* ╔══════════════════════════════════════════════════════════════════════╗
@@ -16031,6 +16526,9 @@ Erreur Firebase : ${e.message}`;
     document.head.appendChild(hiddenStyle);
 
     Shortcuts.init();
+    if (typeof CommandPalette !== 'undefined') CommandPalette.init();
+    // Wire le bouton de la barre du haut pour ouvrir la palette
+    document.getElementById('btn-open-cmdk')?.addEventListener('click', () => CommandPalette.open());
     ConnMonitor.init();
     console.log('[LEONI] Raccourcis : Alt+H Hub · Alt+N Nouveau · Alt+M Magasin · Alt+P Performance');
     console.log('[LEONI] 💡 En cas de problème Firebase, tapez : diagnoseLEONI()');

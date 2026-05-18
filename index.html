@@ -4029,382 +4029,256 @@ select:focus {
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   ⏱ DURATION CARD — Refonte moderne premium (glassmorphism + cards)
+   ⏱ DURATION CARD — COMPACT (pills inline avec icône ⏱)
    ════════════════════════════════════════════════════════════════════ */
 .dur-card {
   margin-top: 1rem;
-  padding: 1.1rem 1.2rem;
+  padding: .75rem 1rem .85rem;
   background: linear-gradient(135deg,
-    rgba(0, 212, 255, .03) 0%,
+    rgba(0, 212, 255, .04) 0%,
     rgba(0, 229, 160, .03) 100%);
-  border: 1px solid rgba(0, 212, 255, .12);
-  border-radius: 14px;
+  border: 1px solid rgba(0, 212, 255, .14);
+  border-radius: 12px;
   position: relative;
   overflow: hidden;
+  animation: durCardIn 280ms cubic-bezier(.16,.84,.32,1);
+}
+.dur-card[hidden] { display: none !important; }
+@keyframes durCardIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .dur-card::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(0, 212, 255, .4), transparent);
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, rgba(0, 212, 255, .35), transparent);
 }
+
 .dur-card__head {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-  gap: .35rem;
+  align-items: center;
+  margin-bottom: .55rem;
+  gap: .5rem;
 }
 .dur-card__title {
   display: flex;
   align-items: center;
-  gap: .55rem;
-  font-size: .82rem;
+  gap: .4rem;
+  font-size: .72rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--text-primary);
+  letter-spacing: .08em;
+  color: var(--text-secondary);
 }
 .dur-card__icon {
-  font-size: 1.05rem;
-  filter: drop-shadow(0 0 6px rgba(0, 212, 255, .3));
+  font-size: .95rem;
+  filter: drop-shadow(0 0 4px rgba(0, 212, 255, .35));
 }
-.dur-card__hint {
-  font-size: .72rem;
+.dur-card__display {
+  font-family: var(--font-mono, monospace);
+  font-size: .82rem;
+  font-weight: 700;
+  padding: .2rem .65rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .04);
   color: var(--text-muted);
-  font-style: italic;
+  transition: all .25s ease;
 }
-.dur-card__body {
-  margin-bottom: 1rem;
+.dur-card__display[data-active="true"] {
+  background: linear-gradient(135deg, rgba(0, 229, 160, .18), rgba(0, 212, 255, .12));
+  color: #00e5a0;
+  box-shadow: 0 0 0 1px rgba(0, 229, 160, .25);
 }
+.dur-card__body { margin: 0; }
 
-/* ── Grille de pills modernes ── */
-.dur-pills-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
-  gap: .55rem;
+/* ── Pills compactes inline ── */
+.dur-pills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
 }
 .dur-pill {
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: .15rem;
-  padding: .85rem .5rem;
-  min-height: 78px;
+  gap: .35rem;
+  padding: .42rem .75rem;
   background: var(--bg-1, rgba(255, 255, 255, .03));
-  border: 1.5px solid var(--border-soft, rgba(255, 255, 255, .08));
-  border-radius: 12px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, .08));
+  border-radius: 999px;
   cursor: pointer;
-  transition: all .18s cubic-bezier(.16,.84,.32,1);
-  position: relative;
-  overflow: hidden;
+  transition: all .15s cubic-bezier(.16,.84,.32,1);
   user-select: none;
   color: var(--text-secondary);
-}
-.dur-pill__num {
-  font-size: 1.45rem;
-  font-weight: 800;
-  font-family: var(--font-mono, monospace);
-  line-height: 1;
-  letter-spacing: -.02em;
-}
-.dur-pill__unit {
-  font-size: .68rem;
+  font-size: .8rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  opacity: .65;
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
 }
-.dur-pill__check {
-  position: absolute;
-  top: .35rem;
-  right: .4rem;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: rgba(0, 229, 160, .25);
-  color: #00e5a0;
-  font-size: .65rem;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transform: scale(.5);
-  transition: all .2s cubic-bezier(.16,.84,.32,1);
+.dur-pill__icon {
+  font-size: .78rem;
+  opacity: .55;
+  display: inline-flex;
 }
+.dur-pill__txt { letter-spacing: -.01em; }
 .dur-pill:hover {
   border-color: rgba(0, 212, 255, .4);
-  background: rgba(0, 212, 255, .06);
-  color: var(--text-primary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 212, 255, .12);
-}
-.dur-pill[data-selected="true"] {
-  background: linear-gradient(135deg, rgba(0, 212, 255, .15), rgba(0, 229, 160, .12));
-  border-color: var(--accent-500, #00d4ff);
-  color: var(--accent-500, #00d4ff);
-  box-shadow:
-    0 0 0 3px rgba(0, 212, 255, .12),
-    0 6px 18px rgba(0, 212, 255, .2);
-  transform: translateY(-2px);
-}
-.dur-pill[data-selected="true"] .dur-pill__num {
-  color: var(--accent-500, #00d4ff);
-  text-shadow: 0 0 12px rgba(0, 212, 255, .4);
-}
-.dur-pill[data-selected="true"] .dur-pill__check {
-  opacity: 1;
-  transform: scale(1);
-}
-
-/* ── Wrap pour Préventive (sub-type + durée) ── */
-.dur-pills-wrap { margin-top: .85rem; }
-.dur-sub-wrap { margin-bottom: 1rem; }
-.dur-sub-label {
-  font-size: .68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--text-muted);
-  margin-bottom: .5rem;
-}
-
-/* ── Sub-cards Coupe / Binding ── */
-.dur-sub-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: .55rem;
-}
-.dur-sub-card {
-  display: flex;
-  align-items: center;
-  gap: .65rem;
-  padding: .75rem .9rem;
-  background: var(--bg-1, rgba(255, 255, 255, .03));
-  border: 1.5px solid var(--border-soft, rgba(255, 255, 255, .08));
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all .18s cubic-bezier(.16,.84,.32,1);
-  position: relative;
-  text-align: left;
-  color: var(--text-secondary);
-}
-.dur-sub-card__icon {
-  font-size: 1.4rem;
-  filter: drop-shadow(0 0 4px rgba(255, 139, 107, .3));
-  flex-shrink: 0;
-}
-.dur-sub-card__txt {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-}
-.dur-sub-card__label {
-  font-weight: 700;
-  font-size: .92rem;
-  line-height: 1.2;
-}
-.dur-sub-card__desc {
-  font-size: .72rem;
-  color: var(--text-muted);
-  margin-top: .1rem;
-}
-.dur-sub-card__check {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: rgba(255, 139, 107, .25);
-  color: #ff8b6b;
-  font-size: .7rem;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transform: scale(.5);
-  transition: all .2s cubic-bezier(.16,.84,.32,1);
-}
-.dur-sub-card:hover {
-  border-color: rgba(255, 139, 107, .4);
-  background: rgba(255, 139, 107, .06);
+  background: rgba(0, 212, 255, .08);
   color: var(--text-primary);
   transform: translateY(-1px);
 }
-.dur-sub-card[data-selected="true"] {
-  background: linear-gradient(135deg, rgba(255, 139, 107, .15), rgba(255, 181, 71, .12));
-  border-color: #ff8b6b;
-  color: #ff8b6b;
-  box-shadow: 0 4px 14px rgba(255, 139, 107, .2);
+.dur-pill[data-selected="true"] {
+  background: linear-gradient(135deg, rgba(0, 212, 255, .2), rgba(0, 229, 160, .15));
+  border-color: var(--accent-500, #00d4ff);
+  color: var(--accent-500, #00d4ff);
+  box-shadow:
+    0 0 0 2px rgba(0, 212, 255, .12),
+    0 3px 10px rgba(0, 212, 255, .18);
 }
-.dur-sub-card[data-selected="true"] .dur-sub-card__check {
-  opacity: 1;
-  transform: scale(1);
+.dur-pill[data-selected="true"] .dur-pill__icon { opacity: 1; }
+
+.dur-sub-label {
+  font-size: .64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--text-muted);
+  margin-bottom: .35rem;
+  margin-top: .15rem;
 }
 
-/* ── Homologation ── */
-.dur-homolog {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 1rem;
-  align-items: center;
-  padding: 1.1rem 1.2rem;
-  background: linear-gradient(135deg, rgba(167, 139, 250, .06), rgba(255, 139, 107, .06));
-  border: 1.5px solid rgba(167, 139, 250, .25);
-  border-radius: 12px;
+/* ── Sous-types (Coupe / Binding) compactes ── */
+.dur-sub-wrap { margin-bottom: .65rem; }
+.dur-sub-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
 }
-.dur-homolog__left, .dur-homolog__right {
+.dur-sub-card {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .4rem .85rem;
+  background: var(--bg-1, rgba(255, 255, 255, .03));
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, .08));
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all .15s cubic-bezier(.16,.84,.32,1);
+  user-select: none;
+  color: var(--text-secondary);
+  font-size: .82rem;
+  font-weight: 600;
+}
+.dur-sub-card__icon { font-size: .95rem; }
+.dur-sub-card__txt {
   display: flex;
   flex-direction: column;
-  gap: .15rem;
+  line-height: 1.1;
 }
-.dur-homolog__right { text-align: right; align-items: flex-end; }
+.dur-sub-card__label { font-weight: 700; font-size: .8rem; }
+.dur-sub-card__desc { font-size: .65rem; color: var(--text-muted); }
+.dur-sub-card__check { display: none; }
+.dur-sub-card:hover {
+  border-color: rgba(255, 139, 107, .4);
+  color: var(--text-primary);
+  background: rgba(255, 139, 107, .08);
+  transform: translateY(-1px);
+}
+.dur-sub-card[data-selected="true"] {
+  background: linear-gradient(135deg, rgba(255, 139, 107, .2), rgba(255, 181, 71, .15));
+  border-color: #ff8b6b;
+  color: #ff8b6b;
+  box-shadow: 0 0 0 2px rgba(255, 139, 107, .12);
+}
+
+/* ── Homologation compact ── */
+.dur-homolog {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  padding: .55rem .85rem;
+  background: linear-gradient(135deg, rgba(167, 139, 250, .08), rgba(255, 139, 107, .05));
+  border: 1px solid rgba(167, 139, 250, .25);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+.dur-homolog__left {
+  display: flex;
+  flex-direction: column;
+  gap: .05rem;
+}
+.dur-homolog__right {
+  display: flex;
+  flex-direction: column;
+  gap: .05rem;
+  margin-left: auto;
+  align-items: flex-end;
+}
 .dur-homolog__label {
-  font-size: .92rem;
+  font-size: .8rem;
   font-weight: 700;
   color: var(--text-primary);
 }
 .dur-homolog__hint {
-  font-size: .7rem;
+  font-size: .66rem;
   color: var(--text-muted);
-  font-weight: 500;
 }
 .dur-homolog__total {
-  font-size: 1.5rem;
+  font-size: 1.05rem;
   font-weight: 800;
   font-family: var(--font-mono, monospace);
   color: #a78bfa;
-  letter-spacing: -.02em;
   line-height: 1;
 }
 .dur-homolog__center {
   display: flex;
   align-items: center;
-  gap: .35rem;
+  gap: .25rem;
 }
 .dur-homolog__btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  border: 1.5px solid var(--border-soft, rgba(255, 255, 255, .08));
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, .08));
   background: var(--bg-1, rgba(255, 255, 255, .04));
   color: var(--text-primary);
-  font-size: 1.3rem;
+  font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
-  transition: all .15s ease;
+  transition: all .12s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  line-height: 1;
 }
 .dur-homolog__btn:hover {
   background: rgba(167, 139, 250, .15);
   border-color: #a78bfa;
   color: #a78bfa;
-  transform: translateY(-1px);
 }
-.dur-homolog__btn:active { transform: scale(.95); }
 .dur-homolog__input {
-  width: 70px;
-  height: 38px;
-  padding: 0 .5rem;
+  width: 52px;
+  height: 28px;
+  padding: 0 .35rem;
   background: var(--bg-base, #0a1628);
   color: var(--text-primary);
-  border: 1.5px solid rgba(167, 139, 250, .3);
-  border-radius: 10px;
+  border: 1px solid rgba(167, 139, 250, .3);
+  border-radius: 7px;
   font-family: var(--font-mono, monospace);
   font-weight: 800;
-  font-size: 1.15rem;
+  font-size: .92rem;
   text-align: center;
   -moz-appearance: textfield;
 }
 .dur-homolog__input::-webkit-outer-spin-button,
-.dur-homolog__input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
+.dur-homolog__input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .dur-homolog__input:focus {
   border-color: #a78bfa !important;
-  box-shadow: 0 0 0 3px rgba(167, 139, 250, .15) !important;
+  box-shadow: 0 0 0 2px rgba(167, 139, 250, .15) !important;
 }
 
-/* ── Footer card (display + save button) ── */
-.dur-card__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  padding-top: .85rem;
-  border-top: 1px dashed var(--border-soft, rgba(255, 255, 255, .08));
-}
-.dur-card__display {
-  display: inline-flex;
-  align-items: center;
-  gap: .55rem;
-  padding: .5rem .85rem;
-  background: var(--bg-elevated, rgba(255, 255, 255, .04));
-  border-radius: 8px;
-  font-family: var(--font-mono, monospace);
-  font-size: .9rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  transition: all .25s ease;
-}
-.dur-card__display[data-active="true"] {
-  background: linear-gradient(135deg, rgba(0, 229, 160, .12), rgba(0, 212, 255, .08));
-  color: #00e5a0;
-  border: 1px solid rgba(0, 229, 160, .25);
-  box-shadow: 0 2px 8px rgba(0, 229, 160, .12);
-}
-.dur-card__display-icon {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: currentColor;
-  color: var(--bg-base, #0a1628);
-  font-size: .7rem;
-  font-weight: 800;
-}
-.dur-card__display[data-active="false"] .dur-card__display-icon {
-  background: transparent;
-  color: var(--text-muted);
-  border: 1px dashed currentColor;
-}
-.dur-card__save {
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
-  padding: .65rem 1.1rem;
-  background: linear-gradient(135deg, var(--accent-500, #00d4ff), #00e5a0);
-  color: #0a1628;
-  border: 0;
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: .85rem;
-  cursor: pointer;
-  transition: all .18s cubic-bezier(.16,.84,.32,1);
-  box-shadow: 0 2px 10px rgba(0, 212, 255, .25);
-}
-.dur-card__save:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0, 212, 255, .35);
-}
-.dur-card__save:active { transform: translateY(0); }
-.dur-card__note {
-  margin: .65rem 0 0;
-  font-size: .72rem;
-  color: var(--text-muted);
-  font-style: italic;
-  line-height: 1.4;
-}
 
 /* ═══════════════════════════════════════════════════════════════════
    🚪 ROUND 3 — LOGIN SCREEN, HUB HERO, GRADIENT TITLES, KPI CARDS
@@ -5346,14 +5220,14 @@ section[data-view] h1,
               <span class="field__counter" id="obs-counter">0 / 1000</span>
             </div>
 
-            <!-- ═══ TEMPS D'INTERVENTION (visible quand bon en cours/terminé) ═══ -->
-            <div class="field dur-card" id="field-duration">
+            <!-- ═══ TEMPS D'INTERVENTION — caché tant qu'aucun type sélectionné ═══ -->
+            <div class="field dur-card" id="field-duration" hidden>
               <div class="dur-card__head">
                 <div class="dur-card__title">
                   <span class="dur-card__icon">⏱</span>
-                  <span>Temps réel d'intervention</span>
+                  <span>Temps</span>
                 </div>
-                <span class="dur-card__hint">Sélectionne une durée puis enregistre</span>
+                <span class="dur-card__display" id="int-duration-display" data-active="false">—</span>
               </div>
               <!-- Conteneur dynamique qui s'adapte au type d'intervention -->
               <div id="int-duration-smart" class="dur-card__body"></div>
@@ -5361,18 +5235,8 @@ section[data-view] h1,
               <input id="int-duration" name="duration" type="hidden" value="">
               <input id="int-subtype" type="hidden" value="">
               <input id="int-configs" type="hidden" value="">
-              <div class="dur-card__foot">
-                <div class="dur-card__display" id="int-duration-display">
-                  <span class="dur-card__display-icon">○</span>
-                  <span class="dur-card__display-text">aucune durée sélectionnée</span>
-                </div>
-                <button type="button" class="dur-card__save" id="btn-save-duration">
-                  <span>💾</span><span>Enregistrer le temps</span>
-                </button>
-              </div>
-              <p class="dur-card__note">
-                Renseignez le temps réellement passé sur cette intervention pour le suivi de performance équipe.
-              </p>
+              <!-- Bouton caché conservé pour rétro-compatibilité (sauvegarde auto désormais) -->
+              <button type="button" id="btn-save-duration" hidden></button>
             </div>
 
             <div class="field field--full">
@@ -15864,28 +15728,44 @@ Erreur Firebase : ${e.message}`;
     // ║  Helpers                                                            ║
     // ╚════════════════════════════════════════════════════════════════════╝
     function fmtTime(min) {
-      if (!min || min < 1) return '— aucune durée sélectionnée —';
+      if (!min || min < 1) return '—';
       const h = Math.floor(min / 60), m = min % 60;
-      if (h > 0 && m === 0) return `✓ ${h}h`;
-      if (h > 0)            return `✓ ${h}h ${m}min`;
-      return `✓ ${m} minutes`;
+      if (h > 0 && m === 0) return `${h}h`;
+      if (h > 0)            return `${h}h ${m}min`;
+      return `${m} min`;
     }
     function setDuration(min) {
       const v = parseInt(min) || 0;
       if (hiddenInput) hiddenInput.value = v > 0 ? String(v) : '';
       if (display) {
-        const icon = display.querySelector('.dur-card__display-icon');
-        const text = display.querySelector('.dur-card__display-text');
-        if (v > 0) {
-          display.dataset.active = 'true';
-          if (icon) icon.textContent = '✓';
-          if (text) text.textContent = fmtTime(v).replace(/^[✓○]\s*/, '');
-        } else {
-          display.dataset.active = 'false';
-          if (icon) icon.textContent = '○';
-          if (text) text.textContent = 'aucune durée sélectionnée';
-        }
+        display.dataset.active = v > 0 ? 'true' : 'false';
+        display.textContent = v > 0 ? '✓ ' + fmtTime(v) : '—';
       }
+      // 💾 AUTO-SAVE : si un bon existe déjà, on persiste tout de suite (debounced)
+      if (v > 0) autoSaveDuration(v);
+    }
+
+    // ╔════════════════════════════════════════════════════════════════════╗
+    // ║  AUTO-SAVE DURATION — debounced (600ms) si un bon existe déjà      ║
+    // ╚════════════════════════════════════════════════════════════════════╝
+    let _autoSaveTimer = null;
+    function autoSaveDuration(min) {
+      clearTimeout(_autoSaveTimer);
+      _autoSaveTimer = setTimeout(async () => {
+        const reg = state.currentInterventionId;
+        if (!reg) return;  // pas encore créé, sera sauvegardé en submit
+        const existing = state.interventions?.[reg];
+        if (existing && (existing.status === 'validated' || existing.status === 'rejected')) return;
+        try {
+          const updates = { ['interventions/' + reg + '/crimping/duration']: min };
+          const subVal = subInput?.value || '';
+          const cfgVal = parseInt(cfgInput?.value) || 0;
+          if (subVal) updates['interventions/' + reg + '/crimping/subType'] = subVal;
+          if (cfgVal) updates['interventions/' + reg + '/crimping/configurationsCount'] = cfgVal;
+          await fbDb.ref().update(updates);
+          ui.toast(`⏱ ${min} min auto-enregistrés`, 'success', 1800);
+        } catch(e) { console.error('[autoSaveDuration]', e); }
+      }, 600);
     }
     function selectPill(container, min) {
       container.querySelectorAll('.dur-pill').forEach(p => {
@@ -15894,34 +15774,27 @@ Erreur Firebase : ${e.message}`;
     }
 
     // ╔════════════════════════════════════════════════════════════════════╗
-    // ║  Construction d'un groupe de pills modernes (durées)                ║
+    // ║  Construction d'un groupe de pills compactes (durées)               ║
     // ╚════════════════════════════════════════════════════════════════════╝
     function buildPills(values, preselect) {
       const wrap = document.createElement('div');
-      wrap.className = 'dur-pills-grid';
+      wrap.className = 'dur-pills-row';
       values.forEach(min => {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'dur-pill';
         b.dataset.min = String(min);
-
-        // Format affichage : "10" + "min" séparés visuellement
-        let num, unit;
+        let label;
         if (min >= 60) {
-          const h = Math.floor(min / 60);
-          const m = min % 60;
-          if (m === 0) { num = String(h); unit = 'h'; }
-          else { num = `${h}h${m}`; unit = 'min'; }
+          const h = Math.floor(min / 60), m = min % 60;
+          label = m === 0 ? `${h}h` : `${h}h${m}`;
         } else {
-          num = String(min); unit = 'min';
+          label = `${min}min`;
         }
-
         b.innerHTML = `
-          <span class="dur-pill__num">${num}</span>
-          <span class="dur-pill__unit">${unit}</span>
-          <span class="dur-pill__check">✓</span>
+          <span class="dur-pill__icon">⏱</span>
+          <span class="dur-pill__txt">${label}</span>
         `;
-
         if (preselect && preselect === min) b.dataset.selected = 'true';
         b.addEventListener('click', () => {
           selectPill(wrap, min);
@@ -15947,6 +15820,11 @@ Erreur Firebase : ${e.message}`;
       const currentDur = preserve ? (parseInt(hiddenInput.value) || 0) : 0;
       const currentSub = preserve ? (subInput.value || '') : '';
       const currentCfg = preserve ? (parseInt(cfgInput.value) || 0) : 0;
+
+      // 👁 Cache la card entière tant qu'aucun type n'est sélectionné
+      const fieldDur = document.getElementById('field-duration');
+      if (fieldDur) fieldDur.hidden = !type;
+      if (!type) return;
 
       if (type === 'preventive') {
         // Sub-type chooser : Coupe / Binding (cards modernes)
@@ -16011,6 +15889,10 @@ Erreur Firebase : ${e.message}`;
         if (currentSub) renderTimeOptions(currentSub);
 
       } else if (type === 'requalification') {
+        const lbl = document.createElement('div');
+        lbl.className = 'dur-sub-label';
+        lbl.textContent = 'Durée';
+        smartWrap.appendChild(lbl);
         const pills = buildPills([30, 40], currentDur);
         smartWrap.appendChild(pills);
         subInput.value = '';
@@ -16021,8 +15903,8 @@ Erreur Firebase : ${e.message}`;
         row.className = 'dur-homolog';
         row.innerHTML = `
           <div class="dur-homolog__left">
-            <span class="dur-homolog__label">Combien de configurations ?</span>
-            <span class="dur-homolog__hint">30 min par configuration</span>
+            <span class="dur-homolog__label">Configurations</span>
+            <span class="dur-homolog__hint">30 min / config</span>
           </div>
           <div class="dur-homolog__center">
             <button type="button" class="dur-homolog__btn" id="cfg-minus">−</button>
@@ -16057,12 +15939,6 @@ Erreur Firebase : ${e.message}`;
           inp.value = Math.min(50, (parseInt(inp.value) || 0) + 1);
           updateConfigs();
         });
-        subInput.value = '';
-
-      } else {
-        // Vide ou curative legacy → fallback générique (cards modernes)
-        const pills = buildPills([10, 15, 20, 30, 40, 60], currentDur);
-        smartWrap.appendChild(pills);
         subInput.value = '';
       }
     }

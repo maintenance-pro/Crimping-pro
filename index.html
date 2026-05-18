@@ -4279,6 +4279,104 @@ select:focus {
   box-shadow: 0 0 0 2px rgba(167, 139, 250, .15) !important;
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   📁 DOSSIER STEP — Étape 2 : Livraison dossier (homologation/requalif)
+   ════════════════════════════════════════════════════════════════════ */
+.dossier-step {
+  margin-top: 1rem;
+  padding: 1rem 1.15rem;
+  background: linear-gradient(135deg,
+    rgba(167, 139, 250, .08) 0%,
+    rgba(0, 229, 160, .06) 100%);
+  border: 1.5px solid rgba(167, 139, 250, .25);
+  border-radius: 12px;
+  animation: durCardIn 320ms cubic-bezier(.16,.84,.32,1);
+}
+.dossier-step[hidden] { display: none !important; }
+.dossier-step__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  flex-wrap: wrap;
+  margin-bottom: .85rem;
+}
+.dossier-step__title {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  font-size: .92rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.dossier-step__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(135deg, #a78bfa, #ec4899);
+  color: white;
+  border-radius: 50%;
+  font-weight: 800;
+  font-size: .85rem;
+  box-shadow: 0 2px 8px rgba(167, 139, 250, .35);
+}
+.dossier-step__hint {
+  font-size: .72rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.dossier-step__body { margin-bottom: .6rem; }
+.dossier-step__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+  padding: .75rem 1.5rem;
+  background: linear-gradient(135deg, #a78bfa 0%, #ec4899 100%);
+  color: white;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: .95rem;
+  cursor: pointer;
+  transition: all .18s cubic-bezier(.16,.84,.32,1);
+  box-shadow: 0 4px 14px rgba(167, 139, 250, .35);
+  width: 100%;
+}
+.dossier-step__btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(167, 139, 250, .5);
+}
+.dossier-step__btn:active { transform: translateY(0); }
+.dossier-step__btn:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  transform: none;
+}
+.dossier-step__note {
+  margin: 0;
+  font-size: .72rem;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* Badge "delivered" / "Attente livraison dossier" */
+.status-pill--delivered,
+.tag--delivered {
+  background: linear-gradient(135deg, rgba(167, 139, 250, .2), rgba(236, 72, 153, .15)) !important;
+  color: #c4b5fd !important;
+  border: 1px solid rgba(167, 139, 250, .3) !important;
+}
+.status-pill--awaiting-delivery,
+.tag--awaiting-delivery {
+  background: linear-gradient(135deg, rgba(167, 139, 250, .25), rgba(236, 72, 153, .2)) !important;
+  color: #a78bfa !important;
+  border: 1px solid rgba(167, 139, 250, .4) !important;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════
    🚪 ROUND 3 — LOGIN SCREEN, HUB HERO, GRADIENT TITLES, KPI CARDS
@@ -5336,11 +5434,34 @@ section[data-view] h1,
               <h3 class="intervention__sub-title" data-i18n="section.labDecision">Décision laboratoire</h3>
               <div class="decision" data-requires-role="admin,super_admin,responsable,labo">
                 <button class="decision__btn decision__btn--validate" type="button" id="btn-validate" data-i18n="t.valider_le_bon">
-                  ✅ Valider le bon
+                  ✅ Étape 1 — Valider cross section
                 </button>
                 <button class="decision__btn decision__btn--reject" type="button" id="btn-reject" data-i18n="t.refuser_renvoyer_au_crimping">
                   ❌ Refuser & renvoyer au crimping
                 </button>
+              </div>
+
+              <!-- ═════════════════════════════════════════════════════════ -->
+              <!--  📁 ÉTAPE 2 — Livraison dossier (homologation/requalif)    -->
+              <!-- ═════════════════════════════════════════════════════════ -->
+              <div class="dossier-step" id="dossier-step" data-requires-role="admin,super_admin,responsable,labo" hidden>
+                <div class="dossier-step__header">
+                  <div class="dossier-step__title">
+                    <span class="dossier-step__num">2</span>
+                    <span>Injection rapport &amp; livraison dossier</span>
+                  </div>
+                  <span class="dossier-step__hint" id="dossier-step-hint">
+                    Pour les bons <strong>Homologation</strong> et <strong>Requalification</strong> uniquement
+                  </span>
+                </div>
+                <div class="dossier-step__body">
+                  <button class="decision__btn dossier-step__btn" type="button" id="btn-deliver-dossier">
+                    📁 Dossier livré
+                  </button>
+                </div>
+                <p class="dossier-step__note">
+                  Cette action injecte le rapport final, déclare le dossier livré au crimping et clôture définitivement le bon.
+                </p>
               </div>
 
               <div class="field field--full">
@@ -5638,6 +5759,7 @@ section[data-view] h1,
             <button class="tab tab--active" role="tab" data-tab="all" data-i18n="t.tous">Tous</button>
             <button class="tab" role="tab" data-tab="mine" data-i18n="t.les_miens">Les miens</button>
             <button class="tab" role="tab" data-tab="todo">À traiter</button>
+            <button class="tab" role="tab" data-tab="awaiting-delivery">📁 Attente livraison dossier</button>
             <button class="tab" role="tab" data-tab="rejected" data-i18n="t.refuses">Refusés</button>
           </div>
         </header>
@@ -8055,7 +8177,8 @@ section[data-view] h1,
     statusLabel: (s) => ({
       draft:     'Brouillon',
       submitted: 'En attente labo',
-      validated: 'Validé',
+      validated: 'Validé · Étape 1',
+      delivered: 'Dossier livré',
       rejected:  'Refusé',
       cancelled: 'Annulé'
     }[s] || s)
@@ -8840,6 +8963,13 @@ section[data-view] h1,
       const submittedAt = (data.sla && data.sla.submittedAt) || now;
       const history = data.statusHistory || [];
       history.push({ status: 'validated', at: now, by: state.user.uid, byName: state.profile.displayName });
+
+      // 🆕 WORKFLOW À 2 ÉTAPES pour homologation/requalification :
+      // Si type homologation/requalification → on attend ENCORE la livraison dossier
+      // Sinon (preventive) → on garde le verrouillage immédiat
+      const type = (data.crimping && data.crimping.type) || '';
+      const needsDossierStep = (type === 'homologation' || type === 'requalification');
+
       await ref.update({
         status: 'validated',
         statusHistory: history,
@@ -8852,11 +8982,52 @@ section[data-view] h1,
         'sla/decidedAt': now,
         'sla/durationMs': now - submittedAt,
         '_indexes/status': 'validated',
-        locked: true,
+        // ⚠️ Pour homolog/requalif on NE verrouille PAS encore — étape 2 manquante
+        locked: !needsDossierStep,
         updatedAt: now
       });
       this.audit('intervention.validate', reg);
       this.notifyCrimping(reg, 'validated');
+    },
+
+    /* ════════════════════════════════════════════════════════════════════
+       📁 ÉTAPE 2 — Livraison du dossier (homologation / requalification)
+       ════════════════════════════════════════════════════════════════════
+       Après validation cross section, le labo injecte le rapport final et
+       déclare le dossier livré → bon définitivement clôturé.
+       ════════════════════════════════════════════════════════════════════ */
+    async deliverDossier(reg, reportData = {}) {
+      const now = Date.now();
+      const ref = fbDb.ref(`interventions/${reg}`);
+      const snap = await ref.once('value');
+      const data = snap.val();
+      if (!data) throw new Error('Bon introuvable');
+      if (data.status !== 'validated') {
+        throw new Error('Le bon doit être validé (étape 1) avant la livraison du dossier');
+      }
+      const type = data.crimping?.type || '';
+      if (type !== 'homologation' && type !== 'requalification') {
+        throw new Error('Étape livraison dossier réservée à Homologation et Requalification');
+      }
+      const history = data.statusHistory || [];
+      history.push({
+        status: 'delivered', at: now,
+        by: state.user.uid, byName: state.profile.displayName,
+        type
+      });
+      await ref.update({
+        status: 'delivered',
+        statusHistory: history,
+        'lab/deliveredAt': now,
+        'lab/deliveredBy': { uid: state.user.uid, name: state.profile.displayName, matricule: state.profile.matricule || '' },
+        'lab/reportInjected': true,
+        'lab/reportData': reportData || {},
+        '_indexes/status': 'delivered',
+        locked: true,
+        updatedAt: now
+      });
+      this.audit('intervention.deliverDossier', reg, { type });
+      this.notifyCrimping(reg, 'delivered');
     },
 
     async rejectIntervention(reg, reason) {
@@ -9616,6 +9787,7 @@ section[data-view] h1,
         $('#form-intervention').addEventListener('submit', (e) => { e.preventDefault(); this.save('submit'); });
         $('#btn-validate').addEventListener('click', () => this.validate());
         $('#btn-reject').addEventListener('click', () => this.reject());
+        $('#btn-deliver-dossier')?.addEventListener('click', () => this.deliverDossier());
         $('#btn-int-delete').addEventListener('click', () => this.delete());
         $('#btn-int-back').addEventListener('click', () => router.go('history'));
         $('#btn-int-print').addEventListener('click', () => window.print());
@@ -9904,8 +10076,14 @@ section[data-view] h1,
        */
       _applyValidationLock(data) {
         const form = document.getElementById('form-int') || document.querySelector('#view-intervention form');
-        const isLocked = (data.status === 'validated' || data.status === 'rejected');
+        const isLocked = (data.status === 'validated' || data.status === 'rejected' || data.status === 'delivered');
         const lockBanner = document.getElementById('int-lock-banner');
+
+        // 📁 Le bouton "Dossier livré" reste ACTIF si status=validated + type homolog/requalif
+        // (le bon est "verrouillé" pour modifications mais l'étape 2 doit pouvoir se déclencher)
+        const type = data.crimping?.type || '';
+        const needsDossier = (type === 'homologation' || type === 'requalification');
+        const allowDeliverBtn = (data.status === 'validated' && needsDossier);
 
         if (isLocked) {
           // Désactiver TOUS les inputs, selects, textareas, checkboxes, radios + boutons internes
@@ -9913,6 +10091,7 @@ section[data-view] h1,
             form.querySelectorAll('input, select, textarea, button').forEach(el => {
               // Ne pas désactiver les boutons d'action read-only (PDF, retour, fermer, etc.)
               if (el.id === 'btn-int-back' || el.id === 'btn-int-pdf' || el.id === 'btn-int-print' ||
+                  el.id === 'btn-deliver-dossier' && allowDeliverBtn ||
                   el.classList.contains('btn--ghost') || el.dataset.action === 'view' ||
                   el.type === 'button' && el.textContent.match(/PDF|Imprimer|Retour|Fermer|Voir/i)) {
                 return;
@@ -10027,11 +10206,23 @@ section[data-view] h1,
       setStatus(status) {
         $$('#int-status .status-pill').forEach(p => { p.hidden = (p.dataset.status !== status); });
         // Stepper
-        const order = { draft: 1, submitted: 2, validated: 4, rejected: 4, cancelled: 4 };
+        const order = { draft: 1, submitted: 2, validated: 3, delivered: 4, rejected: 4, cancelled: 4 };
         const step = order[status] || 1;
         $$('.stepper__step').forEach((el, idx) => {
           el.classList.toggle('stepper__step--active', (idx + 1) <= step);
         });
+
+        // 📁 Afficher/Cacher la zone "Étape 2 — Livraison dossier" selon statut + type
+        const dossierStep = document.getElementById('dossier-step');
+        if (dossierStep) {
+          const reg = state.currentInterventionId;
+          const data = reg ? state.interventions?.[reg] : null;
+          const type = data?.crimping?.type || '';
+          const needsDossier = (type === 'homologation' || type === 'requalification');
+          // Visible UNIQUEMENT si : status = validated + type homologation/requalif
+          const shouldShow = needsDossier && status === 'validated';
+          dossierStep.hidden = !shouldShow;
+        }
       },
 
       renderTimeline(history) {
@@ -10229,10 +10420,11 @@ section[data-view] h1,
         if (!auth.can('intervention.validate')) return ui.toast('Accès refusé', 'danger');
         const reg = state.currentInterventionId;
         if (!reg) return ui.toast('Aucun bon ouvert', 'warn');
-        // 🔒 Empêcher la re-validation d'un bon déjà validé ou rejeté
+        // 🔒 Empêcher la re-validation d'un bon déjà validé/rejeté/livré
         const existing = state.interventions?.[reg];
-        if (existing && (existing.status === 'validated' || existing.status === 'rejected')) {
-          return ui.toast(`🔒 Ce bon est déjà ${existing.status === 'validated' ? 'validé' : 'rejeté'} — verrouillé`, 'danger');
+        if (existing && (existing.status === 'validated' || existing.status === 'rejected' || existing.status === 'delivered')) {
+          const lbl = existing.status === 'validated' ? 'validé' : (existing.status === 'rejected' ? 'rejeté' : 'livré');
+          return ui.toast(`🔒 Ce bon est déjà ${lbl} — verrouillé`, 'danger');
         }
         ui.showLoader('Validation…');
         try {
@@ -10257,8 +10449,50 @@ section[data-view] h1,
             } catch(e) { console.warn('Lab signature upload skipped:', e.message); }
           }
           await db.validateIntervention(reg, labData);
-          ui.toast(`Bon N°${reg} validé ✅`, 'success');
+          // Message adapté selon le type
+          const type = existing?.crimping?.type || '';
+          const needsDossier = (type === 'homologation' || type === 'requalification');
+          if (needsDossier) {
+            ui.toast(`✅ Étape 1 validée — En attente livraison dossier`, 'success', 5000);
+          } else {
+            ui.toast(`Bon N°${reg} validé ✅`, 'success');
+          }
           this.setStatus('validated');
+        } catch (err) {
+          console.error(err);
+          ui.toast('Erreur : ' + err.message, 'danger');
+        } finally {
+          ui.hideLoader();
+        }
+      },
+
+      /* ════════════════════════════════════════════════════════════════════
+         📁 ÉTAPE 2 — Livraison du dossier (homologation/requalification)
+         ════════════════════════════════════════════════════════════════════ */
+      async deliverDossier() {
+        if (!auth.can('intervention.validate')) return ui.toast('Accès refusé (labo uniquement)', 'danger');
+        const reg = state.currentInterventionId;
+        if (!reg) return ui.toast('Aucun bon ouvert', 'warn');
+        const existing = state.interventions?.[reg];
+        if (!existing) return ui.toast('Bon introuvable', 'danger');
+        if (existing.status !== 'validated') {
+          return ui.toast('⚠️ Le bon doit d\'abord être validé (étape 1)', 'warn');
+        }
+        const type = existing.crimping?.type || '';
+        if (type !== 'homologation' && type !== 'requalification') {
+          return ui.toast('⚠️ Livraison dossier réservée à Homologation/Requalification', 'warn');
+        }
+        const ok = await ui.confirm(
+          '📁 Livrer le dossier ?',
+          `Le rapport final sera injecté et le bon N°${reg} sera définitivement clôturé. Cette action est irréversible.`,
+          { type: 'info', okLabel: '📁 Confirmer livraison' }
+        );
+        if (!ok) return;
+        ui.showLoader('Livraison du dossier…');
+        try {
+          await db.deliverDossier(reg);
+          ui.toast(`📁 Dossier livré · Bon N°${reg} clôturé ✅`, 'success');
+          this.setStatus('delivered');
         } catch (err) {
           console.error(err);
           ui.toast('Erreur : ' + err.message, 'danger');
@@ -11085,22 +11319,36 @@ section[data-view] h1,
           list = list.filter(i => i.status === 'submitted');
         } else if (this.currentTab === 'rejected') {
           list = list.filter(i => i.status === 'rejected');
+        } else if (this.currentTab === 'awaiting-delivery') {
+          // 🆕 Onglet "Attente livraison dossier" — homologation/requalification validés
+          list = list.filter(i => i.status === 'validated' &&
+            (i.crimping?.type === 'homologation' || i.crimping?.type === 'requalification'));
         }
         list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
         const grid = $('#queue-cards');
-        grid.innerHTML = list.map(i => `
+        grid.innerHTML = list.map(i => {
+          // Badge spécial pour homolog/requalif validés en attente de livraison dossier
+          const type = i.crimping?.type || '';
+          const needsDossier = (type === 'homologation' || type === 'requalification');
+          const awaitingDelivery = (i.status === 'validated' && needsDossier);
+          const statusBadge = awaitingDelivery
+            ? `<span class="status-pill status-pill--awaiting-delivery">📁 Attente livraison dossier</span>`
+            : `<span class="status-pill status-pill--${i.status}">${fmt.statusLabel(i.status)}</span>`;
+          // Badge type (Préventive / Homologation / Requalification)
+          const typeBadge = type ? `<span style="display:inline-block;margin-left:.4rem;padding:.1rem .45rem;border-radius:4px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:rgba(255,255,255,.08);color:var(--text-secondary)">${ui.escape(type)}</span>` : '';
+          return `
           <article class="card" style="padding:var(--sp-5);cursor:pointer" data-reg="${i.numBon}">
-            <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-3)">
-              <strong style="font-size:var(--fs-lg)">N°${i.numBon}</strong>
-              <span class="status-pill status-pill--${i.status}">${fmt.statusLabel(i.status)}</span>
+            <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-3);gap:.5rem;flex-wrap:wrap">
+              <strong style="font-size:var(--fs-lg)">N°${i.numBon}${typeBadge}</strong>
+              ${statusBadge}
             </header>
             <div style="color:var(--text-secondary);font-size:var(--fs-sm)">
               <div>🛠 ${ui.escape((i.tool && i.tool.outilId) || '—')}</div>
               <div>📅 ${fmt.date(i.crimping && i.crimping.date)}</div>
               <div>👤 ${ui.escape((i.crimping && (i.crimping.technicienNom || (i.crimping.filledBy && i.crimping.filledBy.name))) || '—')}</div>
             </div>
-          </article>
-        `).join('') || '<p style="color:var(--text-muted)" data-i18n="t.aucun_bon_dans_cette_categorie">Aucun bon dans cette catégorie</p>';
+          </article>`;
+        }).join('') || '<p style="color:var(--text-muted)" data-i18n="t.aucun_bon_dans_cette_categorie">Aucun bon dans cette catégorie</p>';
         grid.querySelectorAll('[data-reg]').forEach(el => {
           el.addEventListener('click', () => views.intervention.open(el.dataset.reg));
         });

@@ -3592,6 +3592,171 @@ section[data-view][hidden],
   color: var(--text-primary) !important;
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   🎨 TOAST PREMIUM — Notifications stack moderne avec icône + progress
+   ════════════════════════════════════════════════════════════════════ */
+.toast.toast--premium {
+  display: flex;
+  align-items: flex-start;
+  gap: .85rem;
+  min-width: 320px;
+  max-width: 480px;
+  padding: .85rem 2.5rem .85rem 1rem;
+  background: var(--bg-1, #0a1628);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 12px;
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, .4),
+    0 4px 12px rgba(0, 0, 0, .2);
+  position: relative;
+  overflow: hidden;
+  animation: toastSlideIn 280ms cubic-bezier(.16,.84,.32,1) forwards;
+  margin-bottom: .65rem;
+  font-size: .88rem;
+}
+.toast--premium .toast__icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.toast--premium.toast--success .toast__icon { background: rgba(0, 229, 160, .15); color: #00e5a0; }
+.toast--premium.toast--danger  .toast__icon { background: rgba(255, 61, 90, .15);  color: #ff3d5a; }
+.toast--premium.toast--warn    .toast__icon { background: rgba(255, 181, 71, .15); color: #ffb547; }
+.toast--premium.toast--info    .toast__icon { background: rgba(0, 212, 255, .15);  color: #00d4ff; }
+
+.toast--premium .toast__content {
+  flex: 1;
+  min-width: 0;
+}
+.toast--premium .toast__title {
+  font-weight: 700;
+  font-size: .85rem;
+  margin-bottom: .15rem;
+  color: var(--text-primary);
+}
+.toast--premium .toast__msg {
+  color: var(--text-secondary);
+  line-height: 1.45;
+  word-wrap: break-word;
+}
+.toast--premium .toast__close {
+  position: absolute;
+  top: .5rem;
+  right: .55rem;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.2rem;
+  border-radius: 4px;
+  line-height: 1;
+  transition: all .12s ease;
+}
+.toast--premium .toast__close:hover {
+  background: rgba(255, 255, 255, .08);
+  color: var(--text-primary);
+}
+.toast--premium .toast__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: currentColor;
+  transform-origin: left;
+  transform: scaleX(1);
+  opacity: .35;
+}
+.toast--premium.toast--success .toast__progress { background: #00e5a0; }
+.toast--premium.toast--danger  .toast__progress { background: #ff3d5a; }
+.toast--premium.toast--warn    .toast__progress { background: #ffb547; }
+.toast--premium.toast--info    .toast__progress { background: #00d4ff; }
+
+/* Bord gauche coloré selon le type (signature visuelle) */
+.toast--premium::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+}
+.toast--premium.toast--success::before { background: #00e5a0; }
+.toast--premium.toast--danger::before  { background: #ff3d5a; }
+.toast--premium.toast--warn::before    { background: #ffb547; }
+.toast--premium.toast--info::before    { background: #00d4ff; }
+
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(120%) scale(.95); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(120%); }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ❓ MODAL DE CONFIRMATION — Style premium avec icône d'alerte
+   ════════════════════════════════════════════════════════════════════ */
+#modal-confirm .modal__panel {
+  max-width: 440px;
+  padding: 1.5rem 1.5rem 1rem;
+  border-radius: 14px;
+  text-align: center;
+}
+#modal-confirm .modal__header {
+  border: 0;
+  padding: 0;
+  margin-bottom: 1rem;
+}
+#confirm-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  font-size: 1.8rem;
+  background: rgba(0, 212, 255, .12);
+  margin: 0 auto 1rem;
+  animation: confirmIconPop 300ms cubic-bezier(.16,.84,.32,1);
+}
+@keyframes confirmIconPop {
+  0% { opacity: 0; transform: scale(.5); }
+  60% { transform: scale(1.1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+#modal-confirm .modal__title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: .35rem;
+}
+#confirm-message {
+  color: var(--text-secondary);
+  font-size: .9rem;
+  line-height: 1.5;
+  margin-bottom: 1.25rem;
+}
+#modal-confirm .modal__footer {
+  border: 0;
+  padding: 0;
+  display: flex;
+  gap: .65rem;
+  justify-content: center;
+}
+#modal-confirm .modal__footer .btn {
+  flex: 1;
+  padding: .65rem 1rem;
+  font-size: .9rem;
+  font-weight: 600;
+}
+
 /* === Cards de sélection d'équipe (modal technicien) === */
 .team-card {
   transition: all .15s ease;
@@ -3623,6 +3788,245 @@ section[data-view][hidden],
 .team-badge--B { background: rgba(255, 181, 71, .15); color: #ffb547; }
 .team-badge--C { background: rgba(255, 61, 90, .15); color: #ff3d5a; }
 .team-badge--unknown { background: rgba(148, 163, 184, .15); color: #94a3b8; }
+
+/* ════════════════════════════════════════════════════════════════════
+   🌊 ROUND 2 PREMIUM POLISH — Transitions, hovers, animations
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── PAGE TRANSITIONS : fade smooth entre vues ── */
+[data-view]:not([hidden]) {
+  animation: viewFadeIn 280ms cubic-bezier(.16,.84,.32,1);
+}
+@keyframes viewFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── MODAL : animation entrée backdrop + panel ── */
+.modal:not([hidden]) .modal__backdrop {
+  animation: backdropFade 220ms ease forwards;
+}
+.modal:not([hidden]) .modal__panel {
+  animation: modalPanelIn 280ms cubic-bezier(.16,.84,.32,1) forwards;
+}
+@keyframes backdropFade {
+  from { opacity: 0; backdrop-filter: blur(0); }
+  to   { opacity: 1; backdrop-filter: blur(4px); }
+}
+@keyframes modalPanelIn {
+  from { opacity: 0; transform: scale(.94) translateY(20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── CARDS : effet lift au hover ── */
+.card,
+.kpi,
+.tool-card,
+.bon-card,
+.users-table tr,
+.history__row {
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.card:hover:not(.card--no-hover):not(.kpi),
+.tool-card:hover,
+.bon-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .15), 0 2px 6px rgba(0, 212, 255, .08);
+  border-color: rgba(0, 212, 255, .25);
+}
+
+/* ── STATUS PULSE : pulse subtil sur les statuts en attente ── */
+@keyframes statusPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 181, 71, .45); }
+  50%      { box-shadow: 0 0 0 6px rgba(255, 181, 71, 0); }
+}
+.status-badge[data-status="submitted"],
+.status-badge[data-status="en_attente_labo"],
+.bon-card[data-status="submitted"] .bon-card__status,
+.queue-card__status--submitted,
+.tag--submitted {
+  animation: statusPulse 2.4s infinite;
+  border-radius: 999px;
+}
+
+/* ── STICKY TABLE HEADERS ── */
+.users-table thead,
+.history__table thead,
+.catalog__table thead,
+table thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.users-table thead th,
+.history__table thead th,
+table thead th {
+  background: var(--bg-1, #0a1628);
+  border-bottom: 1px solid rgba(0, 212, 255, .15);
+  backdrop-filter: blur(8px);
+}
+
+/* ── AVATAR coloré (gradient depuis le nom) ── */
+.avatar-colored {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-weight: 700;
+  color: white;
+  font-size: .9rem;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--av-a, #00d4ff), var(--av-b, #00e5a0));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+}
+
+/* ── BUTTON polish ── */
+.btn,
+button.btn--primary,
+button.btn--secondary,
+button.btn--ghost {
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
+}
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .15);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+}
+
+/* ── INPUTS focus : ring premium ── */
+.field__input:focus,
+.filter__input:focus,
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="search"]:focus,
+input[type="date"]:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent-500) !important;
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, .15);
+}
+
+/* ── SCROLLBAR custom ── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, .08);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 255, .25);
+}
+
+/* ── FOOTER pro ── */
+.app-footer {
+  padding: 1rem 1.5rem;
+  margin-top: 2rem;
+  border-top: 1px solid var(--border-soft, rgba(255,255,255,.06));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .75rem;
+  font-size: .74rem;
+  color: var(--text-muted);
+}
+.app-footer__left {
+  display: flex;
+  gap: .85rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.app-footer__version {
+  padding: .15rem .5rem;
+  background: rgba(0, 212, 255, .08);
+  color: var(--accent-500);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: .68rem;
+}
+.app-footer__sync {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+}
+.app-footer__sync::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00e5a0;
+  animation: syncPulse 2s infinite;
+  box-shadow: 0 0 8px #00e5a0;
+}
+@keyframes syncPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .4; }
+}
+
+/* ── LOADING SKELETON ── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, .04) 0%,
+    rgba(0, 212, 255, .08) 50%,
+    rgba(255, 255, 255, .04) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite linear;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+/* ── SIDEBAR LINK smooth ── */
+.sidebar__link {
+  transition: background .14s ease, color .14s ease, transform .14s ease;
+}
+.sidebar__link:hover {
+  transform: translateX(2px);
+}
+
+/* ── KPI tabular nums ── */
+.kpi__value {
+  font-variant-numeric: tabular-nums;
+  transition: color .25s ease;
+}
+
+/* ── EMPTY STATES ── */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--text-muted);
+}
+.empty-state__icon {
+  font-size: 3.5rem;
+  opacity: .4;
+  margin-bottom: 1rem;
+  display: block;
+}
+.empty-state__title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: .35rem;
+}
+.empty-state__desc {
+  font-size: .85rem;
+  max-width: 320px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
 
 </style>
 </head>
@@ -5419,8 +5823,8 @@ section[data-view][hidden],
     <div class="modal__backdrop" data-close></div>
     <div class="modal__panel">
       <header class="modal__header">
+        <div id="confirm-icon">❓</div>
         <h2 class="modal__title" id="confirm-title" data-i18n="t.confirmer">Confirmer</h2>
-        <button class="modal__close" data-close aria-label="Fermer">×</button>
       </header>
       <div class="modal__body">
         <p id="confirm-message" data-i18n="t.etes-vous_sur">Êtes-vous sûr ?</p>
@@ -6586,9 +6990,7 @@ section[data-view][hidden],
         b.addEventListener('click', async () => {
           const id = b.dataset.tplDelete;
           const t = this._all[id];
-          if (!confirm(`Supprimer définitivement le modèle "${t.name}" ?
-
-Cette action est irréversible.`)) return;
+          if (!await ui.confirm("Supprimer le modèle ?", `Le modèle "${t.name}" sera supprimé définitivement. Cette action est irréversible.`, { type: "danger", okLabel: "🗑️ Supprimer le modèle" })) return;
           try {
             await fbDb.ref(`pdfTemplates/${id}`).remove();
             try { db.audit('pdfTemplate.delete', id, { name: t.name }); } catch(e){}
@@ -6986,7 +7388,7 @@ Cette action est irréversible.`)) return;
       }
       const f = this._all?.[toolId]?.[fileId];
       if (!f) return;
-      if (!confirm(`Supprimer définitivement le fichier "${f.name}" ?\n\nCette action est irréversible.`)) return;
+      if (!await ui.confirm("Supprimer le fichier ?", `"${f.name}" sera supprimé définitivement.`, { type: "danger", okLabel: "🗑️ Supprimer le fichier" })) return;
       try {
         await fbDb.ref(`toolAttachments/${toolId}/${fileId}`).remove();
         try { db.audit('toolAttachment.delete', toolId, { name: f.name, fileId }); } catch(e){}
@@ -7063,38 +7465,112 @@ Cette action est irréversible.`)) return;
      5. UI HELPERS (toast, modal, loader)
      ========================================================================== */
   const ui = {
+    /* ════════════════════════════════════════════════════════════════════
+       🎨 TOAST PREMIUM — Pile animée avec icônes contextuelles + progress
+       ════════════════════════════════════════════════════════════════════ */
     toast(message, type = 'info', duration = 4000) {
-      const existingToasts = document.querySelectorAll('.toast');
-      if (existingToasts.length >= 5) existingToasts[0]?.remove();
       const container = $('#toast-container');
       if (!container) return;
+      // Max 5 toasts simultanés (purge le plus ancien)
+      const existing = container.querySelectorAll('.toast');
+      if (existing.length >= 5) existing[0]?.remove();
+
+      const icons   = { success: '✓', danger: '✕', warn: '⚠', info: 'ℹ' };
+      const titles  = { success: 'Succès', danger: 'Erreur', warn: 'Attention', info: 'Info' };
+      const icon    = icons[type]  || icons.info;
+      const heading = titles[type] || titles.info;
+
       const t = document.createElement('div');
-      t.className = `toast toast--${type}`;
-      t.innerHTML = `<span>${this.escape(message)}</span>`;
+      t.className = `toast toast--${type} toast--premium`;
+      // Détecte si le message est court (titre seul) ou long (titre + body)
+      const msg = String(message ?? '');
+      const isMultiline = msg.length > 50 || msg.includes('\n');
+      t.innerHTML = `
+        <div class="toast__icon">${icon}</div>
+        <div class="toast__content">
+          ${isMultiline ? `<div class="toast__title">${this.escape(heading)}</div>` : ''}
+          <div class="toast__msg">${this.escape(msg)}</div>
+        </div>
+        <button class="toast__close" aria-label="Fermer">×</button>
+        <div class="toast__progress"></div>
+      `;
       container.appendChild(t);
-      setTimeout(() => {
-        t.style.animation = 'toastIn 200ms reverse';
+
+      // Animation barre de progression
+      const progress = t.querySelector('.toast__progress');
+      if (progress) {
+        progress.style.transition = `transform ${duration}ms linear`;
+        requestAnimationFrame(() => { progress.style.transform = 'scaleX(0)'; });
+      }
+
+      // Fermeture manuelle
+      const closeBtn = t.querySelector('.toast__close');
+      const dismiss = () => {
+        t.style.animation = 'toastOut 200ms ease forwards';
         setTimeout(() => t.remove(), 200);
-      }, duration);
+      };
+      closeBtn?.addEventListener('click', dismiss);
+
+      // Auto-dismiss
+      setTimeout(dismiss, duration);
     },
 
-    confirm(title, message) {
+    /* Variantes pratiques pour la confirmation */
+    success(msg, dur) { this.toast(msg, 'success', dur); },
+    error(msg, dur)   { this.toast(msg, 'danger',  dur); },
+    warn(msg, dur)    { this.toast(msg, 'warn',    dur); },
+    info(msg, dur)    { this.toast(msg, 'info',    dur); },
+
+    /* ════════════════════════════════════════════════════════════════════
+       ❓ MODAL DE CONFIRMATION CUSTOM — Remplace confirm() natif
+       ════════════════════════════════════════════════════════════════════ */
+    confirm(title, message, options = {}) {
       return new Promise((resolve) => {
         const modal = $('#modal-confirm');
         $('#confirm-title').textContent = title;
         $('#confirm-message').textContent = message;
-        modal.hidden = false;
+
+        // Variante : danger (rouge) / warning (orange) / info (cyan, défaut)
+        const type = options.type || 'info';
+        const okLabel     = options.okLabel || (type === 'danger' ? '🗑️ Supprimer' : 'Confirmer');
+        const cancelLabel = options.cancelLabel || 'Annuler';
         const ok = $('#confirm-ok');
+        ok.textContent = okLabel;
+        // Style du bouton selon le type
+        if (type === 'danger') {
+          ok.style.cssText = 'background:#ff3d5a;color:white;border:none;font-weight:700';
+        } else if (type === 'warn') {
+          ok.style.cssText = 'background:#ffb547;color:#0a1628;border:none;font-weight:700';
+        } else {
+          ok.style.cssText = '';
+        }
+
+        // Icône en haut selon le type
+        const iconEl = document.getElementById('confirm-icon');
+        if (iconEl) {
+          iconEl.textContent = type === 'danger' ? '⚠️' : (type === 'warn' ? '⚠️' : '❓');
+          iconEl.style.background = type === 'danger'
+            ? 'rgba(255,61,90,.12)' : (type === 'warn' ? 'rgba(255,181,71,.12)' : 'rgba(0,212,255,.12)');
+        }
+
+        modal.hidden = false;
+
         const close = (val) => {
           modal.hidden = true;
           ok.removeEventListener('click', onOk);
           modal.querySelectorAll('[data-close]').forEach(el => el.removeEventListener('click', onCancel));
+          document.removeEventListener('keydown', onEsc);
           resolve(val);
         };
         const onOk = () => close(true);
         const onCancel = () => close(false);
+        const onEsc = (e) => { if (e.key === 'Escape') close(false); };
         ok.addEventListener('click', onOk);
         modal.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', onCancel));
+        document.addEventListener('keydown', onEsc);
+
+        // Focus le bouton OK pour Enter rapide
+        setTimeout(() => ok.focus(), 50);
       });
     },
 
@@ -7524,7 +8000,11 @@ Cette action est irréversible.`)) return;
       $('#user-name').textContent = p.displayName || '—';
       $('#topbar-user-role').textContent = p.role || '—';
       $('#user-avatar').textContent = (p.displayName || '?').charAt(0).toUpperCase();
-      $('#hub-greeting').textContent = `Bienvenue ${p.displayName} — ${this.roleLabel(p.role)}`;
+      // 🌅 Salutation personnalisée selon l'heure
+      const h = new Date().getHours();
+      const greet = h < 6 ? 'Bonsoir' : h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir';
+      const firstName = (p.displayName || '').split(' ')[0] || '—';
+      $('#hub-greeting').innerHTML = `${greet} <strong style="color:var(--accent-500)">${firstName}</strong> · ${this.roleLabel(p.role)} <span style="opacity:.6">·</span> <span style="font-size:.85rem;opacity:.7">${new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })}</span>`;
     },
 
     roleLabel(role) {
@@ -11038,7 +11518,7 @@ Cette action est irréversible.`)) return;
       async delete(id) {
         const t = this._all[id];
         if (!t) return;
-        if (!confirm(`Supprimer "${t.name}" (équipe ${t.team}) ?\n\nCette action est irréversible.`)) return;
+        if (!await ui.confirm("Supprimer le technicien ?", `"${t.name}" (équipe ${t.team}) sera retiré du registre. Cette action est irréversible.`, { type: "danger", okLabel: "🗑️ Supprimer" })) return;
         try {
           await fbDb.ref('technicians/' + id).remove();
           try { db.audit('technician.delete', id, { name: t.name, team: t.team }); } catch(e){}
@@ -11335,7 +11815,7 @@ Cette action est irréversible.`)) return;
         }
         if (!uid) {
           // Compte orphelin sans UID → essayer de le supprimer
-          if (!confirm('Cet utilisateur n\'a pas d\'UID (compte orphelin). Le supprimer du RTDB ?')) return;
+          if (!await ui.confirm("Compte orphelin détecté", "Cet utilisateur n'a pas d'UID (compte orphelin). Le supprimer du Realtime Database ?", { type: "warn", okLabel: "Supprimer du RTDB" })) return;
           // Find by displayName or email
           const allUsers = this._allUsers || {};
           const orphans = Object.entries(allUsers).filter(([k, v]) => !v.uid || v.role === 'undefined');
@@ -11981,8 +12461,8 @@ Erreur Firebase : ${e.message}`;
         } catch(e) {}
       },
 
-      clear() {
-        if (!confirm('Effacer toutes les données stock ? Cette action est irréversible.')) return;
+      async clear() {
+        if (!await ui.confirm("⚠️ Effacer TOUT le stock ?", "Toutes les données de stock seront supprimées. Cette action est irréversible.", { type: "danger", okLabel: "🗑️ Effacer le stock" })) return;
         this.pieces = [];
         this.piecesFile = null;
         this.piecesXL = false;
@@ -14481,7 +14961,10 @@ Erreur Firebase : ${e.message}`;
         // Mettre à jour la topbar
         $('#user-name').textContent   = name;
         $('#user-avatar').textContent = name.charAt(0).toUpperCase();
-        $('#hub-greeting').textContent = `Bienvenue ${name} — ${auth.roleLabel(state.profile.role)}`;
+        const h = new Date().getHours();
+        const greet = h < 6 ? 'Bonsoir' : h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir';
+        const firstName = (name || '').split(' ')[0] || '—';
+        $('#hub-greeting').innerHTML = `${greet} <strong style="color:var(--accent-500)">${firstName}</strong> · ${auth.roleLabel(state.profile.role)} <span style="opacity:.6">·</span> <span style="font-size:.85rem;opacity:.7">${new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })}</span>`;
         $('#modal-profile').hidden = true;
         ui.toast('Profil mis à jour ✅', 'success');
         // Audit log
@@ -16529,6 +17012,69 @@ Erreur Firebase : ${e.message}`;
     if (typeof CommandPalette !== 'undefined') CommandPalette.init();
     // Wire le bouton de la barre du haut pour ouvrir la palette
     document.getElementById('btn-open-cmdk')?.addEventListener('click', () => CommandPalette.open());
+
+    // ════════════════════════════════════════════════════════════════════
+    // 🎨 AVATAR COLORÉ : génère un gradient consistant depuis le nom
+    // ════════════════════════════════════════════════════════════════════
+    function applyAvatarColor() {
+      const av = document.getElementById('user-avatar');
+      if (!av) return;
+      const name = (state.profile?.displayName || 'X');
+      // Hash simple → 2 couleurs depuis une palette
+      const palette = [
+        ['#00d4ff', '#0891b2'],   // cyan
+        ['#00e5a0', '#059669'],   // mint
+        ['#ffb547', '#f59e0b'],   // amber
+        ['#ff8b6b', '#dc2626'],   // coral
+        ['#a78bfa', '#7c3aed'],   // purple
+        ['#f472b6', '#db2777'],   // pink
+        ['#60a5fa', '#2563eb'],   // blue
+        ['#34d399', '#047857']    // emerald
+      ];
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+      const [a, b] = palette[Math.abs(hash) % palette.length];
+      av.classList.add('avatar-colored');
+      av.style.setProperty('--av-a', a);
+      av.style.setProperty('--av-b', b);
+    }
+    // Au moindre changement de profil
+    setTimeout(applyAvatarColor, 600);
+    setInterval(applyAvatarColor, 3000);   // catch les updates async
+
+    // ════════════════════════════════════════════════════════════════════
+    // 📍 FOOTER PRO : injecte version + dernière synchro Firebase
+    // ════════════════════════════════════════════════════════════════════
+    (function initFooter() {
+      const main = document.querySelector('.app__main, main, body');
+      if (!main || document.querySelector('.app-footer')) return;
+      const footer = document.createElement('footer');
+      footer.className = 'app-footer';
+      footer.innerHTML = `
+        <div class="app-footer__left">
+          <span>LEONI Wiring Systems · Maintenance Pro</span>
+          <span class="app-footer__version" id="footer-version">v${(typeof APP_VERSION !== 'undefined' ? APP_VERSION : '6.0')}</span>
+          <span class="app-footer__sync" id="footer-sync">Synchronisé</span>
+        </div>
+        <div>
+          <span>Annex 5 · Atelier Crimping</span>
+        </div>`;
+      main.appendChild(footer);
+      // Update sync badge sur changement de connexion Firebase
+      if (typeof fbDb !== 'undefined') {
+        fbDb.ref('.info/connected').on('value', snap => {
+          const sync = document.getElementById('footer-sync');
+          if (!sync) return;
+          if (snap.val()) {
+            sync.textContent = 'Synchronisé';
+            sync.style.color = '';
+          } else {
+            sync.textContent = 'Hors-ligne';
+            sync.style.color = '#ffb547';
+          }
+        });
+      }
+    })();
     ConnMonitor.init();
     console.log('[LEONI] Raccourcis : Alt+H Hub · Alt+N Nouveau · Alt+M Magasin · Alt+P Performance');
     console.log('[LEONI] 💡 En cas de problème Firebase, tapez : diagnoseLEONI()');

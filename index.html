@@ -4406,6 +4406,381 @@ select:focus {
   line-height: 1.4;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   🚪 ROUND 3 — LOGIN SCREEN, HUB HERO, GRADIENT TITLES, KPI CARDS
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── 🚪 LOGIN SCREEN : hero dramatique avec mesh gradient + glassmorphism ── */
+.login {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  overflow: hidden;
+}
+.login__backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(at 20% 30%, rgba(0, 212, 255, .18) 0%, transparent 50%),
+    radial-gradient(at 80% 20%, rgba(0, 229, 160, .15) 0%, transparent 50%),
+    radial-gradient(at 60% 80%, rgba(167, 139, 250, .18) 0%, transparent 50%),
+    radial-gradient(at 30% 90%, rgba(255, 139, 107, .12) 0%, transparent 50%),
+    linear-gradient(135deg, #050b16 0%, #0a1628 100%);
+  animation: meshShift 20s ease-in-out infinite;
+}
+.login__backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0, 212, 255, .025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 212, 255, .025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+}
+@keyframes meshShift {
+  0%, 100% { filter: hue-rotate(0deg); }
+  50%      { filter: hue-rotate(15deg); }
+}
+.login__card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 440px;
+  padding: 2.5rem 2.25rem 2rem;
+  background: rgba(10, 22, 40, .65);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 22px;
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, .5),
+    0 0 0 1px rgba(0, 212, 255, .12),
+    0 0 60px rgba(0, 212, 255, .08),
+    inset 0 1px 0 rgba(255, 255, 255, .08);
+  animation: loginIn 600ms cubic-bezier(.16,.84,.32,1);
+}
+@keyframes loginIn {
+  from { opacity: 0; transform: translateY(20px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.login__header { text-align: center; margin-bottom: 1.5rem; }
+.login__logo {
+  display: inline-block;
+  padding: .35rem .85rem;
+  background: linear-gradient(135deg, #00d4ff, #00e5a0);
+  color: #050b16;
+  font-weight: 900;
+  letter-spacing: .12em;
+  font-size: .82rem;
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 4px 16px rgba(0, 212, 255, .35);
+}
+.login__title {
+  background: linear-gradient(135deg, #fff 0%, #00d4ff 50%, #00e5a0 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.2;
+  margin: 0 0 .5rem;
+}
+.login__subtitle {
+  color: var(--text-muted);
+  font-size: .85rem;
+  margin: 0;
+}
+.login__input {
+  width: 100%;
+  padding: .85rem 1rem;
+  background: rgba(255, 255, 255, .04);
+  border: 1.5px solid rgba(255, 255, 255, .08);
+  border-radius: 10px;
+  color: var(--text-primary, #fff);
+  font-size: .95rem;
+  transition: all .15s ease;
+}
+.login__input:focus {
+  outline: 0;
+  border-color: #00d4ff !important;
+  background: rgba(0, 212, 255, .05);
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, .15);
+}
+.login__field { margin-bottom: 1rem; }
+.login__label {
+  display: block;
+  margin-bottom: .4rem;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: .03em;
+}
+.login__submit {
+  width: 100%;
+  padding: .95rem 1.5rem;
+  background: linear-gradient(135deg, #00d4ff 0%, #00e5a0 100%);
+  color: #050b16;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: .95rem;
+  cursor: pointer;
+  transition: all .18s cubic-bezier(.16,.84,.32,1);
+  box-shadow: 0 6px 20px rgba(0, 212, 255, .3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+}
+.login__submit:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(0, 212, 255, .45);
+}
+.login__submit:active { transform: translateY(0); }
+.login__footer {
+  margin-top: 1.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, .06);
+  text-align: center;
+  font-size: .7rem;
+  color: var(--text-muted);
+}
+.login__version {
+  display: inline-block;
+  padding: .15rem .55rem;
+  background: rgba(0, 212, 255, .08);
+  color: #00d4ff;
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  letter-spacing: .04em;
+}
+
+/* ── 📊 HUB HERO : titre gradient + greeting riche ── */
+.hub__header {
+  position: relative;
+  padding: 1.75rem 1.85rem;
+  background: linear-gradient(135deg,
+    rgba(0, 212, 255, .06) 0%,
+    rgba(0, 229, 160, .04) 50%,
+    rgba(167, 139, 250, .05) 100%);
+  border: 1px solid rgba(0, 212, 255, .12);
+  border-radius: 18px;
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+}
+.hub__header::before {
+  content: '';
+  position: absolute;
+  top: -100px; right: -100px;
+  width: 280px; height: 280px;
+  background: radial-gradient(circle, rgba(0, 212, 255, .15) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hub__header::after {
+  content: '';
+  position: absolute;
+  bottom: -80px; left: 40%;
+  width: 240px; height: 240px;
+  background: radial-gradient(circle, rgba(0, 229, 160, .1) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hub__title {
+  position: relative;
+  background: linear-gradient(135deg, #fff 0%, #00d4ff 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  margin: 0 0 .35rem;
+}
+.hub__greeting {
+  position: relative;
+  font-size: .98rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+.hub__greeting strong {
+  font-weight: 800;
+  font-size: 1.05em;
+}
+
+/* ── 🏷 SECTION TITLES : gradient sur les h1/titres principaux ── */
+.history__title,
+.queue-view__title,
+.users-view h1,
+section[data-view] h1,
+.history__title {
+  background: linear-gradient(135deg, var(--text-primary, #fff) 0%, #00d4ff 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+  letter-spacing: -.01em;
+}
+
+/* ── 💎 KPI CARDS : design premium avec hover glow + trend indicator ── */
+.kpi {
+  position: relative;
+  padding: 1.25rem 1.35rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .03), rgba(255, 255, 255, .015));
+  border: 1px solid rgba(255, 255, 255, .06);
+  border-radius: 14px;
+  display: flex;
+  gap: 1rem;
+  overflow: hidden;
+  transition: all .25s cubic-bezier(.16,.84,.32,1);
+}
+.kpi::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--kpi-accent, #00d4ff);
+  opacity: .8;
+}
+.kpi--primary  { --kpi-accent: #00d4ff; }
+.kpi--success  { --kpi-accent: #00e5a0; }
+.kpi--warn     { --kpi-accent: #ffb547; }
+.kpi--danger   { --kpi-accent: #ff3d5a; }
+.kpi:hover {
+  transform: translateY(-3px);
+  border-color: var(--kpi-accent);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, .15),
+    0 0 30px color-mix(in srgb, var(--kpi-accent) 12%, transparent);
+}
+.kpi__icon {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--kpi-accent) 12%, transparent);
+  border-radius: 12px;
+  font-size: 1.55rem;
+  color: var(--kpi-accent);
+  filter: drop-shadow(0 2px 8px color-mix(in srgb, var(--kpi-accent) 35%, transparent));
+}
+.kpi__body { flex: 1; min-width: 0; }
+.kpi__label {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+  margin-bottom: .35rem;
+}
+.kpi__value {
+  font-size: 1.85rem;
+  font-weight: 800;
+  font-family: var(--font-mono, monospace);
+  line-height: 1;
+  color: var(--text-primary);
+  letter-spacing: -.02em;
+  margin-bottom: .35rem;
+}
+.kpi__delta {
+  font-size: .72rem;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+}
+
+/* ── HEALTH SCORE card upgrade ── */
+#hub-health-score {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(0, 229, 160, .08), rgba(0, 212, 255, .05)) !important;
+  border-color: rgba(0, 229, 160, .2) !important;
+}
+
+/* ── CARDS : section card style premium ── */
+.card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, .01));
+  border: 1px solid rgba(255, 255, 255, .06);
+  border-radius: 14px;
+}
+.card__header {
+  border-bottom: 1px solid rgba(255, 255, 255, .05);
+  padding-bottom: .85rem;
+  margin-bottom: 1rem;
+}
+.card__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -.01em;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+/* ── HISTORY HEADER : aligné avec hub__header ── */
+.history__header {
+  position: relative;
+  padding: 1.4rem 1.6rem;
+  background: linear-gradient(135deg, rgba(0, 212, 255, .04), rgba(0, 229, 160, .03));
+  border: 1px solid rgba(0, 212, 255, .1);
+  border-radius: 14px;
+  margin-bottom: 1.25rem;
+}
+
+/* ── BADGES de statut : style consistent premium ── */
+.tag, .badge, .status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .25rem .65rem;
+  font-size: .7rem;
+  font-weight: 700;
+  border-radius: 999px;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+/* ── SIDEBAR : effet glow sur l'item actif ── */
+.sidebar__link--active {
+  position: relative;
+  background: linear-gradient(90deg, rgba(0, 212, 255, .15), rgba(0, 212, 255, .04)) !important;
+  border-left: 3px solid #00d4ff;
+  color: #00d4ff !important;
+}
+.sidebar__link--active::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00d4ff;
+  box-shadow: 0 0 12px #00d4ff;
+}
+
+/* ── TOPBAR : meilleure profondeur ── */
+.topbar {
+  background: rgba(10, 22, 40, .85);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid rgba(0, 212, 255, .08);
+}
+
 </style>
 </head>
 

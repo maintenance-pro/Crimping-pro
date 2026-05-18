@@ -4028,6 +4028,384 @@ select:focus {
   line-height: 1.5;
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   ⏱ DURATION CARD — Refonte moderne premium (glassmorphism + cards)
+   ════════════════════════════════════════════════════════════════════ */
+.dur-card {
+  margin-top: 1rem;
+  padding: 1.1rem 1.2rem;
+  background: linear-gradient(135deg,
+    rgba(0, 212, 255, .03) 0%,
+    rgba(0, 229, 160, .03) 100%);
+  border: 1px solid rgba(0, 212, 255, .12);
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.dur-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0, 212, 255, .4), transparent);
+}
+.dur-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: .35rem;
+}
+.dur-card__title {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  font-size: .82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-primary);
+}
+.dur-card__icon {
+  font-size: 1.05rem;
+  filter: drop-shadow(0 0 6px rgba(0, 212, 255, .3));
+}
+.dur-card__hint {
+  font-size: .72rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.dur-card__body {
+  margin-bottom: 1rem;
+}
+
+/* ── Grille de pills modernes ── */
+.dur-pills-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+  gap: .55rem;
+}
+.dur-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .15rem;
+  padding: .85rem .5rem;
+  min-height: 78px;
+  background: var(--bg-1, rgba(255, 255, 255, .03));
+  border: 1.5px solid var(--border-soft, rgba(255, 255, 255, .08));
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .18s cubic-bezier(.16,.84,.32,1);
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  color: var(--text-secondary);
+}
+.dur-pill__num {
+  font-size: 1.45rem;
+  font-weight: 800;
+  font-family: var(--font-mono, monospace);
+  line-height: 1;
+  letter-spacing: -.02em;
+}
+.dur-pill__unit {
+  font-size: .68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  opacity: .65;
+}
+.dur-pill__check {
+  position: absolute;
+  top: .35rem;
+  right: .4rem;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 229, 160, .25);
+  color: #00e5a0;
+  font-size: .65rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(.5);
+  transition: all .2s cubic-bezier(.16,.84,.32,1);
+}
+.dur-pill:hover {
+  border-color: rgba(0, 212, 255, .4);
+  background: rgba(0, 212, 255, .06);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 212, 255, .12);
+}
+.dur-pill[data-selected="true"] {
+  background: linear-gradient(135deg, rgba(0, 212, 255, .15), rgba(0, 229, 160, .12));
+  border-color: var(--accent-500, #00d4ff);
+  color: var(--accent-500, #00d4ff);
+  box-shadow:
+    0 0 0 3px rgba(0, 212, 255, .12),
+    0 6px 18px rgba(0, 212, 255, .2);
+  transform: translateY(-2px);
+}
+.dur-pill[data-selected="true"] .dur-pill__num {
+  color: var(--accent-500, #00d4ff);
+  text-shadow: 0 0 12px rgba(0, 212, 255, .4);
+}
+.dur-pill[data-selected="true"] .dur-pill__check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ── Wrap pour Préventive (sub-type + durée) ── */
+.dur-pills-wrap { margin-top: .85rem; }
+.dur-sub-wrap { margin-bottom: 1rem; }
+.dur-sub-label {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+  margin-bottom: .5rem;
+}
+
+/* ── Sub-cards Coupe / Binding ── */
+.dur-sub-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: .55rem;
+}
+.dur-sub-card {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .75rem .9rem;
+  background: var(--bg-1, rgba(255, 255, 255, .03));
+  border: 1.5px solid var(--border-soft, rgba(255, 255, 255, .08));
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .18s cubic-bezier(.16,.84,.32,1);
+  position: relative;
+  text-align: left;
+  color: var(--text-secondary);
+}
+.dur-sub-card__icon {
+  font-size: 1.4rem;
+  filter: drop-shadow(0 0 4px rgba(255, 139, 107, .3));
+  flex-shrink: 0;
+}
+.dur-sub-card__txt {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.dur-sub-card__label {
+  font-weight: 700;
+  font-size: .92rem;
+  line-height: 1.2;
+}
+.dur-sub-card__desc {
+  font-size: .72rem;
+  color: var(--text-muted);
+  margin-top: .1rem;
+}
+.dur-sub-card__check {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 139, 107, .25);
+  color: #ff8b6b;
+  font-size: .7rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(.5);
+  transition: all .2s cubic-bezier(.16,.84,.32,1);
+}
+.dur-sub-card:hover {
+  border-color: rgba(255, 139, 107, .4);
+  background: rgba(255, 139, 107, .06);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+.dur-sub-card[data-selected="true"] {
+  background: linear-gradient(135deg, rgba(255, 139, 107, .15), rgba(255, 181, 71, .12));
+  border-color: #ff8b6b;
+  color: #ff8b6b;
+  box-shadow: 0 4px 14px rgba(255, 139, 107, .2);
+}
+.dur-sub-card[data-selected="true"] .dur-sub-card__check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ── Homologation ── */
+.dur-homolog {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.1rem 1.2rem;
+  background: linear-gradient(135deg, rgba(167, 139, 250, .06), rgba(255, 139, 107, .06));
+  border: 1.5px solid rgba(167, 139, 250, .25);
+  border-radius: 12px;
+}
+.dur-homolog__left, .dur-homolog__right {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+.dur-homolog__right { text-align: right; align-items: flex-end; }
+.dur-homolog__label {
+  font-size: .92rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.dur-homolog__hint {
+  font-size: .7rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.dur-homolog__total {
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-family: var(--font-mono, monospace);
+  color: #a78bfa;
+  letter-spacing: -.02em;
+  line-height: 1;
+}
+.dur-homolog__center {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.dur-homolog__btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border-soft, rgba(255, 255, 255, .08));
+  background: var(--bg-1, rgba(255, 255, 255, .04));
+  color: var(--text-primary);
+  font-size: 1.3rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all .15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dur-homolog__btn:hover {
+  background: rgba(167, 139, 250, .15);
+  border-color: #a78bfa;
+  color: #a78bfa;
+  transform: translateY(-1px);
+}
+.dur-homolog__btn:active { transform: scale(.95); }
+.dur-homolog__input {
+  width: 70px;
+  height: 38px;
+  padding: 0 .5rem;
+  background: var(--bg-base, #0a1628);
+  color: var(--text-primary);
+  border: 1.5px solid rgba(167, 139, 250, .3);
+  border-radius: 10px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 800;
+  font-size: 1.15rem;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.dur-homolog__input::-webkit-outer-spin-button,
+.dur-homolog__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.dur-homolog__input:focus {
+  border-color: #a78bfa !important;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, .15) !important;
+}
+
+/* ── Footer card (display + save button) ── */
+.dur-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-top: .85rem;
+  border-top: 1px dashed var(--border-soft, rgba(255, 255, 255, .08));
+}
+.dur-card__display {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .5rem .85rem;
+  background: var(--bg-elevated, rgba(255, 255, 255, .04));
+  border-radius: 8px;
+  font-family: var(--font-mono, monospace);
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: all .25s ease;
+}
+.dur-card__display[data-active="true"] {
+  background: linear-gradient(135deg, rgba(0, 229, 160, .12), rgba(0, 212, 255, .08));
+  color: #00e5a0;
+  border: 1px solid rgba(0, 229, 160, .25);
+  box-shadow: 0 2px 8px rgba(0, 229, 160, .12);
+}
+.dur-card__display-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: currentColor;
+  color: var(--bg-base, #0a1628);
+  font-size: .7rem;
+  font-weight: 800;
+}
+.dur-card__display[data-active="false"] .dur-card__display-icon {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px dashed currentColor;
+}
+.dur-card__save {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .65rem 1.1rem;
+  background: linear-gradient(135deg, var(--accent-500, #00d4ff), #00e5a0);
+  color: #0a1628;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: all .18s cubic-bezier(.16,.84,.32,1);
+  box-shadow: 0 2px 10px rgba(0, 212, 255, .25);
+}
+.dur-card__save:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 212, 255, .35);
+}
+.dur-card__save:active { transform: translateY(0); }
+.dur-card__note {
+  margin: .65rem 0 0;
+  font-size: .72rem;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.4;
+}
+
 </style>
 </head>
 
@@ -4594,26 +4972,32 @@ select:focus {
             </div>
 
             <!-- ═══ TEMPS D'INTERVENTION (visible quand bon en cours/terminé) ═══ -->
-            <div class="field" id="field-duration" style="background:rgba(0,212,255,.05);border:1px solid var(--border-base);border-radius:10px;padding:.875rem 1rem;margin-top:1rem">
-              <label class="field__label" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-                ⏱ Temps réel d'intervention
-                <span style="font-size:.7rem;color:var(--text-muted);font-weight:normal" data-i18n="t.saisi_par_le_technicien_apres_lintervent">— Selon le type d'intervention sélectionné ci-dessus</span>
-              </label>
+            <div class="field dur-card" id="field-duration">
+              <div class="dur-card__head">
+                <div class="dur-card__title">
+                  <span class="dur-card__icon">⏱</span>
+                  <span>Temps réel d'intervention</span>
+                </div>
+                <span class="dur-card__hint">Sélectionne une durée puis enregistre</span>
+              </div>
               <!-- Conteneur dynamique qui s'adapte au type d'intervention -->
-              <div id="int-duration-smart" style="margin:.6rem 0"></div>
+              <div id="int-duration-smart" class="dur-card__body"></div>
               <!-- Champs cachés pour stocker les valeurs (compatible avec save) -->
               <input id="int-duration" name="duration" type="hidden" value="">
               <input id="int-subtype" type="hidden" value="">
               <input id="int-configs" type="hidden" value="">
-              <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-top:.4rem">
-                <span style="color:var(--text-muted);font-size:.85rem;font-family:var(--font-mono)" id="int-duration-display">— aucune durée sélectionnée —</span>
-                <button type="button" class="btn btn--secondary" id="btn-save-duration" style="padding:.5rem 1rem;font-size:.8rem;margin-left:auto" data-i18n="t.enregistrer_le_temps">
-                  💾 Enregistrer le temps
+              <div class="dur-card__foot">
+                <div class="dur-card__display" id="int-duration-display">
+                  <span class="dur-card__display-icon">○</span>
+                  <span class="dur-card__display-text">aucune durée sélectionnée</span>
+                </div>
+                <button type="button" class="dur-card__save" id="btn-save-duration">
+                  <span>💾</span><span>Enregistrer le temps</span>
                 </button>
               </div>
-              <span style="color:var(--text-muted);font-size:.72rem;margin-top:.4rem;display:block">
+              <p class="dur-card__note">
                 Renseignez le temps réellement passé sur cette intervention pour le suivi de performance équipe.
-              </span>
+              </p>
             </div>
 
             <div class="field field--full">
@@ -15114,7 +15498,19 @@ Erreur Firebase : ${e.message}`;
     function setDuration(min) {
       const v = parseInt(min) || 0;
       if (hiddenInput) hiddenInput.value = v > 0 ? String(v) : '';
-      if (display) display.textContent = fmtTime(v);
+      if (display) {
+        const icon = display.querySelector('.dur-card__display-icon');
+        const text = display.querySelector('.dur-card__display-text');
+        if (v > 0) {
+          display.dataset.active = 'true';
+          if (icon) icon.textContent = '✓';
+          if (text) text.textContent = fmtTime(v).replace(/^[✓○]\s*/, '');
+        } else {
+          display.dataset.active = 'false';
+          if (icon) icon.textContent = '○';
+          if (text) text.textContent = 'aucune durée sélectionnée';
+        }
+      }
     }
     function selectPill(container, min) {
       container.querySelectorAll('.dur-pill').forEach(p => {
@@ -15123,17 +15519,34 @@ Erreur Firebase : ${e.message}`;
     }
 
     // ╔════════════════════════════════════════════════════════════════════╗
-    // ║  Construction d'un groupe de pills (durées)                         ║
+    // ║  Construction d'un groupe de pills modernes (durées)                ║
     // ╚════════════════════════════════════════════════════════════════════╝
     function buildPills(values, preselect) {
       const wrap = document.createElement('div');
-      wrap.style.cssText = 'display:flex;gap:.45rem;flex-wrap:wrap';
+      wrap.className = 'dur-pills-grid';
       values.forEach(min => {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'dur-pill';
         b.dataset.min = String(min);
-        b.textContent = min >= 60 ? (min === 60 ? '1 h' : `${Math.floor(min/60)}h ${min%60}min`) : `${min} min`;
+
+        // Format affichage : "10" + "min" séparés visuellement
+        let num, unit;
+        if (min >= 60) {
+          const h = Math.floor(min / 60);
+          const m = min % 60;
+          if (m === 0) { num = String(h); unit = 'h'; }
+          else { num = `${h}h${m}`; unit = 'min'; }
+        } else {
+          num = String(min); unit = 'min';
+        }
+
+        b.innerHTML = `
+          <span class="dur-pill__num">${num}</span>
+          <span class="dur-pill__unit">${unit}</span>
+          <span class="dur-pill__check">✓</span>
+        `;
+
         if (preselect && preselect === min) b.dataset.selected = 'true';
         b.addEventListener('click', () => {
           selectPill(wrap, min);
@@ -15161,23 +15574,35 @@ Erreur Firebase : ${e.message}`;
       const currentCfg = preserve ? (parseInt(cfgInput.value) || 0) : 0;
 
       if (type === 'preventive') {
-        // Sub-type chooser
+        // Sub-type chooser : Coupe / Binding (cards modernes)
         const subWrap = document.createElement('div');
-        subWrap.style.cssText = 'margin-bottom:.7rem';
-        subWrap.innerHTML = `<div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);font-weight:700;margin-bottom:.4rem">Sous-type préventive</div>`;
+        subWrap.className = 'dur-sub-wrap';
+        subWrap.innerHTML = `<div class="dur-sub-label">Sous-type préventive</div>`;
         const btnRow = document.createElement('div');
-        btnRow.style.cssText = 'display:flex;gap:.5rem;flex-wrap:wrap';
-        ['coupe','binding'].forEach(sub => {
+        btnRow.className = 'dur-sub-row';
+        const subOptions = [
+          { sub: 'coupe',   icon: '✂',  label: 'Coupe',   desc: 'Avec coupe outil' },
+          { sub: 'binding', icon: '🔗', label: 'Binding', desc: 'Sans coupe (10 min)' }
+        ];
+        subOptions.forEach(opt => {
           const b = document.createElement('button');
           b.type = 'button';
-          b.className = 'sub-pill';
-          b.dataset.sub = sub;
-          b.textContent = sub === 'coupe' ? '✂ Coupe' : '🔗 Binding';
-          if (currentSub === sub) b.dataset.selected = 'true';
+          b.className = 'dur-sub-card';
+          b.dataset.sub = opt.sub;
+          b.innerHTML = `
+            <span class="dur-sub-card__icon">${opt.icon}</span>
+            <div class="dur-sub-card__txt">
+              <span class="dur-sub-card__label">${opt.label}</span>
+              <span class="dur-sub-card__desc">${opt.desc}</span>
+            </div>
+            <span class="dur-sub-card__check">✓</span>
+          `;
+          if (currentSub === opt.sub) b.dataset.selected = 'true';
           b.addEventListener('click', () => {
-            btnRow.querySelectorAll('.sub-pill').forEach(x => x.dataset.selected = (x.dataset.sub === sub) ? 'true' : 'false');
-            subInput.value = sub;
-            renderTimeOptions(sub);
+            btnRow.querySelectorAll('.dur-sub-card').forEach(x =>
+              x.dataset.selected = (x.dataset.sub === opt.sub) ? 'true' : 'false');
+            subInput.value = opt.sub;
+            renderTimeOptions(opt.sub);
           });
           btnRow.appendChild(b);
         });
@@ -15186,14 +15611,23 @@ Erreur Firebase : ${e.message}`;
 
         const timeWrap = document.createElement('div');
         timeWrap.id = 'p5j-time-options';
+        timeWrap.className = 'dur-pills-wrap';
         smartWrap.appendChild(timeWrap);
 
         function renderTimeOptions(sub) {
           timeWrap.innerHTML = '';
           if (sub === 'coupe') {
+            const lbl = document.createElement('div');
+            lbl.className = 'dur-sub-label';
+            lbl.textContent = 'Durée';
+            timeWrap.appendChild(lbl);
             const pills = buildPills([15, 20], currentSub === 'coupe' ? currentDur : 0);
             timeWrap.appendChild(pills);
           } else if (sub === 'binding') {
+            const lbl = document.createElement('div');
+            lbl.className = 'dur-sub-label';
+            lbl.textContent = 'Durée (auto)';
+            timeWrap.appendChild(lbl);
             const pills = buildPills([10], 10);
             timeWrap.appendChild(pills);
             setDuration(10);   // auto-applique 10 min pour binding
@@ -15207,32 +15641,51 @@ Erreur Firebase : ${e.message}`;
         subInput.value = '';
 
       } else if (type === 'homologation') {
-        // N configurations × 30 min
+        // Modern N configurations × 30 min input
         const row = document.createElement('div');
-        row.style.cssText = 'display:flex;gap:.85rem;align-items:center;flex-wrap:wrap;padding:.5rem .65rem;background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:8px';
+        row.className = 'dur-homolog';
         row.innerHTML = `
-          <label style="font-size:.85rem;color:var(--text-primary);font-weight:600">Combien de configurations ?</label>
-          <input id="int-configs-input" type="number" min="1" max="50" value="${currentCfg || ''}"
-                 style="width:90px;padding:.5rem .65rem;background:var(--bg-base);color:var(--text-primary);border:1px solid var(--border-soft);border-radius:6px;font-family:var(--font-mono);font-weight:700;font-size:1rem;text-align:center"
-                 autocomplete="off">
-          <span style="color:var(--text-muted);font-size:.85rem">× 30 min / configuration</span>
-          <span id="int-configs-total" style="margin-left:auto;font-family:var(--font-mono);color:#00e5a0;font-weight:700;font-size:1rem">${currentCfg ? (currentCfg * 30) + ' min' : '— min'}</span>
+          <div class="dur-homolog__left">
+            <span class="dur-homolog__label">Combien de configurations ?</span>
+            <span class="dur-homolog__hint">30 min par configuration</span>
+          </div>
+          <div class="dur-homolog__center">
+            <button type="button" class="dur-homolog__btn" id="cfg-minus">−</button>
+            <input id="int-configs-input" type="number" min="0" max="50" value="${currentCfg || ''}"
+                   class="dur-homolog__input"
+                   placeholder="0"
+                   autocomplete="off">
+            <button type="button" class="dur-homolog__btn" id="cfg-plus">+</button>
+          </div>
+          <div class="dur-homolog__right">
+            <span class="dur-homolog__total" id="int-configs-total">${currentCfg ? (currentCfg * 30) + ' min' : '—'}</span>
+            <span class="dur-homolog__hint">Total</span>
+          </div>
         `;
         smartWrap.appendChild(row);
         const inp = row.querySelector('#int-configs-input');
         const tot = row.querySelector('#int-configs-total');
-        inp.addEventListener('input', () => {
+        const updateConfigs = () => {
           const n = Math.max(0, Math.min(50, parseInt(inp.value) || 0));
           if (n !== parseInt(inp.value)) inp.value = String(n);
           const total = n * 30;
           cfgInput.value = n > 0 ? String(n) : '';
-          tot.textContent = total > 0 ? total + ' min' : '— min';
+          tot.textContent = total > 0 ? total + ' min' : '—';
           setDuration(total);
+        };
+        inp.addEventListener('input', updateConfigs);
+        row.querySelector('#cfg-minus')?.addEventListener('click', () => {
+          inp.value = Math.max(0, (parseInt(inp.value) || 0) - 1);
+          updateConfigs();
+        });
+        row.querySelector('#cfg-plus')?.addEventListener('click', () => {
+          inp.value = Math.min(50, (parseInt(inp.value) || 0) + 1);
+          updateConfigs();
         });
         subInput.value = '';
 
       } else {
-        // Vide ou curative legacy → fallback générique
+        // Vide ou curative legacy → fallback générique (cards modernes)
         const pills = buildPills([10, 15, 20, 30, 40, 60], currentDur);
         smartWrap.appendChild(pills);
         subInput.value = '';

@@ -4355,6 +4355,15 @@ select:focus {
   cursor: not-allowed;
   transform: none;
 }
+.dossier-step__btn:not(:disabled) {
+  pointer-events: auto !important;
+}
+/* Force le bouton à toujours répondre aux clics, même dans un fieldset disabled */
+#btn-deliver-dossier {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 10;
+}
 .dossier-step__note {
   margin: 0;
   font-size: .72rem;
@@ -4375,6 +4384,21 @@ select:focus {
   background: linear-gradient(135deg, rgba(167, 139, 250, .25), rgba(236, 72, 153, .2)) !important;
   color: #a78bfa !important;
   border: 1px solid rgba(167, 139, 250, .4) !important;
+}
+
+/* 🛡 PROTECTION : le bouton Dossier livré reste TOUJOURS cliquable, même si
+   un parent (fieldset, section, form) est désactivé */
+#btn-deliver-dossier,
+.dossier-step,
+.dossier-step__btn {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 10;
+}
+fieldset:disabled #btn-deliver-dossier,
+fieldset[disabled] #btn-deliver-dossier {
+  pointer-events: auto !important;
+  opacity: 1 !important;
 }
 
 
@@ -6504,7 +6528,7 @@ section[data-view] h1,
               </div>
             </header>
             <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.5rem;font-size:.78rem;color:var(--text-muted);flex-wrap:wrap">
-              <span><span style="display:inline-block;width:18px;height:2px;background:#ff3d5a;border-top:1px dashed #ff3d5a;vertical-align:middle"></span> Objectif <strong style="color:#ff3d5a">7h30 par jour, 7j/7</strong> <span id="perf-objective-label" style="opacity:.8"></span></span>
+              <span><span style="display:inline-block;width:18px;height:2px;background:#ff3d5a;border-top:1px dashed #ff3d5a;vertical-align:middle"></span> Objectif <strong style="color:#ff3d5a">6h30 par jour, 7j/7</strong> <span id="perf-objective-label" style="opacity:.8"></span></span>
               <span style="margin-left:auto;font-size:.72rem;opacity:.7">Équipes A/B/C/N = rotation matin/après-midi/nuit (identification seulement)</span>
             </div>
             <div style="height:300px;position:relative">
@@ -9787,7 +9811,29 @@ section[data-view] h1,
         $('#form-intervention').addEventListener('submit', (e) => { e.preventDefault(); this.save('submit'); });
         $('#btn-validate').addEventListener('click', () => this.validate());
         $('#btn-reject').addEventListener('click', () => this.reject());
-        $('#btn-deliver-dossier')?.addEventListener('click', () => this.deliverDossier());
+        // 📁 Wire bouton "Dossier livré" — DIRECT (le bouton est dans le DOM dès le start)
+        const btnDeliver = $('#btn-deliver-dossier');
+        if (btnDeliver) {
+          btnDeliver.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[deliverDossier] click détecté');
+            this.deliverDossier();
+          });
+        }
+        // Fallback : event delegation au niveau document (UNE seule fois grâce au flag)
+        if (!window.__deliverDossierDelegated) {
+          window.__deliverDossierDelegated = true;
+          document.addEventListener('click', (e) => {
+            const btn = e.target?.closest?.('#btn-deliver-dossier');
+            if (btn && !btn.disabled && !e.__deliverHandled) {
+              e.__deliverHandled = true;
+              e.preventDefault();
+              console.log('[deliverDossier] click via delegation');
+              views.intervention.deliverDossier();
+            }
+          });
+        }
         $('#btn-int-delete').addEventListener('click', () => this.delete());
         $('#btn-int-back').addEventListener('click', () => router.go('history'));
         $('#btn-int-print').addEventListener('click', () => window.print());
@@ -10104,11 +10150,30 @@ section[data-view] h1,
             form.style.position = 'relative';
           }
 
-          // Masquer/désactiver tous les boutons de soumission
-          ['btn-int-submit','btn-int-save-draft','btn-int-validate','btn-int-reject'].forEach(id => {
+          // Masquer/désactiver tous les boutons de soumission (bons IDs : btn-validate/btn-reject sans prefix int-)
+          ['btn-int-submit','btn-int-save-draft','btn-validate','btn-reject'].forEach(id => {
             const b = document.getElementById(id);
             if (b) { b.style.display = 'none'; b.disabled = true; }
           });
+
+          // 📁 RE-ENABLE EXPLICITE du bouton "Dossier livré" si étape 2 attendue
+          // (override le lock qui a pu le désactiver malgré nos conditions)
+          if (allowDeliverBtn) {
+            const btnD = document.getElementById('btn-deliver-dossier');
+            const stepD = document.getElementById('dossier-step');
+            if (btnD) {
+              btnD.disabled = false;
+              btnD.style.pointerEvents = 'auto';
+              btnD.style.opacity = '1';
+              btnD.style.cursor = 'pointer';
+              btnD.removeAttribute('aria-disabled');
+            }
+            if (stepD) {
+              stepD.hidden = false;
+              stepD.style.opacity = '1';
+              stepD.style.pointerEvents = 'auto';
+            }
+          }
 
           // Bandeau "Bon verrouillé"
           if (!lockBanner) {
@@ -10470,32 +10535,67 @@ section[data-view] h1,
          📁 ÉTAPE 2 — Livraison du dossier (homologation/requalification)
          ════════════════════════════════════════════════════════════════════ */
       async deliverDossier() {
-        if (!auth.can('intervention.validate')) return ui.toast('Accès refusé (labo uniquement)', 'danger');
+        console.log('[deliverDossier] 🔵 Click détecté');
+        if (!auth.can('intervention.validate')) {
+          ui.toast('⚠️ Accès refusé — rôle laboratoire requis', 'danger');
+          return;
+        }
         const reg = state.currentInterventionId;
-        if (!reg) return ui.toast('Aucun bon ouvert', 'warn');
-        const existing = state.interventions?.[reg];
-        if (!existing) return ui.toast('Bon introuvable', 'danger');
-        if (existing.status !== 'validated') {
-          return ui.toast('⚠️ Le bon doit d\'abord être validé (étape 1)', 'warn');
+        if (!reg) {
+          ui.toast('Aucun bon ouvert', 'warn');
+          return;
         }
-        const type = existing.crimping?.type || '';
+
+        // 🔄 Lire les DONNÉES À JOUR depuis Firebase (pas state qui peut être en retard)
+        ui.showLoader('Vérification du bon…');
+        let data;
+        try {
+          const snap = await fbDb.ref('interventions/' + reg).once('value');
+          data = snap.val();
+        } catch (e) {
+          ui.hideLoader();
+          ui.toast('⛔ Erreur réseau — impossible de lire le bon. Vérifiez votre connexion.', 'danger');
+          return;
+        }
+        ui.hideLoader();
+
+        if (!data) {
+          ui.toast('Bon introuvable', 'danger');
+          return;
+        }
+        console.log('[deliverDossier] Bon trouvé :', { numBon: data.numBon, status: data.status, type: data.crimping?.type });
+
+        if (data.status !== 'validated') {
+          ui.toast(`⚠️ Le bon doit d'abord être validé (étape 1). Statut actuel : "${data.status}"`, 'warn', 5000);
+          return;
+        }
+        const type = data.crimping?.type || '';
         if (type !== 'homologation' && type !== 'requalification') {
-          return ui.toast('⚠️ Livraison dossier réservée à Homologation/Requalification', 'warn');
+          ui.toast(`⚠️ Livraison réservée à Homologation/Requalification. Type actuel : "${type}"`, 'warn', 5000);
+          return;
         }
+
         const ok = await ui.confirm(
           '📁 Livrer le dossier ?',
           `Le rapport final sera injecté et le bon N°${reg} sera définitivement clôturé. Cette action est irréversible.`,
           { type: 'info', okLabel: '📁 Confirmer livraison' }
         );
-        if (!ok) return;
-        ui.showLoader('Livraison du dossier…');
+        if (!ok) {
+          console.log('[deliverDossier] Annulé par l\'utilisateur');
+          return;
+        }
+
+        ui.showLoader('Livraison du dossier en cours…');
         try {
           await db.deliverDossier(reg);
-          ui.toast(`📁 Dossier livré · Bon N°${reg} clôturé ✅`, 'success');
+          console.log('[deliverDossier] ✅ Succès');
+          ui.toast(`📁 Dossier livré · Bon N°${reg} clôturé ✅`, 'success', 4000);
           this.setStatus('delivered');
+          // Re-render le bon pour appliquer le verrouillage final
+          setTimeout(() => this.open(reg).catch(()=>{}), 500);
         } catch (err) {
-          console.error(err);
-          ui.toast('Erreur : ' + err.message, 'danger');
+          console.error('[deliverDossier] ❌ Erreur :', err);
+          ui.toast('Erreur livraison : ' + (err?.message || err), 'danger', 6000);
         } finally {
           ui.hideLoader();
         }
@@ -14298,30 +14398,30 @@ Erreur Firebase : ${e.message}`;
           });
         }
 
-        // Chart 3: Trend by period (day / week / month) — fixed daily objective 7h30
+        // Chart 3: Trend by period (day / week / month) — fixed daily objective 6h30
         const c3 = document.getElementById('chart-perf-trend');
         if (c3) {
           if (this._charts.trend) this._charts.trend.destroy();
           const period = this._period || 'week';   // 'day' | 'week' | 'month'
 
           // ╔══════════════════════════════════════════════════════════════╗
-          // ║  OBJECTIF SIMPLE — 7h30 par jour, 7 jours sur 7              ║
+          // ║  OBJECTIF SIMPLE — 6h30 par jour, 7 jours sur 7              ║
           // ╠══════════════════════════════════════════════════════════════╣
           // ║  Les équipes A/B/C/N font une rotation matin/aprèsmidi/nuit,║
           // ║  donc on garde un objectif fixe par jour quel que soit       ║
           // ║  le poste. Les équipes servent uniquement à IDENTIFIER       ║
           // ║  les techniciens (badge) et à filtrer la vue.                ║
           // ║                                                              ║
-          // ║  Jour    : 7h30                                              ║
-          // ║  Semaine : 7 × 7h30 = 52h30                                  ║
-          // ║  Mois    : nb jours du mois × 7h30                           ║
+          // ║  Jour    : 6h30                                              ║
+          // ║  Semaine : 7 × 6h30 = 45h30                                  ║
+          // ║  Mois    : nb jours du mois × 6h30                           ║
           // ╚══════════════════════════════════════════════════════════════╝
-          const DAILY_OBJ = 7.5;   // 7h30 = 7.5 heures
+          const DAILY_OBJ = 6.5;   // 6h30 = 6.5 heures
 
           // Helper : objectif sur un bucket donné
           const calcObjective = (bucket) => {
             if (period === 'day') return DAILY_OBJ;
-            if (period === 'week') return 7 * DAILY_OBJ;        // 52.5h
+            if (period === 'week') return 7 * DAILY_OBJ;        // 45.5h
             if (period === 'month') {
               const start = new Date(bucket.start);
               const end = new Date(bucket.end);
@@ -14406,10 +14506,10 @@ Erreur Firebase : ${e.message}`;
             };
           });
 
-          // ── UNE seule ligne d'objectif (7h30/jour pour tous) ──
+          // ── UNE seule ligne d'objectif (6h30/jour pour tous) ──
           const objData = buckets.map(b => calcObjective(b));
           datasets.push({
-            label: '🎯 Objectif (7h30/jour)',
+            label: '🎯 Objectif (6h30/jour)',
             data: objData,
             borderColor: '#ff3d5a',
             backgroundColor: 'transparent',
@@ -14425,11 +14525,11 @@ Erreur Firebase : ${e.message}`;
           const objLabel = document.getElementById('perf-objective-label');
           if (objLabel) {
             const map = {
-              day:   '7h30 par jour',
-              week:  '52h30 par semaine (7×7h30)',
-              month: '~225h/mois (jours réels × 7h30)'
+              day:   '6h30 par jour',
+              week:  '45h30 par semaine (7×6h30)',
+              month: '~195h/mois (jours réels × 6h30)'
             };
-            objLabel.textContent = '(' + (map[period] || '7h30 par jour') + ')';
+            objLabel.textContent = '(' + (map[period] || '6h30 par jour') + ')';
           }
 
           this._charts.trend = new Chart(c3, {

@@ -4430,6 +4430,239 @@ select:focus {
   color: #00e5a0 !important;
   font-weight: 700;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   📋 RAPPORT DE VALIDATION — Vue récapitulative claire dans l'historique
+   ════════════════════════════════════════════════════════════════════ */
+.validation-report {
+  margin-bottom: 1.25rem;
+  /* Force le rapport à rester ACTIF même si dans un fieldset disabled */
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+.validation-report * {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+.validation-report a {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+.validation-report__body {
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
+}
+.vr-card {
+  padding: 1rem 1.15rem;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(0, 229, 160, .06), rgba(0, 212, 255, .03));
+  border: 1px solid rgba(0, 229, 160, .22);
+}
+.vr-card--step2 {
+  background: linear-gradient(135deg, rgba(167, 139, 250, .08), rgba(236, 72, 153, .04));
+  border-color: rgba(167, 139, 250, .25);
+}
+.vr-card--step2.vr-card--pending {
+  background: linear-gradient(135deg, rgba(255, 181, 71, .08), rgba(255, 139, 107, .04));
+  border-color: rgba(255, 181, 71, .25);
+}
+.vr-card--rejected {
+  background: linear-gradient(135deg, rgba(255, 61, 90, .08), rgba(255, 61, 90, .03));
+  border-color: rgba(255, 61, 90, .25);
+}
+.vr-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0, 229, 160, .5), transparent);
+}
+.vr-card--step2::before { background: linear-gradient(90deg, transparent, rgba(167, 139, 250, .5), transparent); }
+.vr-card--step2.vr-card--pending::before { background: linear-gradient(90deg, transparent, rgba(255, 181, 71, .5), transparent); }
+.vr-card--rejected::before { background: linear-gradient(90deg, transparent, rgba(255, 61, 90, .5), transparent); }
+
+.vr-card__header {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: .85rem;
+  flex-wrap: wrap;
+}
+.vr-card__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #00e5a0, #00d4ff);
+  color: #050b16;
+  border-radius: 50%;
+  font-weight: 800;
+  font-size: .95rem;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 229, 160, .3);
+}
+.vr-card--step2 .vr-card__num {
+  background: linear-gradient(135deg, #a78bfa, #ec4899);
+  color: white;
+  box-shadow: 0 2px 8px rgba(167, 139, 250, .35);
+}
+.vr-card--step2.vr-card--pending .vr-card__num {
+  background: linear-gradient(135deg, #ffb547, #ff8b6b);
+  color: #050b16;
+}
+.vr-card--rejected .vr-card__num {
+  background: linear-gradient(135deg, #ff3d5a, #ff8b6b);
+  color: white;
+  font-size: 1.05rem;
+}
+.vr-card__title-block { flex: 1; min-width: 200px; }
+.vr-card__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+  margin-bottom: .15rem;
+}
+.vr-card__sub {
+  font-size: .82rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.vr-card__sub strong { color: var(--accent-500, #00d4ff); font-weight: 700; }
+.vr-card__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .25rem .65rem;
+  border-radius: 999px;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.vr-card__badge--validated {
+  background: rgba(0, 229, 160, .2);
+  color: #00e5a0;
+  border: 1px solid rgba(0, 229, 160, .35);
+}
+.vr-card__badge--delivered {
+  background: rgba(167, 139, 250, .2);
+  color: #c4b5fd;
+  border: 1px solid rgba(167, 139, 250, .35);
+}
+.vr-card__badge--pending {
+  background: rgba(255, 181, 71, .2);
+  color: #ffb547;
+  border: 1px solid rgba(255, 181, 71, .35);
+  animation: statusPulse 2.4s infinite;
+}
+
+.vr-card__file {
+  margin-top: .55rem;
+}
+.vr-card__file-label {
+  font-size: .7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-muted);
+  margin-bottom: .4rem;
+}
+
+.vr-file {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .65rem .95rem;
+  background: rgba(0, 229, 160, .12);
+  border: 1px solid rgba(0, 229, 160, .3);
+  border-radius: 9px;
+  color: #00e5a0;
+  text-decoration: none;
+  font-size: .88rem;
+  font-weight: 600;
+  transition: all .15s ease;
+}
+.vr-file:hover {
+  background: rgba(0, 229, 160, .2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 229, 160, .15);
+}
+.vr-file__hint {
+  margin-left: auto;
+  font-size: .68rem;
+  opacity: .7;
+  font-weight: 500;
+}
+.vr-file--report {
+  background: rgba(167, 139, 250, .15);
+  border-color: rgba(167, 139, 250, .35);
+  color: #c4b5fd;
+}
+.vr-file--report:hover {
+  background: rgba(167, 139, 250, .22);
+  box-shadow: 0 4px 12px rgba(167, 139, 250, .2);
+}
+
+.vr-img {
+  display: block;
+  max-width: 100%;
+  max-height: 360px;
+  margin-top: .65rem;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 229, 160, .25);
+  object-fit: contain;
+  background: rgba(0, 0, 0, .25);
+  cursor: zoom-in;
+}
+.vr-img:hover {
+  border-color: rgba(0, 229, 160, .5);
+}
+
+.vr-empty {
+  padding: .6rem .85rem;
+  background: rgba(255, 255, 255, .03);
+  border: 1px dashed rgba(255, 255, 255, .12);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: .82rem;
+  font-style: italic;
+}
+.vr-pending {
+  padding: .6rem .85rem;
+  background: rgba(255, 181, 71, .1);
+  border: 1px dashed rgba(255, 181, 71, .35);
+  border-radius: 8px;
+  color: #ffb547;
+  font-size: .82rem;
+  font-weight: 600;
+}
+
+.vr-card__meta {
+  margin-top: .65rem;
+  padding-top: .65rem;
+  border-top: 1px dashed rgba(255, 255, 255, .08);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: .82rem;
+  color: var(--text-secondary);
+}
+.vr-meta-item strong { color: var(--accent-500, #00d4ff); }
+
+.vr-card__reason {
+  margin-top: .55rem;
+  padding: .65rem .9rem;
+  background: rgba(255, 61, 90, .08);
+  border: 1px solid rgba(255, 61, 90, .25);
+  border-radius: 8px;
+  color: #ff8b9b;
+  font-size: .9rem;
+  line-height: 1.4;
+}
+.vr-card__reason strong { color: #ff3d5a; }
 .dossier-step__btn {
   display: inline-flex;
   align-items: center;
@@ -5698,6 +5931,16 @@ section[data-view] h1,
           </fieldset>
 
           <!-- ============================================================= -->
+          <!-- 📋 RAPPORT DE VALIDATION — Toujours visible quand status>=validated -->
+          <!-- ============================================================= -->
+          <section class="intervention__section validation-report" id="validation-report" hidden>
+            <h3 class="intervention__sub-title">📋 Rapport de validation</h3>
+            <div class="validation-report__body" id="validation-report-body">
+              <!-- Contenu dynamique injecté par renderValidationReport() -->
+            </div>
+          </section>
+
+          <!-- ============================================================= -->
           <!-- HISTORIQUE DES STATUTS                                         -->
           <!-- ============================================================= -->
           <section class="intervention__section intervention__section--history">
@@ -5976,11 +6219,9 @@ section[data-view] h1,
         <header class="queue-view__header">
           <h1 class="queue-view__title" data-i18n="queue.title">Ma file d'attente</h1>
           <div class="queue-view__tabs" role="tablist">
-            <button class="tab tab--active" role="tab" data-tab="all" data-i18n="t.tous">Tous</button>
-            <button class="tab" role="tab" data-tab="mine" data-i18n="t.les_miens">Les miens</button>
-            <button class="tab" role="tab" data-tab="todo">À traiter</button>
+            <button class="tab tab--active" role="tab" data-tab="todo">⏳ À traiter</button>
             <button class="tab" role="tab" data-tab="awaiting-delivery">📁 Attente livraison dossier</button>
-            <button class="tab" role="tab" data-tab="rejected" data-i18n="t.refuses">Refusés</button>
+            <button class="tab" role="tab" data-tab="rejected" data-i18n="t.refuses">❌ Refusés</button>
           </div>
         </header>
 
@@ -10444,6 +10685,9 @@ section[data-view] h1,
         // Timeline
         this.renderTimeline(data.statusHistory || []);
 
+        // 📋 Rapport de validation (toujours visible si validé/livré/rejeté)
+        this.renderValidationReport(data);
+
         // 🔒 VERROUILLAGE TOTAL pour bons VALIDÉS ou REJETÉS
         // Aucune modification possible — sécurité absolue.
         this._applyValidationLock(data);
@@ -10703,6 +10947,134 @@ section[data-view] h1,
         `).join('');
       },
 
+      /* ════════════════════════════════════════════════════════════════════
+         📋 RAPPORT DE VALIDATION — Vue récapitulative TOUJOURS visible
+         pour les bons validated / delivered / rejected
+         ════════════════════════════════════════════════════════════════════ */
+      renderValidationReport(data) {
+        const section = document.getElementById('validation-report');
+        const body = document.getElementById('validation-report-body');
+        if (!section || !body) return;
+
+        // Visible UNIQUEMENT quand validé/livré/rejeté
+        const show = ['validated', 'delivered', 'rejected'].includes(data.status);
+        section.hidden = !show;
+        if (!show) { body.innerHTML = ''; return; }
+
+        const lab = data.lab || {};
+        const type = data.crimping?.type || '';
+        const isHomologRequalif = (type === 'homologation' || type === 'requalification');
+
+        // ── Card étape 1 : Validation cross section ──
+        const filledByName = lab.filledBy?.name || '—';
+        const filledByMat = lab.filledBy?.matricule || '';
+        const filledAt = lab.filledAt ? fmt.dateTime(lab.filledAt) : '—';
+        const decision = lab.decision || data.status;
+
+        let coupeHtml = '<div class="vr-empty">Aucune photo jointe</div>';
+        if (lab.coupeMetallo?.downloadUrl) {
+          const cm = lab.coupeMetallo;
+          const isImg = /\.(jpe?g|png|gif|webp|bmp)$/i.test(cm.fileName || '');
+          const sizeKB = cm.fileSize ? ` · ${(cm.fileSize/1024).toFixed(1)} KB` : '';
+          coupeHtml = `
+            <a href="${ui.escape(cm.downloadUrl)}" target="_blank" rel="noopener" class="vr-file">
+              📎 <strong>${ui.escape(cm.fileName || 'Pièce jointe')}</strong>${sizeKB}
+              <span class="vr-file__hint">Clique pour ouvrir</span>
+            </a>
+            ${isImg ? `<img src="${ui.escape(cm.downloadUrl)}" alt="Coupe métallographique" class="vr-img">` : ''}
+          `;
+        }
+
+        // ── Card étape 2 : Livraison dossier (si applicable) ──
+        let step2Html = '';
+        if (isHomologRequalif && (data.status === 'delivered' || data.status === 'validated')) {
+          const isDelivered = (data.status === 'delivered');
+          const tech2Name = lab.tech2Name || lab.deliveredBy?.name || '—';
+          const tech2Mat = lab.tech2Matricule || '';
+          const deliveredAt = lab.deliveredAt ? fmt.dateTime(lab.deliveredAt) : null;
+          let reportHtml = isDelivered ? '<div class="vr-empty">Aucun rapport joint</div>' : '<div class="vr-pending">⏳ En attente de livraison</div>';
+          if (lab.reportData?.downloadUrl) {
+            const rd = lab.reportData;
+            const sizeKB = rd.fileSize ? ` · ${(rd.fileSize/1024).toFixed(1)} KB` : '';
+            reportHtml = `
+              <a href="${ui.escape(rd.downloadUrl)}" target="_blank" rel="noopener" class="vr-file vr-file--report">
+                📄 <strong>${ui.escape(rd.fileName || 'Rapport')}</strong>${sizeKB}
+                <span class="vr-file__hint">Clique pour ouvrir le rapport</span>
+              </a>
+            `;
+          }
+          step2Html = `
+            <div class="vr-card vr-card--step2 ${isDelivered ? '' : 'vr-card--pending'}">
+              <div class="vr-card__header">
+                <span class="vr-card__num">②</span>
+                <div class="vr-card__title-block">
+                  <div class="vr-card__title">Injection rapport &amp; livraison dossier</div>
+                  <div class="vr-card__sub">
+                    ${isDelivered
+                      ? `Livré par <strong>${ui.escape(tech2Name)}</strong>${tech2Mat ? ` (${ui.escape(tech2Mat)})` : ''} · ${deliveredAt}`
+                      : '<em style="color:#ffb547">⏳ En attente de livraison du dossier</em>'}
+                  </div>
+                </div>
+                <span class="vr-card__badge vr-card__badge--${isDelivered ? 'delivered' : 'pending'}">
+                  ${isDelivered ? '✅ LIVRÉ' : '⏳ EN ATTENTE'}
+                </span>
+              </div>
+              <div class="vr-card__file">${reportHtml}</div>
+            </div>
+          `;
+        }
+
+        // ── Card refus (si rejeté) ──
+        let rejectHtml = '';
+        if (data.status === 'rejected') {
+          const reason = lab.rejectionReason || (data.statusHistory?.find(h => h.status === 'rejected')?.reason) || '—';
+          rejectHtml = `
+            <div class="vr-card vr-card--rejected">
+              <div class="vr-card__header">
+                <span class="vr-card__num">❌</span>
+                <div class="vr-card__title-block">
+                  <div class="vr-card__title">Bon refusé</div>
+                  <div class="vr-card__sub">Renvoyé au crimping pour correction</div>
+                </div>
+              </div>
+              <div class="vr-card__reason">
+                <strong>Motif :</strong> ${ui.escape(reason)}
+              </div>
+            </div>
+          `;
+        }
+
+        // ── Compose le rapport complet ──
+        body.innerHTML = `
+          <!-- Étape 1 : Validation cross section -->
+          <div class="vr-card vr-card--step1">
+            <div class="vr-card__header">
+              <span class="vr-card__num">①</span>
+              <div class="vr-card__title-block">
+                <div class="vr-card__title">Validation cross section</div>
+                <div class="vr-card__sub">
+                  ${decision === 'validated' ? 'Validé' : 'Décision'} par
+                  <strong>${ui.escape(filledByName)}</strong>${filledByMat ? ` (${ui.escape(filledByMat)})` : ''} · ${filledAt}
+                </div>
+              </div>
+              <span class="vr-card__badge vr-card__badge--validated">✅ VALIDÉ</span>
+            </div>
+            <div class="vr-card__file">
+              <div class="vr-card__file-label">📷 Coupe métallographique</div>
+              ${coupeHtml}
+            </div>
+            ${lab.connexion ? `
+              <div class="vr-card__meta">
+                <span class="vr-meta-item"><strong>Réf. connexion :</strong> ${ui.escape(lab.connexion.refConnexion || '—')}</span>
+                <span class="vr-meta-item"><strong>Section :</strong> ${ui.escape(lab.connexion.sectionCable || '—')}</span>
+              </div>` : ''}
+          </div>
+
+          ${step2Html}
+          ${rejectHtml}
+        `;
+      },
+
       collectCrimpingData() {
         const pieces = {};
         $$('input[name="piece"]').forEach(cb => { pieces[cb.value] = cb.checked; });
@@ -10895,6 +11267,28 @@ section[data-view] h1,
           return ui.toast(`🔒 Ce bon est déjà ${lbl} — verrouillé`, 'danger');
         }
 
+        // 📷 PRÉ-CHECK : vérifier qu'une photo de coupe est jointe (sinon avertir)
+        const coupeFile = document.getElementById('file-coupe')?.files?.[0];
+        const hasExistingCoupe = !!(existing?.lab?.coupeMetallo?.downloadUrl);
+        if (!coupeFile && !hasExistingCoupe) {
+          const ok = await ui.confirm(
+            '📷 Aucune photo jointe',
+            'Tu n\'as pas joint de photo de la coupe métallographique. Le rapport sera incomplet. Continuer quand même ?',
+            { type: 'warn', okLabel: 'Continuer sans photo', cancelLabel: '📎 Joindre une photo' }
+          );
+          if (!ok) {
+            // Focus sur le bouton d'upload
+            const btnUpload = document.querySelector('#upload-coupe .upload__btn');
+            if (btnUpload) {
+              btnUpload.focus();
+              btnUpload.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              btnUpload.style.boxShadow = '0 0 0 4px rgba(0, 212, 255, .35)';
+              setTimeout(() => { btnUpload.style.boxShadow = ''; }, 2000);
+            }
+            return;
+          }
+        }
+
         // Helper : limite tout await à 15s pour éviter le blocage indéfini
         const withTimeout = (promise, ms, label) =>
           Promise.race([
@@ -10908,12 +11302,11 @@ section[data-view] h1,
           console.log('[validate] collecte des données labo');
           const labData = this.collectLabData();
 
-          // 📷 Upload coupe métallographique (étape 1) — avec timeout
-          const coupeFile = document.getElementById('file-coupe')?.files?.[0];
+          // 📷 Upload coupe métallographique (étape 1) — BLOQUANT si échec
           if (coupeFile) {
             console.log('[validate] 📷 upload coupe :', coupeFile.name);
             try {
-              ui.showLoader('Envoi de la photo coupe…');
+              ui.showLoader(`Envoi photo (${(coupeFile.size/1024).toFixed(0)} KB)…`);
               const up = await withTimeout(storage.uploadCoupe(reg, coupeFile), 20000, 'upload photo');
               labData.coupeMetallo = {
                 fileName: coupeFile.name,
@@ -10925,8 +11318,18 @@ section[data-view] h1,
               console.log('[validate] ✅ photo uploadée');
             } catch(e) {
               console.error('[validate] ❌ upload coupe :', e);
-              ui.toast('⚠️ Photo non envoyée : ' + (e.message || e), 'warn', 5000);
-              // On continue quand même la validation sans la photo
+              ui.hideLoader();
+              // Demander à l'utilisateur quoi faire
+              const continueAnyway = await ui.confirm(
+                '⚠️ Photo non envoyée',
+                `${e.message || 'Erreur réseau'}. Voulez-vous valider sans la photo (le rapport sera incomplet) ?`,
+                { type: 'warn', okLabel: 'Valider sans photo', cancelLabel: 'Annuler et réessayer' }
+              );
+              if (!continueAnyway) {
+                console.log('[validate] Annulé par utilisateur après échec upload');
+                return;
+              }
+              ui.showLoader('Validation en cours…');
             }
           }
 
@@ -11895,7 +12298,7 @@ section[data-view] h1,
 
     /* ========== QUEUE ========== */
     queue: {
-      currentTab: 'all',
+      currentTab: 'todo',
       init() {
         $$('.queue-view__tabs .tab').forEach(t => {
           t.addEventListener('click', () => {

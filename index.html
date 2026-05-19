@@ -10104,6 +10104,34 @@ section[data-view] h1,
         $('#upload-cycles .upload__btn').addEventListener('click', () => $('#file-cycles').click());
         $('#upload-coupe .upload__btn').addEventListener('click', () => $('#file-coupe').click());
 
+        // 📷 Feedback IMMÉDIAT quand un fichier coupe est sélectionné (avant validation)
+        document.getElementById('file-coupe')?.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          const preview = document.getElementById('preview-coupe');
+          const img = document.getElementById('coupe-img-preview');
+          if (!file) {
+            if (preview) preview.innerHTML = '';
+            if (img) { img.hidden = true; img.src = ''; }
+            return;
+          }
+          // Affiche capsule verte avec nom + taille
+          if (preview) {
+            const sizeKB = (file.size / 1024).toFixed(1);
+            preview.innerHTML = `<div style="display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .85rem;background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);border-radius:8px;font-size:.85rem;font-weight:600">📎 ${ui.escape(file.name)} · ${sizeKB} KB <span style="opacity:.7;font-weight:400">(à envoyer à la validation)</span></div>`;
+          }
+          // Aperçu image si fichier image
+          if (img && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              img.src = ev.target.result;
+              img.hidden = false;
+            };
+            reader.readAsDataURL(file);
+          } else if (img) {
+            img.hidden = true;
+          }
+        });
+
         // Quick new
         $('#btn-quick-new').addEventListener('click', () => this.newBlank());
       },
@@ -10423,81 +10451,74 @@ section[data-view] h1,
        */
       _applyValidationLock(data) {
         const form = document.getElementById('form-int') || document.querySelector('#view-intervention form');
-        const isLocked = (data.status === 'validated' || data.status === 'rejected' || data.status === 'delivered');
         const lockBanner = document.getElementById('int-lock-banner');
 
-        // 📁 Le bouton "Dossier livré" reste ACTIF si status=validated + type homolog/requalif
-        // (le bon est "verrouillé" pour modifications mais l'étape 2 doit pouvoir se déclencher)
         const type = data.crimping?.type || '';
         const needsDossier = (type === 'homologation' || type === 'requalification');
-        const allowDeliverBtn = (data.status === 'validated' && needsDossier);
+
+        // 🆕 LOGIQUE CLAIRE :
+        //   - status=validated + homolog/requalif → ÉTAPE 2 EN ATTENTE (pas verrouillé)
+        //   - status=validated + préventive       → VERROUILLÉ (workflow terminé)
+        //   - status=delivered                    → VERROUILLÉ (workflow complet)
+        //   - status=rejected                     → VERROUILLÉ (renvoyé crimping)
+        const isStep2Pending = (data.status === 'validated' && needsDossier);
+        const isLocked = (
+          (data.status === 'validated' && !needsDossier) ||
+           data.status === 'delivered' ||
+           data.status === 'rejected'
+        );
+
+        // Élements de l'étape 2 qu'on doit toujours laisser actifs si isStep2Pending
+        const step2Elements = [
+          'btn-deliver-dossier', 'dossier-tech-name', 'dossier-tech-mat',
+          'dossier-report-file', 'btn-dossier-pick-file', 'file-coupe'
+        ];
+        const isStep2El = (el) => step2Elements.includes(el.id) ||
+          (el.closest && (el.closest('#dossier-step') || el.closest('#upload-coupe')));
 
         if (isLocked) {
-          // Désactiver TOUS les inputs, selects, textareas, checkboxes, radios + boutons internes
+          // ── VERROUILLAGE TOTAL ──
           if (form) {
             form.querySelectorAll('input, select, textarea, button').forEach(el => {
-              // Ne pas désactiver les boutons d'action read-only (PDF, retour, fermer, etc.)
               if (el.id === 'btn-int-back' || el.id === 'btn-int-pdf' || el.id === 'btn-int-print' ||
-                  el.id === 'btn-deliver-dossier' && allowDeliverBtn ||
                   el.classList.contains('btn--ghost') || el.dataset.action === 'view' ||
-                  el.type === 'button' && el.textContent.match(/PDF|Imprimer|Retour|Fermer|Voir/i)) {
+                  (el.type === 'button' && el.textContent.match(/PDF|Imprimer|Retour|Fermer|Voir/i))) {
                 return;
               }
               el.disabled = true;
-              if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                el.readOnly = true;
-              }
+              if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.readOnly = true;
             });
             form.style.position = 'relative';
           }
-
-          // Masquer/désactiver tous les boutons de soumission (bons IDs : btn-validate/btn-reject sans prefix int-)
           ['btn-int-submit','btn-int-save-draft','btn-validate','btn-reject'].forEach(id => {
             const b = document.getElementById(id);
             if (b) { b.style.display = 'none'; b.disabled = true; }
           });
-
-          // 📁 RE-ENABLE EXPLICITE du bouton "Dossier livré" si étape 2 attendue
-          // (override le lock qui a pu le désactiver malgré nos conditions)
-          if (allowDeliverBtn) {
-            const btnD = document.getElementById('btn-deliver-dossier');
-            const stepD = document.getElementById('dossier-step');
-            if (btnD) {
-              btnD.disabled = false;
-              btnD.style.pointerEvents = 'auto';
-              btnD.style.opacity = '1';
-              btnD.style.cursor = 'pointer';
-              btnD.removeAttribute('aria-disabled');
-            }
-            if (stepD) {
-              stepD.hidden = false;
-              stepD.style.opacity = '1';
-              stepD.style.pointerEvents = 'auto';
-            }
-          }
-
           // Bandeau "Bon verrouillé"
           if (!lockBanner) {
             const banner = document.createElement('div');
             banner.id = 'int-lock-banner';
+            const isRej = (data.status === 'rejected');
+            const isDel = (data.status === 'delivered');
             banner.style.cssText = `
               position:sticky;top:0;z-index:50;
-              background:${data.status === 'rejected'
+              background:${isRej
                 ? 'linear-gradient(90deg, rgba(255,61,90,.18), rgba(255,61,90,.08))'
+                : isDel
+                ? 'linear-gradient(90deg, rgba(167,139,250,.18), rgba(236,72,153,.10))'
                 : 'linear-gradient(90deg, rgba(0,229,160,.18), rgba(0,229,160,.06))'};
-              color:${data.status === 'rejected' ? '#ff8b9b' : '#00e5a0'};
-              border:1px solid ${data.status === 'rejected' ? 'rgba(255,61,90,.4)' : 'rgba(0,229,160,.4)'};
+              color:${isRej ? '#ff8b9b' : isDel ? '#c4b5fd' : '#00e5a0'};
+              border:1px solid ${isRej ? 'rgba(255,61,90,.4)' : isDel ? 'rgba(167,139,250,.4)' : 'rgba(0,229,160,.4)'};
               border-radius:8px;padding:.85rem 1.1rem;margin:0 0 1rem;
-              display:flex;align-items:center;gap:.75rem;font-weight:600;
-              box-shadow:0 4px 14px rgba(0,229,160,.08);`;
+              display:flex;align-items:center;gap:.75rem;font-weight:600;`;
             banner.innerHTML = `
               <span style="font-size:1.4rem">🔒</span>
               <div style="flex:1">
                 <div style="font-size:.95rem;font-weight:700">
-                  ${data.status === 'rejected' ? 'BON REJETÉ' : 'BON VALIDÉ'} — LECTURE SEULE
+                  ${isRej ? 'BON REJETÉ' : isDel ? 'DOSSIER LIVRÉ — BON CLÔTURÉ' : 'BON VALIDÉ'} — LECTURE SEULE
                 </div>
                 <div style="font-size:.78rem;opacity:.85;font-weight:500;margin-top:.15rem">
-                  Ce bon est verrouillé. Aucune modification n'est possible une fois validé.
+                  Ce bon est définitivement verrouillé.
                 </div>
               </div>`;
             const viewEl = document.getElementById('view-intervention');
@@ -10505,23 +10526,85 @@ section[data-view] h1,
             if (headerEl) headerEl.insertAdjacentElement('afterend', banner);
             else viewEl?.insertBefore(banner, viewEl.firstChild);
           }
+        } else if (isStep2Pending) {
+          // ── ÉTAPE 2 EN ATTENTE : verrouiller crimping + déjà validés, MAIS pas dossier-step et coupe ──
+          if (form) {
+            form.querySelectorAll('input, select, textarea, button').forEach(el => {
+              if (el.id === 'btn-int-back' || el.id === 'btn-int-pdf' || el.id === 'btn-int-print' ||
+                  el.classList.contains('btn--ghost') || el.dataset.action === 'view' ||
+                  (el.type === 'button' && el.textContent.match(/PDF|Imprimer|Retour|Fermer|Voir/i))) {
+                return;
+              }
+              // 🆕 Garder ACTIFS les éléments de l'étape 2 (dossier-step + upload coupe)
+              if (isStep2El(el)) {
+                el.disabled = false;
+                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.readOnly = false;
+                return;
+              }
+              el.disabled = true;
+              if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.readOnly = true;
+            });
+            form.style.position = 'relative';
+          }
+          // Masquer les boutons étape 1 (déjà fait)
+          ['btn-int-submit','btn-int-save-draft','btn-validate','btn-reject'].forEach(id => {
+            const b = document.getElementById(id);
+            if (b) { b.style.display = 'none'; b.disabled = true; }
+          });
+          // Bandeau spécial "Étape 1 OK - en attente livraison"
+          if (!lockBanner) {
+            const banner = document.createElement('div');
+            banner.id = 'int-lock-banner';
+            banner.style.cssText = `
+              position:sticky;top:0;z-index:50;
+              background:linear-gradient(90deg, rgba(167,139,250,.18), rgba(236,72,153,.10));
+              color:#c4b5fd;
+              border:1px solid rgba(167,139,250,.4);
+              border-radius:8px;padding:.85rem 1.1rem;margin:0 0 1rem;
+              display:flex;align-items:center;gap:.75rem;font-weight:600;
+              box-shadow:0 4px 14px rgba(167,139,250,.12);`;
+            banner.innerHTML = `
+              <span style="font-size:1.4rem">📁</span>
+              <div style="flex:1">
+                <div style="font-size:.95rem;font-weight:700">
+                  ÉTAPE 1 VALIDÉE — EN ATTENTE LIVRAISON DU DOSSIER
+                </div>
+                <div style="font-size:.78rem;opacity:.85;font-weight:500;margin-top:.15rem">
+                  Le bon Homologation/Requalification est en attente de l'étape 2. Joindre le rapport final et cliquer sur "Livrer le dossier".
+                </div>
+              </div>`;
+            const viewEl = document.getElementById('view-intervention');
+            const headerEl = viewEl?.querySelector('.intervention__header');
+            if (headerEl) headerEl.insertAdjacentElement('afterend', banner);
+            else viewEl?.insertBefore(banner, viewEl.firstChild);
+          }
+          // S'assurer que le dossier-step et le bouton deliver sont actifs
+          const btnD = document.getElementById('btn-deliver-dossier');
+          const stepD = document.getElementById('dossier-step');
+          if (btnD) {
+            btnD.disabled = false;
+            btnD.style.pointerEvents = 'auto';
+            btnD.style.opacity = '1';
+          }
+          if (stepD) {
+            stepD.hidden = false;
+            stepD.style.opacity = '1';
+            stepD.style.pointerEvents = 'auto';
+          }
         } else {
-          // Bon non validé → débloquer (au cas où on ouvre un brouillon après un bon validé)
+          // ── BON NON VERROUILLÉ — débloquer tout ──
           if (lockBanner) lockBanner.remove();
           if (form) {
             form.querySelectorAll('input, select, textarea').forEach(el => {
-              // Restaurer si pas verrouillé par autre logique (labo lock, tool lock)
               if (!el.hasAttribute('data-locked-by-role')) {
                 el.disabled = false;
                 if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                  // Garder readOnly false sauf si explicitement marqué
                   if (!el.hasAttribute('data-readonly-original')) el.readOnly = false;
                 }
               }
             });
           }
-          // Restaurer les boutons
-          ['btn-int-submit','btn-int-save-draft','btn-int-validate','btn-int-reject'].forEach(id => {
+          ['btn-int-submit','btn-int-save-draft','btn-validate','btn-reject'].forEach(id => {
             const b = document.getElementById(id);
             if (b) { b.style.display = ''; b.disabled = false; }
           });

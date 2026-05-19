@@ -4380,6 +4380,56 @@ select:focus {
 @media (max-width: 640px) {
   .dossier-step__fields { grid-template-columns: 1fr; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   👁 SECTION CRIMPING EN LECTURE SEULE (rôle LABO)
+   ════════════════════════════════════════════════════════════════════ */
+/* La section doit rester CLAIRE et LISIBLE pour vérification ! */
+.section--readonly-labo {
+  background: linear-gradient(135deg, rgba(0, 212, 255, .03), rgba(0, 229, 160, .02)) !important;
+  border: 1px solid rgba(0, 212, 255, .18) !important;
+}
+.section--readonly-labo input,
+.section--readonly-labo select,
+.section--readonly-labo textarea {
+  background: rgba(0, 0, 0, .15) !important;
+  color: var(--text-primary, #fff) !important;
+  -webkit-text-fill-color: var(--text-primary, #fff) !important;
+  opacity: 1 !important;
+  border: 1px solid rgba(0, 212, 255, .15) !important;
+  cursor: text !important;
+  font-weight: 500;
+}
+.section--readonly-labo input[type="checkbox"]:checked + label,
+.section--readonly-labo input[type="checkbox"]:checked ~ * {
+  opacity: 1 !important;
+}
+.section--readonly-labo input[type="checkbox"] {
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+}
+.section--readonly-labo input[type="checkbox"]:checked {
+  accent-color: #00e5a0 !important;
+}
+.section--readonly-labo label {
+  color: var(--text-primary, #fff) !important;
+  opacity: 1 !important;
+}
+.section--readonly-labo .field__label {
+  color: #00d4ff !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+.section--readonly-labo .dur-card,
+.section--readonly-labo .dur-pill,
+.section--readonly-labo .dur-sub-card {
+  opacity: 1 !important;
+}
+.section--readonly-labo .dur-card__display[data-active="true"] {
+  background: linear-gradient(135deg, rgba(0, 229, 160, .25), rgba(0, 212, 255, .15)) !important;
+  color: #00e5a0 !important;
+  font-weight: 700;
+}
 .dossier-step__btn {
   display: inline-flex;
   align-items: center;
@@ -5435,6 +5485,59 @@ section[data-view] h1,
           </fieldset>
 
           <!-- ============================================================= -->
+          <!-- 📋 RÉCAPITULATIF CRIMPING — Lecture claire pour le labo         -->
+          <!-- ============================================================= -->
+          <div class="crimp-recap" id="crimp-recap" hidden>
+            <header class="crimp-recap__head">
+              <div class="crimp-recap__title">
+                <span class="crimp-recap__icon">📋</span>
+                <span>Récapitulatif Crimping</span>
+              </div>
+              <span class="crimp-recap__hint">Données à vérifier par le laboratoire</span>
+            </header>
+            <div class="crimp-recap__grid">
+              <div class="crimp-recap__row">
+                <span class="crimp-recap__label">👤 Technicien</span>
+                <span class="crimp-recap__value" id="recap-tech-name">—</span>
+              </div>
+              <div class="crimp-recap__row">
+                <span class="crimp-recap__label">🪪 Matricule</span>
+                <span class="crimp-recap__value" id="recap-tech-mat">—</span>
+              </div>
+              <div class="crimp-recap__row">
+                <span class="crimp-recap__label">📅 Date</span>
+                <span class="crimp-recap__value" id="recap-date">—</span>
+              </div>
+              <div class="crimp-recap__row">
+                <span class="crimp-recap__label">🔢 Cycles compteur</span>
+                <span class="crimp-recap__value" id="recap-cycles">—</span>
+              </div>
+              <div class="crimp-recap__row">
+                <span class="crimp-recap__label">🏷 Type</span>
+                <span class="crimp-recap__value" id="recap-type">—</span>
+              </div>
+              <div class="crimp-recap__row">
+                <span class="crimp-recap__label">⏱ Temps</span>
+                <span class="crimp-recap__value" id="recap-duration">—</span>
+              </div>
+              <div class="crimp-recap__row crimp-recap__row--full">
+                <span class="crimp-recap__label">🔧 Pièces changées</span>
+                <span class="crimp-recap__value" id="recap-pieces">—</span>
+              </div>
+              <div class="crimp-recap__row crimp-recap__row--full">
+                <span class="crimp-recap__label">📝 Observation</span>
+                <span class="crimp-recap__value" id="recap-obs">—</span>
+              </div>
+              <div class="crimp-recap__row crimp-recap__row--full" id="recap-photo-row" hidden>
+                <span class="crimp-recap__label">📷 Photo cycles compteur</span>
+                <a class="crimp-recap__value crimp-recap__link" id="recap-photo-link" href="#" target="_blank" rel="noopener">
+                  🔗 Voir la photo
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- ============================================================= -->
           <!-- SECTION C — Partie LABO (technicien laboratoire)               -->
           <!-- ============================================================= -->
           <fieldset class="intervention__section intervention__section--lab" id="section-lab" disabled>
@@ -5496,12 +5599,18 @@ section[data-view] h1,
 
             <!-- Coupe métallographique -->
             <div class="intervention__subsection">
-              <h3 class="intervention__sub-title" data-i18n="section.metallographic">Coupe métallographique</h3>
+              <h3 class="intervention__sub-title" data-i18n="section.metallographic">📷 Coupe métallographique (Étape 1)</h3>
               <div class="upload" id="upload-coupe">
-                <input type="file" id="file-coupe" accept="application/pdf,image/*" hidden / autocomplete="off">
+                <input type="file" id="file-coupe" accept="application/pdf,image/*" hidden autocomplete="off">
                 <button class="upload__btn" type="button" data-target="file-coupe">📎 Joindre PDF / image</button>
-                <div class="upload__preview" id="preview-coupe"></div>
-                <a class="upload__link" id="link-coupe" href="#" hidden target="_blank" rel="noopener">Voir le fichier</a>
+                <div class="upload__preview" id="preview-coupe" style="margin-top:.6rem"></div>
+                <a class="upload__link" id="link-coupe" href="#" target="_blank" rel="noopener" hidden
+                   style="display:inline-flex;align-items:center;gap:.4rem;margin-top:.5rem;font-size:.85rem;color:var(--accent-500);text-decoration:none;font-weight:600">
+                  🔗 Voir le fichier joint
+                </a>
+                <!-- Aperçu image (auto-affiché si fichier image) -->
+                <img id="coupe-img-preview" hidden alt="Aperçu coupe métallographique"
+                     style="display:block;max-width:100%;max-height:300px;margin-top:.65rem;border-radius:8px;border:1px solid rgba(0,212,255,.2);object-fit:contain;background:rgba(0,0,0,.2)">
               </div>
             </div>
 
@@ -8434,8 +8543,21 @@ section[data-view] h1,
     showLoader(text = 'Chargement…') {
       $('#loader-text').textContent = text;
       $('#loader').hidden = false;
+      // 🛡️ Auto-dismiss safety : si le loader reste ouvert > 30s, on le ferme
+      // (évite les blocages indéfinis dus à un await qui ne résout jamais)
+      clearTimeout(this._loaderTimeout);
+      this._loaderTimeout = setTimeout(() => {
+        if (!$('#loader').hidden) {
+          console.warn('[showLoader] Auto-dismiss après 30s — opération trop longue');
+          this.hideLoader();
+          this.toast('⚠️ Opération trop longue — vérifie ta connexion', 'warn', 5000);
+        }
+      }, 30000);
     },
-    hideLoader() { $('#loader').hidden = true; },
+    hideLoader() {
+      $('#loader').hidden = true;
+      clearTimeout(this._loaderTimeout);
+    },
 
     escape(str) {
       const div = document.createElement('div');
@@ -10191,18 +10313,21 @@ section[data-view] h1,
         }
 
         // ── Verrouillage section CRIMPING pour le rôle LABO ──
+        // (Lecture seule mais TRÈS LISIBLE — pas de transparence/opacité)
         const crimpSection = document.getElementById('section-crimping');
         if (crimpSection) {
           if (state.role === 'labo') {
             crimpSection.disabled = true;
-            crimpSection.style.opacity = '0.65';
+            // 🔧 IMPORTANT : pas d'opacity réduite ! La section doit rester CLAIRE.
+            crimpSection.style.opacity = '1';
             crimpSection.style.pointerEvents = 'none';
+            crimpSection.classList.add('section--readonly-labo');
             // Ajouter badge "Lecture seule" si pas déjà là
             if (!document.getElementById('crimp-readonly-badge')) {
               const badge = document.createElement('span');
               badge.id = 'crimp-readonly-badge';
-              badge.style.cssText = 'display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;font-weight:600;padding:.18rem .55rem;border-radius:5px;background:rgba(99,102,241,.12);color:#a5b4fc;border:1px solid rgba(99,102,241,.25);margin-left:.75rem';
-              badge.textContent = '🔒 Lecture seule';
+              badge.style.cssText = 'display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;font-weight:700;padding:.25rem .65rem;border-radius:6px;background:rgba(0,212,255,.15);color:#00d4ff;border:1px solid rgba(0,212,255,.35);margin-left:.75rem;text-transform:uppercase;letter-spacing:.05em';
+              badge.innerHTML = '👁 Vérification crimping';
               const legend = crimpSection.querySelector('.intervention__legend');
               if (legend) legend.appendChild(badge);
             }
@@ -10210,6 +10335,7 @@ section[data-view] h1,
             crimpSection.disabled = false;
             crimpSection.style.opacity = '';
             crimpSection.style.pointerEvents = '';
+            crimpSection.classList.remove('section--readonly-labo');
             document.getElementById('crimp-readonly-badge')?.remove();
           }
         }
@@ -10233,12 +10359,34 @@ section[data-view] h1,
           $$('input[name="conf"]').forEach(cb => { cb.checked = !!lab.conformites[cb.value]; });
         }
 
-        // Coupe metallo link
+        // 📷 Coupe metallo : afficher fichier joint avec aperçu image si possible
         if (lab.coupeMetallo && lab.coupeMetallo.downloadUrl) {
           const link = $('#link-coupe');
-          link.href = lab.coupeMetallo.downloadUrl;
-          link.hidden = false;
-          $('#preview-coupe').textContent = lab.coupeMetallo.fileName || 'Fichier joint';
+          const preview = $('#preview-coupe');
+          const img = $('#coupe-img-preview');
+          if (link) {
+            link.href = lab.coupeMetallo.downloadUrl;
+            link.hidden = false;
+            link.innerHTML = `🔗 Voir le fichier (${ui.escape(lab.coupeMetallo.fileName || 'pièce jointe')})`;
+          }
+          if (preview) {
+            const sizeKB = lab.coupeMetallo.fileSize ? ` · ${(lab.coupeMetallo.fileSize / 1024).toFixed(1)} KB` : '';
+            preview.innerHTML = `<div style="display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .85rem;background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);border-radius:8px;font-size:.85rem;font-weight:600">📎 ${ui.escape(lab.coupeMetallo.fileName || 'Fichier joint')}${sizeKB}</div>`;
+          }
+          // Aperçu image si extension image
+          const fname = (lab.coupeMetallo.fileName || '').toLowerCase();
+          const isImg = /\.(jpe?g|png|gif|webp|bmp)$/i.test(fname);
+          if (img && isImg) {
+            img.src = lab.coupeMetallo.downloadUrl;
+            img.hidden = false;
+          } else if (img) {
+            img.hidden = true;
+          }
+        } else {
+          // Reset si pas de fichier
+          const link = $('#link-coupe'); if (link) link.hidden = true;
+          const preview = $('#preview-coupe'); if (preview) preview.innerHTML = '';
+          const img = $('#coupe-img-preview'); if (img) { img.hidden = true; img.src = ''; }
         }
 
         // 📁 ÉTAPE 2 — Restaurer les valeurs si déjà saisies
@@ -10646,50 +10794,92 @@ section[data-view] h1,
       },
 
       async validate() {
+        console.log('[validate] 🟢 click détecté');
         if (!auth.can('intervention.validate')) return ui.toast('Accès refusé', 'danger');
         const reg = state.currentInterventionId;
         if (!reg) return ui.toast('Aucun bon ouvert', 'warn');
-        // 🔒 Empêcher la re-validation d'un bon déjà validé/rejeté/livré
+        // 🔒 Empêcher la re-validation
         const existing = state.interventions?.[reg];
         if (existing && (existing.status === 'validated' || existing.status === 'rejected' || existing.status === 'delivered')) {
           const lbl = existing.status === 'validated' ? 'validé' : (existing.status === 'rejected' ? 'rejeté' : 'livré');
           return ui.toast(`🔒 Ce bon est déjà ${lbl} — verrouillé`, 'danger');
         }
-        ui.showLoader('Validation…');
+
+        // Helper : limite tout await à 15s pour éviter le blocage indéfini
+        const withTimeout = (promise, ms, label) =>
+          Promise.race([
+            promise,
+            new Promise((_, reject) => setTimeout(() =>
+              reject(new Error(`Timeout (${ms/1000}s) sur ${label}`)), ms))
+          ]);
+
+        ui.showLoader('Validation en cours…');
         try {
+          console.log('[validate] collecte des données labo');
           const labData = this.collectLabData();
-          // Upload coupe metallo si fichier
-          const coupeFile = $('#file-coupe').files[0];
+
+          // 📷 Upload coupe métallographique (étape 1) — avec timeout
+          const coupeFile = document.getElementById('file-coupe')?.files?.[0];
           if (coupeFile) {
-            const up = await storage.uploadCoupe(reg, coupeFile);
-            labData.coupeMetallo = {
-              fileName: coupeFile.name,
-              storagePath: up.path,
-              downloadUrl: up.url,
-              uploadedAt: Date.now()
-            };
-          }
-          // Upload signature labo
-          const labDataUrl = this.labPad.toDataURL();
-          if (!this.labPad.isEmpty() && labDataUrl) {
+            console.log('[validate] 📷 upload coupe :', coupeFile.name);
             try {
-              const sig = await storage.uploadSignature(reg, 'lab', labDataUrl);
-              labData.signatureUrl = sig.url;
-            } catch(e) { console.warn('Lab signature upload skipped:', e.message); }
+              ui.showLoader('Envoi de la photo coupe…');
+              const up = await withTimeout(storage.uploadCoupe(reg, coupeFile), 20000, 'upload photo');
+              labData.coupeMetallo = {
+                fileName: coupeFile.name,
+                fileSize: coupeFile.size,
+                storagePath: up.path,
+                downloadUrl: up.url,
+                uploadedAt: Date.now()
+              };
+              console.log('[validate] ✅ photo uploadée');
+            } catch(e) {
+              console.error('[validate] ❌ upload coupe :', e);
+              ui.toast('⚠️ Photo non envoyée : ' + (e.message || e), 'warn', 5000);
+              // On continue quand même la validation sans la photo
+            }
           }
-          await db.validateIntervention(reg, labData);
+
+          // ✍️ Upload signature labo (uniquement si VRAIMENT dessinée)
+          if (this.labPad && typeof this.labPad.toDataURL === 'function') {
+            try {
+              // Vérification robuste : isEmpty doit être une FONCTION et retourner false
+              const padEmpty = (typeof this.labPad.isEmpty === 'function')
+                ? this.labPad.isEmpty()
+                : true;  // si pas de méthode isEmpty, on considère vide
+              if (!padEmpty) {
+                console.log('[validate] ✍️ upload signature labo');
+                const labDataUrl = this.labPad.toDataURL();
+                const sig = await withTimeout(storage.uploadSignature(reg, 'lab', labDataUrl), 10000, 'signature');
+                labData.signatureUrl = sig.url;
+                console.log('[validate] ✅ signature uploadée');
+              } else {
+                console.log('[validate] ℹ️ signature vide, ignorée');
+              }
+            } catch(e) {
+              console.warn('[validate] signature ignorée :', e.message);
+            }
+          }
+
+          console.log('[validate] 💾 enregistrement Firebase…');
+          ui.showLoader('Finalisation…');
+          await withTimeout(db.validateIntervention(reg, labData), 15000, 'validation Firebase');
+          console.log('[validate] ✅ Validation enregistrée');
+
           // Message adapté selon le type
           const type = existing?.crimping?.type || '';
           const needsDossier = (type === 'homologation' || type === 'requalification');
           if (needsDossier) {
             ui.toast(`✅ Étape 1 validée — En attente livraison dossier`, 'success', 5000);
           } else {
-            ui.toast(`Bon N°${reg} validé ✅`, 'success');
+            ui.toast(`✅ Bon N°${reg} validé`, 'success');
           }
           this.setStatus('validated');
+          // Re-ouvrir le bon pour appliquer le nouveau statut + dossier-step
+          setTimeout(() => this.open(reg).catch(()=>{}), 600);
         } catch (err) {
-          console.error(err);
-          ui.toast('Erreur : ' + err.message, 'danger');
+          console.error('[validate] ❌', err);
+          ui.toast('⛔ ' + (err?.message || err), 'danger', 6000);
         } finally {
           ui.hideLoader();
         }

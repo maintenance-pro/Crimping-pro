@@ -9688,6 +9688,13 @@ section[data-view] h1,
     async uploadSignature(reg, kind, dataUrl) {
       const blob = await (await fetch(dataUrl)).blob();
       return this.upload(`signatures/${kind}_${reg}.png`, blob);
+    },
+    // 📁 Upload du rapport final (étape 2 - homolog/requalif)
+    async uploadReport(reg, file) {
+      const year = new Date().getFullYear();
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `reports/${year}/${reg}_${Date.now()}_${safe}`;
+      return this.upload(path, file);
     }
   };
 
@@ -11029,37 +11036,54 @@ section[data-view] h1,
 
         ui.showLoader('Livraison du dossier en cours…');
         try {
-          // 📄 Upload du rapport PDF si fourni
+          // Helper : limite tout await à N secondes pour éviter blocage
+          const withTimeout = (promise, ms, label) =>
+            Promise.race([
+              promise,
+              new Promise((_, reject) => setTimeout(() =>
+                reject(new Error(`Timeout (${ms/1000}s) sur ${label}`)), ms))
+            ]);
+
+          // 📄 Upload du rapport PDF si fourni — AVEC timeout 25s
           let reportData = {};
           if (reportFile) {
+            console.log('[deliverDossier] 📄 upload rapport :', reportFile.name, 'taille =', reportFile.size);
             try {
-              ui.showLoader('Envoi du rapport…');
-              const safe = reportFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-              const path = `interventions/${reg}/rapport_${Date.now()}_${safe}`;
-              const ref = fbStorage.ref(path);
-              const snapUp = await ref.put(reportFile);
-              const url = await snapUp.ref.getDownloadURL();
+              ui.showLoader(`Envoi du rapport (${(reportFile.size/1024).toFixed(0)} KB)…`);
+              const up = await withTimeout(
+                storage.uploadReport(reg, reportFile),
+                25000,
+                'upload rapport'
+              );
               reportData = {
                 fileName: reportFile.name,
                 fileSize: reportFile.size,
-                storagePath: path,
-                downloadUrl: url,
+                storagePath: up.path,
+                downloadUrl: up.url,
                 uploadedAt: Date.now()
               };
-              console.log('[deliverDossier] 📄 Rapport uploadé :', url);
+              console.log('[deliverDossier] ✅ Rapport uploadé :', up.url);
             } catch (e) {
-              console.error('[deliverDossier] Upload rapport échoué :', e);
-              ui.toast('⚠️ Rapport non uploadé : ' + e.message, 'warn', 5000);
+              console.error('[deliverDossier] ❌ Upload rapport échoué :', e);
+              ui.hideLoader();
+              // Demander à l'utilisateur s'il veut continuer SANS le rapport
+              const continueAnyway = await ui.confirm(
+                '⚠️ Upload du rapport échoué',
+                `${e.message || 'Erreur réseau'}. Voulez-vous continuer la livraison SANS le rapport ?`,
+                { type: 'warn', okLabel: 'Continuer sans rapport', cancelLabel: 'Annuler la livraison' }
+              );
+              if (!continueAnyway) {
+                console.log('[deliverDossier] Annulé suite échec upload');
+                return;
+              }
+              ui.showLoader('Finalisation…');
             }
           }
-          // Récupérer aussi les info techniciens #2 pour le payload
-          const extras = {
-            tech2Name,
-            tech2Mat,
-            reportData
-          };
+
+          // Récupérer info techniciens #2 pour le payload
+          const extras = { tech2Name, tech2Mat, reportData };
           ui.showLoader('Finalisation…');
-          await db.deliverDossier(reg, extras);
+          await withTimeout(db.deliverDossier(reg, extras), 15000, 'enregistrement Firebase');
           console.log('[deliverDossier] ✅ Succès');
           ui.toast(`📁 Dossier livré · Bon N°${reg} clôturé ✅`, 'success', 4000);
           this.setStatus('delivered');

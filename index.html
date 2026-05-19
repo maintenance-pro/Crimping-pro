@@ -9936,6 +9936,52 @@ section[data-view] h1,
       const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const path = `reports/${year}/${reg}_${Date.now()}_${safe}`;
       return this.upload(path, file);
+    },
+
+    /* ════════════════════════════════════════════════════════════════════
+       📥 BASE64 — Conversion ultra-fiable d'un fichier en data URL
+       ════════════════════════════════════════════════════════════════════
+       Utilisé pour stocker photos & rapports DIRECTEMENT en Firebase RTDB
+       au lieu de Firebase Storage (qui peut être indisponible / lent).
+       ════════════════════════════════════════════════════════════════════ */
+    async fileToBase64(file, options = {}) {
+      const isImage = file.type.startsWith('image/');
+      // Si image → compression (max 1280px, qualité 0.75) pour limiter la taille
+      if (isImage && options.compress !== false) {
+        return await this._compressImage(file, options.maxDim || 1280, options.quality || 0.75);
+      }
+      // Sinon → lecture brute en base64
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Lecture du fichier échouée'));
+        reader.readAsDataURL(file);
+      });
+    },
+
+    async _compressImage(file, maxDim, quality) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const ratio = Math.min(1, maxDim / Math.max(img.width, img.height));
+            const w = Math.round(img.width * ratio);
+            const h = Math.round(img.height * ratio);
+            const cv = document.createElement('canvas');
+            cv.width = w; cv.height = h;
+            const ctx = cv.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            // JPEG par défaut pour les photos
+            const dataUrl = cv.toDataURL('image/jpeg', quality);
+            resolve(dataUrl);
+          };
+          img.onerror = () => reject(new Error('Image illisible'));
+          img.src = reader.result;
+        };
+        reader.onerror = () => reject(new Error('Lecture du fichier échouée'));
+        reader.readAsDataURL(file);
+      });
     }
   };
 
@@ -10635,25 +10681,39 @@ section[data-view] h1,
           $$('input[name="conf"]').forEach(cb => { cb.checked = !!lab.conformites[cb.value]; });
         }
 
-        // 📷 Coupe metallo : afficher fichier joint avec aperçu image si possible
-        if (lab.coupeMetallo && lab.coupeMetallo.downloadUrl) {
+        // 📷 Coupe metallo : affiche le fichier joint (base64 ou downloadUrl) + bouton supprimer
+        const coupeUrl = lab.coupeMetallo?.dataUrl || lab.coupeMetallo?.downloadUrl;
+        if (lab.coupeMetallo && coupeUrl) {
           const link = $('#link-coupe');
           const preview = $('#preview-coupe');
           const img = $('#coupe-img-preview');
           if (link) {
-            link.href = lab.coupeMetallo.downloadUrl;
+            link.href = coupeUrl;
             link.hidden = false;
             link.innerHTML = `🔗 Voir le fichier (${ui.escape(lab.coupeMetallo.fileName || 'pièce jointe')})`;
+            // Lien base64 → ouverture dans nouveau tab nécessite download attribute
+            if (coupeUrl.startsWith('data:')) {
+              link.download = lab.coupeMetallo.fileName || 'coupe';
+            }
           }
           if (preview) {
             const sizeKB = lab.coupeMetallo.fileSize ? ` · ${(lab.coupeMetallo.fileSize / 1024).toFixed(1)} KB` : '';
-            preview.innerHTML = `<div style="display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .85rem;background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);border-radius:8px;font-size:.85rem;font-weight:600">📎 ${ui.escape(lab.coupeMetallo.fileName || 'Fichier joint')}${sizeKB}</div>`;
+            // Capsule + bouton SUPPRIMER
+            preview.innerHTML = `
+              <div style="display:inline-flex;align-items:center;gap:.5rem;padding:.5rem .85rem;background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);border-radius:8px;font-size:.85rem;font-weight:600">
+                📎 ${ui.escape(lab.coupeMetallo.fileName || 'Fichier joint')}${sizeKB}
+                <button type="button" id="btn-delete-coupe" title="Supprimer la photo"
+                        style="margin-left:.5rem;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:rgba(255,61,90,.2);border:1px solid rgba(255,61,90,.4);color:#ff8b9b;font-size:.85rem;font-weight:800;cursor:pointer;padding:0;line-height:1">✕</button>
+              </div>`;
+            // Wire le bouton supprimer
+            document.getElementById('btn-delete-coupe')?.addEventListener('click', () => this.deleteCoupePhoto());
           }
-          // Aperçu image si extension image
+          // Aperçu image
           const fname = (lab.coupeMetallo.fileName || '').toLowerCase();
-          const isImg = /\.(jpe?g|png|gif|webp|bmp)$/i.test(fname);
+          const mimeImg = (lab.coupeMetallo.mimeType || '').startsWith('image/');
+          const isImg = mimeImg || /\.(jpe?g|png|gif|webp|bmp)$/i.test(fname) || coupeUrl.startsWith('data:image/');
           if (img && isImg) {
-            img.src = lab.coupeMetallo.downloadUrl;
+            img.src = coupeUrl;
             img.hidden = false;
           } else if (img) {
             img.hidden = true;
@@ -10668,17 +10728,25 @@ section[data-view] h1,
         // 📁 ÉTAPE 2 — Restaurer les valeurs si déjà saisies
         if (lab.tech2Name && $('#dossier-tech-name')) $('#dossier-tech-name').value = lab.tech2Name;
         if (lab.tech2Matricule && $('#dossier-tech-mat')) $('#dossier-tech-mat').value = lab.tech2Matricule;
-        // Lien vers le rapport déjà uploadé
-        if (lab.reportData?.downloadUrl) {
+        // Lien vers le rapport (base64 OU downloadUrl) + bouton supprimer
+        const reportUrl = lab.reportData?.dataUrl || lab.reportData?.downloadUrl;
+        if (reportUrl && lab.reportData) {
           const rLink = document.getElementById('dossier-report-link');
           const rName = document.getElementById('dossier-file-name');
           if (rLink) {
-            rLink.href = lab.reportData.downloadUrl;
+            rLink.href = reportUrl;
             rLink.hidden = false;
+            if (reportUrl.startsWith('data:')) {
+              rLink.download = lab.reportData.fileName || 'rapport.pdf';
+            }
           }
           if (rName) {
-            rName.textContent = `📄 ${lab.reportData.fileName || 'Rapport joint'}`;
+            const sizeKB = lab.reportData.fileSize ? ` · ${(lab.reportData.fileSize/1024).toFixed(1)} KB` : '';
+            rName.innerHTML = `📄 ${ui.escape(lab.reportData.fileName || 'Rapport joint')}${sizeKB}
+              <button type="button" id="btn-delete-report" title="Supprimer le rapport"
+                      style="margin-left:.5rem;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:rgba(255,61,90,.2);border:1px solid rgba(255,61,90,.4);color:#ff8b9b;font-size:.85rem;font-weight:800;cursor:pointer;padding:0;line-height:1;vertical-align:middle">✕</button>`;
             rName.style.color = 'var(--accent-500)';
+            document.getElementById('btn-delete-report')?.addEventListener('click', () => this.deleteReportFile());
           }
         }
 
@@ -10972,16 +11040,19 @@ section[data-view] h1,
         const decision = lab.decision || data.status;
 
         let coupeHtml = '<div class="vr-empty">Aucune photo jointe</div>';
-        if (lab.coupeMetallo?.downloadUrl) {
+        const cmUrl = lab.coupeMetallo?.dataUrl || lab.coupeMetallo?.downloadUrl;
+        if (lab.coupeMetallo && cmUrl) {
           const cm = lab.coupeMetallo;
-          const isImg = /\.(jpe?g|png|gif|webp|bmp)$/i.test(cm.fileName || '');
+          const mimeImg = (cm.mimeType || '').startsWith('image/');
+          const isImg = mimeImg || /\.(jpe?g|png|gif|webp|bmp)$/i.test(cm.fileName || '') || cmUrl.startsWith('data:image/');
           const sizeKB = cm.fileSize ? ` · ${(cm.fileSize/1024).toFixed(1)} KB` : '';
+          const dl = cmUrl.startsWith('data:') ? `download="${ui.escape(cm.fileName || 'coupe')}"` : 'target="_blank" rel="noopener"';
           coupeHtml = `
-            <a href="${ui.escape(cm.downloadUrl)}" target="_blank" rel="noopener" class="vr-file">
+            <a href="${ui.escape(cmUrl)}" ${dl} class="vr-file">
               📎 <strong>${ui.escape(cm.fileName || 'Pièce jointe')}</strong>${sizeKB}
               <span class="vr-file__hint">Clique pour ouvrir</span>
             </a>
-            ${isImg ? `<img src="${ui.escape(cm.downloadUrl)}" alt="Coupe métallographique" class="vr-img">` : ''}
+            ${isImg ? `<img src="${ui.escape(cmUrl)}" alt="Coupe métallographique" class="vr-img">` : ''}
           `;
         }
 
@@ -10993,11 +11064,13 @@ section[data-view] h1,
           const tech2Mat = lab.tech2Matricule || '';
           const deliveredAt = lab.deliveredAt ? fmt.dateTime(lab.deliveredAt) : null;
           let reportHtml = isDelivered ? '<div class="vr-empty">Aucun rapport joint</div>' : '<div class="vr-pending">⏳ En attente de livraison</div>';
-          if (lab.reportData?.downloadUrl) {
+          const rdUrl = lab.reportData?.dataUrl || lab.reportData?.downloadUrl;
+          if (lab.reportData && rdUrl) {
             const rd = lab.reportData;
             const sizeKB = rd.fileSize ? ` · ${(rd.fileSize/1024).toFixed(1)} KB` : '';
+            const dl = rdUrl.startsWith('data:') ? `download="${ui.escape(rd.fileName || 'rapport.pdf')}"` : 'target="_blank" rel="noopener"';
             reportHtml = `
-              <a href="${ui.escape(rd.downloadUrl)}" target="_blank" rel="noopener" class="vr-file vr-file--report">
+              <a href="${ui.escape(rdUrl)}" ${dl} class="vr-file vr-file--report">
                 📄 <strong>${ui.escape(rd.fileName || 'Rapport')}</strong>${sizeKB}
                 <span class="vr-file__hint">Clique pour ouvrir le rapport</span>
               </a>
@@ -11302,50 +11375,47 @@ section[data-view] h1,
           console.log('[validate] collecte des données labo');
           const labData = this.collectLabData();
 
-          // 📷 Upload coupe métallographique (étape 1) — BLOQUANT si échec
+          // 📷 Photo coupe → BASE64 (stocké directement dans Firebase RTDB)
+          // 🎯 Plus de Firebase Storage = plus de timeout, sauvegarde garantie !
           if (coupeFile) {
-            console.log('[validate] 📷 upload coupe :', coupeFile.name);
+            console.log('[validate] 📷 conversion photo → base64 :', coupeFile.name, `(${(coupeFile.size/1024).toFixed(0)} KB)`);
             try {
-              ui.showLoader(`Envoi photo (${(coupeFile.size/1024).toFixed(0)} KB)…`);
-              const up = await withTimeout(storage.uploadCoupe(reg, coupeFile), 20000, 'upload photo');
+              ui.showLoader('Préparation de la photo…');
+              const base64 = await withTimeout(
+                storage.fileToBase64(coupeFile),
+                10000,
+                'préparation photo'
+              );
               labData.coupeMetallo = {
                 fileName: coupeFile.name,
                 fileSize: coupeFile.size,
-                storagePath: up.path,
-                downloadUrl: up.url,
+                mimeType: coupeFile.type,
+                dataUrl: base64,                     // 🆕 contenu en base64
                 uploadedAt: Date.now()
               };
-              console.log('[validate] ✅ photo uploadée');
+              console.log(`[validate] ✅ photo prête (base64 = ${(base64.length/1024).toFixed(0)} KB)`);
             } catch(e) {
-              console.error('[validate] ❌ upload coupe :', e);
+              console.error('[validate] ❌ conversion photo :', e);
               ui.hideLoader();
-              // Demander à l'utilisateur quoi faire
               const continueAnyway = await ui.confirm(
-                '⚠️ Photo non envoyée',
-                `${e.message || 'Erreur réseau'}. Voulez-vous valider sans la photo (le rapport sera incomplet) ?`,
-                { type: 'warn', okLabel: 'Valider sans photo', cancelLabel: 'Annuler et réessayer' }
+                '⚠️ Photo non préparée',
+                `${e.message || 'Erreur de lecture du fichier'}. Voulez-vous valider sans la photo ?`,
+                { type: 'warn', okLabel: 'Valider sans photo', cancelLabel: 'Annuler' }
               );
-              if (!continueAnyway) {
-                console.log('[validate] Annulé par utilisateur après échec upload');
-                return;
-              }
+              if (!continueAnyway) return;
               ui.showLoader('Validation en cours…');
             }
           }
 
-          // ✍️ Upload signature labo (uniquement si VRAIMENT dessinée)
+          // ✍️ Signature labo → BASE64 (uniquement si dessinée)
           if (this.labPad && typeof this.labPad.toDataURL === 'function') {
             try {
-              // Vérification robuste : isEmpty doit être une FONCTION et retourner false
               const padEmpty = (typeof this.labPad.isEmpty === 'function')
                 ? this.labPad.isEmpty()
-                : true;  // si pas de méthode isEmpty, on considère vide
+                : true;
               if (!padEmpty) {
-                console.log('[validate] ✍️ upload signature labo');
-                const labDataUrl = this.labPad.toDataURL();
-                const sig = await withTimeout(storage.uploadSignature(reg, 'lab', labDataUrl), 10000, 'signature');
-                labData.signatureUrl = sig.url;
-                console.log('[validate] ✅ signature uploadée');
+                labData.signatureDataUrl = this.labPad.toDataURL();
+                console.log('[validate] ✅ signature prête');
               } else {
                 console.log('[validate] ℹ️ signature vide, ignorée');
               }
@@ -11354,10 +11424,11 @@ section[data-view] h1,
             }
           }
 
+          // 💾 ENREGISTREMENT FIREBASE — 3s seulement car juste un update JSON
           console.log('[validate] 💾 enregistrement Firebase…');
-          ui.showLoader('Finalisation…');
-          await withTimeout(db.validateIntervention(reg, labData), 15000, 'validation Firebase');
-          console.log('[validate] ✅ Validation enregistrée');
+          ui.showLoader('Sauvegarde Firebase…');
+          await withTimeout(db.validateIntervention(reg, labData), 3000, 'sauvegarde Firebase');
+          console.log('[validate] ✅ Validation enregistrée dans Firebase');
 
           // Message adapté selon le type
           const type = existing?.crimping?.type || '';
@@ -11447,46 +11518,44 @@ section[data-view] h1,
                 reject(new Error(`Timeout (${ms/1000}s) sur ${label}`)), ms))
             ]);
 
-          // 📄 Upload du rapport PDF si fourni — AVEC timeout 25s
+          // 📄 Rapport PDF → BASE64 (stocké directement dans Firebase RTDB)
           let reportData = {};
           if (reportFile) {
-            console.log('[deliverDossier] 📄 upload rapport :', reportFile.name, 'taille =', reportFile.size);
+            console.log('[deliverDossier] 📄 conversion rapport → base64 :', reportFile.name, `(${(reportFile.size/1024).toFixed(0)} KB)`);
             try {
-              ui.showLoader(`Envoi du rapport (${(reportFile.size/1024).toFixed(0)} KB)…`);
-              const up = await withTimeout(
-                storage.uploadReport(reg, reportFile),
-                25000,
-                'upload rapport'
+              ui.showLoader('Préparation du rapport…');
+              // Pas de compression pour les PDFs / documents
+              const base64 = await withTimeout(
+                storage.fileToBase64(reportFile, { compress: false }),
+                10000,
+                'préparation rapport'
               );
               reportData = {
                 fileName: reportFile.name,
                 fileSize: reportFile.size,
-                storagePath: up.path,
-                downloadUrl: up.url,
+                mimeType: reportFile.type,
+                dataUrl: base64,                     // 🆕 contenu en base64
                 uploadedAt: Date.now()
               };
-              console.log('[deliverDossier] ✅ Rapport uploadé :', up.url);
+              console.log(`[deliverDossier] ✅ Rapport prêt (base64 = ${(base64.length/1024).toFixed(0)} KB)`);
             } catch (e) {
-              console.error('[deliverDossier] ❌ Upload rapport échoué :', e);
+              console.error('[deliverDossier] ❌ Préparation rapport échouée :', e);
               ui.hideLoader();
-              // Demander à l'utilisateur s'il veut continuer SANS le rapport
               const continueAnyway = await ui.confirm(
-                '⚠️ Upload du rapport échoué',
-                `${e.message || 'Erreur réseau'}. Voulez-vous continuer la livraison SANS le rapport ?`,
-                { type: 'warn', okLabel: 'Continuer sans rapport', cancelLabel: 'Annuler la livraison' }
+                '⚠️ Rapport non préparé',
+                `${e.message || 'Erreur de lecture'}. Voulez-vous livrer sans le rapport ?`,
+                { type: 'warn', okLabel: 'Livrer sans rapport', cancelLabel: 'Annuler' }
               );
-              if (!continueAnyway) {
-                console.log('[deliverDossier] Annulé suite échec upload');
-                return;
-              }
+              if (!continueAnyway) return;
               ui.showLoader('Finalisation…');
             }
           }
 
           // Récupérer info techniciens #2 pour le payload
           const extras = { tech2Name, tech2Mat, reportData };
-          ui.showLoader('Finalisation…');
-          await withTimeout(db.deliverDossier(reg, extras), 15000, 'enregistrement Firebase');
+          ui.showLoader('Sauvegarde Firebase…');
+          // 💾 3s timeout — c'est juste un update JSON
+          await withTimeout(db.deliverDossier(reg, extras), 3000, 'sauvegarde Firebase');
           console.log('[deliverDossier] ✅ Succès');
           ui.toast(`📁 Dossier livré · Bon N°${reg} clôturé ✅`, 'success', 4000);
           this.setStatus('delivered');
@@ -11494,6 +11563,76 @@ section[data-view] h1,
         } catch (err) {
           console.error('[deliverDossier] ❌ Erreur :', err);
           ui.toast('Erreur livraison : ' + (err?.message || err), 'danger', 6000);
+        } finally {
+          ui.hideLoader();
+        }
+      },
+
+      /* ════════════════════════════════════════════════════════════════════
+         🗑 SUPPRIMER la photo de coupe métallographique
+         ════════════════════════════════════════════════════════════════════ */
+      async deleteCoupePhoto() {
+        const reg = state.currentInterventionId;
+        if (!reg) return ui.toast('Aucun bon ouvert', 'warn');
+        const ok = await ui.confirm(
+          '🗑 Supprimer la photo ?',
+          'La photo de coupe métallographique sera définitivement supprimée du bon. Tu pourras en joindre une nouvelle.',
+          { type: 'danger', okLabel: '🗑 Supprimer', cancelLabel: 'Garder' }
+        );
+        if (!ok) return;
+        ui.showLoader('Suppression…');
+        try {
+          await fbDb.ref(`interventions/${reg}/lab/coupeMetallo`).remove();
+          // Reset l'input file
+          const inp = document.getElementById('file-coupe');
+          if (inp) inp.value = '';
+          // Reset l'UI
+          const link = document.getElementById('link-coupe'); if (link) link.hidden = true;
+          const prev = document.getElementById('preview-coupe'); if (prev) prev.innerHTML = '';
+          const img = document.getElementById('coupe-img-preview'); if (img) { img.hidden = true; img.src = ''; }
+          ui.toast('🗑 Photo supprimée', 'success', 2500);
+          // Re-render le rapport de validation
+          const data = state.interventions[reg];
+          if (data && data.lab) delete data.lab.coupeMetallo;
+          this.renderValidationReport(data || {});
+        } catch (e) {
+          console.error('[deleteCoupePhoto]', e);
+          ui.toast('⛔ ' + (e.message || e), 'danger');
+        } finally {
+          ui.hideLoader();
+        }
+      },
+
+      /* ════════════════════════════════════════════════════════════════════
+         🗑 SUPPRIMER le rapport PDF (étape 2)
+         ════════════════════════════════════════════════════════════════════ */
+      async deleteReportFile() {
+        const reg = state.currentInterventionId;
+        if (!reg) return ui.toast('Aucun bon ouvert', 'warn');
+        const ok = await ui.confirm(
+          '🗑 Supprimer le rapport ?',
+          'Le rapport joint sera définitivement supprimé. Tu pourras en joindre un nouveau.',
+          { type: 'danger', okLabel: '🗑 Supprimer', cancelLabel: 'Garder' }
+        );
+        if (!ok) return;
+        ui.showLoader('Suppression…');
+        try {
+          await fbDb.ref(`interventions/${reg}/lab/reportData`).remove();
+          const inp = document.getElementById('dossier-report-file');
+          if (inp) inp.value = '';
+          const rLink = document.getElementById('dossier-report-link'); if (rLink) rLink.hidden = true;
+          const rName = document.getElementById('dossier-file-name');
+          if (rName) {
+            rName.textContent = 'Aucun fichier sélectionné';
+            rName.style.color = '';
+          }
+          ui.toast('🗑 Rapport supprimé', 'success', 2500);
+          const data = state.interventions[reg];
+          if (data && data.lab) delete data.lab.reportData;
+          this.renderValidationReport(data || {});
+        } catch (e) {
+          console.error('[deleteReportFile]', e);
+          ui.toast('⛔ ' + (e.message || e), 'danger');
         } finally {
           ui.hideLoader();
         }

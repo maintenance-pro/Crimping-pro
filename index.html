@@ -7506,7 +7506,29 @@ section[data-view] h1,
               Coordination directe entre techniciens crimping et magasiniers — sans cross-user notifications
             </p>
           </div>
-          <div style="display:flex;gap:.5rem;align-items:center">
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+            <!-- 🔙 Bouton retour rapide vers Suivi PDR -->
+            <button
+              type="button"
+              id="btn-back-to-suivi-pdr"
+              onclick="window.location.hash='pdr'"
+              title="Retour à Suivi PDR"
+              style="
+                display:inline-flex;align-items:center;gap:.4rem;
+                padding:.55rem 1rem;
+                background:linear-gradient(135deg,rgba(0,212,255,.18),rgba(0,229,160,.10));
+                border:1px solid rgba(0,212,255,.45);
+                border-radius:8px;
+                color:#00d4ff;
+                font-size:.85rem;font-weight:700;
+                cursor:pointer;
+                transition:all .15s ease;
+                box-shadow:0 1px 6px rgba(0,212,255,.18);
+                white-space:nowrap;"
+              onmouseover="this.style.background='linear-gradient(135deg,rgba(0,212,255,.28),rgba(0,229,160,.18))';this.style.transform='translateX(-2px)'"
+              onmouseout="this.style.background='linear-gradient(135deg,rgba(0,212,255,.18),rgba(0,229,160,.10))';this.style.transform='translateX(0)'">
+              ← 🔧 Suivi PDR
+            </button>
             <select id="pdr-req-filter" class="filter__input" style="font-size:.85rem;font-weight:600">
               <option value="all" data-i18n="t.toutes_les_demandes">Toutes les demandes</option>
               <option value="pending" selected>📋 En attente</option>

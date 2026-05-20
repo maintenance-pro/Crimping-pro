@@ -4604,6 +4604,52 @@ select:focus {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   🔀 ONGLETS FUSIONNÉS — Équipe, Analytics, PDR (sous-vues unifiées)
+   ════════════════════════════════════════════════════════════════════════ */
+.merged-tabs {
+  display: flex;
+  gap: .35rem;
+  padding: .3rem;
+  margin-bottom: 1.25rem;
+  background: rgba(255, 255, 255, .02);
+  border: 1px solid rgba(0, 212, 255, .12);
+  border-radius: 10px;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.merged-tabs__btn {
+  background: transparent;
+  border: 0;
+  padding: .5rem 1.1rem;
+  color: var(--text-secondary);
+  font-size: .82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  border-radius: 7px;
+  transition: all .15s ease;
+  white-space: nowrap;
+}
+.merged-tabs__btn:hover {
+  color: var(--text-primary);
+  background: rgba(0, 212, 255, .08);
+}
+.merged-tabs__btn[data-active="true"] {
+  background: linear-gradient(135deg, rgba(0, 212, 255, .2), rgba(0, 229, 160, .12));
+  color: var(--accent-500, #00d4ff);
+  box-shadow: 0 1px 4px rgba(0, 212, 255, .15);
+}
+[data-theme="light"] .merged-tabs {
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(0, 80, 120, .15);
+}
+[data-theme="light"] .merged-tabs__btn[data-active="true"] {
+  background: linear-gradient(135deg, rgba(0, 130, 170, .15), rgba(0, 180, 130, .08));
+  color: #0082aa;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    🚀 CONTROL CENTER — Dashboard NASA-grade unifié
    ════════════════════════════════════════════════════════════════════════ */
 .control-center {
@@ -6018,20 +6064,17 @@ section[data-view] h1,
               <span class="sidebar__icon">🛠</span><span class="sidebar__label" data-i18n="nav.catalog">Catalogue outils</span>
             </button>
           </li>
+          <!-- 👥 ÉQUIPE — Utilisateurs + Techniciens fusionnés -->
           <li class="sidebar__item sidebar__item--admin" data-requires-role="responsable,super_admin,admin">
-            <button class="sidebar__link" data-nav="users">
-              <span class="sidebar__icon">👥</span><span class="sidebar__label" data-i18n="nav.users">Utilisateurs</span>
-            </button>
-          </li>
-          <li class="sidebar__item sidebar__item--admin" data-requires-role="responsable,super_admin,admin">
-            <button class="sidebar__link" data-nav="technicians">
-              <span class="sidebar__icon">👷</span><span class="sidebar__label">Techniciens</span>
+            <button class="sidebar__link" data-nav="equipe">
+              <span class="sidebar__icon">👥</span><span class="sidebar__label">Équipe</span>
               <span class="sidebar__pill" id="nav-tech-count" style="background:rgba(255,139,107,.18);color:#ff8b6b">0</span>
             </button>
           </li>
-          <li class="sidebar__item sidebar__item--admin" data-requires-role="responsable,super_admin,admin">
-            <button class="sidebar__link" data-nav="stats">
-              <span class="sidebar__icon">📊</span><span class="sidebar__label" data-i18n="nav.stats">Statistiques & SLA</span>
+          <!-- 📊 ANALYTICS — Performance équipe + Statistiques & SLA fusionnés -->
+          <li class="sidebar__item sidebar__item--admin" data-requires-role="admin,super_admin,magasinier,responsable,crimp,crimping">
+            <button class="sidebar__link" data-nav="analytics">
+              <span class="sidebar__icon">📊</span><span class="sidebar__label">Analytics</span>
             </button>
           </li>
           <li class="sidebar__item sidebar__item--admin" data-requires-role="admin,super_admin">
@@ -6040,29 +6083,17 @@ section[data-view] h1,
             </button>
           </li>
 
-          <!-- ═══ NOUVEAU : MODULES MAGASIN ═══ -->
+          <!-- ═══ MODULES MAGASIN ═══ -->
           <li class="sidebar__item" data-requires-role="admin,super_admin,magasinier,responsable,crimp,crimping">
             <button class="sidebar__link" data-nav="magasin">
               <span class="sidebar__icon">📦</span><span class="sidebar__label" data-i18n="nav.stock">Magasin Stock</span>
               <span class="sidebar__badge sidebar__badge--danger" id="stock-alert-badge" hidden>0</span>
             </button>
           </li>
-          <li class="sidebar__item" data-requires-role="admin,super_admin,magasinier,responsable,crimp,crimping">
-            <button class="sidebar__link" data-nav="performance">
-              <span class="sidebar__icon">📊</span><span class="sidebar__label" data-i18n="nav.performance">Performance équipe</span>
-            </button>
-          </li>
-          <!-- Suivi PDR : Magasinier + Admin uniquement (lecture seule) -->
-          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,magasinier">
-            <button class="sidebar__link" data-nav="pdr">
-              <span class="sidebar__icon">🔧</span><span class="sidebar__label" data-i18n="nav.pdr">Suivi PDR</span>
-              <span class="sidebar__pill" id="nav-pdr-count">0</span>
-            </button>
-          </li>
-          <!-- 📦 Demandes PDR : technicien crimping voit ses demandes, magasinier voit les pending -->
+          <!-- 🔧 PDR — Suivi + Demandes fusionnés -->
           <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping,magasinier">
-            <button class="sidebar__link" data-nav="demandes-pdr">
-              <span class="sidebar__icon">📦</span><span class="sidebar__label" data-i18n="t.demandes_pdr">Demandes PDR</span>
+            <button class="sidebar__link" data-nav="pdr-hub">
+              <span class="sidebar__icon">🔧</span><span class="sidebar__label">PDR</span>
               <span class="sidebar__pill" id="nav-pdr-req-count" style="background:#ffb547;color:#0a1628">0</span>
             </button>
           </li>
@@ -10846,8 +10877,21 @@ section[data-view] h1,
     },
     handleHash() {
       const hash = window.location.hash.replace('#', '') || 'hub';
+      // 🆕 Routes fusionnées : equipe / analytics / pdr-hub redirigent vers les vues réelles
+      // (et leur tab par défaut)
+      const mergedHubs = {
+        'equipe':    'technicians',     // Équipe → Techniciens par défaut
+        'analytics': 'performance',     // Analytics → Performance équipe par défaut
+        'pdr-hub':   'pdr'              // PDR → Suivi PDR par défaut
+      };
+      let mergedTarget = null;
+      let resolvedHash = hash;
+      if (mergedHubs[hash]) {
+        mergedTarget = hash;
+        resolvedHash = mergedHubs[hash];
+      }
       const valid = ['hub','intervention','preventive5j','history','queue','catalog','users','technicians','stats','auditlog','magasin','performance','pdr','demandes-pdr'];
-      let view = valid.includes(hash) ? hash : 'hub';
+      let view = valid.includes(resolvedHash) ? resolvedHash : 'hub';
 
       // ── Restrictions par rôle ──
       // Les techniciens LABO ne peuvent pas voir le catalogue ni créer un nouveau bon
@@ -10861,6 +10905,19 @@ section[data-view] h1,
       }
 
       ui.showView(view);
+      // Activer le bon hub virtuel dans la sidebar si on est dans une vue fusionnée
+      const hubMap = {
+        'users': 'equipe', 'technicians': 'equipe',
+        'performance': 'analytics', 'stats': 'analytics',
+        'pdr': 'pdr-hub', 'demandes-pdr': 'pdr-hub'
+      };
+      const sideKey = hubMap[view] || view;
+      $$('.sidebar__link').forEach(el => {
+        el.classList.toggle('sidebar__link--active', el.dataset.nav === sideKey);
+      });
+      // Afficher la tab-bar fusionnée et activer le bon onglet
+      if (mergedTarget || hubMap[view]) this._renderMergedTabs(view, mergedTarget || hubMap[view]);
+
       // Mapping route → nom de module (pour gérer camelCase comme auditLog)
       const moduleMap = {
         'auditlog': 'auditLog',
@@ -10868,6 +10925,35 @@ section[data-view] h1,
       };
       const moduleName = moduleMap[view] || view;
       if (views[moduleName] && views[moduleName].render) views[moduleName].render();
+    },
+
+    /* ════════════════════════════════════════════════════════════════════
+       🆕 Rendu de la barre d'onglets pour les hubs fusionnés
+       ════════════════════════════════════════════════════════════════════ */
+    _renderMergedTabs(activeView, hub) {
+      const TABS = {
+        equipe:    [{ view: 'technicians', label: '👷 Techniciens' }, { view: 'users', label: '👥 Utilisateurs' }],
+        analytics: [{ view: 'performance', label: '📊 Performance Équipe' }, { view: 'stats', label: '📈 Statistiques & SLA' }],
+        'pdr-hub': [{ view: 'pdr', label: '🔧 Suivi PDR' }, { view: 'demandes-pdr', label: '📦 Demandes PDR' }]
+      };
+      const tabs = TABS[hub];
+      if (!tabs) return;
+      // Trouve la vue active et injecte la tab-bar tout en haut
+      const viewEl = document.querySelector(`[data-view="${activeView}"]`);
+      if (!viewEl) return;
+
+      // Supprime toute tab-bar existante
+      viewEl.querySelector('.merged-tabs')?.remove();
+      const bar = document.createElement('div');
+      bar.className = 'merged-tabs';
+      bar.innerHTML = tabs.map(t =>
+        `<button type="button" class="merged-tabs__btn" data-view="${t.view}" data-active="${t.view === activeView ? 'true' : 'false'}">${t.label}</button>`
+      ).join('');
+      // Insère en TOUT premier dans la section
+      viewEl.insertBefore(bar, viewEl.firstChild);
+      bar.querySelectorAll('.merged-tabs__btn').forEach(btn => {
+        btn.addEventListener('click', () => { window.location.hash = btn.dataset.view; });
+      });
     }
   };
 

@@ -254,15 +254,11 @@ legend { padding: 0; }
    3. SHELL LAYOUT (topbar + sidebar + main)
    ---------------------------------------------------------------------------- */
 .shell {
-  display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
-  grid-template-rows: var(--topbar-h) 1fr;
-  grid-template-areas:
-    "topbar topbar"
-    "sidebar main";
+  display: block;            /* 🆕 fini la grid, la sidebar est fixed maintenant */
   min-height: 100vh;
   position: relative;
   z-index: var(--z-base);
+  padding-top: var(--topbar-h);   /* compense topbar fixed */
 }
 
 /* ----------------------------------------------------------------------------
@@ -279,9 +275,19 @@ legend { padding: 0; }
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   border-bottom: 1px solid var(--border-base);
   box-shadow: 0 1px 0 var(--border-base), 0 4px 24px rgba(0,0,0,.4);
-  position: sticky;
+  /* 🔒 FIXED — toujours visible quel que soit le scroll */
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
+  height: var(--topbar-h);
   z-index: var(--z-topbar);
+}
+/* Décale le contenu pour ne pas passer sous la topbar/sidebar fixed */
+.main {
+  margin-left: var(--sidebar-w);
+  min-height: calc(100vh - var(--topbar-h));
+  padding: var(--sp-6);
 }
 
 .topbar__menu {
@@ -480,14 +486,24 @@ legend { padding: 0; }
   flex-direction: column;
   padding: var(--sp-5) var(--sp-3);
   z-index: var(--z-sidebar);
-  position: sticky;
+  /* 🔒 FIXED — garantit le scroll-lock dans tous les cas */
+  position: fixed;
   top: var(--topbar-h);
-  align-self: start;                     /* 🆕 essentiel pour sticky dans grid */
+  left: 0;
+  width: var(--sidebar-w);
   height: calc(100vh - var(--topbar-h));
-  max-height: calc(100vh - var(--topbar-h));
   overflow-y: auto;
-  overscroll-behavior: contain;          /* 🆕 stop scroll chain au body */
+  overscroll-behavior: contain;
   box-shadow: 2px 0 20px rgba(0,0,0,.3);
+}
+/* Compense l'espace pris par la sidebar fixed dans le grid layout */
+.shell { padding-left: 0; }
+.shell > .topbar { padding-left: 0; }
+.shell > main,
+.shell > .main,
+.main {
+  grid-area: main;
+  /* le grid-template-columns réserve déjà l'espace var(--sidebar-w) */
 }
 
 .sidebar__nav { flex: 1; }
@@ -582,11 +598,12 @@ legend { padding: 0; }
    6. MAIN AREA
    ---------------------------------------------------------------------------- */
 .main {
-  grid-area: main;
+  /* 🔒 Décalé par la sidebar fixed à gauche */
+  margin-left: var(--sidebar-w);
   padding: var(--sp-8);
-  max-width: var(--max-content);
-  width: 100%;
-  margin: 0 auto;
+  max-width: calc(var(--max-content) + var(--sidebar-w));
+  width: auto;
+  min-height: calc(100vh - var(--topbar-h));
 }
 
 /* ----------------------------------------------------------------------------
@@ -1985,21 +2002,26 @@ legend { padding: 0; }
 
 @media (max-width: 900px) {
   .shell {
-    grid-template-columns: 1fr;
-    grid-template-areas: "topbar" "main";
+    /* mobile : la sidebar est cachée par défaut, pas besoin de marge */
   }
   .sidebar {
     position: fixed;
     top: var(--topbar-h);
     left: 0;
     width: var(--sidebar-w);
+    height: calc(100vh - var(--topbar-h));
     transform: translateX(-100%);
     transition: transform var(--t-base);
+    z-index: 999;
   }
   .sidebar.is-open { transform: translateX(0); }
   .topbar__menu { display: flex; }
   .topbar__search { display: none; }
-  .main { padding: var(--sp-5); }
+  .main {
+    padding: var(--sp-5);
+    margin-left: 0 !important;     /* 🆕 pas de marge sur mobile */
+    max-width: 100%;
+  }
   .intervention__actions { left: var(--sp-4); right: var(--sp-4); }
   .intervention__grid--3,
   .intervention__grid--2,

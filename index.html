@@ -4591,6 +4591,275 @@ select:focus {
   }
   .perf-rank__bar { display: none; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   🚀 PHASE NASA — Upgrades typographique & visuels chirurgicaux
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* — Tous les nombres en monospace pour la précision industrielle — */
+.kpi-card__num,
+.kpi__num,
+.stat__num,
+.status-pill__count,
+.dur-card__display,
+.vr-card__sub strong,
+.perf-rank__hours,
+.perf-rank__pct,
+.perf-kpi__num,
+.dur-pill,
+.dur-homolog__total,
+.dur-homolog__input,
+[data-numeric],
+.intervention__num,
+.numero,
+.timestamp {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* — Labels uppercase chirurgicaux — */
+.field__label,
+.intervention__sub-title,
+.card__title,
+.kpi-card__label,
+.kpi__lbl,
+.perf-kpi__lbl,
+.dossier-step__title,
+.vr-card__title {
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* — Bandeau timestamp cockpit (style mission control) — */
+.cockpit-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.4rem 0.85rem;
+  background: linear-gradient(90deg, rgba(0, 212, 255, 0.04), rgba(0, 229, 160, 0.02));
+  border: 1px solid rgba(0, 212, 255, 0.12);
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+.cockpit-bar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.4), rgba(0, 229, 160, 0.4), transparent);
+  animation: scanLine 4s linear infinite;
+}
+@keyframes scanLine {
+  0%, 100% { transform: translateX(-100%); }
+  50%      { transform: translateX(100%); }
+}
+.cockpit-bar__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.cockpit-bar__dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #00e5a0;
+  box-shadow: 0 0 8px #00e5a0;
+  animation: cockpitPulse 1.8s ease-in-out infinite;
+}
+.cockpit-bar__dot--off {
+  background: #ff3d5a;
+  box-shadow: 0 0 8px #ff3d5a;
+}
+@keyframes cockpitPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(0.85); }
+}
+.cockpit-bar__sep {
+  width: 1px;
+  height: 14px;
+  background: rgba(0, 212, 255, 0.15);
+}
+.cockpit-bar__time {
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.1em;
+}
+.cockpit-bar__user {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* — Bandeau alertes prédictives (Phase 3 préparation) — */
+.alert-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(0, 212, 255, 0.12);
+  border-radius: 10px;
+}
+.alert-strip__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+.alert-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  border-left-width: 3px;
+  border-left-style: solid;
+  transition: background 0.18s ease;
+}
+.alert-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.alert-row--critical {
+  background: rgba(255, 61, 90, 0.06);
+  border-left-color: #ff3d5a;
+  color: #ff8b9b;
+}
+.alert-row--warn {
+  background: rgba(255, 181, 71, 0.06);
+  border-left-color: #ffb547;
+  color: #ffb547;
+}
+.alert-row--info {
+  background: rgba(0, 212, 255, 0.06);
+  border-left-color: #00d4ff;
+  color: #5ee7ff;
+}
+.alert-row__id {
+  font-weight: 700;
+  min-width: 80px;
+}
+.alert-row__desc {
+  color: var(--text-primary);
+  font-family: inherit;
+  flex: 1;
+}
+.alert-row__metric {
+  margin-left: auto;
+  font-size: 0.74rem;
+  opacity: 0.85;
+}
+.alert-row__empty {
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* — Hero KPI grid (4 cards horizontal) — */
+.kpi-hero {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+.kpi-hero__card {
+  padding: 0.85rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(0, 212, 255, 0.12);
+  border-left: 3px solid var(--kpi-color, #00d4ff);
+  border-radius: 10px;
+  transition: all 0.25s cubic-bezier(.16,.84,.32,1);
+  position: relative;
+}
+.kpi-hero__card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.kpi-hero__card[data-kpi="primary"]   { --kpi-color: #00d4ff; }
+.kpi-hero__card[data-kpi="success"]   { --kpi-color: #00e5a0; }
+.kpi-hero__card[data-kpi="warn"]      { --kpi-color: #ffb547; }
+.kpi-hero__card[data-kpi="danger"]    { --kpi-color: #ff3d5a; }
+.kpi-hero__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+.kpi-hero__value {
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.kpi-hero__suffix {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-left: 0.2rem;
+}
+.kpi-hero__sub {
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, Consolas, monospace;
+}
+.kpi-hero__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  margin-left: 0.4rem;
+}
+.kpi-hero__delta--up   { background: rgba(0, 229, 160, 0.15); color: #00e5a0; }
+.kpi-hero__delta--down { background: rgba(255, 61, 90, 0.15); color: #ff8b9b; }
+.kpi-hero__delta--flat { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); }
+
+/* — Boutons primaires aux contours cinetiques — */
+.btn--primary:not(:disabled),
+button[type="submit"]:not(:disabled) {
+  position: relative;
+  overflow: hidden;
+}
+.btn--primary::after,
+button[type="submit"]::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+.btn--primary:hover::after,
+button[type="submit"]:hover::after {
+  left: 100%;
+}
 .validation-report__body {
   display: flex;
   flex-direction: column;
@@ -5538,6 +5807,33 @@ section[data-view] h1,
       <!-- VIEW 2 — HUB / DASHBOARD                                          -->
       <!-- ================================================================= -->
       <section class="hub" id="view-hub" data-view="hub">
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <!--  🚀 COCKPIT BAR — Mission control style                       -->
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <div class="cockpit-bar" id="cockpit-bar">
+          <span class="cockpit-bar__status">
+            <span class="cockpit-bar__dot" id="cockpit-fb-dot"></span>
+            <span id="cockpit-fb-label">SYS · OK</span>
+          </span>
+          <span class="cockpit-bar__sep"></span>
+          <span id="cockpit-location">LEONI · ANNEX 5</span>
+          <span class="cockpit-bar__sep"></span>
+          <span class="cockpit-bar__time" id="cockpit-time">--:--:--</span>
+          <span class="cockpit-bar__user" id="cockpit-user">—</span>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <!--  🔔 ALERTES PRÉDICTIVES — Usure outils                        -->
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <div class="alert-strip" id="alert-strip" hidden>
+          <div class="alert-strip__header">
+            <i style="font-style:normal">🔔</i>
+            <span>Alertes prédictives — Usure outils</span>
+            <span style="margin-left:auto;font-size:.7rem;color:var(--text-muted);text-transform:none;letter-spacing:normal;font-weight:500" id="alert-strip-count">0 alerte</span>
+          </div>
+          <div id="alert-strip-list"></div>
+        </div>
+
         <header class="hub__header">
           <div>
             <h1 class="hub__title" data-i18n="hub.title">Tableau de bord</h1>
@@ -10308,6 +10604,9 @@ section[data-view] h1,
         KPIAnimator.set('#kpi-rejected', rejected.length);
         $('#kpi-sla').textContent = fmt.duration(avgSla);
 
+        // 🔔 ALERTES PRÉDICTIVES — Usure des outils
+        try { this.renderPredictiveAlerts(); } catch(e) { console.warn('[hub.renderPredictiveAlerts]', e); }
+
         const validRate = monthList.length ? Math.round(validated.length / monthList.length * 100) : 0;
         $('#kpi-validated-rate').textContent = `${validRate}% du mois`;
 
@@ -10406,6 +10705,108 @@ section[data-view] h1,
           </div>
           ${overdue > 3 ? '<div style="margin-top:.75rem;padding:.5rem .75rem;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:7px;font-size:.8rem;color:#fca5a5">⚠️ ' + overdue + ' bon(s) en attente depuis plus de 48h</div>' : ''}
         `;
+      },
+
+      /* ════════════════════════════════════════════════════════════════════
+         🔔 ALERTES PRÉDICTIVES — Surveillance d'usure des outils
+         ════════════════════════════════════════════════════════════════════
+         Basée sur le ratio (cycles cumulés / durée de vie nominale).
+         Seuils par défaut :
+           - ≥ 95%  → CRITICAL (rouge) — remplacement urgent
+           - ≥ 75%  → WARNING (amber)  — planifier remplacement
+           - <  75% → OK (pas d'alerte)
+         ════════════════════════════════════════════════════════════════════ */
+      renderPredictiveAlerts() {
+        const strip = document.getElementById('alert-strip');
+        const list = document.getElementById('alert-strip-list');
+        const count = document.getElementById('alert-strip-count');
+        if (!strip || !list) return;
+
+        // Récupère les outils depuis state.tools (catalogue)
+        const tools = state.tools ? Object.values(state.tools) : [];
+        if (tools.length === 0) {
+          strip.hidden = true;
+          return;
+        }
+
+        // Calcule le ratio d'usure pour chaque outil
+        const alerts = [];
+        tools.forEach(t => {
+          const cyclesCum = parseFloat(t.cyclesCum) || 0;
+          const cyclesNom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || 1500000; // 1.5M par défaut
+          if (!cyclesCum || !cyclesNom || cyclesNom <= 0) return;
+
+          const ratio = cyclesCum / cyclesNom;
+          if (ratio < 0.75) return; // pas d'alerte si <75%
+
+          alerts.push({
+            id: t.outilId || t.id || t.reference || '—',
+            description: t.designation || t.description || t.libelle || 'Outil',
+            ratio,
+            cyclesCum,
+            cyclesNom,
+            severity: ratio >= 0.95 ? 'critical' : 'warn'
+          });
+        });
+
+        // Tri : critiques en premier, puis par ratio décroissant
+        alerts.sort((a, b) => {
+          if (a.severity !== b.severity) return a.severity === 'critical' ? -1 : 1;
+          return b.ratio - a.ratio;
+        });
+
+        // Affichage
+        if (alerts.length === 0) {
+          strip.hidden = true;
+          return;
+        }
+        strip.hidden = false;
+        if (count) {
+          const critCount = alerts.filter(a => a.severity === 'critical').length;
+          count.textContent = critCount > 0
+            ? `${alerts.length} alerte${alerts.length > 1 ? 's' : ''} · ${critCount} critique${critCount > 1 ? 's' : ''}`
+            : `${alerts.length} alerte${alerts.length > 1 ? 's' : ''}`;
+        }
+
+        // Top 5 affichés, le reste en compteur
+        const visible = alerts.slice(0, 5);
+        const fmtCycles = (n) => {
+          if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+          if (n >= 1e3) return (n / 1e3).toFixed(0) + 'k';
+          return String(Math.round(n));
+        };
+
+        list.innerHTML = visible.map(a => {
+          const pct = Math.round(a.ratio * 100);
+          const cls = a.severity === 'critical' ? 'alert-row--critical' : 'alert-row--warn';
+          const icon = a.severity === 'critical' ? '🔴' : '🟡';
+          return `
+            <div class="alert-row ${cls}" data-tool-id="${ui.escape(a.id)}">
+              <span style="font-size:.9rem">${icon}</span>
+              <span class="alert-row__id">${ui.escape(a.id)}</span>
+              <span class="alert-row__desc">${ui.escape(a.description)} · <strong>${pct}% durée vie</strong></span>
+              <span class="alert-row__metric">${fmtCycles(a.cyclesCum)} / ${fmtCycles(a.cyclesNom)} cycles</span>
+            </div>
+          `;
+        }).join('');
+
+        // Clic sur une alerte → ouvre la fiche outil
+        list.querySelectorAll('[data-tool-id]').forEach(el => {
+          el.style.cursor = 'pointer';
+          el.addEventListener('click', () => {
+            const toolId = el.dataset.toolId;
+            if (toolId && views.catalog && typeof views.catalog.openDetails === 'function') {
+              router.go('catalog');
+              setTimeout(() => views.catalog.openDetails(toolId), 100);
+            }
+          });
+        });
+
+        if (alerts.length > 5) {
+          list.insertAdjacentHTML('beforeend',
+            `<div style="text-align:center;padding:.45rem;font-size:.72rem;color:var(--text-muted);font-style:italic">+ ${alerts.length - 5} autre${alerts.length - 5 > 1 ? 's' : ''} outil${alerts.length - 5 > 1 ? 's' : ''} à surveiller — voir Catalogue</div>`
+          );
+        }
       },
 
       renderWeeklyChart(list) {
@@ -19223,6 +19624,48 @@ Erreur Firebase : ${e.message}`;
      15. BOOTSTRAP
      ========================================================================== */
   document.addEventListener('DOMContentLoaded', () => {
+    // ╔════════════════════════════════════════════════════════════════════╗
+    // ║  🛡 FILET DE SÉCURITÉ GLOBAL — capture les erreurs async silencieuses
+    // ╠════════════════════════════════════════════════════════════════════╣
+    // ║  Les Promise rejetées non gérées tombent dans le vide par défaut.   ║
+    // ║  On les attrape ici pour les logger + alerter l'utilisateur.        ║
+    // ╚════════════════════════════════════════════════════════════════════╝
+    window.__leoniIntervals = window.__leoniIntervals || [];
+    const origSetInterval = window.setInterval;
+    window.setInterval = function(fn, ms, ...rest) {
+      const id = origSetInterval(fn, ms, ...rest);
+      window.__leoniIntervals.push(id);
+      return id;
+    };
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('[LEONI · unhandled rejection]', event.reason);
+      try {
+        if (typeof ui !== 'undefined' && ui.toast) {
+          const msg = event.reason?.message || String(event.reason);
+          // Ignore les erreurs réseau temporaires (Firebase reconnect)
+          if (/network|offline|disconnect|cancel|abort/i.test(msg)) return;
+          ui.toast('⚠️ Erreur asynchrone : ' + msg.slice(0, 80), 'danger', 4000);
+        }
+      } catch(e) {}
+    });
+    window.addEventListener('error', (event) => {
+      // Erreurs JS sync
+      if (event.error?.message?.includes('ResizeObserver')) return; // benign
+      console.error('[LEONI · js error]', event.error);
+    });
+    // Cleanup au unload : détache les listeners Firebase + clear intervals
+    window.addEventListener('beforeunload', () => {
+      try {
+        window.__leoniIntervals.forEach(id => clearInterval(id));
+        if (typeof fbDb !== 'undefined' && fbDb) {
+          try { fbDb.ref('interventions').off(); } catch(e){}
+          try { fbDb.ref('technicians').off(); } catch(e){}
+          try { fbDb.ref('users').off(); } catch(e){}
+          try { fbDb.ref('.info/connected').off(); } catch(e){}
+        }
+      } catch(e) { console.warn('cleanup error:', e); }
+    });
+
     initFirebase();
     auth.init();
     app.initUI();
@@ -19242,6 +19685,43 @@ Erreur Firebase : ${e.message}`;
     if (views.technicians && views.technicians.init) views.technicians.init();
     userActions.initModals();
     initDurationField();
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 🚀 COCKPIT BAR — Mise à jour de l'heure + statut Firebase en temps réel
+    // ════════════════════════════════════════════════════════════════════════
+    const updateCockpitTime = () => {
+      const t = document.getElementById('cockpit-time');
+      if (t) {
+        const now = new Date();
+        t.textContent = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+      const u = document.getElementById('cockpit-user');
+      if (u && state.profile?.displayName) {
+        const role = state.role || '';
+        u.textContent = state.profile.displayName.split(' ')[0].toUpperCase() + (role ? ` · ${role.toUpperCase()}` : '');
+      }
+    };
+    updateCockpitTime();
+    setInterval(updateCockpitTime, 1000);
+
+    // Surveille le statut Firebase
+    setTimeout(() => {
+      if (typeof fbDb !== 'undefined' && fbDb) {
+        try {
+          fbDb.ref('.info/connected').on('value', (snap) => {
+            const dot = document.getElementById('cockpit-fb-dot');
+            const lbl = document.getElementById('cockpit-fb-label');
+            if (snap.val() === true) {
+              if (dot) dot.classList.remove('cockpit-bar__dot--off');
+              if (lbl) lbl.textContent = 'SYS · OK';
+            } else {
+              if (dot) dot.classList.add('cockpit-bar__dot--off');
+              if (lbl) lbl.textContent = 'SYS · OFFLINE';
+            }
+          });
+        } catch(e) { console.warn('cockpit fb monitor:', e); }
+      }
+    }, 1500);
 
     // ════════════════════════════════════════════════════════════════════════
     // 🪪 AUTO-REMPLISSAGE DU MATRICULE quand on choisit/tape un nom de tech

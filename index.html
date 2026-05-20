@@ -2,11 +2,19 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="description" content="LEONI Wiring Systems — Bon d'Intervention Sertissage & Validation Laboratoire" />
   <meta name="theme-color" content="#0a0e1a" />
-  <title>LEONI · Admin Dashboard</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="LEONI" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>LEONI · Maintenance</title>
+  <!-- Icône SVG haute qualité (visible favicon + iOS) -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230a1424'/%3E%3Cpath d='M30 25h12v45h28v10H30z' fill='%2300d4ff'/%3E%3Ccircle cx='75' cy='30' r='5' fill='%2300e5a0'/%3E%3C/svg%3E" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230a1424'/%3E%3Cpath d='M30 25h12v45h28v10H30z' fill='%2300d4ff'/%3E%3Ccircle cx='75' cy='30' r='5' fill='%2300e5a0'/%3E%3C/svg%3E" />
+  <!-- 📱 PWA Manifest inline (base64 JSON pour fonctionner sans fichier séparé) -->
+  <link rel="manifest" href='data:application/manifest+json,{"name":"LEONI Maintenance Pro","short_name":"LEONI","start_url":".","display":"standalone","orientation":"portrait-primary","background_color":"%230a1424","theme_color":"%230a0e1a","description":"Maintenance Management LEONI Wiring System","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox%3D%270 0 100 100%27%3E%3Crect width%3D%27100%27 height%3D%27100%27 rx%3D%2722%27 fill%3D%27%230a1424%27%2F%3E%3Cpath d%3D%27M30 25h12v45h28v10H30z%27 fill%3D%27%2300d4ff%27%2F%3E%3Ccircle cx%3D%2775%27 cy%3D%2730%27 r%3D%275%27 fill%3D%27%2300e5a0%27%2F%3E%3C%2Fsvg%3E","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}' />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <!-- Optimisation chargement réseau (Firebase + CDN) -->
   <link rel="preconnect" href="https://leoni-sertissage-labo-default-rtdb.europe-west1.firebasedatabase.app" crossorigin/>
@@ -4593,6 +4601,158 @@ select:focus {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   ☀️ THÈME CLAIR — Pour lecture en atelier (lumière directe / impressions)
+   ════════════════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+  --bg-0:        #f5f7fa;
+  --bg-1:        #ffffff;
+  --bg-2:        #f0f4f8;
+  --bg-3:        rgba(245, 247, 250, 0.9);
+  --bg-4:        rgba(240, 244, 248, 0.85);
+  --bg-elevated: rgba(255, 255, 255, 0.95);
+  --bg-overlay:  rgba(255, 255, 255, 0.88);
+
+  --border-soft:   rgba(0, 80, 120, 0.1);
+  --border-base:   rgba(0, 80, 120, 0.18);
+  --border-strong: rgba(0, 80, 120, 0.3);
+  --border-accent: rgba(0, 80, 120, 0.5);
+
+  --text-primary:   #0a1424;
+  --text-secondary: #3d566e;
+  --text-muted:     #6b7d8f;
+  --text-disabled:  #a8b8c8;
+  --text-on-accent: #ffffff;
+
+  --accent-50:   rgba(0, 130, 170, 0.06);
+  --accent-100:  rgba(0, 130, 170, 0.12);
+  --accent-300:  #00a8d4;
+  --accent-400:  #0099c4;
+  --accent-500:  #0082aa;
+  --accent-600:  #00708f;
+  --accent-700:  #005a73;
+  --accent-800:  #003e50;
+  --accent-glow: rgba(0, 130, 170, 0.2);
+
+  --status-draft-bg:     #e8edf2;
+  --status-draft-fg:     #4a5e75;
+  --status-submitted-bg: #fff4e0;
+  --status-submitted-fg: #b86b00;
+  --status-validated-bg: #d6f5e6;
+  --status-validated-fg: #006e3c;
+  --status-rejected-bg:  #ffe0e6;
+  --status-rejected-fg:  #b8002e;
+}
+[data-theme="light"] body {
+  background: linear-gradient(180deg, #f5f7fa, #eaeff5) !important;
+  color: #0a1424;
+}
+[data-theme="light"] .sidebar {
+  background: #ffffff !important;
+  border-right-color: rgba(0, 80, 120, 0.1) !important;
+}
+[data-theme="light"] .topbar {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-bottom-color: rgba(0, 80, 120, 0.08) !important;
+}
+[data-theme="light"] .card,
+[data-theme="light"] article.card {
+  background: #ffffff !important;
+  border-color: rgba(0, 80, 120, 0.1) !important;
+  box-shadow: 0 1px 3px rgba(0, 80, 120, 0.05);
+}
+[data-theme="light"] .field__input,
+[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background: #ffffff !important;
+  color: #0a1424 !important;
+  border-color: rgba(0, 80, 120, 0.18) !important;
+}
+[data-theme="light"] .field__input::placeholder,
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: #6b7d8f !important;
+}
+[data-theme="light"] .stepper {
+  background: #ffffff !important;
+}
+[data-theme="light"] .cockpit-bar {
+  background: linear-gradient(90deg, rgba(0, 130, 170, 0.06), rgba(0, 180, 130, 0.04)) !important;
+  border-color: rgba(0, 130, 170, 0.2) !important;
+}
+[data-theme="light"] .heatmap__cell[data-level="0"] { background: rgba(0, 130, 170, 0.06); }
+[data-theme="light"] .heatmap__cell[data-level="1"] { background: rgba(0, 130, 170, 0.25); }
+[data-theme="light"] .heatmap__cell[data-level="2"] { background: rgba(0, 130, 170, 0.5); }
+[data-theme="light"] .heatmap__cell[data-level="3"] { background: rgba(0, 130, 170, 0.75); }
+[data-theme="light"] .heatmap__cell[data-level="4"] { background: #0082aa; }
+[data-theme="light"] .alert-strip,
+[data-theme="light"] .perf-rank,
+[data-theme="light"] .perf-kpi {
+  background: #ffffff !important;
+  border-color: rgba(0, 80, 120, 0.12) !important;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+.heatmap-wrap { overflow-x: auto; padding: .3rem 0 .4rem; }
+.heatmap {
+  display: grid;
+  grid-template-rows: repeat(7, 14px);
+  grid-auto-flow: column;
+  grid-auto-columns: 14px;
+  gap: 3px;
+  min-width: max-content;
+}
+.heatmap__cell {
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .02);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform .12s ease, border-color .12s ease;
+}
+.heatmap__cell:hover {
+  border-color: var(--accent-500, #00d4ff);
+  transform: scale(1.45);
+  z-index: 5;
+  position: relative;
+}
+.heatmap__cell[data-level="0"] { background: rgba(0, 212, 255, .04); }
+.heatmap__cell[data-level="1"] { background: rgba(0, 212, 255, .22); }
+.heatmap__cell[data-level="2"] { background: rgba(0, 212, 255, .45); }
+.heatmap__cell[data-level="3"] { background: rgba(0, 212, 255, .72); }
+.heatmap__cell[data-level="4"] { background: #00d4ff; }
+.heatmap__cell[data-level="4"]:hover { box-shadow: 0 0 12px rgba(0, 212, 255, .6); }
+.heatmap__cell[data-future="true"] {
+  background: transparent !important;
+  cursor: default;
+  border: 1px dashed rgba(255, 255, 255, .04);
+}
+.heatmap__cell[data-future="true"]:hover { transform: none; border-color: rgba(255, 255, 255, .04); }
+.heatmap__tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: rgba(8, 18, 36, 0.96);
+  color: var(--text-primary);
+  border: 1px solid rgba(0, 212, 255, .3);
+  padding: .45rem .65rem;
+  border-radius: 6px;
+  font-size: .76rem;
+  font-family: var(--font-mono, monospace);
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .5);
+}
+.heatmap__tooltip strong { color: #00d4ff; }
+.heatmap__months {
+  display: flex;
+  font-size: .7rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono, monospace);
+  margin-bottom: .35rem;
+  padding-left: 30px;
+}
+.heatmap__col-month { width: calc((14px + 3px) * 4.3); }
+
+/* ════════════════════════════════════════════════════════════════════════
    🚀 PHASE NASA — Upgrades typographique & visuels chirurgicaux
    ════════════════════════════════════════════════════════════════════════ */
 
@@ -7416,6 +7576,25 @@ section[data-view] h1,
             <div id="perf-top-techs" class="perf-rank"></div>
           </article>
         </div>
+
+        <!-- 🔥 HEATMAP CALENDRIER — 90 jours d'activité -->
+        <article class="card" style="margin-top:1.5rem;padding:1.25rem 1.5rem">
+          <header class="card__header" style="margin-bottom:.85rem;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem">
+            <h2 class="card__title">🔥 Activité quotidienne — 90 derniers jours</h2>
+            <div style="display:flex;align-items:center;gap:.85rem;font-size:.72rem;color:var(--text-muted);font-family:var(--font-mono,monospace)">
+              <span>Moins</span>
+              <div style="display:flex;gap:3px">
+                <div style="width:12px;height:12px;background:rgba(0,212,255,.06);border-radius:3px"></div>
+                <div style="width:12px;height:12px;background:rgba(0,212,255,.25);border-radius:3px"></div>
+                <div style="width:12px;height:12px;background:rgba(0,212,255,.5);border-radius:3px"></div>
+                <div style="width:12px;height:12px;background:rgba(0,212,255,.75);border-radius:3px"></div>
+                <div style="width:12px;height:12px;background:#00d4ff;border-radius:3px"></div>
+              </div>
+              <span>Plus</span>
+            </div>
+          </header>
+          <div id="heatmap-container" class="heatmap-wrap"></div>
+        </article>
 
         <!-- Tableau détaillé -->
         <article class="card" style="margin-top:1.5rem;padding:1.5rem">
@@ -12107,6 +12286,19 @@ section[data-view] h1,
           console.log('[deliverDossier] ✅ Succès');
           ui.toast(`📁 Dossier livré · Bon N°${reg} clôturé ✅`, 'success', 4000);
           this.setStatus('delivered');
+
+          // 📄 Auto-PDF : génère automatiquement le rapport PDF complet
+          // (en arrière-plan, sans bloquer le re-render du bon)
+          setTimeout(async () => {
+            try {
+              console.log('[deliverDossier] 📄 Génération PDF automatique…');
+              await this.exportPDF({ silent: false, autoGenerated: true });
+              ui.toast('📄 Rapport PDF généré automatiquement', 'info', 3500);
+            } catch(e) {
+              console.warn('[deliverDossier] PDF auto échoué :', e);
+            }
+          }, 1500);
+
           setTimeout(() => this.open(reg).catch(()=>{}), 500);
         } catch (err) {
           console.error('[deliverDossier] ❌ Erreur :', err);
@@ -16296,6 +16488,128 @@ Erreur Firebase : ${e.message}`;
             }
           }
         }
+
+        // 🔥 HEATMAP CALENDRIER — 90 jours
+        try { this.renderHeatmap(list); } catch(e) { console.warn('[performance.renderHeatmap]', e); }
+      },
+
+      /* ════════════════════════════════════════════════════════════════════
+         🔥 HEATMAP CALENDRIER — Activité quotidienne sur 90 jours
+         ════════════════════════════════════════════════════════════════════ */
+      renderHeatmap(list) {
+        const container = document.getElementById('heatmap-container');
+        if (!container) return;
+
+        const days = 90;
+        const today = new Date(); today.setHours(23, 59, 59, 999);
+
+        // Compte les bons par jour
+        const dayMap = new Map();
+        (list || []).forEach(i => {
+          const ts = i.createdAt || 0;
+          if (!ts) return;
+          const d = new Date(ts);
+          d.setHours(0, 0, 0, 0);
+          const key = d.getTime();
+          dayMap.set(key, (dayMap.get(key) || 0) + 1);
+        });
+
+        // Trouve le max pour calibrer les niveaux
+        const max = Math.max(1, ...Array.from(dayMap.values()));
+        const levelFor = (n) => {
+          if (!n) return 0;
+          const r = n / max;
+          if (r < 0.25) return 1;
+          if (r < 0.5)  return 2;
+          if (r < 0.75) return 3;
+          return 4;
+        };
+
+        // Construit la grille : 90 jours, démarre il y a (90-1) jours
+        const start = new Date(today);
+        start.setHours(0, 0, 0, 0);
+        start.setDate(start.getDate() - (days - 1));
+        // Recule jusqu'au lundi le plus récent ≤ start
+        while (start.getDay() !== 1) start.setDate(start.getDate() - 1);
+
+        // Génère les cellules (7 lignes = jours semaine, colonnes = semaines)
+        const cells = [];
+        const months = [];
+        let currentMonth = -1;
+        const cursor = new Date(start);
+        const todayTs = new Date(); todayTs.setHours(0,0,0,0);
+        const endTs = todayTs.getTime();
+
+        while (cursor.getTime() <= endTs + 6 * 86400000) {
+          const ts = cursor.getTime();
+          const isFuture = ts > endTs;
+          const isInRange = ts >= (endTs - (days - 1) * 86400000);
+          const count = dayMap.get(ts) || 0;
+          const level = isInRange ? levelFor(count) : 0;
+          const dayStr = cursor.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
+
+          cells.push(`<div class="heatmap__cell"
+            data-level="${level}"
+            ${isFuture ? 'data-future="true"' : ''}
+            ${isInRange ? `data-date="${dayStr}" data-count="${count}"` : ''}></div>`);
+
+          // Track first cell of each month for header
+          if (cursor.getDate() <= 7 && cursor.getMonth() !== currentMonth) {
+            currentMonth = cursor.getMonth();
+            months.push({
+              week: Math.floor((ts - start.getTime()) / (7 * 86400000)),
+              label: cursor.toLocaleDateString('fr-FR', { month: 'short' })
+            });
+          }
+          cursor.setDate(cursor.getDate() + 1);
+        }
+
+        // Compose le HTML
+        const monthsHtml = `<div class="heatmap__months">${
+          months.map(m => `<div class="heatmap__col-month">${m.label}</div>`).join('')
+        }</div>`;
+
+        container.innerHTML = `
+          ${monthsHtml}
+          <div style="display:flex;align-items:flex-start;gap:.4rem">
+            <div style="display:flex;flex-direction:column;gap:3px;font-size:.65rem;color:var(--text-muted);font-family:var(--font-mono,monospace);padding-top:1px">
+              <div style="height:14px">Lun</div>
+              <div style="height:14px"></div>
+              <div style="height:14px">Mer</div>
+              <div style="height:14px"></div>
+              <div style="height:14px">Ven</div>
+              <div style="height:14px"></div>
+              <div style="height:14px">Dim</div>
+            </div>
+            <div class="heatmap">${cells.join('')}</div>
+          </div>
+          <div style="margin-top:.65rem;font-size:.72rem;color:var(--text-muted);font-family:var(--font-mono,monospace);text-align:right">
+            Total ${days} jours : <strong style="color:var(--accent-500,#00d4ff)">${Array.from(dayMap.values()).reduce((s,v)=>s+v, 0)}</strong> bons · max <strong style="color:var(--accent-500,#00d4ff)">${max}</strong>/jour
+          </div>
+        `;
+
+        // Tooltip on hover
+        let tip = document.getElementById('heatmap-tooltip');
+        if (!tip) {
+          tip = document.createElement('div');
+          tip.id = 'heatmap-tooltip';
+          tip.className = 'heatmap__tooltip';
+          tip.hidden = true;
+          document.body.appendChild(tip);
+        }
+        container.querySelectorAll('.heatmap__cell[data-date]').forEach(cell => {
+          cell.addEventListener('mouseenter', (e) => {
+            const date = cell.dataset.date;
+            const count = parseInt(cell.dataset.count, 10) || 0;
+            tip.innerHTML = `<strong>${count}</strong> bon${count > 1 ? 's' : ''} · ${date}`;
+            tip.hidden = false;
+          });
+          cell.addEventListener('mousemove', (e) => {
+            tip.style.left = (e.clientX + 14) + 'px';
+            tip.style.top  = (e.clientY - 32) + 'px';
+          });
+          cell.addEventListener('mouseleave', () => { tip.hidden = true; });
+        });
       },
 
       // 🆕 Helper : changer la période et re-render le chart évolution
@@ -17629,12 +17943,21 @@ Erreur Firebase : ${e.message}`;
       const savedTheme = localStorage.getItem('leoni-theme') ||
         (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       document.body.dataset.theme = savedTheme;
-      document.getElementById('btn-theme').textContent = savedTheme === 'dark' ? '◐' : '●';
-      document.getElementById('btn-theme').addEventListener('click', () => {
+      document.documentElement.dataset.theme = savedTheme;  // 🆕 aussi sur <html> pour les CSS vars
+      const themeBtn = document.getElementById('btn-theme');
+      themeBtn.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+      themeBtn.title = savedTheme === 'dark' ? 'Basculer en mode clair (atelier)' : 'Basculer en mode sombre';
+      themeBtn.addEventListener('click', () => {
         const next = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
         document.body.dataset.theme = next;
+        document.documentElement.dataset.theme = next;
         localStorage.setItem('leoni-theme', next);
-        document.getElementById('btn-theme').textContent = next === 'dark' ? '◐' : '●';
+        themeBtn.textContent = next === 'dark' ? '☀️' : '🌙';
+        themeBtn.title = next === 'dark' ? 'Basculer en mode clair (atelier)' : 'Basculer en mode sombre';
+        try { ui.toast(next === 'light' ? '☀️ Mode clair · lecture atelier' : '🌙 Mode sombre · cinématique', 'info', 2200); } catch(e){}
+        // Re-render les graphiques pour qu'ils s'adaptent
+        if (state.currentView === 'performance') setTimeout(() => views.performance.render(), 50);
+        if (state.currentView === 'hub') setTimeout(() => views.hub.render(), 50);
       });
     }
   };
@@ -19653,6 +19976,42 @@ Erreur Firebase : ${e.message}`;
       if (event.error?.message?.includes('ResizeObserver')) return; // benign
       console.error('[LEONI · js error]', event.error);
     });
+    // ════════════════════════════════════════════════════════════════════════
+    // 📱 PWA — Détection installable + bouton "Installer l'app"
+    // ════════════════════════════════════════════════════════════════════════
+    let deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      console.log('[PWA] App installable détectée');
+      // Affiche le bouton dans la cockpit bar
+      const bar = document.getElementById('cockpit-bar');
+      if (bar && !document.getElementById('btn-pwa-install')) {
+        const btn = document.createElement('button');
+        btn.id = 'btn-pwa-install';
+        btn.type = 'button';
+        btn.style.cssText = 'margin-left:.5rem;padding:.18rem .55rem;background:linear-gradient(135deg,#00d4ff,#00e5a0);color:#000;border:0;border-radius:5px;font-family:var(--font-mono,monospace);font-size:.66rem;font-weight:700;letter-spacing:.08em;cursor:pointer;text-transform:uppercase';
+        btn.textContent = '📱 Installer';
+        btn.addEventListener('click', async () => {
+          if (!deferredInstallPrompt) return;
+          deferredInstallPrompt.prompt();
+          const result = await deferredInstallPrompt.userChoice;
+          console.log('[PWA] User choice:', result.outcome);
+          deferredInstallPrompt = null;
+          btn.remove();
+          if (result.outcome === 'accepted') {
+            ui.toast('📱 LEONI installé ✅', 'success', 4000);
+          }
+        });
+        bar.appendChild(btn);
+      }
+    });
+    window.addEventListener('appinstalled', () => {
+      console.log('[PWA] App installée');
+      document.getElementById('btn-pwa-install')?.remove();
+      try { ui.toast('📱 Application LEONI installée', 'success', 4000); } catch(e){}
+    });
+
     // Cleanup au unload : détache les listeners Firebase + clear intervals
     window.addEventListener('beforeunload', () => {
       try {

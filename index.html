@@ -7687,12 +7687,13 @@ section[data-view] h1,
       <!-- VIEW PERFORMANCE — Diagramme temps techniciens                    -->
       <!-- ================================================================= -->
       <section class="history" id="view-performance" data-view="performance" hidden>
-        <header class="history__header">
+        <!-- 🚀 NASA-grade header for Performance Équipe -->
+        <div class="control-center__title-block" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
           <div>
-            <h1 class="history__title">📊 Performance Équipe</h1>
-            <p style="color:var(--text-secondary);font-size:.875rem" data-i18n="t.temps_de_travail_des_techniciens_crimpin">Temps de travail des techniciens crimping par intervention</p>
+            <h1 class="control-center__title">📊 Performance Équipe</h1>
+            <p class="control-center__sub" id="perf-control-sub">Temps de travail des techniciens crimping par intervention</p>
           </div>
-          <div style="display:flex;gap:.5rem">
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
             <select class="filter__input" id="perf-period" style="min-width:160px">
               <option value="week">7 derniers jours</option>
               <option value="month" selected>30 derniers jours</option>
@@ -7701,65 +7702,54 @@ section[data-view] h1,
             </select>
             <button class="btn btn--secondary" id="btn-perf-export">📤 Excel</button>
           </div>
-        </header>
+        </div>
 
-        <!-- KPIs Performance -->
-        <div class="hub__kpis" style="margin-bottom:1.5rem">
-          <article class="kpi kpi--primary">
-            <div class="kpi__icon">⏱</div>
-            <div class="kpi__body">
-              <div class="kpi__label">Total heures équipe</div>
-              <div class="kpi__value" id="perf-kpi-total">—</div>
-              <div class="kpi__delta">sur la période</div>
-            </div>
-          </article>
-          <article class="kpi kpi--success">
-            <div class="kpi__icon">📈</div>
-            <div class="kpi__body">
-              <div class="kpi__label">Temps moyen / interv.</div>
-              <div class="kpi__value" id="perf-kpi-avg">—</div>
-              <div class="kpi__delta">par bon</div>
-            </div>
-          </article>
-          <article class="kpi kpi--warn">
-            <div class="kpi__icon">👤</div>
-            <div class="kpi__body">
-              <div class="kpi__label">Techniciens actifs</div>
-              <div class="kpi__value" id="perf-kpi-techs">—</div>
-              <div class="kpi__delta">avec interv. saisies</div>
-            </div>
-          </article>
-          <article class="kpi kpi--info">
-            <div class="kpi__icon">🏆</div>
-            <div class="kpi__body">
-              <div class="kpi__label">Top performer</div>
-              <div class="kpi__value" id="perf-kpi-top" style="font-size:1.1rem;line-height:1.2">—</div>
-              <div class="kpi__delta" id="perf-kpi-top-h">—</div>
-            </div>
-          </article>
+        <!-- 🆕 KPI Hero — style cockpit unifié -->
+        <div class="kpi-hero" style="margin-bottom:1.25rem">
+          <div class="kpi-hero__card" data-kpi="primary">
+            <div class="kpi-hero__label">Total heures équipe</div>
+            <div class="kpi-hero__value" id="perf-kpi-total">—</div>
+            <div class="kpi-hero__sub">sur la période sélectionnée</div>
+          </div>
+          <div class="kpi-hero__card" data-kpi="success">
+            <div class="kpi-hero__label">Temps moyen / intervention</div>
+            <div class="kpi-hero__value" id="perf-kpi-avg">—</div>
+            <div class="kpi-hero__sub">par bon enregistré</div>
+          </div>
+          <div class="kpi-hero__card" data-kpi="warn">
+            <div class="kpi-hero__label">Techniciens actifs</div>
+            <div class="kpi-hero__value" id="perf-kpi-techs">—</div>
+            <div class="kpi-hero__sub">avec interventions saisies</div>
+          </div>
+          <div class="kpi-hero__card" data-kpi="danger" style="--kpi-color:#a78bfa">
+            <div class="kpi-hero__label">🏆 Top performer</div>
+            <div class="kpi-hero__value" id="perf-kpi-top" style="font-size:1.3rem">—</div>
+            <div class="kpi-hero__sub" id="perf-kpi-top-h">—</div>
+          </div>
+        </div>
+
+        <!-- KPIs Performance (legacy, hidden but kept for animator compatibility) -->
+        <div class="hub__kpis" style="display:none">
+          <article class="kpi kpi--primary"><div class="kpi__icon">⏱</div><div class="kpi__body"><div class="kpi__label">Total heures équipe</div><div class="kpi__value" id="perf-kpi-total-legacy">—</div></div></article>
         </div>
 
         <!-- Charts grid -->
-        <div class="hub__grid" style="grid-template-columns:1fr 1fr;gap:1.25rem">
-          <article class="card" style="padding:1.5rem">
-            <header class="card__header" style="margin-bottom:1rem">
-              <h2 class="card__title" data-i18n="t.heures_totales_par_technicien">📊 Heures totales par technicien</h2>
-            </header>
+        <div class="hub__grid" style="grid-template-columns:1fr 1fr;gap:.75rem">
+          <article class="control-center__card" style="padding:1rem 1.15rem">
+            <div class="control-center__card-title">📊 Heures totales par technicien</div>
             <div style="height:280px;position:relative">
               <canvas id="chart-perf-total"></canvas>
             </div>
           </article>
-          <article class="card" style="padding:1.5rem">
-            <header class="card__header" style="margin-bottom:1rem">
-              <h2 class="card__title">⏱ Temps moyen par intervention</h2>
-            </header>
+          <article class="control-center__card" style="padding:1rem 1.15rem">
+            <div class="control-center__card-title">⏱ Temps moyen par intervention</div>
             <div style="height:280px;position:relative">
               <canvas id="chart-perf-avg"></canvas>
             </div>
           </article>
-          <article class="card" style="padding:1.5rem;grid-column:1/-1">
-            <header class="card__header" style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem">
-              <h2 class="card__title">📈 Évolution des heures travaillées</h2>
+          <article class="control-center__card" style="padding:1rem 1.15rem;grid-column:1/-1">
+            <header style="margin-bottom:.85rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem">
+              <div class="control-center__card-title" style="margin-bottom:0">📈 Évolution des heures travaillées</div>
               <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
                 <div id="perf-team-toggle" style="display:flex;gap:.25rem;background:var(--bg-elevated);padding:.2rem;border-radius:8px;border:1px solid var(--border-soft)">
                   <button type="button" class="perf-team-btn" data-team="all" data-selected="true">Tous</button>
@@ -16422,6 +16412,7 @@ Erreur Firebase : ${e.message}`;
       render() {
         if (state.currentView !== 'performance') return;
         const period = document.getElementById('perf-period')?.value || 'month';
+        this._period = period;   // 🆕 mémorise pour le sous-titre cockpit
         const since = this._periodStart(period);
         const list = Object.values(state.interventions || {})
           .filter(i => i.crimping?.duration && (i.createdAt||0) >= since);
@@ -16454,9 +16445,17 @@ Erreur Firebase : ${e.message}`;
 
         document.getElementById('perf-kpi-total').textContent = this._fmtMin(totalMin);
         document.getElementById('perf-kpi-avg').textContent   = this._fmtMin(avgMin);
-        KPIAnimator.set('#perf-kpi-techs', techs.length);
-        document.getElementById('perf-kpi-top').textContent   = top ? top.name.split(' ')[0] : '—';
-        document.getElementById('perf-kpi-top-h').textContent = top ? this._fmtMin(top.total) : '—';
+        const techsEl = document.getElementById('perf-kpi-techs');
+        if (techsEl) techsEl.textContent = String(techs.length);
+        document.getElementById('perf-kpi-top').textContent   = top ? top.name.split(' ')[0].toUpperCase() : '—';
+        document.getElementById('perf-kpi-top-h').textContent = top ? this._fmtMin(top.total) + ' travaillées' : 'aucun bon';
+
+        // 🚀 Cockpit subtitle : période + nombre de bons
+        const sub = document.getElementById('perf-control-sub');
+        if (sub) {
+          const periodLbl = ({week:'7 derniers jours', month:'30 derniers jours', quarter:'3 derniers mois', all:'historique complet'})[this._period || 'month'] || '30 derniers jours';
+          sub.textContent = `Période · ${periodLbl} · ${list.length} bon${list.length>1?'s':''} analysé${list.length>1?'s':''} · ${techs.length} technicien${techs.length>1?'s':''} actif${techs.length>1?'s':''}`;
+        }
 
         // Tech detail table
         const tbody = document.getElementById('perf-tech-body');

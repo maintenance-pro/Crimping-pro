@@ -4601,6 +4601,169 @@ select:focus {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   🚀 CONTROL CENTER — Dashboard NASA-grade unifié
+   ════════════════════════════════════════════════════════════════════════ */
+.control-center {
+  margin-bottom: 1.5rem;
+}
+.control-center__title-block {
+  margin-bottom: 1rem;
+  padding-bottom: .7rem;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.12);
+}
+.control-center__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  margin: 0;
+  background: linear-gradient(135deg, #ffffff 0%, #00d4ff 80%, #00e5a0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.control-center__sub {
+  margin: .2rem 0 0;
+  font-size: .8rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.04em;
+}
+.control-center__charts {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: .75rem;
+}
+@media (max-width: 768px) {
+  .control-center__charts { grid-template-columns: 1fr; }
+}
+.control-center__card {
+  background: rgba(255, 255, 255, .02);
+  border: 1px solid rgba(0, 212, 255, .1);
+  border-radius: 10px;
+  padding: .85rem 1rem;
+}
+.control-center__card-title {
+  font-size: .72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  font-weight: 700;
+  margin-bottom: .65rem;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+/* Flux 24h — Bar chart */
+.cc-flux {
+  font-family: var(--font-mono, monospace);
+}
+.cc-flux__bars {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  align-items: flex-end;
+  height: 90px;
+  gap: 2px;
+  border-bottom: 1px solid rgba(0, 212, 255, .08);
+  padding-bottom: 2px;
+}
+.cc-flux__bar {
+  background: linear-gradient(to top, var(--bar-c, #00d4ff)55, var(--bar-c, #00d4ff)15);
+  border-top: 2px solid var(--bar-c, #00d4ff);
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+  position: relative;
+  cursor: pointer;
+  transition: filter .12s ease;
+}
+.cc-flux__bar:hover {
+  filter: brightness(1.4);
+}
+.cc-flux__bar[data-hot="true"] {
+  --bar-c: #00e5a0;
+  box-shadow: 0 0 6px rgba(0, 229, 160, .25);
+}
+.cc-flux__bar[data-empty="true"] {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(0, 212, 255, .06);
+}
+.cc-flux__legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: .65rem;
+  color: var(--text-muted);
+  margin-top: .35rem;
+  letter-spacing: 0.05em;
+}
+
+/* Performance équipe — Mini bars */
+.cc-team {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.cc-team__row {
+  display: grid;
+  grid-template-columns: 60px 1fr 36px;
+  align-items: center;
+  gap: .55rem;
+  font-size: .8rem;
+}
+.cc-team__name {
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-size: .78rem;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cc-team__bar {
+  height: 6px;
+  background: rgba(255, 255, 255, .05);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+.cc-team__fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: width .35s cubic-bezier(.16,.84,.32,1);
+}
+.cc-team__pct {
+  font-family: var(--font-mono, monospace);
+  font-weight: 700;
+  font-size: .78rem;
+  text-align: right;
+}
+.cc-team__empty {
+  padding: 1.2rem .5rem;
+  text-align: center;
+  font-size: .78rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Light theme adaptations */
+[data-theme="light"] .control-center__title {
+  background: linear-gradient(135deg, #0a1424 0%, #0082aa 80%, #006e3c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+[data-theme="light"] .control-center__card {
+  background: #ffffff !important;
+  border-color: rgba(0, 80, 120, .12) !important;
+}
+[data-theme="light"] .cc-flux__bar { --bar-c: #0082aa; }
+[data-theme="light"] .cc-flux__bar[data-hot="true"] { --bar-c: #006e3c; }
+[data-theme="light"] .cc-team__bar { background: rgba(0, 80, 120, .08); }
+
+/* ════════════════════════════════════════════════════════════════════════
    ☀️ THÈME CLAIR — Pour lecture en atelier (lumière directe / impressions)
    ════════════════════════════════════════════════════════════════════════ */
 [data-theme="light"] {
@@ -5994,7 +6157,56 @@ section[data-view] h1,
           <div id="alert-strip-list"></div>
         </div>
 
-        <header class="hub__header">
+        <!-- ════════════════════════════════════════════════════════════════════════ -->
+        <!--  🚀 CENTRE DE CONTRÔLE MAINTENANCE — Dashboard NASA-grade               -->
+        <!-- ════════════════════════════════════════════════════════════════════════ -->
+        <div class="control-center">
+          <div class="control-center__title-block">
+            <h1 class="control-center__title">Centre de contrôle maintenance</h1>
+            <p class="control-center__sub" id="control-center-sub">Calcul en cours…</p>
+          </div>
+
+          <!-- 4 KPI Hero -->
+          <div class="kpi-hero">
+            <div class="kpi-hero__card" data-kpi="primary">
+              <div class="kpi-hero__label">Interventions ouvertes</div>
+              <div class="kpi-hero__value" id="cc-kpi-open">—<span class="kpi-hero__suffix" id="cc-kpi-open-total"></span></div>
+            </div>
+            <div class="kpi-hero__card" data-kpi="success">
+              <div class="kpi-hero__label">Conformité 7j</div>
+              <div class="kpi-hero__value" id="cc-kpi-conformity">—<span class="kpi-hero__suffix">%</span></div>
+            </div>
+            <div class="kpi-hero__card" data-kpi="warn">
+              <div class="kpi-hero__label">SLA moyen</div>
+              <div class="kpi-hero__value" id="cc-kpi-sla">—<span class="kpi-hero__suffix">h</span></div>
+            </div>
+            <div class="kpi-hero__card" data-kpi="danger">
+              <div class="kpi-hero__label">Outils en alerte</div>
+              <div class="kpi-hero__value" id="cc-kpi-alerts">—<span class="kpi-hero__suffix" id="cc-kpi-alerts-sub"></span></div>
+            </div>
+          </div>
+
+          <!-- Charts duo : flux 24h + performance équipe -->
+          <div class="control-center__charts">
+            <article class="control-center__card">
+              <div class="control-center__card-title">Flux interventions · 24h</div>
+              <div class="cc-flux" id="cc-flux">
+                <div class="cc-flux__bars" id="cc-flux-bars"></div>
+                <div class="cc-flux__legend">
+                  <span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>24h</span>
+                </div>
+              </div>
+            </article>
+            <article class="control-center__card">
+              <div class="control-center__card-title">Performance équipe · 7j</div>
+              <div class="cc-team" id="cc-team">
+                <div class="cc-team__empty">Aucune donnée sur 7 jours</div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <header class="hub__header" style="display:none">
           <div>
             <h1 class="hub__title" data-i18n="hub.title">Tableau de bord</h1>
             <p class="hub__greeting" id="hub-greeting">Bienvenue —</p>
@@ -10785,6 +10997,8 @@ section[data-view] h1,
 
         // 🔔 ALERTES PRÉDICTIVES — Usure des outils
         try { this.renderPredictiveAlerts(); } catch(e) { console.warn('[hub.renderPredictiveAlerts]', e); }
+        // 🚀 CENTRE DE CONTRÔLE — KPI hero + Flux 24h + Performance équipe
+        try { this.renderControlCenter(list); } catch(e) { console.warn('[hub.renderControlCenter]', e); }
 
         const validRate = monthList.length ? Math.round(validated.length / monthList.length * 100) : 0;
         $('#kpi-validated-rate').textContent = `${validRate}% du mois`;
@@ -10986,6 +11200,143 @@ section[data-view] h1,
             `<div style="text-align:center;padding:.45rem;font-size:.72rem;color:var(--text-muted);font-style:italic">+ ${alerts.length - 5} autre${alerts.length - 5 > 1 ? 's' : ''} outil${alerts.length - 5 > 1 ? 's' : ''} à surveiller — voir Catalogue</div>`
           );
         }
+      },
+
+      /* ════════════════════════════════════════════════════════════════════
+         🚀 CENTRE DE CONTRÔLE — KPI hero + Flux 24h + Performance équipe
+         ════════════════════════════════════════════════════════════════════ */
+      renderControlCenter(list) {
+        if (!list) list = Object.values(state.interventions || {});
+        const now = Date.now();
+        const ms24h = 24 * 3600 * 1000;
+        const ms7d  = 7 * 24 * 3600 * 1000;
+
+        // ── Sous-titre dynamique : lieu · date locale ──
+        const sub = document.getElementById('control-center-sub');
+        if (sub) {
+          const dt = new Date();
+          sub.textContent = `LEONI · Annex 5 · ${dt.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })} · ${dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+        }
+
+        // ── KPI 1 : Interventions ouvertes (status != validated/delivered/rejected) ──
+        const allTotal = list.length;
+        const ouvertes = list.filter(i =>
+          ['draft','submitted'].includes(i.status) ||
+          (i.status === 'validated' && (i.crimping?.type === 'homologation' || i.crimping?.type === 'requalification'))
+        ).length;
+        const open = document.getElementById('cc-kpi-open');
+        const openTotal = document.getElementById('cc-kpi-open-total');
+        if (open) open.firstChild.textContent = String(ouvertes).padStart(2, '0');
+        if (openTotal) openTotal.textContent = ` / ${allTotal} totale${allTotal > 1 ? 's' : ''}`;
+
+        // ── KPI 2 : Conformité 7j (% validés / total décidés) ──
+        const last7 = list.filter(i => (i.createdAt || 0) >= now - ms7d);
+        const decided7 = last7.filter(i => ['validated','delivered','rejected'].includes(i.status));
+        const valid7 = last7.filter(i => ['validated','delivered'].includes(i.status));
+        const conf = decided7.length > 0 ? Math.round(valid7.length / decided7.length * 1000) / 10 : 0;
+        const confEl = document.getElementById('cc-kpi-conformity');
+        if (confEl) confEl.firstChild.textContent = decided7.length > 0 ? conf.toFixed(1) : '—';
+
+        // ── KPI 3 : SLA moyen (durée submitted → validated) ──
+        const slas = list.filter(i => i.sla?.durationMs).map(i => i.sla.durationMs);
+        const avgMs = slas.length ? slas.reduce((a,b)=>a+b,0) / slas.length : 0;
+        const slaH = Math.floor(avgMs / 3600000);
+        const slaM = Math.floor((avgMs % 3600000) / 60000);
+        const slaEl = document.getElementById('cc-kpi-sla');
+        if (slaEl) {
+          slaEl.firstChild.textContent = slas.length ? `${String(slaH).padStart(2,'0')}:${String(slaM).padStart(2,'0')}` : '—';
+        }
+
+        // ── KPI 4 : Outils en alerte (>= 75% durée vie) ──
+        const tools = state.tools ? Object.values(state.tools) : [];
+        const alertCount = tools.filter(t => {
+          const cum = parseFloat(t.cyclesCum) || 0;
+          const nom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || 1500000;
+          return cum && nom && (cum / nom) >= 0.75;
+        }).length;
+        const critCount = tools.filter(t => {
+          const cum = parseFloat(t.cyclesCum) || 0;
+          const nom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || 1500000;
+          return cum && nom && (cum / nom) >= 0.95;
+        }).length;
+        const alertEl = document.getElementById('cc-kpi-alerts');
+        const alertSub = document.getElementById('cc-kpi-alerts-sub');
+        if (alertEl) alertEl.firstChild.textContent = String(alertCount).padStart(2, '0');
+        if (alertSub) alertSub.textContent = critCount > 0 ? ` / ${critCount} crit.` : ' / usure';
+
+        // ── Flux interventions 24h (graphe en barres horaires) ──
+        this._renderFlux24h(list);
+
+        // ── Performance équipe 7j ──
+        this._renderTeamPerf7d(list);
+      },
+
+      _renderFlux24h(list) {
+        const wrap = document.getElementById('cc-flux-bars');
+        if (!wrap) return;
+        const now = Date.now();
+        const ms24h = 24 * 3600 * 1000;
+        const buckets = new Array(24).fill(0);
+        list.forEach(i => {
+          const ts = i.createdAt || 0;
+          if (!ts || ts < now - ms24h) return;
+          const hoursAgo = Math.floor((now - ts) / 3600000);
+          if (hoursAgo >= 0 && hoursAgo < 24) {
+            // index 0 = il y a 24h, index 23 = maintenant
+            const idx = 23 - hoursAgo;
+            buckets[idx]++;
+          }
+        });
+        const max = Math.max(1, ...buckets);
+        const hot = max * 0.66;
+        wrap.innerHTML = buckets.map((v, i) => {
+          if (v === 0) return `<div class="cc-flux__bar" data-empty="true" title="${i}h: 0 bon"></div>`;
+          const h = Math.max(4, Math.round(v / max * 88));
+          const hotAttr = v >= hot ? 'data-hot="true"' : '';
+          return `<div class="cc-flux__bar" ${hotAttr} style="height:${h}px" title="${i}h: ${v} bon${v>1?'s':''}"></div>`;
+        }).join('');
+      },
+
+      _renderTeamPerf7d(list) {
+        const wrap = document.getElementById('cc-team');
+        if (!wrap) return;
+        const now = Date.now();
+        const ms7d = 7 * 24 * 3600 * 1000;
+        const last7 = list.filter(i => (i.createdAt || 0) >= now - ms7d);
+        const DAILY_OBJ = 6.5;
+        const target = 7 * DAILY_OBJ * 60;  // en minutes (45h30)
+
+        const byTech = new Map();
+        last7.forEach(i => {
+          const name = (i.crimping?.technicienNom || i.crimping?.filledBy?.name || '').trim();
+          if (!name) return;
+          const dur = parseInt(i.crimping?.duration) || 0;
+          if (!dur) return;
+          byTech.set(name, (byTech.get(name) || 0) + dur);
+        });
+
+        const sorted = Array.from(byTech.entries())
+          .map(([name, mins]) => ({ name, mins, pct: Math.min(150, Math.round(mins/target*100)) }))
+          .sort((a, b) => b.mins - a.mins)
+          .slice(0, 5);
+
+        if (sorted.length === 0) {
+          wrap.innerHTML = '<div class="cc-team__empty">Aucune donnée sur 7 jours</div>';
+          return;
+        }
+
+        const colorFor = (p) => p >= 90 ? '#00e5a0' : p >= 60 ? '#00d4ff' : p >= 30 ? '#ffb547' : '#ff8b6b';
+        wrap.innerHTML = sorted.map(t => {
+          const shortName = t.name.split(' ')[0].toUpperCase().slice(0, 6);
+          const color = colorFor(t.pct);
+          return `
+            <div class="cc-team__row">
+              <span class="cc-team__name">${ui.escape(shortName)}</span>
+              <span class="cc-team__bar"><span class="cc-team__fill" style="width:${Math.min(100, t.pct)}%;background:${color}"></span></span>
+              <span class="cc-team__pct" style="color:${color}">${t.pct}%</span>
+            </div>
+          `;
+        }).join('');
       },
 
       renderWeeklyChart(list) {

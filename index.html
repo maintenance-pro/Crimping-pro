@@ -4672,6 +4672,144 @@ select:focus {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   📱 QR CODE — Modales d'affichage, scan, et impression
+   ════════════════════════════════════════════════════════════════════════ */
+.qr-display-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: #fff;
+  border-radius: 12px;
+  margin: 1rem auto;
+  max-width: 320px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, .25);
+}
+.qr-display-box .qr-canvas img,
+.qr-display-box .qr-canvas {
+  display: block;
+  width: 240px !important;
+  height: 240px !important;
+  image-rendering: pixelated;
+}
+.qr-display-box__label {
+  font-family: var(--font-mono, monospace);
+  font-size: .9rem;
+  font-weight: 700;
+  color: #0a1628;
+  text-align: center;
+  word-break: break-all;
+  line-height: 1.3;
+}
+.qr-display-box__sublabel {
+  font-size: .72rem;
+  color: #555;
+  text-align: center;
+}
+.qr-scanner-frame {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid var(--accent-500, #00d4ff);
+  box-shadow: 0 0 32px rgba(0, 212, 255, .4);
+}
+#qr-scanner-region {
+  width: 100% !important;
+  height: 100% !important;
+}
+#qr-scanner-region video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+.qr-scanner-status {
+  text-align: center;
+  font-size: .85rem;
+  color: var(--text-secondary);
+  margin-top: .75rem;
+  min-height: 1.2rem;
+}
+.qr-floating-btn {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #00d4ff, #00e5a0);
+  color: #0a1628;
+  border: none;
+  font-size: 1.7rem;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 212, 255, .4), 0 0 0 4px rgba(0, 212, 255, .15);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s ease;
+}
+.qr-floating-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 24px rgba(0, 212, 255, .55), 0 0 0 6px rgba(0, 212, 255, .2);
+}
+.qr-floating-btn:active { transform: scale(0.96); }
+@media (max-width: 600px) {
+  .qr-floating-btn {
+    width: 54px;
+    height: 54px;
+    font-size: 1.5rem;
+    bottom: 1rem;
+    right: 1rem;
+  }
+}
+
+/* Page d'impression batch des QR codes */
+.qr-print-page {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+}
+.qr-print-item {
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: .75rem;
+  text-align: center;
+  page-break-inside: avoid;
+}
+.qr-print-item img,
+.qr-print-item canvas {
+  width: 140px;
+  height: 140px;
+  display: block;
+  margin: 0 auto .35rem;
+}
+.qr-print-item__label {
+  font-family: var(--font-mono, monospace);
+  font-size: .75rem;
+  font-weight: 700;
+  color: #000;
+  word-break: break-all;
+  line-height: 1.2;
+}
+.qr-print-item__sublabel {
+  font-size: .65rem;
+  color: #666;
+  margin-top: .15rem;
+}
+@media print {
+  .qr-print-page { background: #fff; }
+  .qr-print-item { border: 1px solid #888; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    🚀 CONTROL CENTER — Dashboard NASA-grade unifié
    ════════════════════════════════════════════════════════════════════════ */
 .control-center {
@@ -7108,6 +7246,7 @@ section[data-view] h1,
             <input class="catalog__search" id="catalog-search" type="search" placeholder="Rechercher par serial, groupe, projet, fournisseur…" / autocomplete="off">
             <button class="btn btn--secondary" id="btn-catalog-import">📥 Importer Excel</button>
             <button class="btn btn--secondary" id="btn-catalog-export"><span data-i18n="action.exportExcel">📤 Exporter Excel</span></button>
+            <button class="btn btn--secondary" id="btn-catalog-print-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Imprimer les QR codes des outils filtrés">🖨 QR Codes</button>
             <button class="btn btn--primary" id="btn-catalog-add" data-requires-role="responsable,super_admin,admin">＋ Nouvel outil</button>
           </div>
         </header>
@@ -7921,6 +8060,11 @@ section[data-view] h1,
 
     </main>
 
+    <!-- ============== 📷 BOUTON FLOTTANT SCANNER QR ============== -->
+    <button type="button" class="qr-floating-btn" id="btn-qr-scan-floating" title="Scanner un QR code" aria-label="Scanner un QR code" hidden>
+      📷
+    </button>
+
 
     <!-- ============== NOTIFICATIONS PANEL ============== -->
     <aside class="notif-panel" id="notif-panel" hidden>
@@ -8072,10 +8216,68 @@ section[data-view] h1,
         <button class="btn btn--secondary" id="btn-tool-details-form" style="background:rgba(255,139,107,.12);color:#ff8b6b;border:1px solid rgba(255,139,107,.3);font-weight:700">
           📝 Choisir Annex 5
         </button>
-        <div style="display:flex;gap:.5rem">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="btn btn--secondary" id="btn-tool-details-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Générer un QR code pour cet outil">📱 QR Code</button>
           <button class="btn btn--ghost" data-close>Fermer</button>
           <button class="btn btn--secondary" id="btn-tool-details-edit" style="background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3)">✏️ Modifier</button>
         </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- 📱 QR CODE — Modale d'affichage d'un QR pour un outil                  -->
+  <!-- ===================================================================== -->
+  <div class="modal" id="modal-qr-display" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:420px">
+      <header class="modal__header">
+        <h2 class="modal__title">📱 QR Code de l'outil</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body">
+        <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:.5rem;text-align:center">
+          Imprimez et collez ce QR code sur l'outil/machine.<br>
+          Les techniciens pourront le scanner pour accéder directement à la fiche.
+        </p>
+        <div class="qr-display-box">
+          <div class="qr-canvas" id="qr-display-canvas"></div>
+          <div class="qr-display-box__label" id="qr-display-label">—</div>
+          <div class="qr-display-box__sublabel" id="qr-display-sublabel">—</div>
+        </div>
+      </div>
+      <footer class="modal__footer" style="justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+        <button class="btn btn--ghost" data-close>Fermer</button>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="btn btn--secondary" id="btn-qr-download" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700">📥 Télécharger PNG</button>
+          <button class="btn btn--primary" id="btn-qr-print" style="font-weight:700">🖨 Imprimer</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- 📷 QR SCANNER — Modale avec caméra pour scanner les QR codes           -->
+  <!-- ===================================================================== -->
+  <div class="modal" id="modal-qr-scanner" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:560px">
+      <header class="modal__header">
+        <h2 class="modal__title">📷 Scanner un QR code</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body">
+        <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:1rem;text-align:center">
+          Pointez la caméra vers le QR code de l'outil ou de la machine.
+        </p>
+        <div class="qr-scanner-frame">
+          <div id="qr-scanner-region"></div>
+        </div>
+        <div class="qr-scanner-status" id="qr-scanner-status">⌛ Initialisation de la caméra…</div>
+      </div>
+      <footer class="modal__footer" style="justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+        <button class="btn btn--ghost" id="btn-qr-scanner-close" data-close>Fermer</button>
+        <button class="btn btn--secondary" id="btn-qr-scanner-switch" style="background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3)">🔄 Changer caméra</button>
       </footer>
     </div>
   </div>
@@ -8555,6 +8757,12 @@ section[data-view] h1,
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
+  <!-- ===================================================================== -->
+  <!-- 📱 QR CODE — Génération (qrcode-generator) + Scan (html5-qrcode)       -->
+  <!-- ===================================================================== -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
 
   <!-- ===================================================================== -->
   <!-- APPLICATION                                                            -->
@@ -10113,6 +10321,8 @@ section[data-view] h1,
         ui.hideLoader();
         ui.toast(`Bienvenue ${profile.displayName}`, 'success');
         initSessionTimeout();
+        // 📱 Afficher le bouton flottant QR scanner
+        if (typeof qrCodes !== 'undefined' && qrCodes.updateVisibility) qrCodes.updateVisibility();
 
         // 🔔 Demander la permission notifications système (1 seule fois)
         // Délai 2s pour ne pas perturber le login + laisser le UI s'afficher
@@ -10131,6 +10341,8 @@ section[data-view] h1,
         app.detachListeners();
         $('#view-login').hidden = false;
         $('#shell').hidden = true;
+        // 📱 Cacher le bouton flottant QR scanner
+        if (typeof qrCodes !== 'undefined' && qrCodes.updateVisibility) qrCodes.updateVisibility();
       }
     },
 
@@ -10921,7 +11133,23 @@ section[data-view] h1,
       window.location.hash = view;
     },
     handleHash() {
-      const hash = window.location.hash.replace('#', '') || 'hub';
+      const rawHash = window.location.hash.replace('#', '') || 'hub';
+
+      // 📱 Deep-link QR Code : #tool/ID → ouvre la fiche outil
+      if (rawHash.startsWith('tool/')) {
+        const toolId = decodeURIComponent(rawHash.substring(5));
+        // Si state.tools pas encore chargé, on attend
+        if (!state.tools || !Object.keys(state.tools).length) {
+          setTimeout(() => this.handleHash(), 300);
+          return;
+        }
+        if (typeof qrCodes !== 'undefined' && qrCodes.handleDeepLink) {
+          qrCodes.handleDeepLink(toolId);
+        }
+        return;
+      }
+
+      const hash = rawHash;
       // 🆕 Routes fusionnées : equipe / analytics / pdr-hub redirigent vers les vues réelles
       // (et leur tab par défaut)
       const mergedHubs = {
@@ -11110,6 +11338,462 @@ section[data-view] h1,
     ctx.fillText(text, 40, 40);
     // Pour un vrai QR : intégrer la lib qrcode-generator depuis CDN
   }
+
+  /* ==========================================================================
+     12.5  📱 QR CODES — Génération, scan, impression
+     ========================================================================== */
+  const qrCodes = {
+    _scanner: null,           // instance Html5Qrcode
+    _scannerCameraId: null,   // id de la caméra active
+    _scannerCameras: [],      // liste des caméras
+    _currentToolForQr: null,  // outil affiché dans la modale QR
+
+    /**
+     * Construit l'URL deep-link vers la fiche d'un outil.
+     * Ex: https://maintenance-pro.github.io/Crimping-pro/#tool/abc123
+     */
+    buildToolUrl(toolId) {
+      const base = window.location.origin + window.location.pathname;
+      return base + '#tool/' + encodeURIComponent(toolId);
+    },
+
+    /**
+     * Génère un QR code dans un conteneur DOM via qrcode-generator.
+     * Retourne le canvas/img créé (pour download).
+     */
+    _drawQR(container, text, size = 240) {
+      if (typeof qrcode === 'undefined') {
+        container.innerHTML = '<div style="color:#c00;padding:1rem">⚠️ Librairie QR non chargée</div>';
+        return null;
+      }
+      container.innerHTML = '';
+      // Type 0 = auto-detect, niveau H = 30% correction d'erreur (résiste aux taches/usure atelier)
+      const qr = qrcode(0, 'H');
+      qr.addData(text);
+      qr.make();
+      // createImgTag(cellSize, margin) — cellSize ajusté pour atteindre la taille demandée
+      const cellSize = Math.max(2, Math.floor(size / qr.getModuleCount()));
+      const margin = 4;
+      const img = document.createElement('div');
+      img.innerHTML = qr.createImgTag(cellSize, margin);
+      const imgEl = img.firstChild;
+      if (imgEl) {
+        imgEl.style.width = size + 'px';
+        imgEl.style.height = size + 'px';
+        imgEl.style.imageRendering = 'pixelated';
+        container.appendChild(imgEl);
+      }
+      return imgEl;
+    },
+
+    /**
+     * Ouvre la modale QR pour un outil donné.
+     */
+    showForTool(tool) {
+      if (!tool) { ui.toast('Outil introuvable', 'danger'); return; }
+      if (typeof qrcode === 'undefined') {
+        ui.toast('⏳ Librairie QR en cours de chargement, réessayez dans 1 seconde…', 'warn');
+        return;
+      }
+      this._currentToolForQr = tool;
+      const modal = document.getElementById('modal-qr-display');
+      if (!modal) return;
+
+      const url = this.buildToolUrl(tool.id);
+      const label = tool.serial || tool.doutils || tool.outilId || tool.refOutil || tool.id;
+      const sub = [tool.groupe, tool.projet].filter(Boolean).join(' · ') || 'Outil sertissage';
+
+      document.getElementById('qr-display-label').textContent = label;
+      document.getElementById('qr-display-sublabel').textContent = sub;
+      const canvas = document.getElementById('qr-display-canvas');
+      this._drawQR(canvas, url, 240);
+
+      // Wire close buttons
+      modal.querySelectorAll('[data-close]').forEach(el => {
+        el.onclick = () => { modal.hidden = true; };
+      });
+      modal.hidden = false;
+    },
+
+    /**
+     * Télécharge le QR code affiché en PNG.
+     */
+    downloadCurrent() {
+      const tool = this._currentToolForQr;
+      if (!tool) return;
+      const url = this.buildToolUrl(tool.id);
+      // Re-générer en plus grand pour qualité d'impression
+      const qr = qrcode(0, 'H');
+      qr.addData(url);
+      qr.make();
+      const cellSize = 8;
+      const moduleCount = qr.getModuleCount();
+      const margin = 4;
+      const sizePx = (moduleCount + margin * 2) * cellSize;
+
+      // Créer un canvas pour générer un PNG
+      const canvas = document.createElement('canvas');
+      canvas.width = sizePx;
+      canvas.height = sizePx + 50; // espace pour label en bas
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Dessiner QR
+      for (let r = 0; r < moduleCount; r++) {
+        for (let c = 0; c < moduleCount; c++) {
+          if (qr.isDark(r, c)) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect((c + margin) * cellSize, (r + margin) * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+      // Label en bas
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 18px monospace';
+      ctx.textAlign = 'center';
+      const label = tool.serial || tool.doutils || tool.outilId || tool.refOutil || tool.id;
+      ctx.fillText(label.substring(0, 30), canvas.width / 2, sizePx + 25);
+
+      // Téléchargement
+      const filename = 'QR_' + (label.replace(/[^\w-]/g, '_')) + '.png';
+      canvas.toBlob(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      });
+      ui.toast('📥 QR code téléchargé : ' + filename, 'success');
+    },
+
+    /**
+     * Imprime le QR code affiché (page dédiée).
+     */
+    printCurrent() {
+      const tool = this._currentToolForQr;
+      if (!tool) return;
+      const url = this.buildToolUrl(tool.id);
+      const label = tool.serial || tool.doutils || tool.outilId || tool.refOutil || tool.id;
+      const sub = [tool.groupe, tool.projet].filter(Boolean).join(' · ');
+
+      const qr = qrcode(0, 'H');
+      qr.addData(url);
+      qr.make();
+      const qrHtml = qr.createImgTag(6, 4);
+
+      const w = window.open('', '_blank', 'width=600,height=700');
+      w.document.write(`
+        <!DOCTYPE html><html><head><title>QR ${label}</title>
+        <style>
+          body { font-family: Arial; text-align: center; padding: 2rem; }
+          .label { font-family: monospace; font-weight: bold; font-size: 18px; margin-top: 1rem; }
+          .sub { font-size: 13px; color: #555; margin-top: .3rem; }
+          @media print { body { padding: .5rem; } }
+        </style></head><body>
+          ${qrHtml}
+          <div class="label">${label}</div>
+          ${sub ? `<div class="sub">${sub}</div>` : ''}
+          <script>setTimeout(() => window.print(), 300);<\/script>
+        </body></html>
+      `);
+      w.document.close();
+    },
+
+    /**
+     * Imprime TOUS les QR codes des outils actuellement filtrés dans le catalogue.
+     */
+    printAllForCatalog() {
+      if (typeof qrcode === 'undefined') {
+        ui.toast('Librairie QR non chargée', 'danger');
+        return;
+      }
+      // Récupère le filtre actuel du catalogue
+      const searchEl = document.getElementById('catalog-search');
+      const q = (searchEl?.value || '').trim().toLowerCase();
+      let tools = Object.values(state.tools || {});
+      if (q) {
+        tools = tools.filter(t => {
+          const haystack = [t.serial, t.doutils, t.outilId, t.refOutil, t.groupe, t.projet, t.fabricant]
+            .filter(Boolean).join(' ').toLowerCase();
+          return haystack.includes(q);
+        });
+      }
+      if (!tools.length) {
+        ui.toast('Aucun outil à imprimer', 'warn');
+        return;
+      }
+      if (tools.length > 200) {
+        if (!confirm(`⚠️ Vous allez imprimer ${tools.length} QR codes. Continuer ?\n\nConseil : filtrez d'abord par groupe ou projet pour réduire.`)) return;
+      }
+
+      const items = tools.map(t => {
+        const url = this.buildToolUrl(t.id);
+        const label = t.serial || t.doutils || t.outilId || t.refOutil || t.id;
+        const sub = [t.groupe, t.projet].filter(Boolean).join(' · ');
+        const qr = qrcode(0, 'H');
+        qr.addData(url);
+        qr.make();
+        return `
+          <div class="qr-print-item">
+            ${qr.createImgTag(4, 4)}
+            <div class="qr-print-item__label">${(label || '').toString().substring(0, 30)}</div>
+            ${sub ? `<div class="qr-print-item__sublabel">${sub.substring(0, 40)}</div>` : ''}
+          </div>`;
+      }).join('');
+
+      const w = window.open('', '_blank', 'width=900,height=700');
+      w.document.write(`
+        <!DOCTYPE html><html><head><title>QR Codes (${tools.length} outils)</title>
+        <style>
+          body { font-family: Arial; margin: 0; background: #fff; }
+          h1 { padding: 1rem; font-size: 1.1rem; border-bottom: 1px solid #ccc; }
+          .qr-print-page { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; padding: 1rem; }
+          .qr-print-item { background:#fff; border:1px solid #888; border-radius:6px; padding:.6rem; text-align:center; page-break-inside:avoid; }
+          .qr-print-item img { width:140px; height:140px; display:block; margin:0 auto .35rem; image-rendering: pixelated; }
+          .qr-print-item__label { font-family:monospace; font-weight:bold; font-size:.78rem; word-break:break-all; line-height:1.2; }
+          .qr-print-item__sublabel { font-size:.65rem; color:#666; margin-top:.15rem; }
+          .toolbar { padding:.75rem 1rem; background:#f4f4f4; border-bottom:1px solid #ddd; display:flex; gap:.5rem; align-items:center; }
+          .toolbar button { padding:.4rem 1rem; background:#0a6; color:#fff; border:none; border-radius:5px; font-weight:600; cursor:pointer; }
+          @media print { .toolbar, h1 { display:none; } body { background:#fff; } }
+        </style></head><body>
+          <div class="toolbar">
+            <button onclick="window.print()">🖨 Imprimer</button>
+            <span style="font-size:.85rem;color:#444">${tools.length} QR codes — Format optimisé pour planches d'étiquettes</span>
+          </div>
+          <h1>QR Codes Outils — LEONI Wiring System (${tools.length})</h1>
+          <div class="qr-print-page">${items}</div>
+        </body></html>
+      `);
+      w.document.close();
+      ui.toast(`🖨 ${tools.length} QR codes générés dans un nouvel onglet`, 'success');
+    },
+
+    /**
+     * Ouvre la modale de scan QR — démarre la caméra.
+     */
+    async openScanner() {
+      if (typeof Html5Qrcode === 'undefined') {
+        ui.toast('⏳ Librairie scan QR en cours de chargement…', 'warn');
+        return;
+      }
+      const modal = document.getElementById('modal-qr-scanner');
+      if (!modal) return;
+      const statusEl = document.getElementById('qr-scanner-status');
+      statusEl.textContent = '⌛ Initialisation de la caméra…';
+      modal.hidden = false;
+
+      try {
+        this._scannerCameras = await Html5Qrcode.getCameras();
+        if (!this._scannerCameras || !this._scannerCameras.length) {
+          statusEl.textContent = '⛔ Aucune caméra détectée';
+          ui.toast('Aucune caméra trouvée sur cet appareil', 'danger');
+          return;
+        }
+        // Préférer la caméra arrière sur mobile
+        let camera = this._scannerCameras.find(c => /back|rear|environment/i.test(c.label)) || this._scannerCameras[0];
+        this._scannerCameraId = camera.id;
+        await this._startScannerWithCamera(camera.id);
+      } catch (e) {
+        console.error('[QR Scanner] init error:', e);
+        statusEl.textContent = '⛔ ' + (e.message || 'Erreur caméra — autorisez l\'accès dans les paramètres');
+        ui.toast('Impossible d\'ouvrir la caméra. Autorisez l\'accès dans le navigateur.', 'danger');
+      }
+    },
+
+    async _startScannerWithCamera(cameraId) {
+      const statusEl = document.getElementById('qr-scanner-status');
+      // Stopper l'ancien scanner si existant
+      if (this._scanner) {
+        try { await this._scanner.stop(); } catch(e){}
+        try { await this._scanner.clear(); } catch(e){}
+        this._scanner = null;
+      }
+      this._scanner = new Html5Qrcode('qr-scanner-region');
+      statusEl.textContent = '🎯 Pointez vers le QR code…';
+      await this._scanner.start(
+        cameraId,
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => this._onScanned(decodedText),
+        () => {} // ignore errors of decoding individual frames
+      );
+    },
+
+    async switchCamera() {
+      if (!this._scannerCameras || this._scannerCameras.length < 2) {
+        ui.toast('Une seule caméra disponible', 'warn');
+        return;
+      }
+      const idx = this._scannerCameras.findIndex(c => c.id === this._scannerCameraId);
+      const nextIdx = (idx + 1) % this._scannerCameras.length;
+      this._scannerCameraId = this._scannerCameras[nextIdx].id;
+      try {
+        await this._startScannerWithCamera(this._scannerCameraId);
+        ui.toast('🔄 Caméra : ' + (this._scannerCameras[nextIdx].label || 'cam ' + nextIdx), 'info');
+      } catch(e) {
+        ui.toast('Erreur changement caméra : ' + e.message, 'danger');
+      }
+    },
+
+    async closeScanner() {
+      if (this._scanner) {
+        try { await this._scanner.stop(); } catch(e){}
+        try { await this._scanner.clear(); } catch(e){}
+        this._scanner = null;
+      }
+      const modal = document.getElementById('modal-qr-scanner');
+      if (modal) modal.hidden = true;
+    },
+
+    /**
+     * Callback : QR scanné avec succès.
+     * Parse le contenu (URL ou ID brut) → ouvre la fiche outil.
+     */
+    async _onScanned(decodedText) {
+      // Anti-doublon : ignore les scans répétés en <2s
+      if (this._lastScan && (Date.now() - this._lastScan.ts) < 2000 && this._lastScan.text === decodedText) {
+        return;
+      }
+      this._lastScan = { text: decodedText, ts: Date.now() };
+
+      // Feedback
+      const statusEl = document.getElementById('qr-scanner-status');
+      if (statusEl) statusEl.textContent = '✅ QR détecté : ' + decodedText.substring(0, 60);
+
+      // Extraire l'ID outil depuis le contenu
+      let toolId = null;
+      try {
+        // Cas 1 : URL avec hash #tool/ID
+        const match = decodedText.match(/#tool\/([^?&]+)/);
+        if (match) {
+          toolId = decodeURIComponent(match[1]);
+        } else if (/^[\w\-:]+$/.test(decodedText)) {
+          // Cas 2 : ID brut (compatibilité QR codes externes)
+          toolId = decodedText;
+        }
+      } catch(e) {}
+
+      if (!toolId) {
+        ui.toast('QR scanné mais format non reconnu : ' + decodedText.substring(0, 40), 'warn');
+        return;
+      }
+
+      // Rechercher l'outil dans state.tools
+      let tool = state.tools && state.tools[toolId];
+      if (!tool) {
+        // Recherche fuzzy par serial/outilId si l'id direct ne matche pas
+        tool = Object.values(state.tools || {}).find(t =>
+          t.id === toolId || t.serial === toolId || t.outilId === toolId || t.refOutil === toolId
+        );
+      }
+
+      if (!tool) {
+        ui.toast('⚠️ Outil non trouvé dans le catalogue : ' + toolId, 'danger');
+        // Stopper le son de scan répété
+        await this.closeScanner();
+        return;
+      }
+
+      // Vibration de feedback (mobile)
+      if (navigator.vibrate) navigator.vibrate(150);
+
+      ui.toast('✅ ' + (tool.serial || tool.doutils || tool.outilId || 'Outil'), 'success');
+      await this.closeScanner();
+
+      // Naviguer vers le catalogue et ouvrir la fiche
+      router.go('catalog');
+      setTimeout(() => {
+        if (views.catalog && typeof views.catalog.showDetails === 'function') {
+          views.catalog.showDetails(tool);
+        }
+      }, 150);
+    },
+
+    /**
+     * Gère un deep-link #tool/ID au chargement de la page (URL scannée hors app).
+     */
+    handleDeepLink(toolId) {
+      if (!toolId) return false;
+      let tool = state.tools && state.tools[toolId];
+      if (!tool) {
+        tool = Object.values(state.tools || {}).find(t =>
+          t.id === toolId || t.serial === toolId || t.outilId === toolId || t.refOutil === toolId
+        );
+      }
+      if (!tool) {
+        ui.toast('Outil non trouvé : ' + toolId, 'warn');
+        return false;
+      }
+      router.go('catalog');
+      setTimeout(() => {
+        if (views.catalog && typeof views.catalog.showDetails === 'function') {
+          views.catalog.showDetails(tool);
+        }
+      }, 200);
+      return true;
+    },
+
+    /**
+     * Câble tous les boutons UI une fois le DOM prêt.
+     */
+    wireUp() {
+      // Bouton QR dans la modale détails outil
+      const btnQR = document.getElementById('btn-tool-details-qr');
+      if (btnQR) {
+        btnQR.onclick = () => {
+          // Ferme la modale détails et ouvre la modale QR
+          const detailsModal = document.getElementById('modal-tool-details');
+          if (detailsModal) detailsModal.hidden = true;
+          // Récupère l'outil courant depuis le titre (ou via state)
+          // On stocke l'outil dans une variable globale lors de showDetails
+          const tool = views.catalog && views.catalog._lastDetailsTool;
+          if (tool) this.showForTool(tool);
+          else ui.toast('Réessayez : aucun outil sélectionné', 'warn');
+        };
+      }
+
+      // Bouton "Imprimer QR codes" dans header catalogue
+      const btnPrintAll = document.getElementById('btn-catalog-print-qr');
+      if (btnPrintAll) btnPrintAll.onclick = () => this.printAllForCatalog();
+
+      // Boutons dans la modale QR display
+      const btnDownload = document.getElementById('btn-qr-download');
+      if (btnDownload) btnDownload.onclick = () => this.downloadCurrent();
+      const btnPrint = document.getElementById('btn-qr-print');
+      if (btnPrint) btnPrint.onclick = () => this.printCurrent();
+
+      // Bouton flottant scanner
+      const btnFloat = document.getElementById('btn-qr-scan-floating');
+      if (btnFloat) {
+        btnFloat.onclick = () => this.openScanner();
+        // Visible seulement après login
+        btnFloat.hidden = !state.user;
+      }
+
+      // Boutons modale scanner
+      const btnClose = document.getElementById('btn-qr-scanner-close');
+      if (btnClose) btnClose.onclick = () => this.closeScanner();
+      const btnSwitch = document.getElementById('btn-qr-scanner-switch');
+      if (btnSwitch) btnSwitch.onclick = () => this.switchCamera();
+
+      // Fermer scanner si on clique le backdrop
+      const scannerModal = document.getElementById('modal-qr-scanner');
+      if (scannerModal) {
+        scannerModal.querySelectorAll('[data-close]').forEach(el => {
+          el.addEventListener('click', () => this.closeScanner());
+        });
+      }
+    },
+
+    /**
+     * Affiche/cache le bouton flottant selon l'état de connexion.
+     */
+    updateVisibility() {
+      const btnFloat = document.getElementById('btn-qr-scan-floating');
+      if (btnFloat) btnFloat.hidden = !state.user;
+    }
+  };
+  window.qrCodes = qrCodes;
 
   /* ==========================================================================
      13. VIEWS
@@ -13913,6 +14597,8 @@ section[data-view] h1,
        */
       showDetails(tool) {
         if (!tool) return;
+        // 📱 Mémoriser pour le bouton QR Code
+        this._lastDetailsTool = tool;
         const modal = document.getElementById('modal-tool-details');
         if (!modal) return;
 
@@ -20589,6 +21275,11 @@ Erreur Firebase : ${e.message}`;
     if (views.technicians && views.technicians.init) views.technicians.init();
     userActions.initModals();
     initDurationField();
+
+    // 📱 Câblage du système QR Codes (génération + scan)
+    if (typeof qrCodes !== 'undefined' && qrCodes.wireUp) {
+      qrCodes.wireUp();
+    }
 
     // ════════════════════════════════════════════════════════════════════════
     // 🚀 COCKPIT BAR — Mise à jour de l'heure + statut Firebase en temps réel

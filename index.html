@@ -482,8 +482,11 @@ legend { padding: 0; }
   z-index: var(--z-sidebar);
   position: sticky;
   top: var(--topbar-h);
+  align-self: start;                     /* 🆕 essentiel pour sticky dans grid */
   height: calc(100vh - var(--topbar-h));
+  max-height: calc(100vh - var(--topbar-h));
   overflow-y: auto;
+  overscroll-behavior: contain;          /* 🆕 stop scroll chain au body */
   box-shadow: 2px 0 20px rgba(0,0,0,.3);
 }
 
@@ -2840,10 +2843,10 @@ kbd {
   overflow-y: auto !important;
   overflow-x: hidden !important;
 }
-/* Permet au scroll page entière */
-.app, .shell, body {
-  overflow-y: auto !important;
-}
+/* 🔧 FIX STICKY : seul body a le scroll-context, .shell doit laisser passer
+   pour que .sidebar position:sticky fonctionne par rapport au viewport */
+body { overflow-y: auto !important; overflow-x: hidden !important; }
+.app, .shell { overflow: visible !important; }
 /* Sticky header table - garde la visibilité */
 .data-table thead th {
   position: sticky !important;
@@ -7480,23 +7483,39 @@ section[data-view] h1,
       <!-- VIEW 8 — STATISTIQUES & SLA                                       -->
       <!-- ================================================================= -->
       <section class="stats-view" id="view-stats" data-view="stats" hidden>
-        <header class="stats-view__header">
-          <h1 class="stats-view__title" data-i18n="stats.title">Statistiques & SLA</h1>
-          <div class="stats-view__period">
-            <select id="stats-period">
-              <option value="7">7 jours</option>
-              <option value="30" selected>30 jours</option>
-              <option value="90">90 jours</option>
-              <option value="365">12 mois</option>
+        <!-- 🚀 NASA-grade header -->
+        <div class="control-center__title-block" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
+          <div>
+            <h1 class="control-center__title">📊 Statistiques &amp; SLA</h1>
+            <p class="control-center__sub" id="stats-control-sub">Analyse globale · répartition statuts · tendance SLA</p>
+          </div>
+          <div style="display:flex;gap:.5rem;align-items:center">
+            <select id="stats-period" class="filter__input" style="min-width:140px">
+              <option value="7">7 derniers jours</option>
+              <option value="30" selected>30 derniers jours</option>
+              <option value="90">90 derniers jours</option>
+              <option value="365">12 derniers mois</option>
             </select>
           </div>
-        </header>
+        </div>
 
         <div class="stats-view__grid">
-          <article class="card"><canvas id="chart-status-distribution"></canvas></article>
-          <article class="card"><canvas id="chart-sla-trend"></canvas></article>
-          <article class="card"><canvas id="chart-tools-ranking"></canvas></article>
-          <article class="card"><canvas id="chart-tech-performance"></canvas></article>
+          <article class="control-center__card" style="padding:1rem 1.15rem">
+            <div class="control-center__card-title">🍩 Répartition des statuts</div>
+            <div style="height:300px;position:relative"><canvas id="chart-status-distribution"></canvas></div>
+          </article>
+          <article class="control-center__card" style="padding:1rem 1.15rem">
+            <div class="control-center__card-title">📈 Tendance SLA moyen</div>
+            <div style="height:300px;position:relative"><canvas id="chart-sla-trend"></canvas></div>
+          </article>
+          <article class="control-center__card" style="padding:1rem 1.15rem">
+            <div class="control-center__card-title">🛠 Top outils utilisés</div>
+            <div style="height:300px;position:relative"><canvas id="chart-tools-ranking"></canvas></div>
+          </article>
+          <article class="control-center__card" style="padding:1rem 1.15rem">
+            <div class="control-center__card-title">👥 Performance par technicien</div>
+            <div style="height:300px;position:relative"><canvas id="chart-tech-performance"></canvas></div>
+          </article>
         </div>
       </section>
 
@@ -17814,6 +17833,17 @@ Erreur Firebase : ${e.message}`;
           const days = parseInt(document.getElementById('stats-period')?.value || 30);
           const since = Date.now() - days * 86400000;
           const list = Object.values(state.interventions).filter(i => (i.createdAt||0) >= since);
+
+          // 🚀 Cockpit subtitle dynamique
+          const sub = document.getElementById('stats-control-sub');
+          if (sub) {
+            const periodLbl = ({7:'7 derniers jours', 30:'30 derniers jours', 90:'90 derniers jours', 365:'12 derniers mois'})[days] || `${days} jours`;
+            const validated = list.filter(i => ['validated','delivered'].includes(i.status)).length;
+            const rejected = list.filter(i => i.status === 'rejected').length;
+            const decided = validated + rejected;
+            const validRate = decided > 0 ? Math.round(validated / decided * 100) : 0;
+            sub.textContent = `Période · ${periodLbl} · ${list.length} bon${list.length>1?'s':''} · ${validRate}% conformité`;
+          }
 
           const neutral = 'rgba(255,255,255,.06)';
           const textColor = '#8895b3';

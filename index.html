@@ -7630,6 +7630,7 @@ section[data-view] h1,
                 <input type="file" accept=".xlsx,.xls" id="pc-orders-xl-input" style="position:absolute;inset:0;opacity:0;cursor:pointer;z-index:1"/ autocomplete="off">
               </label>
               <button class="btn btn--secondary" id="pc-orders-template-btn" title="Télécharger un modèle Excel vide à remplir" data-i18n="t.modele">📋 Modèle</button>
+              <button class="btn btn--secondary" id="pc-orders-clear-btn" data-requires-role="admin,super_admin,magasinier" title="Effacer TOUTES les commandes" style="color:#ff8b6b;border-color:rgba(255,61,90,.3)">✕ Effacer</button>
             </div>
 
             <button class="btn btn--secondary" id="pc-refresh-btn" title="Recharger les données">↻ Actualiser</button>
@@ -16098,6 +16099,45 @@ Erreur Firebase : ${e.message}`;
       },
 
       /**
+       * 🗑 Efface TOUTES les commandes de Firebase (stockOrders) + audit
+       * Demande double confirmation au magasinier/admin.
+       */
+      async clearAllOrders() {
+        if (!['admin','super_admin','magasinier'].includes(state.role)) {
+          return ui.toast('Effacement réservé aux magasiniers / admins', 'danger', 4000);
+        }
+        const total = Object.keys(state.stockOrders || {}).length;
+        if (total === 0) {
+          return ui.toast('Aucune commande à effacer', 'info', 3000);
+        }
+        const ok1 = await ui.confirm(
+          '🗑 Effacer TOUTES les commandes ?',
+          `Tu es sur le point d'effacer ${total} commande${total > 1 ? 's' : ''} (Qté commandée + Statut) de Firebase. Cette action est IRRÉVERSIBLE.`,
+          { type: 'danger', okLabel: '⚠️ Continuer', cancelLabel: 'Annuler' }
+        );
+        if (!ok1) return;
+        const ok2 = await ui.confirm(
+          '⚠️ Confirmation finale',
+          `Toutes les commandes seront supprimées définitivement. Confirme-tu ?`,
+          { type: 'danger', okLabel: '🗑 OUI, EFFACER', cancelLabel: 'NON, garder' }
+        );
+        if (!ok2) return;
+
+        ui.showLoader(`Effacement de ${total} commande${total > 1 ? 's' : ''}…`);
+        try {
+          await fbDb.ref('stockOrders').remove();
+          try { db.audit('stockOrders.clearAll', '', { count: total }); } catch(e){}
+          ui.toast(`🗑 ${total} commande${total > 1 ? 's effacées' : ' effacée'}`, 'success', 4000);
+          // Le listener stockOrders va déclencher le re-render automatiquement
+        } catch (e) {
+          console.error('[clearAllOrders]', e);
+          ui.toast('⛔ Erreur Firebase : ' + (e.message || e), 'danger', 6000);
+        } finally {
+          ui.hideLoader();
+        }
+      },
+
+      /**
        * Importe un fichier Excel de commandes → écrit dans stockOrders/{key}
        * Colonnes attendues : Nom (Référence), Qté Commandée, Statut Commande
        * Tolère plusieurs variantes de noms de colonnes.
@@ -16508,9 +16548,10 @@ Erreur Firebase : ${e.message}`;
         document.getElementById('pc-refresh-btn')?.addEventListener('click', () => this.render());
         document.getElementById('pc-export-btn')?.addEventListener('click', () => this.exportExcel());
 
-        // 📦 Boutons Commandes (import + template)
+        // 📦 Boutons Commandes (import + template + effacer)
         document.getElementById('pc-orders-xl-input')?.addEventListener('change', e => this.importOrdersExcel(e));
         document.getElementById('pc-orders-template-btn')?.addEventListener('click', () => this.downloadOrdersTemplate());
+        document.getElementById('pc-orders-clear-btn')?.addEventListener('click', () => this.clearAllOrders());
 
         // 📦 Listener Firebase pour les commandes (qcom + statutCom)
         this.attachOrdersListener();

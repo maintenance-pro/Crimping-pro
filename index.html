@@ -6754,8 +6754,8 @@ section[data-view] h1,
       <div class="topbar__actions">
         <button class="topbar__btn topbar__btn--quick" id="btn-quick-new" title="Nouveau bon (N)" data-requires-role="admin,super_admin,responsable,crimp,crimping">＋ <span data-i18n="topbar.newBon">Nouveau bon</span></button>
 
-        <!-- 🔄 BOUTON BASCULE MODE TEST ↔ PROD — super_admin uniquement -->
-        <button class="topbar__btn topbar__btn--mode" id="btn-mode-switch" title="Basculer entre Mode TEST et PRODUCTION" data-requires-role="super_admin" hidden>
+        <!-- 🔄 BOUTON BASCULE MODE TEST ↔ PROD — admin/super_admin uniquement -->
+        <button class="topbar__btn topbar__btn--mode" id="btn-mode-switch" title="Basculer entre Mode TEST et PRODUCTION" data-requires-role="admin,super_admin" hidden>
           <span id="btn-mode-switch-label">🧪 TEST</span>
         </button>
 
@@ -13517,7 +13517,7 @@ section[data-view] h1,
 
     /** Met à jour le badge cockpit ET le bouton topbar selon le mode */
     applyModeUI() {
-      const isSuperAdmin = state.role === 'super_admin';
+      const isAdmin = (state.role === 'super_admin' || state.role === 'admin');
       const isTest = (this._currentMode === 'test');
 
       // 1) Badge cockpit (en haut à droite, petit indicateur de statut)
@@ -13525,25 +13525,25 @@ section[data-view] h1,
       if (badge) {
         badge.hidden = !state.user;
         if (isTest) {
-          badge.className = 'cockpit-bar__mode cockpit-bar__mode--test' + (isSuperAdmin ? ' cockpit-bar__mode--clickable' : '');
+          badge.className = 'cockpit-bar__mode cockpit-bar__mode--test' + (isAdmin ? ' cockpit-bar__mode--clickable' : '');
           badge.textContent = '🧪 TEST';
-          badge.title = isSuperAdmin
+          badge.title = isAdmin
             ? 'Mode TEST actif — Cliquez pour basculer en PRODUCTION'
             : 'Mode TEST actif — Données de formation';
         } else {
-          badge.className = 'cockpit-bar__mode cockpit-bar__mode--prod' + (isSuperAdmin ? ' cockpit-bar__mode--clickable' : '');
+          badge.className = 'cockpit-bar__mode cockpit-bar__mode--prod' + (isAdmin ? ' cockpit-bar__mode--clickable' : '');
           badge.textContent = '🟢 PROD';
-          badge.title = isSuperAdmin
+          badge.title = isAdmin
             ? 'Mode PRODUCTION actif — Cliquez pour basculer en TEST (formation)'
             : 'Mode PRODUCTION actif';
         }
-        badge.onclick = isSuperAdmin ? () => this.openModal() : null;
+        badge.onclick = isAdmin ? () => this.openModal() : null;
       }
 
-      // 2) 🔄 Gros bouton dans la topbar (visible super_admin uniquement)
+      // 2) 🔄 Gros bouton dans la topbar (visible admin/super_admin)
       const topbarBtn = document.getElementById('btn-mode-switch');
       if (topbarBtn) {
-        topbarBtn.hidden = !(state.user && isSuperAdmin);
+        topbarBtn.hidden = !(state.user && isAdmin);
         topbarBtn.dataset.mode = isTest ? 'test' : 'prod';
         const labelEl = document.getElementById('btn-mode-switch-label');
         if (labelEl) {
@@ -13552,7 +13552,7 @@ section[data-view] h1,
         topbarBtn.title = isTest
           ? 'Mode TEST actif — Cliquez pour basculer en PRODUCTION'
           : 'Mode PRODUCTION actif — Cliquez pour basculer en TEST (formation)';
-        topbarBtn.onclick = isSuperAdmin ? () => this.openModal() : null;
+        topbarBtn.onclick = isAdmin ? () => this.openModal() : null;
       }
     },
 
@@ -13582,8 +13582,8 @@ section[data-view] h1,
 
     /** Ouvre la modale de bascule */
     async openModal() {
-      if (state.role !== 'super_admin') {
-        ui.toast('🚫 Bascule réservée au Super Admin', 'warn');
+      if (state.role !== 'super_admin' && state.role !== 'admin') {
+        ui.toast('🚫 Bascule réservée à l\'admin / super admin', 'warn');
         return;
       }
       const modal = document.getElementById('modal-prod-switch');
@@ -13775,8 +13775,8 @@ section[data-view] h1,
 
     /** Exécute la bascule de mode (avec migration si première fois) */
     async executeToggle(target, isFirstProdActivation) {
-      if (state.role !== 'super_admin') {
-        ui.toast('🚫 Réservé au Super Admin', 'danger');
+      if (state.role !== 'super_admin' && state.role !== 'admin') {
+        ui.toast('🚫 Réservé à l\'admin / super admin', 'danger');
         return;
       }
 

@@ -8899,6 +8899,22 @@ section[data-view] h1,
           </div>
         </div>
 
+        <!-- 🚚 Option de migration explicite (case à cocher) -->
+        <div id="prod-switch-migrate-section" style="background:linear-gradient(135deg,rgba(245,158,11,.08),rgba(251,191,36,.04));border:1px solid rgba(245,158,11,.35);border-radius:8px;padding:.9rem 1rem;margin:.75rem 0">
+          <label style="display:flex;align-items:flex-start;gap:.65rem;cursor:pointer">
+            <input type="checkbox" id="prod-switch-migrate-checkbox" style="cursor:pointer;margin-top:.2rem;width:18px;height:18px;accent-color:#f59e0b">
+            <div>
+              <div style="font-weight:700;color:#fbbf24;font-size:.92rem;margin-bottom:.25rem">
+                🚚 <span id="prod-switch-migrate-label">Aussi DÉPLACER toutes les données vers l'autre mode</span>
+              </div>
+              <div style="font-size:.78rem;color:var(--text-secondary);line-height:1.4" id="prod-switch-migrate-help">
+                Toutes les données de l'espace actuel seront <strong>déplacées</strong> vers l'autre espace.
+                L'espace actuel deviendra vide. <strong>Action sans retour</strong> — téléchargez d'abord un backup.
+              </div>
+            </div>
+          </label>
+        </div>
+
         <div id="prod-switch-confirm-section" style="display:none">
           <div style="background:var(--bg-3);border:1px solid var(--border-soft);border-radius:8px;padding:.75rem;margin-bottom:.5rem;font-size:.78rem;color:var(--text-secondary)">
             💡 Catalogues partagés (outils, utilisateurs, PDR, templates) — non affectés par la bascule
@@ -13600,20 +13616,41 @@ section[data-view] h1,
       const counts = await this._countAll();
       this._renderCounts(counts, target);
 
+      // 🚚 Configurer la case à cocher de migration
+      const migrateCheckbox = document.getElementById('prod-switch-migrate-checkbox');
+      const migrateLabel = document.getElementById('prod-switch-migrate-label');
+      if (migrateCheckbox && migrateLabel) {
+        const targetLabel = target === 'production' ? 'PRODUCTION' : 'TEST';
+        const currentLabel = this._currentMode === 'production' ? 'PROD' : 'TEST';
+        migrateLabel.textContent = `Aussi DÉPLACER toutes les données de ${currentLabel} vers ${targetLabel}`;
+
+        // Compte total des éléments dans l'espace actuel
+        const currentTotal = Object.values(counts.current).reduce((s, n) => s + (typeof n === 'number' ? n : 0), 0);
+        const otherTotal = Object.values(counts.other).reduce((s, n) => s + (typeof n === 'number' ? n : 0), 0);
+
+        // Cochée par défaut si l'espace actuel a des données ET la cible est vide
+        // OU si needsMigration est vrai (cas de première fois)
+        const shouldDefaultCheck = (currentTotal > 0 && otherTotal === 0) || needsMigration;
+        migrateCheckbox.checked = shouldDefaultCheck;
+      }
+
       // Wire close
       modal.querySelectorAll('[data-close]').forEach(el => {
         el.onclick = () => { modal.hidden = true; };
       });
 
-      // Backup button (visible seulement si migration prévue)
+      // Backup button
       const backupBtn = document.getElementById('btn-prod-switch-backup');
       if (backupBtn) {
         backupBtn.onclick = () => this.downloadBackup();
       }
 
-      // Toggle button
+      // Toggle button — la décision de migrer dépend de la case cochée
       const toggleBtn = document.getElementById('btn-prod-switch-execute');
-      toggleBtn.onclick = () => this.executeToggle(target, needsMigration);
+      toggleBtn.onclick = () => {
+        const migrate = document.getElementById('prod-switch-migrate-checkbox')?.checked || false;
+        this.executeToggle(target, migrate);
+      };
       toggleBtn.disabled = false;
     },
 
@@ -13800,8 +13837,8 @@ section[data-view] h1,
       }
     },
 
-    /** Exécute la bascule de mode (avec migration si première fois) */
-    async executeToggle(target, needsMigration) {
+    /** Exécute la bascule de mode (avec migration optionnelle bidirectionnelle) */
+    async executeToggle(target, migrate) {
       if (state.role !== 'super_admin' && state.role !== 'admin') {
         ui.toast('🚫 Réservé à l\'admin / super admin', 'danger');
         return;
@@ -13815,18 +13852,28 @@ section[data-view] h1,
       try {
         const direct = firebase.database();
         const now = Date.now();
+        const fromMode = this._currentMode;
+        const toMode = target;
 
-        // CAS : MIGRATION NÉCESSAIRE (peu importe la direction de la bascule)
-        // Les données dans les chemins principaux sont du test → on les déplace vers test_data/
-        if (needsMigration) {
-          const targetLabel = target === 'production' ? 'PRODUCTION' : 'TEST';
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // CAS : MIGRATION DEMANDÉE (case cochée)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if (migrate) {
+          // Détermine les chemins source et destination selon la direction
+          //  - Si je suis en TEST → l'espace actuel est test_data/, cible = chemins principaux
+          //  - Si je suis en PROD → l'espace actuel est chemins principaux, cible = test_data/
+          const srcPrefix = (fromMode === 'test') ? this.TEST_NAMESPACE + '/' : '';
+          const dstPrefix = (fromMode === 'test') ? '' : this.TEST_NAMESPACE + '/';
+
+          const fromLabel = fromMode === 'test' ? 'TEST' : 'PROD';
+          const toLabel = toMode === 'test' ? 'TEST' : 'PROD';
+
           const ok = confirm(
-            `🚚 MIGRATION DES DONNÉES\n\n` +
-            `Toutes les données actuelles vont être DÉPLACÉES vers l'espace TEST\n` +
-            `(préservées pour la formation).\n\n` +
-            `L'espace PRODUCTION démarrera vierge.\n` +
-            `Le mode actif sera : ${targetLabel}\n\n` +
-            `Les données restent accessibles en basculant en TEST.\n\n` +
+            `🚚 DÉPLACEMENT DES DONNÉES\n\n` +
+            `Toutes les données de l'espace ${fromLabel} vont être DÉPLACÉES\n` +
+            `vers l'espace ${fromMode === 'test' ? 'PROD' : 'TEST'}.\n\n` +
+            `L'espace ${fromLabel} deviendra vide.\n` +
+            `Le mode actif sera : ${toLabel}\n\n` +
             `Continuer ?`
           );
           if (!ok) {
@@ -13835,22 +13882,24 @@ section[data-view] h1,
             return;
           }
 
-          // Migration : copier chaque chemin transactionnel vers test_data/, puis supprimer l'original
-          ui.toast('⌛ Migration des données vers l\'espace TEST…', 'info');
+          ui.toast('⌛ Migration des données en cours…', 'info');
           const migrated = [];
           const errors = [];
+
           for (const path of this.NAMESPACED_PATHS) {
             try {
-              const snap = await direct.ref(path).once('value');
-              const data = snap.val();
-              if (data !== null && data !== undefined) {
-                // Fusionner avec d'éventuelles données déjà présentes dans test_data/
-                const existingSnap = await direct.ref(this.TEST_NAMESPACE + '/' + path).once('value');
+              const srcRef = direct.ref(srcPrefix + path);
+              const dstRef = direct.ref(dstPrefix + path);
+              const srcSnap = await srcRef.once('value');
+              const srcData = srcSnap.val();
+              if (srcData !== null && srcData !== undefined) {
+                // Fusionner avec d'éventuelles données existantes côté destination
+                const existingSnap = await dstRef.once('value');
                 const existing = existingSnap.val() || {};
-                const merged = Object.assign({}, existing, data);
-                await direct.ref(this.TEST_NAMESPACE + '/' + path).set(merged);
-                await direct.ref(path).remove();
-                migrated.push(path + ' (' + Object.keys(data).length + ' éléments)');
+                const merged = Object.assign({}, existing, srcData);
+                await dstRef.set(merged);
+                await srcRef.remove();
+                migrated.push(path + ' (' + Object.keys(srcData).length + ' éléments)');
               }
             } catch(e) {
               errors.push(`${path}: ${e.message || e.code}`);
@@ -13858,46 +13907,58 @@ section[data-view] h1,
             }
           }
 
-          // Marquer la première migration + définir le mode cible
-          await direct.ref('system').update({
-            mode: target,
-            firstProdActivationAt: now,
-            firstProdActivationBy: state.user?.uid || '',
-            firstProdActivationByName: state.profile?.displayName || '',
-            migratedPaths: migrated,
-            migrationErrors: errors.length ? errors : null,
-            lastModeChange: { at: now, from: this._currentMode, to: target, by: state.user?.uid }
-          });
+          // Marquer la première activation si pas encore fait
+          const flagSnap = await direct.ref('system/firstProdActivationAt').once('value');
+          const systemUpdate = {
+            mode: toMode,
+            lastModeChange: { at: now, from: fromMode, to: toMode, by: state.user?.uid },
+            lastMigration: {
+              at: now,
+              from: fromMode,
+              to: toMode,
+              paths: migrated,
+              errors: errors.length ? errors : null,
+              by: state.user?.uid
+            }
+          };
+          if (!flagSnap.val()) {
+            systemUpdate.firstProdActivationAt = now;
+            systemUpdate.firstProdActivationBy = state.user?.uid || '';
+            systemUpdate.firstProdActivationByName = state.profile?.displayName || '';
+          }
+          await direct.ref('system').update(systemUpdate);
 
           if (errors.length) {
-            ui.toast(`⚠️ Migration terminée avec ${errors.length} erreur(s)`, 'warn');
+            ui.toast(`⚠️ Migration terminée avec ${errors.length} erreur(s) — voir console`, 'warn');
             console.warn('[productionSwitch] migration errors:', errors);
           } else {
-            ui.toast(`✅ ${migrated.length} chemin(s) migré(s) vers l'espace TEST`, 'success');
+            ui.toast(`✅ ${migrated.length} chemin(s) migré(s) vers l'espace ${fromMode === 'test' ? 'PROD' : 'TEST'}`, 'success');
             console.info('[productionSwitch] migrated:', migrated);
           }
         }
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // CAS NORMAL : simple toggle entre modes (pas de migration)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         else {
           await direct.ref('system').update({
-            mode: target,
-            lastModeChange: { at: now, from: this._currentMode, to: target, by: state.user?.uid }
+            mode: toMode,
+            lastModeChange: { at: now, from: fromMode, to: toMode, by: state.user?.uid }
           });
-          ui.toast(`🔄 Mode ${target === 'test' ? 'TEST' : 'PRODUCTION'} activé`, 'success');
+          ui.toast(`🔄 Mode ${toMode === 'test' ? 'TEST' : 'PRODUCTION'} activé`, 'success');
         }
 
         // Audit log (dans l'espace cible)
         try {
-          const auditPath = (target === 'test') ? this.TEST_NAMESPACE + '/auditLog' : 'auditLog';
+          const auditPath = (toMode === 'test') ? this.TEST_NAMESPACE + '/auditLog' : 'auditLog';
           await direct.ref(auditPath).push({
             ts: now,
             uid: state.user?.uid,
             byName: state.profile?.displayName,
             action: 'system.mode-toggle',
             details: {
-              from: this._currentMode,
-              to: target,
-              migrationDone: !!needsMigration
+              from: fromMode,
+              to: toMode,
+              migrated: !!migrate
             }
           });
         } catch(e){}
@@ -13905,14 +13966,14 @@ section[data-view] h1,
         // Fermer la modale
         document.getElementById('modal-prod-switch').hidden = true;
 
-        // Recharger la page pour que tous les listeners pointent vers le bon espace
+        // Recharger
         setTimeout(() => {
-          if (confirm(`✅ Bascule effectuée.\n\nRecharger l'application pour activer le mode ${target === 'test' ? 'TEST' : 'PRODUCTION'} ?`)) {
+          if (confirm(`✅ Bascule effectuée.\n\nRecharger l'application pour activer le mode ${toMode === 'test' ? 'TEST' : 'PRODUCTION'} ?`)) {
             window.location.reload();
           } else {
-            this._currentMode = target;
+            this._currentMode = toMode;
             this.applyModeUI();
-            ui.toast('⚠️ Rechargez manuellement (F5) pour appliquer les changements de données', 'warn');
+            ui.toast('⚠️ Rechargez manuellement (F5) pour appliquer les changements', 'warn');
           }
         }, 800);
 

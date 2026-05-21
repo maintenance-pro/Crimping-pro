@@ -13591,10 +13591,10 @@ section[data-view] h1,
       modal.hidden = false;
 
       const target = (this._currentMode === 'test') ? 'production' : 'test';
-      const isFirstProdActivation = await this._isFirstProdActivation();
+      const needsMigration = await this._needsFirstMigration();
 
       // Mise à jour dynamique du contenu selon la direction
-      this._renderModalContent(target, isFirstProdActivation);
+      this._renderModalContent(target, needsMigration);
 
       // Compteurs
       const counts = await this._countAll();
@@ -13605,7 +13605,7 @@ section[data-view] h1,
         el.onclick = () => { modal.hidden = true; };
       });
 
-      // Backup button (visible seulement pour première activation prod)
+      // Backup button (visible seulement si migration prévue)
       const backupBtn = document.getElementById('btn-prod-switch-backup');
       if (backupBtn) {
         backupBtn.onclick = () => this.downloadBackup();
@@ -13613,49 +13613,77 @@ section[data-view] h1,
 
       // Toggle button
       const toggleBtn = document.getElementById('btn-prod-switch-execute');
-      toggleBtn.onclick = () => this.executeToggle(target, isFirstProdActivation);
+      toggleBtn.onclick = () => this.executeToggle(target, needsMigration);
       toggleBtn.disabled = false;
     },
 
-    /** Vérifie si c'est la première activation production
-     *  (le flag system/firstProdActivationAt ne sera défini qu'après la 1ère bascule) */
-    async _isFirstProdActivation() {
+    /** Détecte si une migration "1ère fois" est nécessaire :
+     *  - Pas de flag firstProdActivationAt en Firebase
+     *  - ET des données existent dans les chemins principaux (donc à migrer)
+     *  
+     *  Cette détection fonctionne dans LES DEUX directions de bascule :
+     *  - Si l'utilisateur va en PROD : on déplace les données → test_data/
+     *  - Si l'utilisateur va en TEST : on déplace AUSSI les données → test_data/
+     *    (car ces données sont conceptuellement du "test" puisque jamais validées en prod)
+     */
+    async _needsFirstMigration() {
       try {
-        const snap = await firebase.database().ref('system/firstProdActivationAt').once('value');
-        return !snap.val(); // null/undefined = première fois
+        const direct = firebase.database();
+        const flagSnap = await direct.ref('system/firstProdActivationAt').once('value');
+        if (flagSnap.val()) return false; // Migration déjà effectuée une fois
+
+        // Vérifier si des données existent dans les chemins principaux
+        const intvSnap = await direct.ref('interventions').limitToFirst(1).once('value');
+        if (intvSnap.exists()) return true;
+
+        // Vérifier aussi les autres chemins critiques au cas où
+        for (const path of ['notifications', 'auditLog']) {
+          const snap = await direct.ref(path).limitToFirst(1).once('value');
+          if (snap.exists()) return true;
+        }
+        return false;
       } catch(e) {
+        console.warn('[productionSwitch] _needsFirstMigration error:', e);
         return false;
       }
     },
 
     /** Met à jour le contenu HTML de la modale selon la direction */
-    _renderModalContent(target, isFirstProd) {
+    _renderModalContent(target, needsMigration) {
       const titleEl = document.querySelector('#modal-prod-switch .modal__title');
       const warningTitle = document.querySelector('#modal-prod-switch .prod-switch-warning__title');
       const warningText = document.querySelector('#modal-prod-switch .prod-switch-warning__text');
       const executeBtn = document.getElementById('btn-prod-switch-execute');
       const backupSection = document.getElementById('prod-switch-backup-section');
-      const confirmSection = document.getElementById('prod-switch-confirm-section');
 
+      // Cas spécial : migration nécessaire (première fois OU données présentes dans les chemins principaux)
+      if (needsMigration) {
+        titleEl.textContent = '🚚 Migration des données de test';
+        warningTitle.textContent = '🔄 Migration automatique vers l\'espace TEST';
+        warningText.innerHTML = `Le système a détecté <strong>des données dans l'espace principal</strong>
+          (vos bons actuels), mais aucune activation production officielle n'a eu lieu.<br><br>
+          Ces données seront <strong>DÉPLACÉES vers l'espace TEST</strong> (préservées pour la formation),
+          puis l'espace PRODUCTION démarrera vierge.<br><br>
+          ✅ Les catalogues (outils, utilisateurs, PDR) restent partagés entre les deux modes.<br>
+          ✅ Vos données seront <strong>conservées</strong> et accessibles en basculant en TEST.<br>
+          ⚠️ Téléchargez d'abord un backup JSON par précaution.`;
+        executeBtn.textContent = (target === 'production')
+          ? '🚀 MIGRER + ACTIVER PRODUCTION'
+          : '🚚 MIGRER VERS TEST';
+        executeBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+        if (backupSection) backupSection.style.display = '';
+        return;
+      }
+
+      // Cas normaux : simple toggle
       if (target === 'production') {
-        titleEl.textContent = isFirstProd
-          ? '🚀 Première activation : passer en PRODUCTION'
-          : '🟢 Basculer en mode PRODUCTION';
-        warningTitle.textContent = isFirstProd
-          ? '🔄 Première bascule — Migration automatique'
-          : '🟢 Retour en mode PRODUCTION';
-        warningText.innerHTML = isFirstProd
-          ? `Cette opération va <strong>déplacer toutes vos données actuelles</strong> vers l'espace TEST
-             (préservées pour de futures formations), puis démarrer un espace PRODUCTION vierge.<br><br>
-             ✅ Les catalogues (outils, utilisateurs, PDR) restent <strong>partagés</strong> entre les deux modes.<br>
-             ✅ Vos données de test seront <strong>conservées</strong> et accessibles en re-basculant en TEST.<br>
-             ✅ Téléchargez d'abord un backup JSON par précaution.`
-          : `Vous reprenez votre travail réel. L'app va afficher les données de production.<br>
-             Les données du mode TEST restent intactes et disponibles si vous rebasculez.`;
-        executeBtn.textContent = isFirstProd ? '🚀 ACTIVER LA PRODUCTION' : '🟢 BASCULER EN PRODUCTION';
+        titleEl.textContent = '🟢 Basculer en mode PRODUCTION';
+        warningTitle.textContent = '🟢 Retour en mode PRODUCTION';
+        warningText.innerHTML = `Vous reprenez votre travail réel. L'app va afficher les données de production.<br>
+          Les données du mode TEST restent intactes et disponibles si vous rebasculez.`;
+        executeBtn.textContent = '🟢 BASCULER EN PRODUCTION';
         executeBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
-        if (backupSection) backupSection.style.display = isFirstProd ? '' : 'none';
-        if (confirmSection) confirmSection.style.display = isFirstProd ? '' : 'none';
+        if (backupSection) backupSection.style.display = 'none';
       } else {
         titleEl.textContent = '🧪 Basculer en mode TEST (Formation)';
         warningTitle.textContent = '🧪 Mode TEST — Espace formation';
@@ -13667,7 +13695,6 @@ section[data-view] h1,
         executeBtn.textContent = '🧪 BASCULER EN TEST';
         executeBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
         if (backupSection) backupSection.style.display = 'none';
-        if (confirmSection) confirmSection.style.display = 'none';
       }
     },
 
@@ -13774,7 +13801,7 @@ section[data-view] h1,
     },
 
     /** Exécute la bascule de mode (avec migration si première fois) */
-    async executeToggle(target, isFirstProdActivation) {
+    async executeToggle(target, needsMigration) {
       if (state.role !== 'super_admin' && state.role !== 'admin') {
         ui.toast('🚫 Réservé à l\'admin / super admin', 'danger');
         return;
@@ -13789,13 +13816,17 @@ section[data-view] h1,
         const direct = firebase.database();
         const now = Date.now();
 
-        // CAS SPÉCIAL : première activation production → MIGRATION
-        if (target === 'production' && isFirstProdActivation) {
+        // CAS : MIGRATION NÉCESSAIRE (peu importe la direction de la bascule)
+        // Les données dans les chemins principaux sont du test → on les déplace vers test_data/
+        if (needsMigration) {
+          const targetLabel = target === 'production' ? 'PRODUCTION' : 'TEST';
           const ok = confirm(
-            `🚀 PREMIÈRE ACTIVATION PRODUCTION\n\n` +
-            `Les données actuelles vont être DÉPLACÉES dans l'espace TEST.\n` +
-            `Le mode PRODUCTION démarrera avec un espace vierge.\n\n` +
-            `Les données de test resteront accessibles en re-basculant en TEST.\n\n` +
+            `🚚 MIGRATION DES DONNÉES\n\n` +
+            `Toutes les données actuelles vont être DÉPLACÉES vers l'espace TEST\n` +
+            `(préservées pour la formation).\n\n` +
+            `L'espace PRODUCTION démarrera vierge.\n` +
+            `Le mode actif sera : ${targetLabel}\n\n` +
+            `Les données restent accessibles en basculant en TEST.\n\n` +
             `Continuer ?`
           );
           if (!ok) {
@@ -13813,9 +13844,13 @@ section[data-view] h1,
               const snap = await direct.ref(path).once('value');
               const data = snap.val();
               if (data !== null && data !== undefined) {
-                await direct.ref(this.TEST_NAMESPACE + '/' + path).set(data);
+                // Fusionner avec d'éventuelles données déjà présentes dans test_data/
+                const existingSnap = await direct.ref(this.TEST_NAMESPACE + '/' + path).once('value');
+                const existing = existingSnap.val() || {};
+                const merged = Object.assign({}, existing, data);
+                await direct.ref(this.TEST_NAMESPACE + '/' + path).set(merged);
                 await direct.ref(path).remove();
-                migrated.push(path);
+                migrated.push(path + ' (' + Object.keys(data).length + ' éléments)');
               }
             } catch(e) {
               errors.push(`${path}: ${e.message || e.code}`);
@@ -13823,24 +13858,26 @@ section[data-view] h1,
             }
           }
 
-          // Marquer la première activation
+          // Marquer la première migration + définir le mode cible
           await direct.ref('system').update({
-            mode: 'production',
+            mode: target,
             firstProdActivationAt: now,
             firstProdActivationBy: state.user?.uid || '',
             firstProdActivationByName: state.profile?.displayName || '',
             migratedPaths: migrated,
             migrationErrors: errors.length ? errors : null,
-            lastModeChange: { at: now, from: 'test', to: 'production', by: state.user?.uid }
+            lastModeChange: { at: now, from: this._currentMode, to: target, by: state.user?.uid }
           });
 
           if (errors.length) {
             ui.toast(`⚠️ Migration terminée avec ${errors.length} erreur(s)`, 'warn');
+            console.warn('[productionSwitch] migration errors:', errors);
           } else {
             ui.toast(`✅ ${migrated.length} chemin(s) migré(s) vers l'espace TEST`, 'success');
+            console.info('[productionSwitch] migrated:', migrated);
           }
         }
-        // CAS NORMAL : simple toggle entre modes
+        // CAS NORMAL : simple toggle entre modes (pas de migration)
         else {
           await direct.ref('system').update({
             mode: target,
@@ -13849,9 +13886,8 @@ section[data-view] h1,
           ui.toast(`🔄 Mode ${target === 'test' ? 'TEST' : 'PRODUCTION'} activé`, 'success');
         }
 
-        // Audit log (dans l'espace cible, donc visible dans le bon mode)
+        // Audit log (dans l'espace cible)
         try {
-          // Détourner exceptionnellement vers le bon namespace
           const auditPath = (target === 'test') ? this.TEST_NAMESPACE + '/auditLog' : 'auditLog';
           await direct.ref(auditPath).push({
             ts: now,
@@ -13861,7 +13897,7 @@ section[data-view] h1,
             details: {
               from: this._currentMode,
               to: target,
-              firstActivation: isFirstProdActivation && target === 'production'
+              migrationDone: !!needsMigration
             }
           });
         } catch(e){}
@@ -13874,7 +13910,6 @@ section[data-view] h1,
           if (confirm(`✅ Bascule effectuée.\n\nRecharger l'application pour activer le mode ${target === 'test' ? 'TEST' : 'PRODUCTION'} ?`)) {
             window.location.reload();
           } else {
-            // Si l'utilisateur refuse, au moins mettre à jour le badge
             this._currentMode = target;
             this.applyModeUI();
             ui.toast('⚠️ Rechargez manuellement (F5) pour appliquer les changements de données', 'warn');

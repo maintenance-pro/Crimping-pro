@@ -4810,6 +4810,281 @@ select:focus {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   💬 CHAT INTERVENTION — Fil de discussion par bon
+   ════════════════════════════════════════════════════════════════════════ */
+.intervention-chat {
+  margin-top: var(--sp-4, 1rem);
+  background: var(--bg-elevated, #0f1a2c);
+  border: 1px solid var(--border-soft, rgba(255,255,255,.08));
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+.intervention-chat__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .85rem 1.1rem;
+  background: linear-gradient(135deg, rgba(0,212,255,.10), rgba(0,229,160,.05));
+  border-bottom: 1px solid var(--border-soft, rgba(255,255,255,.08));
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+.intervention-chat__title {
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.intervention-chat__count {
+  background: rgba(0,212,255,.18);
+  color: #00d4ff;
+  font-size: .7rem;
+  font-weight: 700;
+  padding: .15rem .55rem;
+  border-radius: 10px;
+  letter-spacing: .04em;
+}
+.intervention-chat__status {
+  font-size: .72rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.intervention-chat__messages {
+  max-height: 420px;
+  min-height: 120px;
+  overflow-y: auto;
+  padding: .75rem;
+  display: flex;
+  flex-direction: column;
+  gap: .65rem;
+  background: rgba(0,0,0,.12);
+  scroll-behavior: smooth;
+}
+.intervention-chat__messages::-webkit-scrollbar { width: 7px; }
+.intervention-chat__messages::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.18); border-radius: 4px;
+}
+.intervention-chat__empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: .85rem;
+  padding: 2rem 1rem;
+}
+.chat-msg {
+  display: flex;
+  gap: .65rem;
+  align-items: flex-start;
+  max-width: 88%;
+  animation: chat-fade-in .25s ease;
+}
+.chat-msg--self {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+.chat-msg__avatar {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-500, #00d4ff), var(--accent-600, #00e5a0));
+  color: #0a1628;
+  font-weight: 700;
+  font-size: .78rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+}
+.chat-msg--magasinier .chat-msg__avatar  { background: linear-gradient(135deg, #ff8b6b, #ffa647); }
+.chat-msg--labo .chat-msg__avatar        { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+.chat-msg--responsable .chat-msg__avatar { background: linear-gradient(135deg, #00e5a0, #34d399); }
+.chat-msg--admin .chat-msg__avatar,
+.chat-msg--super_admin .chat-msg__avatar { background: linear-gradient(135deg, #f43f5e, #fb7185); }
+
+.chat-msg__bubble {
+  background: var(--bg-3, rgba(255,255,255,.04));
+  border: 1px solid var(--border-soft, rgba(255,255,255,.08));
+  padding: .55rem .85rem;
+  border-radius: 12px;
+  border-top-left-radius: 4px;
+  position: relative;
+  min-width: 60px;
+}
+.chat-msg--self .chat-msg__bubble {
+  background: linear-gradient(135deg, rgba(0,212,255,.18), rgba(0,229,160,.10));
+  border-color: rgba(0,212,255,.30);
+  border-top-left-radius: 12px;
+  border-top-right-radius: 4px;
+}
+.chat-msg__header {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  margin-bottom: .15rem;
+  flex-wrap: wrap;
+}
+.chat-msg__author {
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.chat-msg__role {
+  font-size: .58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: .08rem .4rem;
+  border-radius: 4px;
+  background: rgba(255,255,255,.08);
+  color: var(--text-secondary);
+}
+.chat-msg--magasinier .chat-msg__role  { background: rgba(255,139,107,.22); color: #ff8b6b; }
+.chat-msg--labo .chat-msg__role        { background: rgba(99,102,241,.22); color: #818cf8; }
+.chat-msg--responsable .chat-msg__role { background: rgba(0,229,160,.22); color: #00e5a0; }
+.chat-msg--admin .chat-msg__role,
+.chat-msg--super_admin .chat-msg__role { background: rgba(244,63,94,.22); color: #fb7185; }
+
+.chat-msg__time {
+  font-size: .65rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+.chat-msg__text {
+  font-size: .87rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.chat-msg__actions {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  opacity: 0;
+  transition: opacity .15s ease;
+  display: flex;
+  gap: .15rem;
+}
+.chat-msg:hover .chat-msg__actions { opacity: 1; }
+.chat-msg__action-btn {
+  width: 22px; height: 22px;
+  background: rgba(0,0,0,.3);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: .7rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.chat-msg__action-btn:hover { background: rgba(244,63,94,.25); color: #fb7185; }
+.chat-msg__edited {
+  font-size: .6rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-left: .35rem;
+}
+.intervention-chat__composer {
+  display: flex;
+  gap: .5rem;
+  padding: .65rem;
+  border-top: 1px solid var(--border-soft);
+  background: var(--bg-2, rgba(255,255,255,.02));
+  align-items: flex-end;
+}
+.intervention-chat__textarea {
+  flex: 1;
+  background: var(--bg-3, rgba(255,255,255,.05));
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: .55rem .75rem;
+  color: var(--text-primary);
+  font-size: .88rem;
+  font-family: inherit;
+  resize: none;
+  min-height: 38px;
+  max-height: 120px;
+  line-height: 1.4;
+  transition: border-color .15s ease;
+}
+.intervention-chat__textarea:focus {
+  outline: none;
+  border-color: var(--accent-500, #00d4ff);
+  box-shadow: 0 0 0 3px rgba(0,212,255,.12);
+}
+.intervention-chat__send {
+  padding: .55rem 1.1rem;
+  background: linear-gradient(135deg, #00d4ff, #00e5a0);
+  color: #0a1628;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
+}
+.intervention-chat__send:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,212,255,.3); }
+.intervention-chat__send:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.chat-msg__date-separator {
+  text-align: center;
+  font-size: .68rem;
+  color: var(--text-muted);
+  margin: .5rem 0;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 600;
+}
+.chat-msg__date-separator::before,
+.chat-msg__date-separator::after {
+  content: '';
+  display: inline-block;
+  width: 30px;
+  height: 1px;
+  background: var(--border-soft);
+  vertical-align: middle;
+  margin: 0 .5rem;
+}
+@keyframes chat-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* Badge "nouveaux messages" sur les lignes d'historique */
+.chat-badge-history {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  background: rgba(0,212,255,.18);
+  color: #00d4ff;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: .1rem .4rem;
+  border-radius: 4px;
+  margin-left: .35rem;
+  vertical-align: middle;
+}
+[data-theme="light"] .intervention-chat {
+  background: #fff;
+  border-color: #d9e2ec;
+}
+[data-theme="light"] .intervention-chat__messages { background: #f4f7fb; }
+[data-theme="light"] .chat-msg__bubble {
+  background: #fff;
+  border-color: #d9e2ec;
+  box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+[data-theme="light"] .chat-msg__text { color: #0a1628; }
+
+/* ════════════════════════════════════════════════════════════════════════
    🚀 CONTROL CENTER — Dashboard NASA-grade unifié
    ════════════════════════════════════════════════════════════════════════ */
 .control-center {
@@ -4956,6 +5231,127 @@ select:focus {
   color: var(--text-muted);
   font-style: italic;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   🔧 ALERTES USURE PDR — Widget remplaçant Performance équipe
+   ════════════════════════════════════════════════════════════════════════ */
+.wear-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  padding: .25rem .5rem .5rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.wear-alerts::-webkit-scrollbar { width: 6px; }
+.wear-alerts::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 4px; }
+.wear-alerts__empty {
+  padding: 1.5rem .5rem;
+  text-align: center;
+  font-size: .78rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.wear-alerts__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: .5rem;
+  padding: .45rem .55rem;
+  border-radius: 7px;
+  background: var(--bg-3, rgba(255,255,255,.04));
+  border-left: 3px solid var(--border-soft);
+  font-size: .78rem;
+  transition: background .15s ease;
+}
+.wear-alerts__row:hover { background: var(--bg-4, rgba(255,255,255,.07)); }
+.wear-alerts__row--critical { border-left-color: #ef4444; background: rgba(239,68,68,.07); }
+.wear-alerts__row--warn     { border-left-color: #f59e0b; background: rgba(245,158,11,.06); }
+.wear-alerts__row--ok       { border-left-color: #10b981; opacity: .65; }
+
+.wear-alerts__icon { font-size: .95rem; }
+.wear-alerts__body { min-width: 0; }
+.wear-alerts__id {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-right: .35rem;
+}
+.wear-alerts__desc {
+  color: var(--text-secondary);
+  font-size: .72rem;
+  display: block;
+  margin-top: .12rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wear-alerts__metric {
+  font-family: var(--font-mono);
+  font-size: .72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-align: right;
+}
+.wear-alerts__metric strong { color: var(--text-primary); font-weight: 700; }
+.wear-alerts__progress {
+  height: 4px;
+  background: rgba(255,255,255,.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: .25rem;
+  grid-column: 1 / -1;
+}
+.wear-alerts__progress-fill {
+  height: 100%;
+  transition: width .3s ease;
+}
+.wear-alerts__count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  background: rgba(239,68,68,.18);
+  color: #fca5a5;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: .12rem .45rem;
+  border-radius: 4px;
+  margin-left: .35rem;
+}
+
+/* Modal historique des changements PDR */
+.pdr-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .82rem;
+}
+.pdr-history-table th,
+.pdr-history-table td {
+  padding: .5rem .65rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-soft);
+}
+.pdr-history-table th {
+  background: var(--bg-3);
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+}
+.pdr-history-table tr:hover { background: rgba(255,255,255,.03); }
+.pdr-history-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+}
+[data-theme="light"] .wear-alerts__row { background: #f4f7fb; }
+[data-theme="light"] .wear-alerts__row--critical { background: rgba(239,68,68,.08); }
+[data-theme="light"] .wear-alerts__row--warn { background: rgba(245,158,11,.10); }
+[data-theme="light"] .pdr-history-table th { background: #f4f7fb; }
 
 /* Light theme adaptations */
 [data-theme="light"] .control-center__title {
@@ -6392,9 +6788,20 @@ section[data-view] h1,
               </div>
             </article>
             <article class="control-center__card">
-              <div class="control-center__card-title">Performance équipe · 7j</div>
-              <div class="cc-team" id="cc-team">
-                <div class="cc-team__empty">Aucune donnée sur 7 jours</div>
+              <div class="control-center__card-title" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
+                <span>🔧 Alertes Usure PDR · Outils</span>
+                <button type="button" id="btn-wear-history" class="btn btn--ghost" style="font-size:.7rem;padding:.25rem .55rem;background:rgba(0,212,255,.10);color:#00d4ff;border:1px solid rgba(0,212,255,.25);font-weight:700">📋 Historique</button>
+              </div>
+              <div style="padding:.5rem .75rem .25rem">
+                <input
+                  type="search"
+                  id="wear-alerts-search"
+                  placeholder="🔍 Rechercher par serial, groupe, projet…"
+                  style="width:100%;background:var(--bg-3);border:1px solid var(--border-soft);border-radius:7px;padding:.4rem .65rem;color:var(--text-primary);font-size:.78rem"
+                  autocomplete="off">
+              </div>
+              <div class="wear-alerts" id="wear-alerts-list">
+                <div class="wear-alerts__empty">⌛ Chargement…</div>
               </div>
             </article>
           </div>
@@ -6942,6 +7349,31 @@ section[data-view] h1,
             <h3 class="intervention__sub-title">📋 Rapport de validation</h3>
             <div class="validation-report__body" id="validation-report-body">
               <!-- Contenu dynamique injecté par renderValidationReport() -->
+            </div>
+          </section>
+
+          <!-- ============================================================= -->
+          <!-- 💬 FIL DE DISCUSSION — Coordination Crimping ↔ Magasinier ↔ Labo -->
+          <!-- ============================================================= -->
+          <section class="intervention__section intervention-chat" id="intervention-chat-section">
+            <header class="intervention-chat__header">
+              <h3 class="intervention-chat__title">
+                💬 Discussion du bon
+                <span class="intervention-chat__count" id="chat-msg-count">0</span>
+              </h3>
+              <span class="intervention-chat__status" id="chat-status">⌛ Chargement…</span>
+            </header>
+            <div class="intervention-chat__messages" id="chat-messages">
+              <div class="intervention-chat__empty">Aucun message — démarrez la conversation 👇</div>
+            </div>
+            <div class="intervention-chat__composer">
+              <textarea
+                class="intervention-chat__textarea"
+                id="chat-input"
+                placeholder="Écrire un message… (Entrée pour envoyer, Maj+Entrée pour nouvelle ligne)"
+                rows="1"
+                maxlength="2000"></textarea>
+              <button type="button" class="intervention-chat__send" id="chat-send-btn" disabled>📨 Envoyer</button>
             </div>
           </section>
 
@@ -8221,6 +8653,44 @@ section[data-view] h1,
           <button class="btn btn--ghost" data-close>Fermer</button>
           <button class="btn btn--secondary" id="btn-tool-details-edit" style="background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3)">✏️ Modifier</button>
         </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- 📋 HISTORIQUE PDR — Modal listant tous les changements de PDR          -->
+  <!-- ===================================================================== -->
+  <div class="modal" id="modal-pdr-history" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel modal__panel--lg" style="max-width:900px">
+      <header class="modal__header">
+        <h2 class="modal__title">📋 Historique des changements PDR</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body" style="max-height:70vh;overflow-y:auto">
+        <div style="display:flex;gap:.5rem;margin-bottom:1rem;align-items:center;flex-wrap:wrap">
+          <input
+            type="search"
+            id="pdr-history-search"
+            placeholder="🔍 Filtrer par outil (serial, groupe, projet)…"
+            style="flex:1;min-width:220px;background:var(--bg-3);border:1px solid var(--border-soft);border-radius:7px;padding:.45rem .7rem;color:var(--text-primary);font-size:.85rem"
+            autocomplete="off">
+          <select id="pdr-history-period" style="background:var(--bg-3);border:1px solid var(--border-soft);border-radius:7px;padding:.45rem .7rem;color:var(--text-primary);font-size:.85rem">
+            <option value="all">Toute la période</option>
+            <option value="7">7 derniers jours</option>
+            <option value="30" selected>30 derniers jours</option>
+            <option value="90">90 derniers jours</option>
+            <option value="365">12 derniers mois</option>
+          </select>
+          <button class="btn btn--secondary" id="btn-pdr-history-export" style="font-size:.78rem">📤 Export Excel</button>
+        </div>
+        <div id="pdr-history-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.5rem;margin-bottom:1rem;font-family:var(--font-mono)"></div>
+        <div id="pdr-history-content">
+          <div class="pdr-history-empty">Chargement…</div>
+        </div>
+      </div>
+      <footer class="modal__footer">
+        <button class="btn btn--ghost" data-close>Fermer</button>
       </footer>
     </div>
   </div>
@@ -10323,6 +10793,15 @@ section[data-view] h1,
         initSessionTimeout();
         // 📱 Afficher le bouton flottant QR scanner
         if (typeof qrCodes !== 'undefined' && qrCodes.updateVisibility) qrCodes.updateVisibility();
+        // 💬 Précharger les compteurs de messages pour les badges
+        if (typeof interventionChat !== 'undefined' && interventionChat.preloadCounts) {
+          interventionChat.preloadCounts().then(() => {
+            // Re-render history si déjà visible
+            if (state.currentView === 'history' && views.history && views.history.render) {
+              views.history.render();
+            }
+          });
+        }
 
         // 🔔 Demander la permission notifications système (1 seule fois)
         // Délai 2s pour ne pas perturber le login + laisser le UI s'afficher
@@ -10343,6 +10822,8 @@ section[data-view] h1,
         $('#shell').hidden = true;
         // 📱 Cacher le bouton flottant QR scanner
         if (typeof qrCodes !== 'undefined' && qrCodes.updateVisibility) qrCodes.updateVisibility();
+        // 💬 Fermer le chat en cours
+        if (typeof interventionChat !== 'undefined' && interventionChat.close) interventionChat.close();
       }
     },
 
@@ -10593,6 +11074,17 @@ section[data-view] h1,
       });
       this.audit('intervention.validate', reg);
       this.notifyCrimping(reg, 'validated');
+
+      // 🔧 AUTO-RESET COMPTEUR PDR — si le bon contient des pièces changées,
+      // on enregistre automatiquement l'événement dans pdrChangeHistory et on
+      // reset cyclesAtLastPdr du tool. Le calcul "cycles depuis dernier PDR"
+      // se fait alors de validation N à validation N+1.
+      if (typeof wearAlerts !== 'undefined' && wearAlerts.recordPdrChangeFromBon) {
+        // Ne pas attendre — non-bloquant pour la validation
+        wearAlerts.recordPdrChangeFromBon(reg, data).catch(e =>
+          console.error('[validateIntervention] PDR auto-record failed:', e)
+        );
+      }
     },
 
     /* ════════════════════════════════════════════════════════════════════
@@ -11796,6 +12288,887 @@ section[data-view] h1,
   window.qrCodes = qrCodes;
 
   /* ==========================================================================
+     12.6  💬 INTERVENTION CHAT — Fil de discussion par bon (Firebase realtime)
+     ========================================================================== */
+  const interventionChat = {
+    _currentReg: null,        // bon actuellement ouvert
+    _listener: null,          // référence Firebase pour off()
+    _messages: [],            // cache des messages courants
+    _editingMsgId: null,      // message en cours d'édition
+    _unreadByReg: {},         // {reg: lastSeenTs} pour badges
+    _lastSeenStorageKey: 'leoni_chat_last_seen',
+
+    /** Initialise la persistance du "dernier vu" depuis localStorage */
+    _loadLastSeen() {
+      try {
+        const raw = localStorage.getItem(this._lastSeenStorageKey);
+        this._unreadByReg = raw ? JSON.parse(raw) : {};
+      } catch(e) { this._unreadByReg = {}; }
+    },
+    _saveLastSeen() {
+      try {
+        localStorage.setItem(this._lastSeenStorageKey, JSON.stringify(this._unreadByReg));
+      } catch(e) {}
+    },
+
+    /** Format de date relatif court pour les messages */
+    _formatTime(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      const now = new Date();
+      const isToday = d.toDateString() === now.toDateString();
+      const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+      const isYesterday = d.toDateString() === yest.toDateString();
+      const hhmm = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      if (isToday) return hhmm;
+      if (isYesterday) return 'Hier ' + hhmm;
+      return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + hhmm;
+    },
+
+    /** Label de date pour les séparateurs (ex: "Aujourd'hui", "Hier", "Lun 12 mai") */
+    _dayLabel(ts) {
+      const d = new Date(ts);
+      const now = new Date();
+      const today = now.toDateString();
+      const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+      if (d.toDateString() === today) return "Aujourd'hui";
+      if (d.toDateString() === yest.toDateString()) return 'Hier';
+      return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+    },
+
+    /** Initiales pour l'avatar */
+    _initials(name) {
+      if (!name) return '?';
+      const parts = name.trim().split(/\s+/);
+      if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    },
+
+    /** Label court du rôle pour le badge */
+    _roleLabel(role) {
+      const map = {
+        admin: 'Admin', super_admin: 'Super Admin', responsable: 'Responsable',
+        crimp: 'Crimping', crimping: 'Crimping', labo: 'Labo', magasinier: 'Magasinier',
+        technicien: 'Technicien', viewer: 'Lecture'
+      };
+      return map[role] || role || '—';
+    },
+
+    /** Échappe le HTML utilisateur */
+    _esc(s) {
+      return String(s || '').replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    },
+
+    /**
+     * Ouvre le chat pour un bon donné (appelé depuis intervention.open).
+     * Branche un listener Firebase realtime.
+     */
+    open(reg) {
+      if (!reg) return;
+      // Si on rouvre le même bon, ne rien faire
+      if (this._currentReg === reg && this._listener) return;
+
+      this.close(); // nettoie l'ancien listener
+      this._currentReg = reg;
+
+      const section = document.getElementById('intervention-chat-section');
+      if (section) section.hidden = false;
+
+      const statusEl = document.getElementById('chat-status');
+      const msgsEl = document.getElementById('chat-messages');
+      if (statusEl) statusEl.textContent = '⌛ Connexion en cours…';
+      if (msgsEl) msgsEl.innerHTML = '<div class="intervention-chat__empty">Chargement des messages…</div>';
+
+      if (typeof fbDb === 'undefined' || !fbDb) {
+        if (statusEl) statusEl.textContent = '⛔ Firebase non disponible';
+        return;
+      }
+
+      const ref = fbDb.ref('interventionMessages/' + reg).orderByChild('ts');
+      this._listenerRef = ref;
+      this._listener = (snap) => {
+        const data = snap.val() || {};
+        this._messages = Object.entries(data)
+          .map(([id, m]) => ({ id, ...m }))
+          .sort((a, b) => (a.ts || 0) - (b.ts || 0));
+        this.render();
+        // Marquer comme vu
+        const lastTs = this._messages.length ? this._messages[this._messages.length - 1].ts : Date.now();
+        this._unreadByReg[reg] = lastTs;
+        this._saveLastSeen();
+      };
+      ref.on('value', this._listener, (err) => {
+        console.error('[chat] listener error:', err);
+        if (statusEl) statusEl.textContent = '⛔ Erreur de connexion';
+      });
+
+      // Update composer state
+      this._updateComposerState();
+    },
+
+    /** Détache le listener Firebase */
+    close() {
+      if (this._listenerRef && this._listener) {
+        try { this._listenerRef.off('value', this._listener); } catch(e){}
+      }
+      this._listener = null;
+      this._listenerRef = null;
+      this._currentReg = null;
+      this._messages = [];
+      this._editingMsgId = null;
+    },
+
+    /** Affiche les messages dans la liste */
+    render() {
+      const msgsEl = document.getElementById('chat-messages');
+      const countEl = document.getElementById('chat-msg-count');
+      const statusEl = document.getElementById('chat-status');
+      if (!msgsEl) return;
+
+      countEl.textContent = this._messages.length;
+      statusEl.textContent = this._messages.length
+        ? '✅ Connecté en temps réel'
+        : 'Aucun message pour l\'instant';
+
+      if (!this._messages.length) {
+        msgsEl.innerHTML = '<div class="intervention-chat__empty">Aucun message — démarrez la conversation 👇</div>';
+        return;
+      }
+
+      const myUid = state.user?.uid;
+      let lastDay = null;
+      const html = this._messages.map(m => {
+        if (m.deleted) {
+          return `<div class="chat-msg" style="opacity:.5;font-style:italic"><div class="chat-msg__bubble"><div class="chat-msg__text">— Message supprimé —</div></div></div>`;
+        }
+        const dayLbl = this._dayLabel(m.ts);
+        let sep = '';
+        if (dayLbl !== lastDay) {
+          sep = `<div class="chat-msg__date-separator">${this._esc(dayLbl)}</div>`;
+          lastDay = dayLbl;
+        }
+        const isSelf = m.uid === myUid;
+        const role = m.role || '';
+        const canDelete = isSelf || ['admin','super_admin','responsable'].includes(state.role);
+        const editedMark = m.edited ? `<span class="chat-msg__edited">(modifié)</span>` : '';
+        return sep + `
+          <div class="chat-msg chat-msg--${role} ${isSelf ? 'chat-msg--self' : ''}" data-msg-id="${this._esc(m.id)}">
+            <div class="chat-msg__avatar" title="${this._esc(m.displayName || 'Anonyme')}">${this._esc(this._initials(m.displayName))}</div>
+            <div class="chat-msg__bubble">
+              <div class="chat-msg__header">
+                <span class="chat-msg__author">${this._esc(m.displayName || 'Anonyme')}</span>
+                <span class="chat-msg__role">${this._esc(this._roleLabel(role))}</span>
+                <span class="chat-msg__time">${this._formatTime(m.ts)}${editedMark}</span>
+              </div>
+              <div class="chat-msg__text">${this._esc(m.text)}</div>
+              ${canDelete ? `
+                <div class="chat-msg__actions">
+                  ${isSelf ? `<button class="chat-msg__action-btn" data-action="edit" title="Modifier">✏️</button>` : ''}
+                  <button class="chat-msg__action-btn" data-action="delete" title="Supprimer">🗑</button>
+                </div>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+      msgsEl.innerHTML = html;
+
+      // Wire action buttons
+      msgsEl.querySelectorAll('[data-action]').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const msgEl = btn.closest('[data-msg-id]');
+          if (!msgEl) return;
+          const msgId = msgEl.dataset.msgId;
+          const action = btn.dataset.action;
+          if (action === 'delete') this.deleteMessage(msgId);
+          else if (action === 'edit') this.startEdit(msgId);
+        };
+      });
+
+      // Auto-scroll to bottom
+      setTimeout(() => { msgsEl.scrollTop = msgsEl.scrollHeight; }, 50);
+    },
+
+    /** Envoie un nouveau message (ou met à jour si en édition) */
+    async send() {
+      const reg = this._currentReg;
+      if (!reg) return;
+      const input = document.getElementById('chat-input');
+      if (!input) return;
+      const text = input.value.trim();
+      if (!text) return;
+
+      if (!state.user) {
+        ui.toast('Connectez-vous pour envoyer un message', 'warn');
+        return;
+      }
+
+      try {
+        // Mode édition ?
+        if (this._editingMsgId) {
+          await fbDb.ref('interventionMessages/' + reg + '/' + this._editingMsgId).update({
+            text: text,
+            edited: true,
+            editedAt: Date.now()
+          });
+          this._editingMsgId = null;
+          input.placeholder = 'Écrire un message… (Entrée pour envoyer, Maj+Entrée pour nouvelle ligne)';
+        } else {
+          const msg = {
+            uid:         state.user.uid,
+            displayName: state.profile?.displayName || state.user.email || 'Anonyme',
+            role:        state.role || 'viewer',
+            text:        text,
+            ts:          Date.now()
+          };
+          await fbDb.ref('interventionMessages/' + reg).push(msg);
+          // Audit léger
+          try { if (typeof db !== 'undefined' && db.audit) db.audit('chat.send', reg, { len: text.length }); } catch(e){}
+        }
+
+        input.value = '';
+        input.style.height = 'auto';
+        this._updateComposerState();
+      } catch (e) {
+        console.error('[chat] send error:', e);
+        ui.toast('⛔ Erreur d\'envoi : ' + (e.message || e.code), 'danger');
+      }
+    },
+
+    /** Démarre l'édition d'un message */
+    startEdit(msgId) {
+      const msg = this._messages.find(m => m.id === msgId);
+      if (!msg) return;
+      if (msg.uid !== state.user?.uid) {
+        ui.toast('Vous ne pouvez modifier que vos propres messages', 'warn');
+        return;
+      }
+      const input = document.getElementById('chat-input');
+      input.value = msg.text;
+      input.focus();
+      input.placeholder = '✏️ Modification du message — Échap pour annuler';
+      this._editingMsgId = msgId;
+      this._updateComposerState();
+    },
+
+    /** Annule l'édition */
+    cancelEdit() {
+      this._editingMsgId = null;
+      const input = document.getElementById('chat-input');
+      if (input) {
+        input.value = '';
+        input.placeholder = 'Écrire un message… (Entrée pour envoyer, Maj+Entrée pour nouvelle ligne)';
+      }
+      this._updateComposerState();
+    },
+
+    /** Supprime (soft delete) un message */
+    async deleteMessage(msgId) {
+      const reg = this._currentReg;
+      if (!reg) return;
+      const msg = this._messages.find(m => m.id === msgId);
+      if (!msg) return;
+
+      const isOwn = msg.uid === state.user?.uid;
+      const isAdmin = ['admin','super_admin','responsable'].includes(state.role);
+      if (!isOwn && !isAdmin) {
+        ui.toast('Suppression réservée à l\'auteur ou au responsable', 'warn');
+        return;
+      }
+
+      if (!confirm('Supprimer ce message ?\n\n"' + msg.text.substring(0, 80) + (msg.text.length > 80 ? '…' : '') + '"')) return;
+
+      try {
+        // Soft delete : marquer comme supprimé (préserve l'historique)
+        await fbDb.ref('interventionMessages/' + reg + '/' + msgId).update({
+          deleted: true,
+          deletedAt: Date.now(),
+          deletedBy: state.user?.uid || ''
+        });
+        try { if (typeof db !== 'undefined' && db.audit) db.audit('chat.delete', reg, { msgId }); } catch(e){}
+      } catch(e) {
+        console.error('[chat] delete error:', e);
+        ui.toast('⛔ Erreur de suppression : ' + (e.message || e.code), 'danger');
+      }
+    },
+
+    /** Active/désactive le bouton Envoyer selon le contenu */
+    _updateComposerState() {
+      const input = document.getElementById('chat-input');
+      const btn = document.getElementById('chat-send-btn');
+      if (!input || !btn) return;
+      const hasText = input.value.trim().length > 0;
+      const isLogged = !!state.user;
+      btn.disabled = !hasText || !isLogged;
+      btn.textContent = this._editingMsgId ? '✏️ Modifier' : '📨 Envoyer';
+    },
+
+    /** Compte les messages non lus pour un bon donné */
+    countUnread(reg) {
+      // Cette fonction est appelée par history.render() pour afficher un badge
+      // On utilise un cache global state.chatCounts si dispo
+      const lastSeen = this._unreadByReg[reg] || 0;
+      const counts = state.chatCounts && state.chatCounts[reg];
+      if (!counts) return 0;
+      return counts.lastTs > lastSeen ? counts.unread : 0;
+    },
+
+    /**
+     * Câble les listeners DOM (entrée, bouton, raccourcis clavier).
+     */
+    wireUp() {
+      this._loadLastSeen();
+
+      const input = document.getElementById('chat-input');
+      const sendBtn = document.getElementById('chat-send-btn');
+      if (!input || !sendBtn) return;
+
+      // Auto-resize textarea
+      const autoResize = () => {
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+      };
+
+      input.addEventListener('input', () => {
+        autoResize();
+        this._updateComposerState();
+      });
+
+      // Entrée pour envoyer, Maj+Entrée pour nouvelle ligne, Échap pour annuler édition
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          this.send();
+        } else if (e.key === 'Escape' && this._editingMsgId) {
+          e.preventDefault();
+          this.cancelEdit();
+        }
+      });
+
+      sendBtn.addEventListener('click', () => this.send());
+    },
+
+    /**
+     * Pré-charge les compteurs de messages pour tous les bons (pour les badges historique).
+     * Léger : un seul read par bon avec une simple aggregation.
+     */
+    async preloadCounts() {
+      if (typeof fbDb === 'undefined' || !fbDb) return;
+      try {
+        const snap = await fbDb.ref('interventionMessages').once('value');
+        const all = snap.val() || {};
+        const counts = {};
+        for (const [reg, msgs] of Object.entries(all)) {
+          const arr = Object.values(msgs || {}).filter(m => !m.deleted);
+          if (!arr.length) continue;
+          const lastTs = Math.max(...arr.map(m => m.ts || 0));
+          const lastSeen = this._unreadByReg[reg] || 0;
+          const unread = arr.filter(m => (m.ts || 0) > lastSeen).length;
+          counts[reg] = { total: arr.length, lastTs, unread };
+        }
+        state.chatCounts = counts;
+      } catch(e) {
+        console.warn('[chat] preloadCounts error:', e);
+      }
+    }
+  };
+  window.interventionChat = interventionChat;
+
+  /* ==========================================================================
+     12.7  🔧 WEAR ALERTS — Surveillance & historique remplacements PDR outils
+     ========================================================================== */
+  const wearAlerts = {
+    _searchQuery: '',
+    _alertsCache: [],
+    PDR_LIFE_DEFAULT: 300000,      // Cycle de remplacement standard PDR sertissage
+    WARN_THRESHOLD: 0.75,           // 75% = warning
+    CRIT_THRESHOLD: 1.00,           // 100% = critical (≥300k cycles depuis dernier PDR)
+
+    /** Format compact des cycles (k / M) */
+    _fmtCycles(n) {
+      if (!n && n !== 0) return '—';
+      n = Math.max(0, Math.round(n));
+      if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(0) + 'k';
+      return String(n);
+    },
+
+    /** Cycles écoulés depuis le dernier remplacement PDR pour un outil */
+    cyclesSinceLastPdr(tool) {
+      const cum = parseFloat(tool.cyclesCum) || 0;
+      const atLast = parseFloat(tool.cyclesAtLastPdr) || 0;
+      return Math.max(0, cum - atLast);
+    },
+
+    /** Durée de vie nominale d'un outil (per-tool ou défaut) */
+    lifeFor(tool) {
+      return parseFloat(tool.cyclesNom) || parseFloat(tool.cyclesNominal) || this.PDR_LIFE_DEFAULT;
+    },
+
+    /** Calcule la liste complète des alertes pour TOUS les outils */
+    computeAll() {
+      const tools = state.tools ? Object.values(state.tools) : [];
+      const alerts = [];
+      tools.forEach(t => {
+        const cum = parseFloat(t.cyclesCum) || 0;
+        if (!cum) return; // outils sans cycles enregistrés = ignorés
+        const since = this.cyclesSinceLastPdr(t);
+        const life = this.lifeFor(t);
+        const ratio = since / life;
+        let severity = 'ok';
+        if (ratio >= this.CRIT_THRESHOLD) severity = 'critical';
+        else if (ratio >= this.WARN_THRESHOLD) severity = 'warn';
+
+        alerts.push({
+          tool: t,
+          id: t.serial || t.outilId || t.doutils || t.refOutil || t.id,
+          description: [t.groupe, t.projet, t.fabricant].filter(Boolean).join(' · ') || '—',
+          cyclesSince: since,
+          cyclesLife: life,
+          cyclesCum: cum,
+          ratio,
+          severity,
+          lastPdrChangeAt: t.lastPdrChangeAt || null
+        });
+      });
+      // Tri : critique → warn → ok, puis par ratio décroissant
+      const order = { critical: 0, warn: 1, ok: 2 };
+      alerts.sort((a, b) => {
+        if (order[a.severity] !== order[b.severity]) return order[a.severity] - order[b.severity];
+        return b.ratio - a.ratio;
+      });
+      this._alertsCache = alerts;
+      return alerts;
+    },
+
+    /** Applique le filtre de recherche aux alertes */
+    _filtered(alerts) {
+      const q = this._searchQuery.trim().toLowerCase();
+      if (!q) return alerts;
+      return alerts.filter(a => {
+        const haystack = [
+          a.id, a.description,
+          a.tool.serial, a.tool.outilId, a.tool.doutils, a.tool.refOutil,
+          a.tool.groupe, a.tool.projet, a.tool.fabricant
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(q);
+      });
+    },
+
+    /** Rendu de la liste dans le widget */
+    render() {
+      const wrap = document.getElementById('wear-alerts-list');
+      if (!wrap) return;
+      const all = this.computeAll();
+      // N'afficher dans la liste que les outils en warn/critical (et résultats du search)
+      let visible;
+      if (this._searchQuery) {
+        // Mode recherche : afficher TOUS les outils correspondants, OK inclus
+        visible = this._filtered(all);
+      } else {
+        // Mode normal : seulement warn + critical
+        visible = all.filter(a => a.severity !== 'ok');
+      }
+
+      if (!all.length) {
+        wrap.innerHTML = '<div class="wear-alerts__empty">Aucun outil avec compteur cycles dans le catalogue</div>';
+        return;
+      }
+      if (!visible.length) {
+        const totalCount = all.length;
+        wrap.innerHTML = `<div class="wear-alerts__empty">✅ Aucune alerte active<br><span style="font-size:.7rem">${totalCount} outil${totalCount > 1 ? 's' : ''} sous le seuil 75% (225k cycles)</span></div>`;
+        return;
+      }
+
+      // Limite à 25 lignes max pour ne pas saturer (les autres sont accessibles via search)
+      const slice = visible.slice(0, 25);
+
+      wrap.innerHTML = slice.map(a => {
+        const pct = Math.round(a.ratio * 100);
+        const cls = `wear-alerts__row wear-alerts__row--${a.severity}`;
+        const icon = a.severity === 'critical' ? '🔴' : a.severity === 'warn' ? '🟡' : '✅';
+        const colorBar = a.severity === 'critical' ? '#ef4444' : a.severity === 'warn' ? '#f59e0b' : '#10b981';
+        const pctClamped = Math.min(100, pct);
+        const cyclesText = a.severity === 'critical'
+          ? `<strong style="color:#fca5a5">${this._fmtCycles(a.cyclesSince)}</strong> / ${this._fmtCycles(a.cyclesLife)} depuis PDR`
+          : `<strong>${this._fmtCycles(a.cyclesSince)}</strong> / ${this._fmtCycles(a.cyclesLife)} cycles`;
+        return `
+          <div class="${cls}" data-tool-id="${this._escAttr(a.tool.id)}">
+            <span class="wear-alerts__icon">${icon}</span>
+            <div class="wear-alerts__body">
+              <span class="wear-alerts__id">${this._esc(a.id)}</span>
+              <span style="color:${colorBar};font-weight:700">${pct}%</span>
+              <span class="wear-alerts__desc">${this._esc(a.description)}</span>
+            </div>
+            <div class="wear-alerts__metric">${cyclesText}</div>
+            <div class="wear-alerts__progress">
+              <div class="wear-alerts__progress-fill" style="width:${pctClamped}%;background:${colorBar}"></div>
+            </div>
+          </div>
+        `;
+      }).join('') + (visible.length > 25 ? `<div class="wear-alerts__empty" style="padding:.5rem">+ ${visible.length - 25} autre${visible.length - 25 > 1 ? 's' : ''} — affiner avec la recherche</div>` : '');
+
+      // Clic sur la ligne → ouvrir fiche outil
+      wrap.querySelectorAll('.wear-alerts__row').forEach(row => {
+        row.addEventListener('click', () => {
+          const id = row.dataset.toolId;
+          const tool = state.tools && state.tools[id];
+          if (tool && views.catalog && typeof views.catalog.showDetails === 'function') {
+            router.go('catalog');
+            setTimeout(() => views.catalog.showDetails(tool), 150);
+          }
+        });
+        row.style.cursor = 'pointer';
+      });
+    },
+
+    /**
+     * 🤖 ENREGISTREMENT AUTOMATIQUE — Appelé depuis db.validateIntervention()
+     * quand un bon de changement PDR est validé.
+     *
+     * Logique :
+     *   - Si le bon contient au moins une pièce cochée dans piecesChanged → c'est un changement PDR
+     *   - On enregistre l'événement dans pdrChangeHistory
+     *   - On met à jour cyclesAtLastPdr du tool = cycles du bon à ce moment
+     *   - Le compteur "cyclesSinceLastPdr" repart de 0
+     *   - La prochaine validation calculera le delta depuis cette validation
+     */
+    async recordPdrChangeFromBon(reg, bonData) {
+      try {
+        if (!reg || !bonData) return false;
+        const piecesChanged = (bonData.crimping && bonData.crimping.piecesChanged) || {};
+        // Liste des pièces effectivement cochées
+        const piecesList = Object.entries(piecesChanged).filter(([k, v]) => !!v).map(([k]) => k);
+        if (!piecesList.length) return false; // pas un bon de changement PDR
+
+        const tool = bonData.tool;
+        if (!tool || !tool.id) {
+          console.warn('[wearAlerts] Bon ' + reg + ' validé mais pas de tool.id — pas d\'enregistrement PDR');
+          return false;
+        }
+
+        const cyclesAtValidation = parseFloat(bonData.crimping?.cycles) || 0;
+        const stateTool = state.tools && state.tools[tool.id];
+        const cyclesBefore = stateTool ? (parseFloat(stateTool.cyclesAtLastPdr) || 0) : 0;
+        const cyclesSinceLastPdr = Math.max(0, cyclesAtValidation - cyclesBefore);
+        const now = Date.now();
+
+        const labelTool = tool.serial || tool.outilId || tool.doutils || tool.refOutil || tool.id;
+
+        // Mapping des codes pièces → labels lisibles
+        const pieceLabels = {
+          pAr: 'P-AR Poinçon Arrière', pAv: 'P-AV Poinçon Avant',
+          eAr: 'E-AR Enclume Arrière', eAv: 'E-AV Enclume Avant',
+          cAr: 'C-AR Couteau Arrière', cAv: 'C-AV Couteau Avant',
+          ejector: 'Éjecteur', couteauBanda: 'Couteau Banda'
+        };
+        const piecesReadable = piecesList.map(p => pieceLabels[p] || p);
+
+        // 1) Push history event
+        const event = {
+          ts: now,
+          numBon: reg,
+          toolId: tool.id,
+          toolLabel: labelTool,
+          cyclesAtChange: cyclesAtValidation,
+          cyclesSinceLastPdr: cyclesSinceLastPdr,
+          piecesChanged: piecesList,
+          piecesReadable: piecesReadable.join(', '),
+          interventionType: bonData.crimping?.type || '',
+          source: 'auto-validation', // distingue auto vs futur manuel
+          changedBy: state.profile?.displayName || state.user?.email || 'Inconnu',
+          changedByUid: state.user?.uid || '',
+          changedByRole: state.role || ''
+        };
+        await fbDb.ref('pdrChangeHistory').push(event);
+
+        // 2) Update tool fields (reset compteur "depuis dernier PDR")
+        await fbDb.ref('tools/' + tool.id).update({
+          cyclesAtLastPdr: cyclesAtValidation,
+          lastPdrChangeAt: now,
+          lastPdrChangeBonReg: reg
+        });
+
+        // 3) Mise à jour locale immédiate du state (le listener Firebase confirmera)
+        if (stateTool) {
+          stateTool.cyclesAtLastPdr = cyclesAtValidation;
+          stateTool.lastPdrChangeAt = now;
+          stateTool.lastPdrChangeBonReg = reg;
+        }
+
+        // 4) Audit log
+        try {
+          if (typeof db !== 'undefined' && db.audit) {
+            db.audit('pdr.auto-reset', tool.id, {
+              numBon: reg,
+              cyclesAtChange: cyclesAtValidation,
+              cyclesSinceLastPdr: cyclesSinceLastPdr,
+              pieces: piecesList
+            });
+          }
+        } catch(e){}
+
+        // 5) Toast pour informer l'utilisateur (subtle)
+        if (typeof ui !== 'undefined' && ui.toast) {
+          ui.toast(
+            `🔧 PDR enregistré · ${labelTool} · ${this._fmtCycles(cyclesSinceLastPdr)} cycles depuis dernier changement`,
+            'success'
+          );
+        }
+
+        // 6) Re-render du widget
+        this.render();
+
+        return true;
+      } catch (e) {
+        console.error('[wearAlerts] recordPdrChangeFromBon error:', e);
+        // Ne pas faire échouer la validation à cause de l'enregistrement PDR
+        return false;
+      }
+    },
+
+    /** Charge l'historique complet des changements PDR */
+    async loadHistory() {
+      try {
+        const snap = await fbDb.ref('pdrChangeHistory').once('value');
+        const data = snap.val() || {};
+        return Object.entries(data)
+          .map(([id, ev]) => ({ id, ...ev }))
+          .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      } catch (e) {
+        console.error('[wearAlerts] loadHistory error:', e);
+        return [];
+      }
+    },
+
+    /** Ouvre la modale historique */
+    async openHistory() {
+      const modal = document.getElementById('modal-pdr-history');
+      if (!modal) return;
+      modal.hidden = false;
+      const content = document.getElementById('pdr-history-content');
+      const stats = document.getElementById('pdr-history-stats');
+      content.innerHTML = '<div class="pdr-history-empty">⌛ Chargement de l\'historique…</div>';
+
+      const history = await this.loadHistory();
+      this._historyCache = history;
+      this._renderHistory();
+
+      // Wire search + period filters
+      const searchEl = document.getElementById('pdr-history-search');
+      const periodEl = document.getElementById('pdr-history-period');
+      if (searchEl) searchEl.oninput = () => this._renderHistory();
+      if (periodEl) periodEl.onchange = () => this._renderHistory();
+
+      // Wire export button
+      const exportBtn = document.getElementById('btn-pdr-history-export');
+      if (exportBtn) exportBtn.onclick = () => this._exportHistory();
+
+      // Wire close
+      modal.querySelectorAll('[data-close]').forEach(el => {
+        el.onclick = () => { modal.hidden = true; };
+      });
+    },
+
+    /** Filtre + affiche l'historique selon search + période */
+    _renderHistory() {
+      const content = document.getElementById('pdr-history-content');
+      const stats = document.getElementById('pdr-history-stats');
+      if (!content) return;
+
+      let list = this._historyCache || [];
+      const q = (document.getElementById('pdr-history-search')?.value || '').trim().toLowerCase();
+      const period = document.getElementById('pdr-history-period')?.value || 'all';
+
+      // Filtre période
+      if (period !== 'all') {
+        const days = parseInt(period);
+        const cutoff = Date.now() - days * 86400000;
+        list = list.filter(ev => (ev.ts || 0) >= cutoff);
+      }
+      // Filtre search
+      if (q) {
+        list = list.filter(ev => {
+          const tool = state.tools && state.tools[ev.toolId];
+          const haystack = [
+            ev.toolLabel, ev.changedBy,
+            tool?.serial, tool?.outilId, tool?.doutils, tool?.refOutil,
+            tool?.groupe, tool?.projet, tool?.fabricant
+          ].filter(Boolean).join(' ').toLowerCase();
+          return haystack.includes(q);
+        });
+      }
+
+      // Stats
+      const totalChanges = list.length;
+      const uniqueTools = new Set(list.map(ev => ev.toolId)).size;
+      const totalCyclesSaved = list.reduce((s, ev) => s + (parseFloat(ev.cyclesSinceLastPdr) || 0), 0);
+      const avgCyclesBetween = totalChanges ? Math.round(totalCyclesSaved / totalChanges) : 0;
+      if (stats) {
+        stats.innerHTML = `
+          <div style="background:var(--bg-3);padding:.55rem .75rem;border-radius:7px;border:1px solid var(--border-soft)">
+            <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Changements</div>
+            <div style="font-size:1.2rem;font-weight:700;color:#00d4ff">${totalChanges}</div>
+          </div>
+          <div style="background:var(--bg-3);padding:.55rem .75rem;border-radius:7px;border:1px solid var(--border-soft)">
+            <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Outils distincts</div>
+            <div style="font-size:1.2rem;font-weight:700;color:#00e5a0">${uniqueTools}</div>
+          </div>
+          <div style="background:var(--bg-3);padding:.55rem .75rem;border-radius:7px;border:1px solid var(--border-soft)">
+            <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Moy. cycles entre PDR</div>
+            <div style="font-size:1.2rem;font-weight:700;color:#fbbf24">${this._fmtCycles(avgCyclesBetween)}</div>
+          </div>`;
+      }
+
+      if (!list.length) {
+        content.innerHTML = '<div class="pdr-history-empty">Aucun changement PDR enregistré' + (q ? ' pour ce filtre' : '') + '</div>';
+        return;
+      }
+
+      const fmtDate = (ts) => ts ? new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+      content.innerHTML = `
+        <table class="pdr-history-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>N° Bon</th>
+              <th>Outil</th>
+              <th>Pièces changées</th>
+              <th>Groupe / Projet</th>
+              <th style="text-align:right">Cycles à chgt</th>
+              <th style="text-align:right">Cycles depuis PDR précédent</th>
+              <th>Effectué par</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map(ev => {
+              const tool = (state.tools && state.tools[ev.toolId]) || {};
+              const groupe = [tool.groupe, tool.projet].filter(Boolean).join(' · ') || '—';
+              const pieces = ev.piecesReadable || (ev.piecesChanged ? ev.piecesChanged.join(', ') : '—');
+              return `
+                <tr data-tool-id="${this._escAttr(ev.toolId)}" data-bon-reg="${this._escAttr(ev.numBon || '')}" style="cursor:pointer">
+                  <td style="font-family:var(--font-mono);font-size:.78rem">${fmtDate(ev.ts)}</td>
+                  <td style="font-family:var(--font-mono);font-weight:700;color:#00d4ff">${this._esc(ev.numBon || '—')}</td>
+                  <td style="font-family:var(--font-mono);font-weight:700">${this._esc(ev.toolLabel)}</td>
+                  <td style="font-size:.74rem;color:var(--text-secondary);max-width:200px">${this._esc(pieces)}</td>
+                  <td style="color:var(--text-secondary);font-size:.78rem">${this._esc(groupe)}</td>
+                  <td style="text-align:right;font-family:var(--font-mono)">${this._fmtCycles(ev.cyclesAtChange)}</td>
+                  <td style="text-align:right;font-family:var(--font-mono);color:${(parseFloat(ev.cyclesSinceLastPdr) || 0) > this.PDR_LIFE_DEFAULT ? '#fca5a5' : '#fbbf24'}">${this._fmtCycles(ev.cyclesSinceLastPdr)}</td>
+                  <td style="font-size:.78rem">${this._esc(ev.changedBy)}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Clic sur ligne → ouvrir fiche outil (ou bon si dispo)
+      content.querySelectorAll('tr[data-tool-id]').forEach(tr => {
+        tr.addEventListener('click', (e) => {
+          const reg = tr.dataset.bonReg;
+          const toolId = tr.dataset.toolId;
+          // Si Ctrl/Cmd + clic ET bon dispo → ouvrir le bon plutôt que l'outil
+          if (reg && (e.ctrlKey || e.metaKey) && state.interventions && state.interventions[reg]) {
+            document.getElementById('modal-pdr-history').hidden = true;
+            views.intervention.open(reg);
+            return;
+          }
+          const tool = state.tools && state.tools[toolId];
+          if (tool && views.catalog && typeof views.catalog.showDetails === 'function') {
+            document.getElementById('modal-pdr-history').hidden = true;
+            router.go('catalog');
+            setTimeout(() => views.catalog.showDetails(tool), 150);
+          }
+        });
+      });
+    },
+
+    /** Export Excel de l'historique filtré */
+    _exportHistory() {
+      const list = this._historyCache || [];
+      if (!list.length) { ui.toast('Aucune donnée à exporter', 'warn'); return; }
+      const period = document.getElementById('pdr-history-period')?.value || 'all';
+      const q = (document.getElementById('pdr-history-search')?.value || '').trim().toLowerCase();
+      let filtered = list;
+      if (period !== 'all') {
+        const cutoff = Date.now() - parseInt(period) * 86400000;
+        filtered = filtered.filter(ev => (ev.ts || 0) >= cutoff);
+      }
+      if (q) {
+        filtered = filtered.filter(ev => {
+          const tool = state.tools && state.tools[ev.toolId];
+          const haystack = [ev.toolLabel, ev.changedBy, tool?.groupe, tool?.projet].filter(Boolean).join(' ').toLowerCase();
+          return haystack.includes(q);
+        });
+      }
+
+      // CSV export (compatible Excel)
+      const headers = ['Date', 'N° Bon', 'Outil', 'Pièces changées', 'Groupe', 'Projet', 'Cycles à chgt', 'Cycles depuis PDR précédent', 'Effectué par', 'Rôle'];
+      const rows = filtered.map(ev => {
+        const tool = (state.tools && state.tools[ev.toolId]) || {};
+        const pieces = ev.piecesReadable || (ev.piecesChanged ? ev.piecesChanged.join(', ') : '');
+        return [
+          new Date(ev.ts).toLocaleString('fr-FR'),
+          ev.numBon || '',
+          ev.toolLabel || '',
+          pieces,
+          tool.groupe || '',
+          tool.projet || '',
+          ev.cyclesAtChange || 0,
+          ev.cyclesSinceLastPdr || 0,
+          ev.changedBy || '',
+          ev.changedByRole || ''
+        ];
+      });
+      const csv = [headers, ...rows].map(r =>
+        r.map(c => {
+          const s = String(c ?? '');
+          return s.includes(';') || s.includes('"') || s.includes('\n')
+            ? '"' + s.replace(/"/g, '""') + '"'
+            : s;
+        }).join(';')
+      ).join('\r\n');
+      // BOM pour Excel (accents corrects)
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `historique_PDR_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      ui.toast(`📤 ${filtered.length} lignes exportées`, 'success');
+    },
+
+    /** Helpers HTML */
+    _esc(s) {
+      return String(s == null ? '—' : s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    },
+    _escAttr(s) {
+      return String(s || '').replace(/["'<>&]/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    },
+
+    /** Câble les listeners DOM */
+    wireUp() {
+      // Search bar du widget
+      const searchEl = document.getElementById('wear-alerts-search');
+      if (searchEl) {
+        searchEl.addEventListener('input', debounce(() => {
+          this._searchQuery = searchEl.value;
+          this.render();
+        }, 200));
+      }
+      // Bouton historique
+      const histBtn = document.getElementById('btn-wear-history');
+      if (histBtn) histBtn.onclick = () => this.openHistory();
+    }
+  };
+  window.wearAlerts = wearAlerts;
+
+  /* ==========================================================================
      13. VIEWS
      ========================================================================== */
   const views = {
@@ -11928,9 +13301,13 @@ section[data-view] h1,
          🔔 ALERTES PRÉDICTIVES — Surveillance d'usure des outils
          ════════════════════════════════════════════════════════════════════
          Basée sur le ratio (cycles cumulés / durée de vie nominale).
+         Durée de vie par défaut : 300 000 cycles (correspond au cycle de
+         remplacement PDR standard pour les pièces de sertissage Leoni :
+         poinçon, enclume, couteau, etc.). Peut être surchargée par outil
+         via le champ cyclesNom dans le catalogue.
          Seuils par défaut :
-           - ≥ 95%  → CRITICAL (rouge) — remplacement urgent
-           - ≥ 75%  → WARNING (amber)  — planifier remplacement
+           - ≥ 95%  → CRITICAL (rouge) — remplacement urgent (≥ 285k cycles)
+           - ≥ 75%  → WARNING (amber)  — planifier remplacement (≥ 225k cycles)
            - <  75% → OK (pas d'alerte)
          ════════════════════════════════════════════════════════════════════ */
       renderPredictiveAlerts() {
@@ -11938,6 +13315,13 @@ section[data-view] h1,
         const list = document.getElementById('alert-strip-list');
         const count = document.getElementById('alert-strip-count');
         if (!strip || !list) return;
+
+        // ⚙️ Constante métier : durée de vie nominale par défaut d'une PDR sertissage
+        // ───────────────────────────────────────────────────────────────────
+        // 300 000 cycles = cycle de remplacement standard chez Leoni Annex 5
+        // pour poinçon, enclume, couteau Banda, etc. Peut être surchargée par
+        // outil dans le catalogue via le champ "cyclesNom" / "cyclesNominal".
+        const PDR_LIFE_DEFAULT = 300000;
 
         // Récupère les outils depuis state.tools (catalogue)
         const tools = state.tools ? Object.values(state.tools) : [];
@@ -11950,7 +13334,7 @@ section[data-view] h1,
         const alerts = [];
         tools.forEach(t => {
           const cyclesCum = parseFloat(t.cyclesCum) || 0;
-          const cyclesNom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || 1500000; // 1.5M par défaut
+          const cyclesNom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || PDR_LIFE_DEFAULT;
           if (!cyclesCum || !cyclesNom || cyclesNom <= 0) return;
 
           const ratio = cyclesCum / cyclesNom;
@@ -11997,11 +13381,16 @@ section[data-view] h1,
           const pct = Math.round(a.ratio * 100);
           const cls = a.severity === 'critical' ? 'alert-row--critical' : 'alert-row--warn';
           const icon = a.severity === 'critical' ? '🔴' : '🟡';
+          // Cycles restants avant remplacement PDR
+          const remaining = Math.max(0, a.cyclesNom - a.cyclesCum);
+          const statusLabel = a.severity === 'critical'
+            ? '🔧 PDR à remplacer'
+            : `⏳ ${fmtCycles(remaining)} cycles restants`;
           return `
-            <div class="alert-row ${cls}" data-tool-id="${ui.escape(a.id)}">
+            <div class="alert-row ${cls}" data-tool-id="${ui.escape(a.id)}" title="Cliquez pour ouvrir la fiche outil">
               <span style="font-size:.9rem">${icon}</span>
               <span class="alert-row__id">${ui.escape(a.id)}</span>
-              <span class="alert-row__desc">${ui.escape(a.description)} · <strong>${pct}% durée vie</strong></span>
+              <span class="alert-row__desc">${ui.escape(a.description)} · <strong>${pct}% durée vie</strong> · <span style="color:${a.severity === 'critical' ? '#fca5a5' : '#fbbf24'}">${statusLabel}</span></span>
               <span class="alert-row__metric">${fmtCycles(a.cyclesCum)} / ${fmtCycles(a.cyclesNom)} cycles</span>
             </div>
           `;
@@ -12075,12 +13464,12 @@ section[data-view] h1,
         const tools = state.tools ? Object.values(state.tools) : [];
         const alertCount = tools.filter(t => {
           const cum = parseFloat(t.cyclesCum) || 0;
-          const nom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || 1500000;
+          const nom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || 300000;
           return cum && nom && (cum / nom) >= 0.75;
         }).length;
         const critCount = tools.filter(t => {
           const cum = parseFloat(t.cyclesCum) || 0;
-          const nom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || 1500000;
+          const nom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || 300000;
           return cum && nom && (cum / nom) >= 0.95;
         }).length;
         const alertEl = document.getElementById('cc-kpi-alerts');
@@ -12091,8 +13480,10 @@ section[data-view] h1,
         // ── Flux interventions 24h (graphe en barres horaires) ──
         this._renderFlux24h(list);
 
-        // ── Performance équipe 7j ──
-        this._renderTeamPerf7d(list);
+        // ── 🔧 Alertes Usure PDR Outils (remplace l'ancien Performance équipe) ──
+        if (typeof wearAlerts !== 'undefined' && wearAlerts.render) {
+          wearAlerts.render();
+        }
       },
 
       _renderFlux24h(list) {
@@ -12473,6 +13864,11 @@ section[data-view] h1,
         const data = state.interventions[reg];
         if (!data) { ui.toast('Bon introuvable', 'danger'); return; }
         state.currentInterventionId = reg;
+
+        // 💬 Ouvre le fil de discussion pour ce bon
+        if (typeof interventionChat !== 'undefined') {
+          interventionChat.open(reg);
+        }
 
         $('#int-num').textContent = data.numBon;
         $('#int-created').textContent = fmt.dateTime(data.createdAt);
@@ -14269,6 +15665,17 @@ section[data-view] h1,
           const numBonCell = isP5J
             ? `<strong style="color:#00e5a0">${i.numBon}</strong> <span style="background:rgba(0,229,160,.15);color:#00e5a0;font-size:.6rem;padding:.05rem .35rem;border-radius:3px;font-weight:700;letter-spacing:.04em;margin-left:.3rem">P5J</span>`
             : `<strong>${i.numBon}</strong>`;
+          // 💬 Badge messages du chat
+          const chatInfo = state.chatCounts && state.chatCounts[i.numBon];
+          let chatBadge = '';
+          if (chatInfo && chatInfo.total > 0) {
+            const lastSeen = (typeof interventionChat !== 'undefined' && interventionChat._unreadByReg) ? (interventionChat._unreadByReg[i.numBon] || 0) : 0;
+            const hasUnread = chatInfo.lastTs > lastSeen;
+            const style = hasUnread
+              ? 'background:rgba(0,212,255,.25);color:#00d4ff;font-weight:700;animation:chat-fade-in .3s'
+              : 'background:rgba(255,255,255,.08);color:var(--text-muted)';
+            chatBadge = ` <span class="chat-badge-history" style="${style}" title="${hasUnread ? 'Nouveaux messages' : 'Messages'}">💬 ${chatInfo.total}</span>`;
+          }
           const typeCell = isP5J ? '<span style="color:#00e5a0">📸 Vérification visuelle</span>' : ui.escape(c.type || '—');
           const photoCount = (c.photos || []).length;
           const obsCell = isP5J && photoCount
@@ -14277,7 +15684,7 @@ section[data-view] h1,
           return `
             <tr data-reg="${i.numBon}" ${isP5J ? 'data-kind="p5j"' : ''}>
               <td><input type="checkbox" data-reg="${i.numBon}" /></td>
-              <td>${numBonCell}</td>
+              <td>${numBonCell}${chatBadge}</td>
               <td>${ui.escape((i.tool && (i.tool.serial || i.tool.outilId)) || '—')}</td>
               <td>${fmt.date(c.date)}</td>
               <td>${fmt.number(c.cycles)}</td>
@@ -21279,6 +22686,16 @@ Erreur Firebase : ${e.message}`;
     // 📱 Câblage du système QR Codes (génération + scan)
     if (typeof qrCodes !== 'undefined' && qrCodes.wireUp) {
       qrCodes.wireUp();
+    }
+
+    // 💬 Câblage du chat d'intervention
+    if (typeof interventionChat !== 'undefined' && interventionChat.wireUp) {
+      interventionChat.wireUp();
+    }
+
+    // 🔧 Câblage des alertes usure PDR
+    if (typeof wearAlerts !== 'undefined' && wearAlerts.wireUp) {
+      wearAlerts.wireUp();
     }
 
     // ════════════════════════════════════════════════════════════════════════

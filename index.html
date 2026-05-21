@@ -388,6 +388,43 @@ legend { padding: 0; }
   transform: translateY(-1px);
   box-shadow: 0 6px 20px var(--accent-glow);
 }
+
+/* 🔄 BOUTON BASCULE MODE TEST/PROD — visible super_admin */
+.topbar__btn--mode {
+  font-weight: 800;
+  letter-spacing: .04em;
+  padding: 0 .9rem;
+  cursor: pointer;
+  transition: all .2s ease;
+  position: relative;
+  border-width: 2px;
+}
+.topbar__btn--mode[data-mode="test"] {
+  background: linear-gradient(135deg, rgba(245,158,11,.25), rgba(251,191,36,.18));
+  color: #fbbf24;
+  border-color: rgba(245,158,11,.55);
+  box-shadow: 0 0 14px rgba(245,158,11,.25);
+  animation: modeBtnPulse 2.5s ease-in-out infinite;
+}
+.topbar__btn--mode[data-mode="prod"] {
+  background: linear-gradient(135deg, rgba(0,229,160,.25), rgba(16,185,129,.18));
+  color: #10b981;
+  border-color: rgba(16,185,129,.55);
+  box-shadow: 0 0 14px rgba(16,185,129,.25);
+}
+.topbar__btn--mode:hover {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 6px 20px rgba(245,158,11,.4);
+}
+.topbar__btn--mode[data-mode="prod"]:hover {
+  box-shadow: 0 6px 20px rgba(16,185,129,.4);
+}
+@keyframes modeBtnPulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(245,158,11,.25); }
+  50% { box-shadow: 0 0 24px rgba(245,158,11,.55), 0 0 0 4px rgba(245,158,11,.12); }
+}
+[data-theme="light"] .topbar__btn--mode[data-mode="test"] { color: #b45309; }
+[data-theme="light"] .topbar__btn--mode[data-mode="prod"] { color: #047857; }
 .topbar__btn--icon {
   width: 38px;
   padding: 0;
@@ -6716,6 +6753,11 @@ section[data-view] h1,
 
       <div class="topbar__actions">
         <button class="topbar__btn topbar__btn--quick" id="btn-quick-new" title="Nouveau bon (N)" data-requires-role="admin,super_admin,responsable,crimp,crimping">＋ <span data-i18n="topbar.newBon">Nouveau bon</span></button>
+
+        <!-- 🔄 BOUTON BASCULE MODE TEST ↔ PROD — super_admin uniquement -->
+        <button class="topbar__btn topbar__btn--mode" id="btn-mode-switch" title="Basculer entre Mode TEST et PRODUCTION" data-requires-role="super_admin" hidden>
+          <span id="btn-mode-switch-label">🧪 TEST</span>
+        </button>
 
         <button class="topbar__btn topbar__btn--icon" id="btn-notifications" aria-label="Notifications">
           🔔
@@ -13473,26 +13515,45 @@ section[data-view] h1,
       }
     },
 
-    /** Met à jour le badge cockpit selon le mode */
+    /** Met à jour le badge cockpit ET le bouton topbar selon le mode */
     applyModeUI() {
-      const badge = document.getElementById('cockpit-mode');
-      if (!badge) return;
-      badge.hidden = !state.user;
       const isSuperAdmin = state.role === 'super_admin';
-      if (this._currentMode === 'test') {
-        badge.className = 'cockpit-bar__mode cockpit-bar__mode--test' + (isSuperAdmin ? ' cockpit-bar__mode--clickable' : '');
-        badge.textContent = '🧪 TEST';
-        badge.title = isSuperAdmin
-          ? 'Mode TEST actif — Cliquez pour basculer en PRODUCTION'
-          : 'Mode TEST actif — Données de formation';
-      } else {
-        badge.className = 'cockpit-bar__mode cockpit-bar__mode--prod' + (isSuperAdmin ? ' cockpit-bar__mode--clickable' : '');
-        badge.textContent = '🟢 PROD';
-        badge.title = isSuperAdmin
-          ? 'Mode PRODUCTION actif — Cliquez pour basculer en TEST (formation)'
-          : 'Mode PRODUCTION actif';
+      const isTest = (this._currentMode === 'test');
+
+      // 1) Badge cockpit (en haut à droite, petit indicateur de statut)
+      const badge = document.getElementById('cockpit-mode');
+      if (badge) {
+        badge.hidden = !state.user;
+        if (isTest) {
+          badge.className = 'cockpit-bar__mode cockpit-bar__mode--test' + (isSuperAdmin ? ' cockpit-bar__mode--clickable' : '');
+          badge.textContent = '🧪 TEST';
+          badge.title = isSuperAdmin
+            ? 'Mode TEST actif — Cliquez pour basculer en PRODUCTION'
+            : 'Mode TEST actif — Données de formation';
+        } else {
+          badge.className = 'cockpit-bar__mode cockpit-bar__mode--prod' + (isSuperAdmin ? ' cockpit-bar__mode--clickable' : '');
+          badge.textContent = '🟢 PROD';
+          badge.title = isSuperAdmin
+            ? 'Mode PRODUCTION actif — Cliquez pour basculer en TEST (formation)'
+            : 'Mode PRODUCTION actif';
+        }
+        badge.onclick = isSuperAdmin ? () => this.openModal() : null;
       }
-      badge.onclick = isSuperAdmin ? () => this.openModal() : null;
+
+      // 2) 🔄 Gros bouton dans la topbar (visible super_admin uniquement)
+      const topbarBtn = document.getElementById('btn-mode-switch');
+      if (topbarBtn) {
+        topbarBtn.hidden = !(state.user && isSuperAdmin);
+        topbarBtn.dataset.mode = isTest ? 'test' : 'prod';
+        const labelEl = document.getElementById('btn-mode-switch-label');
+        if (labelEl) {
+          labelEl.textContent = isTest ? '🧪 MODE TEST' : '🟢 MODE PROD';
+        }
+        topbarBtn.title = isTest
+          ? 'Mode TEST actif — Cliquez pour basculer en PRODUCTION'
+          : 'Mode PRODUCTION actif — Cliquez pour basculer en TEST (formation)';
+        topbarBtn.onclick = isSuperAdmin ? () => this.openModal() : null;
+      }
     },
 
     /** Compte les enregistrements sous chaque chemin (mode actuel + autre mode) */

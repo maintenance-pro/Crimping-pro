@@ -5626,6 +5626,165 @@ select:focus {
   font-weight: 500;
 }
 
+/* — 🧪/🟢 BADGE MODE TEST/PRODUCTION — */
+.cockpit-bar__mode {
+  margin-left: .5rem;
+  padding: .12rem .55rem;
+  border-radius: 4px;
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  cursor: default;
+  transition: all .15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  white-space: nowrap;
+}
+.cockpit-bar__mode--test {
+  background: linear-gradient(135deg, rgba(245,158,11,.25), rgba(251,191,36,.15));
+  color: #fbbf24;
+  border: 1px solid rgba(245,158,11,.4);
+  animation: modePulse 2.5s ease-in-out infinite;
+}
+.cockpit-bar__mode--prod {
+  background: linear-gradient(135deg, rgba(0,229,160,.20), rgba(16,185,129,.12));
+  color: #10b981;
+  border: 1px solid rgba(16,185,129,.4);
+}
+.cockpit-bar__mode--clickable {
+  cursor: pointer;
+}
+.cockpit-bar__mode--clickable:hover {
+  transform: scale(1.06);
+  box-shadow: 0 0 12px rgba(245,158,11,.35);
+}
+@keyframes modePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .65; }
+}
+[data-theme="light"] .cockpit-bar__mode--test {
+  background: linear-gradient(135deg, rgba(245,158,11,.20), rgba(251,191,36,.12));
+  color: #b45309;
+}
+[data-theme="light"] .cockpit-bar__mode--prod {
+  background: linear-gradient(135deg, rgba(0,180,130,.20), rgba(16,185,129,.12));
+  color: #047857;
+}
+
+/* — Modale bascule TEST → PRODUCTION — */
+.prod-switch-warning {
+  background: linear-gradient(135deg, rgba(239,68,68,.10), rgba(245,158,11,.06));
+  border: 1px solid rgba(239,68,68,.3);
+  border-radius: 8px;
+  padding: .85rem 1rem;
+  margin-bottom: 1rem;
+}
+.prod-switch-warning__title {
+  font-weight: 700;
+  color: #fca5a5;
+  margin-bottom: .35rem;
+  font-size: .95rem;
+}
+.prod-switch-warning__text {
+  color: var(--text-secondary);
+  font-size: .82rem;
+  line-height: 1.45;
+}
+.prod-switch-counts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .5rem;
+  margin: 1rem 0;
+}
+.prod-switch-counts__group {
+  background: var(--bg-3);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: .7rem .85rem;
+}
+.prod-switch-counts__group--delete { border-color: rgba(239,68,68,.3); }
+.prod-switch-counts__group--keep { border-color: rgba(16,185,129,.3); }
+.prod-switch-counts__title {
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 700;
+  margin-bottom: .55rem;
+}
+.prod-switch-counts__group--delete .prod-switch-counts__title { color: #fca5a5; }
+.prod-switch-counts__group--keep .prod-switch-counts__title { color: #6ee7b7; }
+.prod-switch-counts__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .25rem 0;
+  font-size: .82rem;
+}
+.prod-switch-counts__row label {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  cursor: pointer;
+  flex: 1;
+}
+.prod-switch-counts__row input[type="checkbox"] {
+  accent-color: #ef4444;
+  cursor: pointer;
+}
+.prod-switch-counts__num {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  background: rgba(255,255,255,.06);
+  padding: .12rem .45rem;
+  border-radius: 4px;
+  font-size: .75rem;
+}
+.prod-switch-counts__num--big { color: #fca5a5; }
+.prod-switch-confirm-input {
+  width: 100%;
+  background: var(--bg-3);
+  border: 2px solid rgba(239,68,68,.3);
+  border-radius: 8px;
+  padding: .65rem .85rem;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  letter-spacing: .08em;
+  text-align: center;
+  font-weight: 700;
+  transition: all .15s ease;
+}
+.prod-switch-confirm-input:focus {
+  outline: none;
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239,68,68,.15);
+}
+.prod-switch-confirm-input--valid {
+  border-color: #10b981;
+  color: #10b981;
+}
+.prod-switch-execute-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+  border: none;
+  padding: .65rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.prod-switch-execute-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(239,68,68,.4);
+}
+.prod-switch-execute-btn:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+  background: var(--bg-4);
+}
+
 /* — Bandeau alertes prédictives (Phase 3 préparation) — */
 .alert-strip {
   display: flex;
@@ -6733,6 +6892,7 @@ section[data-view] h1,
           <span class="cockpit-bar__sep"></span>
           <span class="cockpit-bar__time" id="cockpit-time">--:--:--</span>
           <span class="cockpit-bar__user" id="cockpit-user">—</span>
+          <span class="cockpit-bar__mode cockpit-bar__mode--test" id="cockpit-mode" title="Mode système" hidden>🧪 TEST</span>
         </div>
 
         <!-- ════════════════════════════════════════════════════════════ -->
@@ -8658,6 +8818,61 @@ section[data-view] h1,
   </div>
 
   <!-- ===================================================================== -->
+  <!-- 🔄 BASCULE TEST ↔ PRODUCTION — Modal toggle entre les deux modes      -->
+  <!-- ===================================================================== -->
+  <div class="modal" id="modal-prod-switch" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel modal__panel--lg" style="max-width:720px">
+      <header class="modal__header">
+        <h2 class="modal__title">🔄 Bascule TEST ↔ PRODUCTION</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body" style="max-height:75vh;overflow-y:auto">
+        <div class="prod-switch-warning">
+          <div class="prod-switch-warning__title">Bascule entre les deux espaces</div>
+          <div class="prod-switch-warning__text">
+            Les deux modes utilisent des espaces de données distincts. Vous pouvez basculer librement.
+          </div>
+        </div>
+
+        <div id="prod-switch-backup-section" style="margin-bottom:.75rem">
+          <button type="button" class="btn btn--secondary" id="btn-prod-switch-backup" style="background:rgba(0,212,255,.12);color:#00d4ff;border:1px solid rgba(0,212,255,.3);font-weight:700;width:100%">
+            📥 Télécharger un backup JSON complet (recommandé)
+          </button>
+          <div id="prod-switch-backup-status" style="font-size:.75rem;color:var(--text-muted);text-align:center;margin-top:.3rem">Aucun backup téléchargé pour cette session</div>
+        </div>
+
+        <div class="prod-switch-counts">
+          <div class="prod-switch-counts__group prod-switch-counts__group--keep">
+            <div class="prod-switch-counts__title" id="prod-switch-current-list-title">Espace actuel</div>
+            <div id="prod-switch-current-list">
+              <div class="prod-switch-counts__row" style="opacity:.6">Chargement…</div>
+            </div>
+          </div>
+          <div class="prod-switch-counts__group prod-switch-counts__group--delete">
+            <div class="prod-switch-counts__title" id="prod-switch-other-list-title">Espace cible</div>
+            <div id="prod-switch-other-list">
+              <div class="prod-switch-counts__row" style="opacity:.6">…</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="prod-switch-confirm-section" style="display:none">
+          <div style="background:var(--bg-3);border:1px solid var(--border-soft);border-radius:8px;padding:.75rem;margin-bottom:.5rem;font-size:.78rem;color:var(--text-secondary)">
+            💡 Catalogues partagés (outils, utilisateurs, PDR, templates) — non affectés par la bascule
+          </div>
+        </div>
+      </div>
+      <footer class="modal__footer" style="justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+        <button class="btn btn--ghost" data-close>Annuler</button>
+        <button type="button" class="prod-switch-execute-btn" id="btn-prod-switch-execute">
+          🔄 BASCULER
+        </button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
   <!-- 📋 HISTORIQUE PDR — Modal listant tous les changements de PDR          -->
   <!-- ===================================================================== -->
   <div class="modal" id="modal-pdr-history" role="dialog" aria-modal="true" hidden>
@@ -10263,6 +10478,13 @@ section[data-view] h1,
     fbDb      = firebase.database();
     fbStorage = firebase.storage();
     console.log('🔥 Firebase initialisé');
+
+    // 🔄 Activer l'override TEST/PROD AVANT tout listener.
+    // Le mode est par défaut 'production' (sûr) ; il sera mis à jour après login
+    // via loadCurrentMode(), puis l'override redirigera dynamiquement.
+    if (typeof productionSwitch !== 'undefined' && productionSwitch.applyRefOverride) {
+      productionSwitch.applyRefOverride();
+    }
   }
 
   /* ==========================================================================
@@ -10786,6 +11008,11 @@ section[data-view] h1,
         $('#shell').hidden = false;
         this.updateUserBadge();
         ui.applyRoleVisibility();
+        // 🔄 Charger le mode AVANT loadInitialData pour que les listeners
+        // pointent vers le bon dataspace (test_data/ ou normal)
+        if (typeof productionSwitch !== 'undefined' && productionSwitch.loadCurrentMode) {
+          await productionSwitch.loadCurrentMode();
+        }
         await app.loadInitialData();
         router.handleHash();
         ui.hideLoader();
@@ -10801,6 +11028,11 @@ section[data-view] h1,
               views.history.render();
             }
           });
+        }
+        // 🚨 Activer le badge mode TEST/PROD
+        if (typeof productionSwitch !== 'undefined') {
+          productionSwitch.loadCurrentMode();
+          productionSwitch.init();
         }
 
         // 🔔 Demander la permission notifications système (1 seule fois)
@@ -10824,6 +11056,9 @@ section[data-view] h1,
         if (typeof qrCodes !== 'undefined' && qrCodes.updateVisibility) qrCodes.updateVisibility();
         // 💬 Fermer le chat en cours
         if (typeof interventionChat !== 'undefined' && interventionChat.close) interventionChat.close();
+        // 🚨 Cacher le badge mode
+        const badge = document.getElementById('cockpit-mode');
+        if (badge) badge.hidden = true;
       }
     },
 
@@ -13167,6 +13402,454 @@ section[data-view] h1,
     }
   };
   window.wearAlerts = wearAlerts;
+
+  /* ==========================================================================
+     12.8  🔄 PRODUCTION SWITCH — Toggle TEST ↔ PROD (deux dataspaces séparés)
+     ========================================================================== */
+  const productionSwitch = {
+    _currentMode: 'production',     // défaut sûr ; sera mis à jour après login
+    _refOverridden: false,
+    _modeListener: null,
+
+    /** Préfixe utilisé pour isoler les données du mode TEST */
+    TEST_NAMESPACE: 'test_data',
+
+    /** Chemins transactionnels redirigés vers test_data/ en mode TEST.
+     *  Les chemins NON listés ici (tools, users, stockPieces, pdfTemplates,
+     *  toolAttachments, loginIndex, system) restent partagés entre les modes. */
+    NAMESPACED_PATHS: new Set([
+      'interventions',
+      'interventionMessages',
+      'pdrChangeHistory',
+      'pdrRequests',
+      'notifications',
+      'stockMovements',
+      'auditLog',
+      'stockImportHistory'
+    ]),
+
+    /** ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     *  Override de fbDb.ref() pour injecter le préfixe en mode TEST
+     *  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+    applyRefOverride() {
+      if (this._refOverridden) return;
+      if (typeof fbDb === 'undefined' || !fbDb || !fbDb.ref) return;
+      const _origRef = fbDb.ref.bind(fbDb);
+      const ns = this.TEST_NAMESPACE;
+      const namespaced = this.NAMESPACED_PATHS;
+      const self = this;
+      // Remplace fbDb.ref par un wrapper qui inspecte le chemin
+      fbDb.ref = function(path) {
+        if (self._currentMode === 'test' && typeof path === 'string' && path.length) {
+          // Premier segment du chemin (avant le premier /)
+          const slash = path.indexOf('/');
+          const firstSeg = slash === -1 ? path : path.substring(0, slash);
+          if (namespaced.has(firstSeg)) {
+            return _origRef(ns + '/' + path);
+          }
+        }
+        return _origRef(path);
+      };
+      this._refOverridden = true;
+      console.info('[productionSwitch] ref override applied — namespace prefix:', ns);
+    },
+
+    /** Charge le mode actuel depuis Firebase (chemin GLOBAL, jamais préfixé) */
+    async loadCurrentMode() {
+      try {
+        if (typeof fbDb === 'undefined' || !fbDb) return 'production';
+        // ⚠️ ne PAS passer par le wrapper override — accès direct via firebase.database()
+        const directRef = firebase.database().ref('system/mode');
+        const snap = await directRef.once('value');
+        const mode = snap.val();
+        this._currentMode = (mode === 'test') ? 'test' : 'production';
+        this.applyModeUI();
+        return this._currentMode;
+      } catch(e) {
+        console.warn('[productionSwitch] loadCurrentMode error:', e);
+        this._currentMode = 'production';
+        this.applyModeUI();
+        return 'production';
+      }
+    },
+
+    /** Met à jour le badge cockpit selon le mode */
+    applyModeUI() {
+      const badge = document.getElementById('cockpit-mode');
+      if (!badge) return;
+      badge.hidden = !state.user;
+      const isSuperAdmin = state.role === 'super_admin';
+      if (this._currentMode === 'test') {
+        badge.className = 'cockpit-bar__mode cockpit-bar__mode--test' + (isSuperAdmin ? ' cockpit-bar__mode--clickable' : '');
+        badge.textContent = '🧪 TEST';
+        badge.title = isSuperAdmin
+          ? 'Mode TEST actif — Cliquez pour basculer en PRODUCTION'
+          : 'Mode TEST actif — Données de formation';
+      } else {
+        badge.className = 'cockpit-bar__mode cockpit-bar__mode--prod' + (isSuperAdmin ? ' cockpit-bar__mode--clickable' : '');
+        badge.textContent = '🟢 PROD';
+        badge.title = isSuperAdmin
+          ? 'Mode PRODUCTION actif — Cliquez pour basculer en TEST (formation)'
+          : 'Mode PRODUCTION actif';
+      }
+      badge.onclick = isSuperAdmin ? () => this.openModal() : null;
+    },
+
+    /** Compte les enregistrements sous chaque chemin (mode actuel + autre mode) */
+    async _countAll() {
+      const counts = { current: {}, other: {} };
+      const direct = firebase.database();
+      const otherPrefix = (this._currentMode === 'test') ? '' : this.TEST_NAMESPACE + '/';
+      const currentPrefix = (this._currentMode === 'test') ? this.TEST_NAMESPACE + '/' : '';
+
+      const allPaths = [...this.NAMESPACED_PATHS];
+      await Promise.all(allPaths.map(async (path) => {
+        try {
+          const [cs, os] = await Promise.all([
+            direct.ref(currentPrefix + path).once('value'),
+            direct.ref(otherPrefix + path).once('value')
+          ]);
+          counts.current[path] = cs.val() ? Object.keys(cs.val()).length : 0;
+          counts.other[path] = os.val() ? Object.keys(os.val()).length : 0;
+        } catch(e) {
+          counts.current[path] = '?';
+          counts.other[path] = '?';
+        }
+      }));
+      return counts;
+    },
+
+    /** Ouvre la modale de bascule */
+    async openModal() {
+      if (state.role !== 'super_admin') {
+        ui.toast('🚫 Bascule réservée au Super Admin', 'warn');
+        return;
+      }
+      const modal = document.getElementById('modal-prod-switch');
+      if (!modal) return;
+      modal.hidden = false;
+
+      const target = (this._currentMode === 'test') ? 'production' : 'test';
+      const isFirstProdActivation = await this._isFirstProdActivation();
+
+      // Mise à jour dynamique du contenu selon la direction
+      this._renderModalContent(target, isFirstProdActivation);
+
+      // Compteurs
+      const counts = await this._countAll();
+      this._renderCounts(counts, target);
+
+      // Wire close
+      modal.querySelectorAll('[data-close]').forEach(el => {
+        el.onclick = () => { modal.hidden = true; };
+      });
+
+      // Backup button (visible seulement pour première activation prod)
+      const backupBtn = document.getElementById('btn-prod-switch-backup');
+      if (backupBtn) {
+        backupBtn.onclick = () => this.downloadBackup();
+      }
+
+      // Toggle button
+      const toggleBtn = document.getElementById('btn-prod-switch-execute');
+      toggleBtn.onclick = () => this.executeToggle(target, isFirstProdActivation);
+      toggleBtn.disabled = false;
+    },
+
+    /** Vérifie si c'est la première activation production
+     *  (le flag system/firstProdActivationAt ne sera défini qu'après la 1ère bascule) */
+    async _isFirstProdActivation() {
+      try {
+        const snap = await firebase.database().ref('system/firstProdActivationAt').once('value');
+        return !snap.val(); // null/undefined = première fois
+      } catch(e) {
+        return false;
+      }
+    },
+
+    /** Met à jour le contenu HTML de la modale selon la direction */
+    _renderModalContent(target, isFirstProd) {
+      const titleEl = document.querySelector('#modal-prod-switch .modal__title');
+      const warningTitle = document.querySelector('#modal-prod-switch .prod-switch-warning__title');
+      const warningText = document.querySelector('#modal-prod-switch .prod-switch-warning__text');
+      const executeBtn = document.getElementById('btn-prod-switch-execute');
+      const backupSection = document.getElementById('prod-switch-backup-section');
+      const confirmSection = document.getElementById('prod-switch-confirm-section');
+
+      if (target === 'production') {
+        titleEl.textContent = isFirstProd
+          ? '🚀 Première activation : passer en PRODUCTION'
+          : '🟢 Basculer en mode PRODUCTION';
+        warningTitle.textContent = isFirstProd
+          ? '🔄 Première bascule — Migration automatique'
+          : '🟢 Retour en mode PRODUCTION';
+        warningText.innerHTML = isFirstProd
+          ? `Cette opération va <strong>déplacer toutes vos données actuelles</strong> vers l'espace TEST
+             (préservées pour de futures formations), puis démarrer un espace PRODUCTION vierge.<br><br>
+             ✅ Les catalogues (outils, utilisateurs, PDR) restent <strong>partagés</strong> entre les deux modes.<br>
+             ✅ Vos données de test seront <strong>conservées</strong> et accessibles en re-basculant en TEST.<br>
+             ✅ Téléchargez d'abord un backup JSON par précaution.`
+          : `Vous reprenez votre travail réel. L'app va afficher les données de production.<br>
+             Les données du mode TEST restent intactes et disponibles si vous rebasculez.`;
+        executeBtn.textContent = isFirstProd ? '🚀 ACTIVER LA PRODUCTION' : '🟢 BASCULER EN PRODUCTION';
+        executeBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+        if (backupSection) backupSection.style.display = isFirstProd ? '' : 'none';
+        if (confirmSection) confirmSection.style.display = isFirstProd ? '' : 'none';
+      } else {
+        titleEl.textContent = '🧪 Basculer en mode TEST (Formation)';
+        warningTitle.textContent = '🧪 Mode TEST — Espace formation';
+        warningText.innerHTML = `Vous allez basculer dans un espace de données <strong>complètement séparé</strong>
+          de la production. Idéal pour <strong>former vos techniciens</strong> sans polluer les statistiques réelles.<br><br>
+          ✅ Les agents peuvent créer des bons, envoyer des messages, simuler des changements PDR.<br>
+          ✅ Rien n'affecte les données de production.<br>
+          ✅ Vous retrouverez votre travail réel en re-basculant en PROD.`;
+        executeBtn.textContent = '🧪 BASCULER EN TEST';
+        executeBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+        if (backupSection) backupSection.style.display = 'none';
+        if (confirmSection) confirmSection.style.display = 'none';
+      }
+    },
+
+    /** Affiche les compteurs des 2 espaces */
+    _renderCounts(counts, target) {
+      const currentEl = document.getElementById('prod-switch-current-list');
+      const otherEl = document.getElementById('prod-switch-other-list');
+      if (!currentEl || !otherEl) return;
+
+      const labels = {
+        interventions: { emoji: '📋', text: 'Bons d\'intervention' },
+        interventionMessages: { emoji: '💬', text: 'Messages chat' },
+        pdrChangeHistory: { emoji: '🔧', text: 'Changements PDR' },
+        pdrRequests: { emoji: '📦', text: 'Demandes PDR' },
+        notifications: { emoji: '🔔', text: 'Notifications' },
+        stockMovements: { emoji: '📊', text: 'Mouvements stock' },
+        auditLog: { emoji: '📜', text: 'Journal audit' },
+        stockImportHistory: { emoji: '📥', text: 'Imports stock' }
+      };
+
+      const renderList = (countObj, modeLabel) => {
+        return Object.entries(labels).map(([key, lbl]) => {
+          const n = countObj[key] ?? 0;
+          return `
+            <div class="prod-switch-counts__row">
+              <label style="cursor:default"><span>${lbl.emoji} ${lbl.text}</span></label>
+              <span class="prod-switch-counts__num">${n}</span>
+            </div>`;
+        }).join('');
+      };
+
+      const currentMode = this._currentMode;
+      const currentTitle = currentMode === 'test' ? '🧪 Espace TEST (actuel)' : '🟢 Espace PRODUCTION (actuel)';
+      const otherTitle = currentMode === 'test' ? '🟢 Espace PRODUCTION (cible)' : '🧪 Espace TEST (cible)';
+
+      document.querySelector('#prod-switch-current-list-title').textContent = currentTitle;
+      document.querySelector('#prod-switch-other-list-title').textContent = otherTitle;
+      currentEl.innerHTML = renderList(counts.current);
+      otherEl.innerHTML = renderList(counts.other);
+    },
+
+    /** Télécharge un backup JSON complet de TOUTES les données (les 2 espaces inclus) */
+    async downloadBackup() {
+      try {
+        const statusEl = document.getElementById('prod-switch-backup-status');
+        if (statusEl) {
+          statusEl.textContent = '⌛ Téléchargement du backup en cours…';
+          statusEl.style.color = 'var(--accent-500)';
+        }
+
+        const direct = firebase.database();
+        const allPaths = [
+          // Espace courant (chemins normaux)
+          ...this.NAMESPACED_PATHS,
+          // Catalogues partagés
+          'users', 'tools', 'stockPieces', 'pdfTemplates', 'toolAttachments', 'loginIndex',
+          'system'
+        ];
+
+        const backup = {
+          _meta: {
+            createdAt: new Date().toISOString(),
+            createdBy: state.profile?.displayName || state.user?.email,
+            uid: state.user?.uid,
+            mode: this._currentMode,
+            appVersion: (typeof APP_VERSION !== 'undefined') ? APP_VERSION : 'unknown',
+            firebaseProjectId: firebase.app().options.projectId,
+            note: 'Backup automatique avant bascule de mode'
+          }
+        };
+
+        for (const path of allPaths) {
+          try {
+            const snap = await direct.ref(path).once('value');
+            backup[path] = snap.val();
+          } catch(e) {
+            backup[path] = { _error: e.message || e.code };
+          }
+        }
+
+        // Inclure aussi test_data/ s'il existe déjà
+        try {
+          const snap = await direct.ref(this.TEST_NAMESPACE).once('value');
+          backup[this.TEST_NAMESPACE] = snap.val();
+        } catch(e){}
+
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        const filename = `leoni_backup_${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}.json`;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+
+        if (statusEl) {
+          statusEl.textContent = `✅ Backup téléchargé : ${filename}`;
+          statusEl.style.color = '#10b981';
+        }
+        ui.toast('📥 Backup téléchargé', 'success');
+      } catch(e) {
+        console.error('[productionSwitch] backup error:', e);
+        ui.toast('⛔ Erreur backup : ' + (e.message || e.code), 'danger');
+      }
+    },
+
+    /** Exécute la bascule de mode (avec migration si première fois) */
+    async executeToggle(target, isFirstProdActivation) {
+      if (state.role !== 'super_admin') {
+        ui.toast('🚫 Réservé au Super Admin', 'danger');
+        return;
+      }
+
+      const executeBtn = document.getElementById('btn-prod-switch-execute');
+      const originalLabel = executeBtn.textContent;
+      executeBtn.disabled = true;
+      executeBtn.textContent = '⌛ Exécution…';
+
+      try {
+        const direct = firebase.database();
+        const now = Date.now();
+
+        // CAS SPÉCIAL : première activation production → MIGRATION
+        if (target === 'production' && isFirstProdActivation) {
+          const ok = confirm(
+            `🚀 PREMIÈRE ACTIVATION PRODUCTION\n\n` +
+            `Les données actuelles vont être DÉPLACÉES dans l'espace TEST.\n` +
+            `Le mode PRODUCTION démarrera avec un espace vierge.\n\n` +
+            `Les données de test resteront accessibles en re-basculant en TEST.\n\n` +
+            `Continuer ?`
+          );
+          if (!ok) {
+            executeBtn.disabled = false;
+            executeBtn.textContent = originalLabel;
+            return;
+          }
+
+          // Migration : copier chaque chemin transactionnel vers test_data/, puis supprimer l'original
+          ui.toast('⌛ Migration des données vers l\'espace TEST…', 'info');
+          const migrated = [];
+          const errors = [];
+          for (const path of this.NAMESPACED_PATHS) {
+            try {
+              const snap = await direct.ref(path).once('value');
+              const data = snap.val();
+              if (data !== null && data !== undefined) {
+                await direct.ref(this.TEST_NAMESPACE + '/' + path).set(data);
+                await direct.ref(path).remove();
+                migrated.push(path);
+              }
+            } catch(e) {
+              errors.push(`${path}: ${e.message || e.code}`);
+              console.error('[productionSwitch] migrate error', path, e);
+            }
+          }
+
+          // Marquer la première activation
+          await direct.ref('system').update({
+            mode: 'production',
+            firstProdActivationAt: now,
+            firstProdActivationBy: state.user?.uid || '',
+            firstProdActivationByName: state.profile?.displayName || '',
+            migratedPaths: migrated,
+            migrationErrors: errors.length ? errors : null,
+            lastModeChange: { at: now, from: 'test', to: 'production', by: state.user?.uid }
+          });
+
+          if (errors.length) {
+            ui.toast(`⚠️ Migration terminée avec ${errors.length} erreur(s)`, 'warn');
+          } else {
+            ui.toast(`✅ ${migrated.length} chemin(s) migré(s) vers l'espace TEST`, 'success');
+          }
+        }
+        // CAS NORMAL : simple toggle entre modes
+        else {
+          await direct.ref('system').update({
+            mode: target,
+            lastModeChange: { at: now, from: this._currentMode, to: target, by: state.user?.uid }
+          });
+          ui.toast(`🔄 Mode ${target === 'test' ? 'TEST' : 'PRODUCTION'} activé`, 'success');
+        }
+
+        // Audit log (dans l'espace cible, donc visible dans le bon mode)
+        try {
+          // Détourner exceptionnellement vers le bon namespace
+          const auditPath = (target === 'test') ? this.TEST_NAMESPACE + '/auditLog' : 'auditLog';
+          await direct.ref(auditPath).push({
+            ts: now,
+            uid: state.user?.uid,
+            byName: state.profile?.displayName,
+            action: 'system.mode-toggle',
+            details: {
+              from: this._currentMode,
+              to: target,
+              firstActivation: isFirstProdActivation && target === 'production'
+            }
+          });
+        } catch(e){}
+
+        // Fermer la modale
+        document.getElementById('modal-prod-switch').hidden = true;
+
+        // Recharger la page pour que tous les listeners pointent vers le bon espace
+        setTimeout(() => {
+          if (confirm(`✅ Bascule effectuée.\n\nRecharger l'application pour activer le mode ${target === 'test' ? 'TEST' : 'PRODUCTION'} ?`)) {
+            window.location.reload();
+          } else {
+            // Si l'utilisateur refuse, au moins mettre à jour le badge
+            this._currentMode = target;
+            this.applyModeUI();
+            ui.toast('⚠️ Rechargez manuellement (F5) pour appliquer les changements de données', 'warn');
+          }
+        }, 800);
+
+      } catch(e) {
+        console.error('[productionSwitch] toggle error:', e);
+        ui.toast('⛔ Erreur : ' + (e.message || e.code), 'danger');
+        executeBtn.disabled = false;
+        executeBtn.textContent = originalLabel;
+      }
+    },
+
+    /** Initialise : applique l'override + écoute les changements de mode */
+    init() {
+      // Applique l'override (le mode peut être 'production' au début, c'est OK)
+      this.applyRefOverride();
+      if (typeof fbDb === 'undefined' || !fbDb) return;
+      // Listener temps réel sur le mode (chemin DIRECT, jamais préfixé)
+      try {
+        const directRef = firebase.database().ref('system/mode');
+        this._modeListener = directRef.on('value', (snap) => {
+          const newMode = (snap.val() === 'test') ? 'test' : 'production';
+          if (newMode !== this._currentMode) {
+            console.info('[productionSwitch] mode changed:', this._currentMode, '→', newMode);
+            this._currentMode = newMode;
+          }
+          this.applyModeUI();
+        });
+      } catch(e) {
+        console.warn('[productionSwitch] init listener error:', e);
+      }
+    }
+  };
+  window.productionSwitch = productionSwitch;
 
   /* ==========================================================================
      13. VIEWS

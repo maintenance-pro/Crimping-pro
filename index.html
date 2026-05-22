@@ -13278,10 +13278,19 @@ section[data-view] h1,
         const isPdrChange = piecesList.length > 0;
 
         let pdrHistoryPushed = false;
+        let isPremature = false;
+        let cyclesSinceLastPdr = 0;
         if (isPdrChange) {
           const cyclesBefore = parseFloat(stateTool?.cyclesAtLastPdr) || 0;
-          const cyclesSinceLastPdr = Math.max(0, cyclesAtValidation - cyclesBefore);
+          cyclesSinceLastPdr = Math.max(0, cyclesAtValidation - cyclesBefore);
           const labelTool = stateTool?.serial || stateTool?.outilId || stateTool?.doutils || toolInfo.serial || toolInfo.outilId || toolKey;
+
+          // 🚨 DÉTECTION CHANGEMENT PDR PRÉMATURÉ
+          // Si on a un PDR précédent enregistré (cyclesBefore > 0)
+          // ET que le nouveau changement arrive AVANT 300k cycles
+          // → c'est un changement prématuré (gaspillage de PDR, problème mécanique probable)
+          const PDR_THRESHOLD = this.PDR_LIFE_DEFAULT;
+          isPremature = (cyclesBefore > 0) && (cyclesSinceLastPdr > 0) && (cyclesSinceLastPdr < PDR_THRESHOLD);
 
           const pieceLabels = {
             pAr: 'P-AR Poinçon Arrière', pAv: 'P-AV Poinçon Avant',
@@ -13291,12 +13300,14 @@ section[data-view] h1,
           };
           const piecesReadable = piecesList.map(p => pieceLabels[p] || p);
 
-          // Update catalogue
+          // Update catalogue avec la nouvelle baseline cyclesAtLastPdr
           updates.cyclesAtLastPdr = cyclesAtValidation;
           updates.lastPdrChangeAt = now;
           updates.lastPdrChangeBonReg = reg;
+          updates.lastPdrCyclesSinceLastPdr = cyclesSinceLastPdr;
+          updates.lastPdrWasPremature = isPremature;
 
-          // Push history event
+          // Push history event AVEC le flag prematureChange
           try {
             await fbDb.ref('pdrChangeHistory').push({
               ts: now,
@@ -13305,10 +13316,13 @@ section[data-view] h1,
               toolLabel: labelTool,
               cyclesAtChange: cyclesAtValidation,
               cyclesSinceLastPdr: cyclesSinceLastPdr,
+              cyclesThreshold: PDR_THRESHOLD,
               piecesChanged: piecesList,
               piecesReadable: piecesReadable.join(', '),
               interventionType: bonData.crimping?.type || '',
               source: 'auto-validation',
+              prematureChange: isPremature,
+              shortBy: isPremature ? (PDR_THRESHOLD - cyclesSinceLastPdr) : 0,
               changedBy: state.profile?.displayName || state.user?.email || 'Inconnu',
               changedByUid: state.user?.uid || '',
               changedByRole: state.role || ''
@@ -13318,25 +13332,75 @@ section[data-view] h1,
             console.error('[recordPdrChangeFromBon] push history error:', e);
           }
 
-          // Toast notif
-          if (typeof ui !== 'undefined' && ui.toast) {
-            ui.toast(
-              `🔧 PDR enregistré · ${labelTool} · ${this._fmtCycles(cyclesSinceLastPdr)} cycles depuis dernier`,
-              'success'
-            );
-          }
+          // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          // 🚨 NOTIFICATIONS — selon prématuré ou normal
+          // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          if (isPremature) {
+            const shortBy = PDR_THRESHOLD - cyclesSinceLastPdr;
 
-          // Audit
-          try {
-            if (typeof db !== 'undefined' && db.audit) {
-              db.audit('pdr.auto-reset', toolKey, {
+            // 1️⃣ Toast d'alerte BIEN VISIBLE
+            if (typeof ui !== 'undefined' && ui.toast) {
+              ui.toast(
+                `🚨 PDR PRÉMATURÉ · ${labelTool}\n` +
+                `Changé après ${this._fmtCycles(cyclesSinceLastPdr)} cycles seulement (manque ${this._fmtCycles(shortBy)} pour 300k)`,
+                'warn'
+              );
+            }
+
+            // 2️⃣ Notification dans la cloche
+            try {
+              await fbDb.ref('notifications').push({
+                timestamp: now,
+                createdAt: now,
+                type: 'pdr-premature',
+                severity: 'warn',
+                read: false,
+                title: '⚠️ Changement PDR prématuré',
+                message: `${labelTool} (bon ${reg}) : seulement ${this._fmtCycles(cyclesSinceLastPdr)} cycles depuis le dernier changement — manque ${this._fmtCycles(shortBy)} pour atteindre les 300k normaux. Vérifier la cause (usure anormale, mauvaise pièce, problème mécanique).`,
+                toolId: toolKey,
+                toolLabel: labelTool,
                 numBon: reg,
                 cyclesAtChange: cyclesAtValidation,
                 cyclesSinceLastPdr: cyclesSinceLastPdr,
-                pieces: piecesList
+                shortBy: shortBy
               });
+            } catch(e) {
+              console.error('[recordPdrChangeFromBon] notification push error:', e);
             }
-          } catch(e){}
+
+            // 3️⃣ Audit log spécial
+            try {
+              if (typeof db !== 'undefined' && db.audit) {
+                db.audit('pdr.premature-change', toolKey, {
+                  numBon: reg,
+                  cyclesAtChange: cyclesAtValidation,
+                  cyclesSinceLastPdr: cyclesSinceLastPdr,
+                  shortBy: shortBy,
+                  pieces: piecesList
+                });
+              }
+            } catch(e){}
+          } else {
+            // Toast normal (PDR change OK : ≥ 300k cycles depuis le dernier)
+            if (typeof ui !== 'undefined' && ui.toast) {
+              const msg = (cyclesBefore > 0)
+                ? `✅ PDR enregistré · ${labelTool} · ${this._fmtCycles(cyclesSinceLastPdr)} cycles depuis dernier (≥ 300k ✓)`
+                : `🔧 PDR enregistré · ${labelTool} · baseline initiale = ${this._fmtCycles(cyclesAtValidation)} cycles`;
+              ui.toast(msg, 'success');
+            }
+
+            // Audit normal
+            try {
+              if (typeof db !== 'undefined' && db.audit) {
+                db.audit('pdr.auto-reset', toolKey, {
+                  numBon: reg,
+                  cyclesAtChange: cyclesAtValidation,
+                  cyclesSinceLastPdr: cyclesSinceLastPdr,
+                  pieces: piecesList
+                });
+              }
+            } catch(e){}
+          }
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -13564,6 +13628,11 @@ section[data-view] h1,
       const uniqueTools = new Set(list.map(ev => ev.toolId)).size;
       const totalCyclesSaved = list.reduce((s, ev) => s + (parseFloat(ev.cyclesSinceLastPdr) || 0), 0);
       const avgCyclesBetween = totalChanges ? Math.round(totalCyclesSaved / totalChanges) : 0;
+      // 🚨 Comptage des changements prématurés
+      const prematureCount = list.filter(ev => {
+        const cyclesSince = parseFloat(ev.cyclesSinceLastPdr) || 0;
+        return ev.prematureChange === true || (cyclesSince > 0 && cyclesSince < this.PDR_LIFE_DEFAULT);
+      }).length;
       if (stats) {
         stats.innerHTML = `
           <div style="background:var(--bg-3);padding:.55rem .75rem;border-radius:7px;border:1px solid var(--border-soft)">
@@ -13577,6 +13646,10 @@ section[data-view] h1,
           <div style="background:var(--bg-3);padding:.55rem .75rem;border-radius:7px;border:1px solid var(--border-soft)">
             <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">Moy. cycles entre PDR</div>
             <div style="font-size:1.2rem;font-weight:700;color:#fbbf24">${this._fmtCycles(avgCyclesBetween)}</div>
+          </div>
+          <div style="background:${prematureCount > 0 ? 'rgba(239,68,68,.08)' : 'var(--bg-3)'};padding:.55rem .75rem;border-radius:7px;border:1px solid ${prematureCount > 0 ? 'rgba(239,68,68,.3)' : 'var(--border-soft)'}">
+            <div style="font-size:.65rem;color:${prematureCount > 0 ? '#fca5a5' : 'var(--text-muted)'};text-transform:uppercase;letter-spacing:.05em">🚨 Prématurés (< 300k)</div>
+            <div style="font-size:1.2rem;font-weight:700;color:${prematureCount > 0 ? '#ef4444' : 'var(--text-secondary)'}">${prematureCount}</div>
           </div>`;
       }
 
@@ -13597,6 +13670,7 @@ section[data-view] h1,
               <th>Groupe / Projet</th>
               <th style="text-align:right">Cycles à chgt</th>
               <th style="text-align:right">Cycles depuis PDR précédent</th>
+              <th>Statut</th>
               <th>Effectué par</th>
             </tr>
           </thead>
@@ -13605,15 +13679,28 @@ section[data-view] h1,
               const tool = (state.tools && state.tools[ev.toolId]) || {};
               const groupe = [tool.groupe, tool.projet].filter(Boolean).join(' · ') || '—';
               const pieces = ev.piecesReadable || (ev.piecesChanged ? ev.piecesChanged.join(', ') : '—');
+              const cyclesSince = parseFloat(ev.cyclesSinceLastPdr) || 0;
+              const isPremature = ev.prematureChange === true || (cyclesSince > 0 && cyclesSince < this.PDR_LIFE_DEFAULT);
+              const isFirst = cyclesSince === 0;
+              let statusBadge, rowStyle = '';
+              if (isFirst) {
+                statusBadge = '<span style="background:rgba(99,102,241,.18);color:#a5b4fc;font-size:.65rem;font-weight:700;padding:.15rem .5rem;border-radius:4px">📍 BASELINE</span>';
+              } else if (isPremature) {
+                statusBadge = '<span style="background:rgba(239,68,68,.22);color:#fca5a5;font-size:.65rem;font-weight:700;padding:.15rem .5rem;border-radius:4px">🚨 PRÉMATURÉ</span>';
+                rowStyle = 'background:rgba(239,68,68,.06)';
+              } else {
+                statusBadge = '<span style="background:rgba(16,185,129,.18);color:#6ee7b7;font-size:.65rem;font-weight:700;padding:.15rem .5rem;border-radius:4px">✅ NORMAL</span>';
+              }
               return `
-                <tr data-tool-id="${this._escAttr(ev.toolId)}" data-bon-reg="${this._escAttr(ev.numBon || '')}" style="cursor:pointer">
+                <tr data-tool-id="${this._escAttr(ev.toolId)}" data-bon-reg="${this._escAttr(ev.numBon || '')}" style="cursor:pointer;${rowStyle}">
                   <td style="font-family:var(--font-mono);font-size:.78rem">${fmtDate(ev.ts)}</td>
                   <td style="font-family:var(--font-mono);font-weight:700;color:#00d4ff">${this._esc(ev.numBon || '—')}</td>
                   <td style="font-family:var(--font-mono);font-weight:700">${this._esc(ev.toolLabel)}</td>
                   <td style="font-size:.74rem;color:var(--text-secondary);max-width:200px">${this._esc(pieces)}</td>
                   <td style="color:var(--text-secondary);font-size:.78rem">${this._esc(groupe)}</td>
                   <td style="text-align:right;font-family:var(--font-mono)">${this._fmtCycles(ev.cyclesAtChange)}</td>
-                  <td style="text-align:right;font-family:var(--font-mono);color:${(parseFloat(ev.cyclesSinceLastPdr) || 0) > this.PDR_LIFE_DEFAULT ? '#fca5a5' : '#fbbf24'}">${this._fmtCycles(ev.cyclesSinceLastPdr)}</td>
+                  <td style="text-align:right;font-family:var(--font-mono);color:${isPremature ? '#fca5a5' : isFirst ? '#a5b4fc' : '#6ee7b7'}">${this._fmtCycles(cyclesSince)}</td>
+                  <td>${statusBadge}</td>
                   <td style="font-size:.78rem">${this._esc(ev.changedBy)}</td>
                 </tr>
               `;

@@ -8923,9 +8923,14 @@ section[data-view] h1,
       </div>
       <footer class="modal__footer" style="justify-content:space-between;flex-wrap:wrap;gap:.5rem">
         <button class="btn btn--ghost" data-close>Annuler</button>
-        <button type="button" class="prod-switch-execute-btn" id="btn-prod-switch-execute">
-          🔄 BASCULER
-        </button>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button type="button" id="btn-prod-switch-transfer-now" style="background:linear-gradient(135deg, #f59e0b, #d97706); color:#fff; border:none; padding:.65rem 1.2rem; border-radius:8px; font-weight:800; letter-spacing:.04em; cursor:pointer; transition:all .15s ease" title="Déplacer toutes les données sans changer de mode">
+            🚚 DÉPLACER MAINTENANT
+          </button>
+          <button type="button" class="prod-switch-execute-btn" id="btn-prod-switch-execute">
+            🔄 BASCULER
+          </button>
+        </div>
       </footer>
     </div>
   </div>
@@ -11226,6 +11231,7 @@ section[data-view] h1,
     /* --- interventions --- */
     listenInterventions() {
       const ref = fbDb.ref('interventions').orderByChild('numBon');
+      let _firstLoad = true;
       const handler = (snap) => {
         state.interventions = snap.val() || {};
         views.hub.render();
@@ -11235,6 +11241,21 @@ section[data-view] h1,
         if (state.currentView === 'preventive5j') views.preventive5j.render();
         // Toujours rafraîchir le badge P5J de la sidebar
         if (views.preventive5j && views.preventive5j._updateBadge) views.preventive5j._updateBadge();
+
+        // 🔁 SYNC RÉTROACTIVE — une seule fois, au premier chargement
+        // Met à jour le catalogue tools/ avec les cyclesCum et cyclesAtLastPdr
+        // dérivés de l'ensemble des bons d'intervention
+        if (_firstLoad && state.role && (state.role === 'admin' || state.role === 'super_admin')) {
+          _firstLoad = false;
+          // Délai pour laisser state.tools se charger aussi
+          setTimeout(() => {
+            if (typeof wearAlerts !== 'undefined' && wearAlerts.syncCatalogFromAllBons) {
+              wearAlerts.syncCatalogFromAllBons().catch(e =>
+                console.error('[auto-sync catalog] failed:', e)
+              );
+            }
+          }, 2500);
+        }
       };
       ref.on('value', handler);
       state.listeners.push(() => ref.off('value', handler));
@@ -12999,16 +13020,90 @@ section[data-view] h1,
       return parseFloat(tool.cyclesNom) || parseFloat(tool.cyclesNominal) || this.PDR_LIFE_DEFAULT;
     },
 
-    /** Calcule la liste complète des alertes pour TOUS les outils */
+    /** Recherche la clé d'un outil dans state.tools à partir d'un identifiant flou */
+    _findToolKey(toolInfo) {
+      if (!toolInfo || !state.tools) return null;
+      // Match direct par id
+      if (toolInfo.id && state.tools[toolInfo.id]) return toolInfo.id;
+      // Fallback : recherche par serial / outilId / doutils
+      const candidates = [toolInfo.id, toolInfo.serial, toolInfo.outilId, toolInfo.doutils, toolInfo.refOutil].filter(Boolean);
+      for (const [k, t] of Object.entries(state.tools)) {
+        for (const c of candidates) {
+          if (t.id === c || t.serial === c || t.outilId === c || t.doutils === c || t.refOutil === c) {
+            return k;
+          }
+        }
+      }
+      return null;
+    },
+
+    /** Calcule la liste complète des alertes en s'appuyant sur :
+     *   - Le catalogue d'outils (state.tools) pour les métadonnées
+     *   - Les bons d'intervention (state.interventions) pour les compteurs cycles RÉELS
+     *   - L'historique pdrChangeHistory pour les remplacements PDR
+     */
     computeAll() {
       const tools = state.tools ? Object.values(state.tools) : [];
+      const interventions = state.interventions ? Object.values(state.interventions) : [];
       const alerts = [];
+
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // Étape 1 : agréger les données par outil DEPUIS LES BONS
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // Map: toolKey → { maxCycles, lastPdrCycles, lastPdrAt, lastBonReg }
+      const toolStats = {};
+
+      for (const i of interventions) {
+        if (!i || !i.tool) continue;
+        const toolKey = this._findToolKey(i.tool);
+        if (!toolKey) continue;
+        const cycles = parseFloat(i.crimping?.cycles) || 0;
+        if (!cycles) continue;
+
+        if (!toolStats[toolKey]) {
+          toolStats[toolKey] = { maxCycles: 0, lastPdrCycles: 0, lastPdrAt: 0, lastBonReg: null };
+        }
+        const stats = toolStats[toolKey];
+
+        // Cycle max (= cycle cumulé actuel)
+        if (cycles > stats.maxCycles) {
+          stats.maxCycles = cycles;
+        }
+
+        // Détection d'un changement PDR : statut validé + au moins 1 pièce cochée
+        if (i.status === 'validated' && i.crimping?.piecesChanged) {
+          const piecesList = Object.entries(i.crimping.piecesChanged).filter(([k, v]) => !!v);
+          if (piecesList.length > 0) {
+            const validatedAt = (i.sla && i.sla.decidedAt) || i.updatedAt || 0;
+            if (validatedAt > stats.lastPdrAt) {
+              stats.lastPdrAt = validatedAt;
+              stats.lastPdrCycles = cycles;
+              stats.lastBonReg = i.numBon;
+            }
+          }
+        }
+      }
+
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // Étape 2 : pour chaque outil, fusionner les stats catalogue + bons
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       tools.forEach(t => {
-        const cum = parseFloat(t.cyclesCum) || 0;
-        if (!cum) return; // outils sans cycles enregistrés = ignorés
-        const since = this.cyclesSinceLastPdr(t);
+        const stats = toolStats[t.id] || {};
+        // Cycles cumulés : MAX entre catalogue (cyclesCum) et les bons
+        const catCum = parseFloat(t.cyclesCum) || 0;
+        const bonCum = stats.maxCycles || 0;
+        const cum = Math.max(catCum, bonCum);
+        if (!cum) return; // outil sans aucun cycle enregistré → skip
+
+        // Cycles à dernier PDR : MAX entre catalogue (cyclesAtLastPdr) et les bons
+        const catLastPdr = parseFloat(t.cyclesAtLastPdr) || 0;
+        const bonLastPdr = stats.lastPdrCycles || 0;
+        const atLast = Math.max(catLastPdr, bonLastPdr);
+
+        const since = Math.max(0, cum - atLast);
         const life = this.lifeFor(t);
         const ratio = since / life;
+
         let severity = 'ok';
         if (ratio >= this.CRIT_THRESHOLD) severity = 'critical';
         else if (ratio >= this.WARN_THRESHOLD) severity = 'warn';
@@ -13020,11 +13115,14 @@ section[data-view] h1,
           cyclesSince: since,
           cyclesLife: life,
           cyclesCum: cum,
+          cyclesAtLastPdr: atLast,
           ratio,
           severity,
-          lastPdrChangeAt: t.lastPdrChangeAt || null
+          lastPdrChangeAt: stats.lastPdrAt || t.lastPdrChangeAt || null,
+          lastPdrBonReg: stats.lastBonReg || t.lastPdrChangeBonReg || null
         });
       });
+
       // Tri : critique → warn → ok, puis par ratio décroissant
       const order = { critical: 0, warn: 1, ok: 2 };
       alerts.sort((a, b) => {
@@ -13065,7 +13163,13 @@ section[data-view] h1,
       }
 
       if (!all.length) {
-        wrap.innerHTML = '<div class="wear-alerts__empty">Aucun outil avec compteur cycles dans le catalogue</div>';
+        const toolsCount = state.tools ? Object.keys(state.tools).length : 0;
+        const intvCount = state.interventions ? Object.keys(state.interventions).length : 0;
+        wrap.innerHTML = `<div class="wear-alerts__empty">
+          Aucun outil avec compteur cycles<br>
+          <span style="font-size:.7rem">Catalogue : ${toolsCount} outils · Bons : ${intvCount} interventions<br>
+          Les cycles sont calculés à partir du champ « cycles » des bons d'intervention.</span>
+        </div>`;
         return;
       }
       if (!visible.length) {
@@ -13118,106 +13222,268 @@ section[data-view] h1,
 
     /**
      * 🤖 ENREGISTREMENT AUTOMATIQUE — Appelé depuis db.validateIntervention()
-     * quand un bon de changement PDR est validé.
+     * à CHAQUE validation de bon.
      *
-     * Logique :
-     *   - Si le bon contient au moins une pièce cochée dans piecesChanged → c'est un changement PDR
-     *   - On enregistre l'événement dans pdrChangeHistory
-     *   - On met à jour cyclesAtLastPdr du tool = cycles du bon à ce moment
-     *   - Le compteur "cyclesSinceLastPdr" repart de 0
-     *   - La prochaine validation calculera le delta depuis cette validation
+     * Deux actions :
+     *   1️⃣ TOUJOURS : sync tool.cyclesCum depuis bon.crimping.cycles (si > catalogue)
+     *   2️⃣ SI piecesChanged a au moins 1 pièce : aussi sync tool.cyclesAtLastPdr
+     *      + push événement dans pdrChangeHistory
+     *
+     * Le but : que le catalogue tools/{id} contienne TOUJOURS :
+     *   • cyclesCum = max cycles vus dans les bons → utilisé pour le calcul "depuis PDR"
+     *   • cyclesAtLastPdr = cycles du dernier bon de changement PDR → baseline alerte
+     *   • lastPdrChangeAt, lastPdrChangeBonReg → traçabilité
      */
     async recordPdrChangeFromBon(reg, bonData) {
       try {
         if (!reg || !bonData) return false;
-        const piecesChanged = (bonData.crimping && bonData.crimping.piecesChanged) || {};
-        // Liste des pièces effectivement cochées
-        const piecesList = Object.entries(piecesChanged).filter(([k, v]) => !!v).map(([k]) => k);
-        if (!piecesList.length) return false; // pas un bon de changement PDR
+        const toolInfo = bonData.tool;
+        if (!toolInfo) {
+          console.warn('[recordPdrChangeFromBon] Bon ' + reg + ' sans tool — skip');
+          return false;
+        }
 
-        const tool = bonData.tool;
-        if (!tool || !tool.id) {
-          console.warn('[wearAlerts] Bon ' + reg + ' validé mais pas de tool.id — pas d\'enregistrement PDR');
+        // 🔍 Recherche robuste de l'outil dans le catalogue (id, serial, outilId, etc.)
+        const toolKey = this._findToolKey(toolInfo);
+        if (!toolKey) {
+          console.warn('[recordPdrChangeFromBon] Bon ' + reg + ' — outil non trouvé dans catalogue :', toolInfo);
           return false;
         }
 
         const cyclesAtValidation = parseFloat(bonData.crimping?.cycles) || 0;
-        const stateTool = state.tools && state.tools[tool.id];
-        const cyclesBefore = stateTool ? (parseFloat(stateTool.cyclesAtLastPdr) || 0) : 0;
-        const cyclesSinceLastPdr = Math.max(0, cyclesAtValidation - cyclesBefore);
+        if (!cyclesAtValidation) {
+          console.info('[recordPdrChangeFromBon] Bon ' + reg + ' — cycles=0, skip');
+          return false;
+        }
+
+        const stateTool = state.tools[toolKey];
+        const currentCum = parseFloat(stateTool?.cyclesCum) || 0;
+        const updates = {};
         const now = Date.now();
 
-        const labelTool = tool.serial || tool.outilId || tool.doutils || tool.refOutil || tool.id;
-
-        // Mapping des codes pièces → labels lisibles
-        const pieceLabels = {
-          pAr: 'P-AR Poinçon Arrière', pAv: 'P-AV Poinçon Avant',
-          eAr: 'E-AR Enclume Arrière', eAv: 'E-AV Enclume Avant',
-          cAr: 'C-AR Couteau Arrière', cAv: 'C-AV Couteau Avant',
-          ejector: 'Éjecteur', couteauBanda: 'Couteau Banda'
-        };
-        const piecesReadable = piecesList.map(p => pieceLabels[p] || p);
-
-        // 1) Push history event
-        const event = {
-          ts: now,
-          numBon: reg,
-          toolId: tool.id,
-          toolLabel: labelTool,
-          cyclesAtChange: cyclesAtValidation,
-          cyclesSinceLastPdr: cyclesSinceLastPdr,
-          piecesChanged: piecesList,
-          piecesReadable: piecesReadable.join(', '),
-          interventionType: bonData.crimping?.type || '',
-          source: 'auto-validation', // distingue auto vs futur manuel
-          changedBy: state.profile?.displayName || state.user?.email || 'Inconnu',
-          changedByUid: state.user?.uid || '',
-          changedByRole: state.role || ''
-        };
-        await fbDb.ref('pdrChangeHistory').push(event);
-
-        // 2) Update tool fields (reset compteur "depuis dernier PDR")
-        await fbDb.ref('tools/' + tool.id).update({
-          cyclesAtLastPdr: cyclesAtValidation,
-          lastPdrChangeAt: now,
-          lastPdrChangeBonReg: reg
-        });
-
-        // 3) Mise à jour locale immédiate du state (le listener Firebase confirmera)
-        if (stateTool) {
-          stateTool.cyclesAtLastPdr = cyclesAtValidation;
-          stateTool.lastPdrChangeAt = now;
-          stateTool.lastPdrChangeBonReg = reg;
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 1️⃣ SYNC cyclesCum (toujours, si bon > catalogue)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if (cyclesAtValidation > currentCum) {
+          updates.cyclesCum = cyclesAtValidation;
+          updates.cyclesCumSyncedAt = now;
+          updates.cyclesCumSyncedFromBon = reg;
         }
 
-        // 4) Audit log
-        try {
-          if (typeof db !== 'undefined' && db.audit) {
-            db.audit('pdr.auto-reset', tool.id, {
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 2️⃣ PDR CHANGE : si au moins une pièce cochée
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const piecesChanged = (bonData.crimping && bonData.crimping.piecesChanged) || {};
+        const piecesList = Object.entries(piecesChanged).filter(([k, v]) => !!v).map(([k]) => k);
+        const isPdrChange = piecesList.length > 0;
+
+        let pdrHistoryPushed = false;
+        if (isPdrChange) {
+          const cyclesBefore = parseFloat(stateTool?.cyclesAtLastPdr) || 0;
+          const cyclesSinceLastPdr = Math.max(0, cyclesAtValidation - cyclesBefore);
+          const labelTool = stateTool?.serial || stateTool?.outilId || stateTool?.doutils || toolInfo.serial || toolInfo.outilId || toolKey;
+
+          const pieceLabels = {
+            pAr: 'P-AR Poinçon Arrière', pAv: 'P-AV Poinçon Avant',
+            eAr: 'E-AR Enclume Arrière', eAv: 'E-AV Enclume Avant',
+            cAr: 'C-AR Couteau Arrière', cAv: 'C-AV Couteau Avant',
+            ejector: 'Éjecteur', couteauBanda: 'Couteau Banda'
+          };
+          const piecesReadable = piecesList.map(p => pieceLabels[p] || p);
+
+          // Update catalogue
+          updates.cyclesAtLastPdr = cyclesAtValidation;
+          updates.lastPdrChangeAt = now;
+          updates.lastPdrChangeBonReg = reg;
+
+          // Push history event
+          try {
+            await fbDb.ref('pdrChangeHistory').push({
+              ts: now,
               numBon: reg,
+              toolId: toolKey,
+              toolLabel: labelTool,
               cyclesAtChange: cyclesAtValidation,
               cyclesSinceLastPdr: cyclesSinceLastPdr,
-              pieces: piecesList
+              piecesChanged: piecesList,
+              piecesReadable: piecesReadable.join(', '),
+              interventionType: bonData.crimping?.type || '',
+              source: 'auto-validation',
+              changedBy: state.profile?.displayName || state.user?.email || 'Inconnu',
+              changedByUid: state.user?.uid || '',
+              changedByRole: state.role || ''
             });
+            pdrHistoryPushed = true;
+          } catch(e) {
+            console.error('[recordPdrChangeFromBon] push history error:', e);
           }
-        } catch(e){}
 
-        // 5) Toast pour informer l'utilisateur (subtle)
-        if (typeof ui !== 'undefined' && ui.toast) {
-          ui.toast(
-            `🔧 PDR enregistré · ${labelTool} · ${this._fmtCycles(cyclesSinceLastPdr)} cycles depuis dernier changement`,
-            'success'
-          );
+          // Toast notif
+          if (typeof ui !== 'undefined' && ui.toast) {
+            ui.toast(
+              `🔧 PDR enregistré · ${labelTool} · ${this._fmtCycles(cyclesSinceLastPdr)} cycles depuis dernier`,
+              'success'
+            );
+          }
+
+          // Audit
+          try {
+            if (typeof db !== 'undefined' && db.audit) {
+              db.audit('pdr.auto-reset', toolKey, {
+                numBon: reg,
+                cyclesAtChange: cyclesAtValidation,
+                cyclesSinceLastPdr: cyclesSinceLastPdr,
+                pieces: piecesList
+              });
+            }
+          } catch(e){}
         }
 
-        // 6) Re-render du widget
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 3️⃣ ÉCRITURE dans Firebase (catalogue tool)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if (Object.keys(updates).length > 0) {
+          try {
+            await fbDb.ref('tools/' + toolKey).update(updates);
+            console.info('[recordPdrChangeFromBon] tool ' + toolKey + ' updated:', updates);
+
+            // Sync local state immédiat (le listener Firebase confirmera)
+            if (stateTool) Object.assign(stateTool, updates);
+
+            // Toast info pour sync (si pas déjà notifié pour PDR)
+            if (!isPdrChange && typeof ui !== 'undefined' && ui.toast) {
+              const labelTool = stateTool?.serial || stateTool?.outilId || toolInfo.serial || toolKey;
+              ui.toast(`🔁 Catalogue sync · ${labelTool} · ${this._fmtCycles(cyclesAtValidation)} cycles`, 'info');
+            }
+          } catch(e) {
+            console.error('[recordPdrChangeFromBon] update tool error:', e);
+          }
+        }
+
+        // 4️⃣ Re-render du widget pour refléter les changements
         this.render();
 
-        return true;
+        return isPdrChange;
       } catch (e) {
-        console.error('[wearAlerts] recordPdrChangeFromBon error:', e);
-        // Ne pas faire échouer la validation à cause de l'enregistrement PDR
+        console.error('[recordPdrChangeFromBon] error:', e);
         return false;
+      }
+    },
+
+    /**
+     * 🔁 SYNCHRONISATION RÉTROACTIVE
+     * Parcourt TOUS les bons validés et met à jour le catalogue avec :
+     *   - cyclesCum max de chaque outil
+     *   - cyclesAtLastPdr du dernier bon avec piecesChanged
+     *
+     * Utile au démarrage de l'app après ajout de cette feature, OU
+     * pour rattraper des bons importés sans synchro automatique.
+     */
+    async syncCatalogFromAllBons(opts = {}) {
+      const dry = !!opts.dry;
+      const direct = firebase.database();
+      console.group('🔁 Sync catalogue ← bons d\'intervention' + (dry ? ' (dry-run)' : ''));
+
+      if (state.role !== 'super_admin' && state.role !== 'admin') {
+        console.warn('🚫 Réservé admin/super_admin');
+        console.groupEnd();
+        return { error: 'unauthorized' };
+      }
+
+      try {
+        const interventions = state.interventions ? Object.values(state.interventions) : [];
+        const tools = state.tools || {};
+
+        // Agréger par outil
+        // toolKey → { maxCycles, lastPdrCycles, lastPdrAt, lastPdrBonReg }
+        const stats = {};
+        for (const i of interventions) {
+          if (!i || !i.tool) continue;
+          const toolKey = this._findToolKey(i.tool);
+          if (!toolKey) continue;
+          const cycles = parseFloat(i.crimping?.cycles) || 0;
+          if (!cycles) continue;
+
+          if (!stats[toolKey]) stats[toolKey] = { maxCycles: 0, lastPdrCycles: 0, lastPdrAt: 0, lastPdrBonReg: null };
+          const s = stats[toolKey];
+
+          if (cycles > s.maxCycles) s.maxCycles = cycles;
+
+          if (i.status === 'validated' && i.crimping?.piecesChanged) {
+            const piecesList = Object.entries(i.crimping.piecesChanged).filter(([k, v]) => !!v);
+            if (piecesList.length > 0) {
+              const validatedAt = (i.sla && i.sla.decidedAt) || i.updatedAt || 0;
+              if (validatedAt > s.lastPdrAt) {
+                s.lastPdrAt = validatedAt;
+                s.lastPdrCycles = cycles;
+                s.lastPdrBonReg = i.numBon;
+              }
+            }
+          }
+        }
+
+        console.info('📊 Stats agrégées :', stats);
+
+        // Mettre à jour le catalogue
+        const updated = [];
+        const errors = [];
+        for (const [toolKey, s] of Object.entries(stats)) {
+          const tool = tools[toolKey];
+          if (!tool) continue;
+
+          const updates = {};
+          const currentCum = parseFloat(tool.cyclesCum) || 0;
+          if (s.maxCycles > currentCum) {
+            updates.cyclesCum = s.maxCycles;
+            updates.cyclesCumSyncedAt = Date.now();
+          }
+          const currentAtLast = parseFloat(tool.cyclesAtLastPdr) || 0;
+          if (s.lastPdrCycles > currentAtLast) {
+            updates.cyclesAtLastPdr = s.lastPdrCycles;
+            updates.lastPdrChangeAt = s.lastPdrAt;
+            updates.lastPdrChangeBonReg = s.lastPdrBonReg;
+          }
+
+          if (Object.keys(updates).length > 0) {
+            const label = tool.serial || tool.outilId || toolKey;
+            if (dry) {
+              console.info('  [DRY] ' + label + ' :', updates);
+            } else {
+              try {
+                await direct.ref('tools/' + toolKey).update(updates);
+                // Mettre à jour state local
+                Object.assign(tool, updates);
+                console.info('  ✅ ' + label + ' :', updates);
+              } catch(e) {
+                errors.push(toolKey + ': ' + (e.message || e.code));
+                console.error('  ❌ ' + label + ' :', e);
+              }
+            }
+            updated.push({ toolKey, label, updates });
+          }
+        }
+
+        console.info('🎉 Sync terminé : ' + updated.length + ' outils' + (dry ? ' (aucune modif réelle)' : ' mis à jour') + (errors.length ? ', ' + errors.length + ' erreur(s)' : ''));
+        console.groupEnd();
+
+        if (typeof ui !== 'undefined' && ui.toast && !dry) {
+          if (errors.length) {
+            ui.toast(`⚠️ Sync : ${updated.length} outils synchronisés avec ${errors.length} erreur(s)`, 'warn');
+          } else if (updated.length === 0) {
+            ui.toast(`✅ Catalogue déjà à jour (rien à synchroniser)`, 'info');
+          } else {
+            ui.toast(`✅ ${updated.length} outils synchronisés depuis les bons`, 'success');
+          }
+        }
+
+        // Re-render
+        this.render();
+
+        return { updated, errors };
+      } catch(e) {
+        console.error('[syncCatalogFromAllBons] error:', e);
+        console.groupEnd();
+        return { error: e.message };
       }
     },
 
@@ -13652,17 +13918,173 @@ section[data-view] h1,
         this.executeToggle(target, migrate);
       };
       toggleBtn.disabled = false;
+
+      // 🚚 Bouton "DÉPLACER MAINTENANT" — transfert direct, sans changer de mode
+      const transferBtn = document.getElementById('btn-prod-switch-transfer-now');
+      if (transferBtn) {
+        transferBtn.onclick = () => this.transferAndReload();
+        transferBtn.disabled = false;
+      }
     },
 
-    /** Détecte si une migration "1ère fois" est nécessaire :
-     *  - Pas de flag firstProdActivationAt en Firebase
-     *  - ET des données existent dans les chemins principaux (donc à migrer)
+    /** ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     *  🚚 TRANSFERT DIRECT — Action one-shot, sans changement de mode
      *  
-     *  Cette détection fonctionne dans LES DEUX directions de bascule :
-     *  - Si l'utilisateur va en PROD : on déplace les données → test_data/
-     *  - Si l'utilisateur va en TEST : on déplace AUSSI les données → test_data/
-     *    (car ces données sont conceptuellement du "test" puisque jamais validées en prod)
-     */
+     *  Déplace TOUTES les données d'un espace vers l'autre.
+     *  Utilisable :
+     *    - Via le bouton "🚚 DÉPLACER MAINTENANT" dans la modale
+     *    - Via la console : window.productionSwitch.transferDataNow('prod-to-test')
+     *  
+     *  Direction : 'prod-to-test' OU 'test-to-prod'
+     *  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+    async transferDataNow(direction = 'prod-to-test') {
+      console.group('🚚 TRANSFERT DIRECT — ' + direction);
+
+      if (state.role !== 'super_admin' && state.role !== 'admin') {
+        console.error('🚫 Réservé admin/super_admin (rôle actuel: ' + state.role + ')');
+        if (typeof ui !== 'undefined') ui.toast('🚫 Réservé admin', 'danger');
+        console.groupEnd();
+        return { ok: false, reason: 'unauthorized' };
+      }
+
+      const direct = firebase.database();
+      const srcPrefix = (direction === 'test-to-prod') ? this.TEST_NAMESPACE + '/' : '';
+      const dstPrefix = (direction === 'test-to-prod') ? '' : this.TEST_NAMESPACE + '/';
+      const srcLabel = (direction === 'test-to-prod') ? 'TEST' : 'PROD';
+      const dstLabel = (direction === 'test-to-prod') ? 'PROD' : 'TEST';
+
+      console.info('📂 Source :', srcPrefix || '(chemins principaux)');
+      console.info('📂 Cible  :', dstPrefix || '(chemins principaux)');
+
+      const migrated = [];
+      const errors = [];
+      const totalCounts = { src: {}, dst: {} };
+
+      // Compter avant
+      for (const path of this.NAMESPACED_PATHS) {
+        try {
+          const s = await direct.ref(srcPrefix + path).once('value');
+          totalCounts.src[path] = s.val() ? Object.keys(s.val()).length : 0;
+        } catch(e) { totalCounts.src[path] = '?'; }
+      }
+      console.info('📊 État AVANT transfert (source):', totalCounts.src);
+
+      // Déplacer
+      for (const path of this.NAMESPACED_PATHS) {
+        try {
+          const srcRef = direct.ref(srcPrefix + path);
+          const dstRef = direct.ref(dstPrefix + path);
+          const srcSnap = await srcRef.once('value');
+          const srcData = srcSnap.val();
+
+          if (srcData === null || srcData === undefined) {
+            console.info(`  ⊘ ${path} : vide, skip`);
+            continue;
+          }
+
+          const count = Object.keys(srcData).length;
+
+          // Fusion avec existant côté destination
+          const existingSnap = await dstRef.once('value');
+          const existing = existingSnap.val() || {};
+          const merged = Object.assign({}, existing, srcData);
+
+          await dstRef.set(merged);
+          console.info(`  ✏️ ${path} : ${count} éléments écrits dans ${dstPrefix + path}`);
+
+          await srcRef.remove();
+          console.info(`  🗑 ${path} : source vidée (${srcPrefix + path})`);
+
+          migrated.push({ path, count });
+        } catch(e) {
+          const msg = `${path}: ${e.message || e.code}`;
+          errors.push(msg);
+          console.error(`  ❌ ${msg}`);
+        }
+      }
+
+      console.info('✅ Migration terminée');
+      console.info('📊 Récap :', { migrated, errors });
+
+      // Marquer le flag de première migration si pas encore fait
+      try {
+        const flagSnap = await direct.ref('system/firstProdActivationAt').once('value');
+        if (!flagSnap.val()) {
+          await direct.ref('system').update({
+            firstProdActivationAt: Date.now(),
+            firstProdActivationBy: state.user?.uid || '',
+            firstProdActivationByName: state.profile?.displayName || ''
+          });
+        }
+        await direct.ref('system/lastDataTransfer').set({
+          at: Date.now(),
+          direction,
+          migrated: migrated.map(m => m.path + ' (' + m.count + ')'),
+          errors: errors.length ? errors : null,
+          by: state.user?.uid
+        });
+      } catch(e) {
+        console.warn('Erreur update system:', e);
+      }
+
+      if (typeof ui !== 'undefined' && ui.toast) {
+        const totalElems = migrated.reduce((s, m) => s + m.count, 0);
+        if (errors.length) {
+          ui.toast(`⚠️ Transfert : ${totalElems} éléments déplacés avec ${errors.length} erreur(s)`, 'warn');
+        } else if (migrated.length === 0) {
+          ui.toast(`⊘ Aucune donnée à transférer dans ${srcLabel}`, 'info');
+        } else {
+          ui.toast(`✅ ${totalElems} éléments déplacés de ${srcLabel} → ${dstLabel}`, 'success');
+        }
+      }
+
+      console.groupEnd();
+      return { ok: errors.length === 0, migrated, errors, totalCounts };
+    },
+
+    /** 🚚 Wrapper UI : appelé par le bouton dédié dans la modale */
+    async transferAndReload() {
+      if (state.role !== 'super_admin' && state.role !== 'admin') {
+        ui.toast('🚫 Réservé admin', 'danger');
+        return;
+      }
+
+      // Détermine la direction selon le mode actuel
+      // Si on est en PROD avec des données → on les envoie vers TEST
+      // Si on est en TEST avec des données → on les envoie vers PROD
+      const direction = (this._currentMode === 'production') ? 'prod-to-test' : 'test-to-prod';
+      const srcLabel = (this._currentMode === 'production') ? 'PROD' : 'TEST';
+      const dstLabel = (this._currentMode === 'production') ? 'TEST' : 'PROD';
+
+      const ok = confirm(
+        `🚚 TRANSFERT IMMÉDIAT\n\n` +
+        `Toutes les données de l'espace ${srcLabel} vont être DÉPLACÉES vers ${dstLabel}.\n\n` +
+        `L'espace ${srcLabel} deviendra vide.\n` +
+        `Le mode actif (${srcLabel}) ne changera PAS — seules les données bougent.\n\n` +
+        `Action sans retour. Continuer ?`
+      );
+      if (!ok) return;
+
+      const executeBtn = document.getElementById('btn-prod-switch-transfer-now');
+      const originalLabel = executeBtn?.textContent || '';
+      if (executeBtn) { executeBtn.disabled = true; executeBtn.textContent = '⌛ Transfert…'; }
+
+      const result = await this.transferDataNow(direction);
+
+      // Fermer la modale
+      document.getElementById('modal-prod-switch').hidden = true;
+
+      // Proposer reload pour rafraîchir les listeners
+      setTimeout(() => {
+        if (confirm(
+          `✅ Transfert effectué.\n\n` +
+          (result.migrated?.length ? '• ' + result.migrated.map(m => m.path + ' (' + m.count + ')').join('\n• ') + '\n\n' : '') +
+          `Recharger la page pour rafraîchir l'affichage ?`
+        )) {
+          window.location.reload();
+        }
+      }, 500);
+    },
     async _needsFirstMigration() {
       try {
         const direct = firebase.database();
@@ -14172,23 +14594,39 @@ section[data-view] h1,
 
         // Calcule le ratio d'usure pour chaque outil
         const alerts = [];
-        tools.forEach(t => {
-          const cyclesCum = parseFloat(t.cyclesCum) || 0;
-          const cyclesNom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || PDR_LIFE_DEFAULT;
-          if (!cyclesCum || !cyclesNom || cyclesNom <= 0) return;
-
-          const ratio = cyclesCum / cyclesNom;
-          if (ratio < 0.75) return; // pas d'alerte si <75%
-
-          alerts.push({
-            id: t.outilId || t.id || t.reference || '—',
-            description: t.designation || t.description || t.libelle || 'Outil',
-            ratio,
-            cyclesCum,
-            cyclesNom,
-            severity: ratio >= 0.95 ? 'critical' : 'warn'
+        // 🔧 NOUVEAU : utilise wearAlerts.computeAll() qui dérive les cycles
+        // depuis les BONS d'intervention (pas seulement du catalogue)
+        if (typeof wearAlerts !== 'undefined' && wearAlerts.computeAll) {
+          const wearList = wearAlerts.computeAll();
+          wearList.forEach(a => {
+            if (a.severity === 'ok') return;
+            alerts.push({
+              id: a.id,
+              description: a.description,
+              ratio: a.ratio,
+              cyclesCum: a.cyclesCum,
+              cyclesNom: a.cyclesLife,
+              severity: a.severity
+            });
           });
-        });
+        } else {
+          // Fallback ancien comportement si wearAlerts pas dispo
+          tools.forEach(t => {
+            const cyclesCum = parseFloat(t.cyclesCum) || 0;
+            const cyclesNom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || PDR_LIFE_DEFAULT;
+            if (!cyclesCum || !cyclesNom || cyclesNom <= 0) return;
+            const ratio = cyclesCum / cyclesNom;
+            if (ratio < 0.75) return;
+            alerts.push({
+              id: t.outilId || t.id || t.reference || '—',
+              description: t.designation || t.description || t.libelle || 'Outil',
+              ratio,
+              cyclesCum,
+              cyclesNom,
+              severity: ratio >= 0.95 ? 'critical' : 'warn'
+            });
+          });
+        }
 
         // Tri : critiques en premier, puis par ratio décroissant
         alerts.sort((a, b) => {
@@ -14301,17 +14739,14 @@ section[data-view] h1,
         }
 
         // ── KPI 4 : Outils en alerte (>= 75% durée vie) ──
-        const tools = state.tools ? Object.values(state.tools) : [];
-        const alertCount = tools.filter(t => {
-          const cum = parseFloat(t.cyclesCum) || 0;
-          const nom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || 300000;
-          return cum && nom && (cum / nom) >= 0.75;
-        }).length;
-        const critCount = tools.filter(t => {
-          const cum = parseFloat(t.cyclesCum) || 0;
-          const nom = parseFloat(t.cyclesNom) || parseFloat(t.cyclesNominal) || 300000;
-          return cum && nom && (cum / nom) >= 0.95;
-        }).length;
+        // Utilise wearAlerts.computeAll() pour avoir la même logique que le widget
+        // (compteurs cycles dérivés des BONS d'intervention, pas uniquement du catalogue)
+        let alertCount = 0, critCount = 0;
+        if (typeof wearAlerts !== 'undefined' && wearAlerts.computeAll) {
+          const allAlerts = wearAlerts.computeAll();
+          alertCount = allAlerts.filter(a => a.severity === 'warn' || a.severity === 'critical').length;
+          critCount  = allAlerts.filter(a => a.severity === 'critical').length;
+        }
         const alertEl = document.getElementById('cc-kpi-alerts');
         const alertSub = document.getElementById('cc-kpi-alerts-sub');
         if (alertEl) alertEl.firstChild.textContent = String(alertCount).padStart(2, '0');

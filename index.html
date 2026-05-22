@@ -5305,6 +5305,7 @@ select:focus {
 .wear-alerts__row--critical { border-left-color: #ef4444; background: rgba(239,68,68,.07); }
 .wear-alerts__row--warn     { border-left-color: #f59e0b; background: rgba(245,158,11,.06); }
 .wear-alerts__row--ok       { border-left-color: #10b981; opacity: .65; }
+.wear-alerts__row--needs-baseline { border-left-color: #818cf8; background: rgba(99,102,241,.06); opacity: .85; }
 
 .wear-alerts__icon { font-size: .95rem; }
 .wear-alerts__body { min-width: 0; }
@@ -13100,13 +13101,25 @@ section[data-view] h1,
         const bonLastPdr = stats.lastPdrCycles || 0;
         const atLast = Math.max(catLastPdr, bonLastPdr);
 
+        // 🔑 BASELINE : l'outil a-t-il un historique PDR fiable ?
+        // Sans baseline (aucun PDR jamais enregistré) → on NE PEUT PAS faire de calcul
+        // significatif "cycles depuis PDR". On classe comme "needs-baseline".
+        const hasBaseline = (atLast > 0) || !!t.lastPdrChangeAt || !!stats.lastPdrAt;
+
         const since = Math.max(0, cum - atLast);
         const life = this.lifeFor(t);
         const ratio = since / life;
 
-        let severity = 'ok';
-        if (ratio >= this.CRIT_THRESHOLD) severity = 'critical';
-        else if (ratio >= this.WARN_THRESHOLD) severity = 'warn';
+        let severity;
+        if (!hasBaseline) {
+          severity = 'needs-baseline'; // 📍 outil sans historique PDR — pas de fausse alerte
+        } else if (ratio >= this.CRIT_THRESHOLD) {
+          severity = 'critical';
+        } else if (ratio >= this.WARN_THRESHOLD) {
+          severity = 'warn';
+        } else {
+          severity = 'ok';
+        }
 
         alerts.push({
           tool: t,
@@ -13118,15 +13131,18 @@ section[data-view] h1,
           cyclesAtLastPdr: atLast,
           ratio,
           severity,
+          hasBaseline,
           lastPdrChangeAt: stats.lastPdrAt || t.lastPdrChangeAt || null,
           lastPdrBonReg: stats.lastBonReg || t.lastPdrChangeBonReg || null
         });
       });
 
-      // Tri : critique → warn → ok, puis par ratio décroissant
-      const order = { critical: 0, warn: 1, ok: 2 };
+      // Tri : critique → warn → needs-baseline → ok, puis par cycles décroissants
+      const order = { critical: 0, warn: 1, 'needs-baseline': 2, ok: 3 };
       alerts.sort((a, b) => {
         if (order[a.severity] !== order[b.severity]) return order[a.severity] - order[b.severity];
+        // Pour les needs-baseline, trier par cycles cumulés décroissants
+        if (a.severity === 'needs-baseline') return b.cyclesCum - a.cyclesCum;
         return b.ratio - a.ratio;
       });
       this._alertsCache = alerts;
@@ -13153,14 +13169,16 @@ section[data-view] h1,
       if (!wrap) return;
       const all = this.computeAll();
       // N'afficher dans la liste que les outils en warn/critical (et résultats du search)
+      // Les outils "needs-baseline" sont SÉPARÉS pour ne pas créer de fausses alertes
       let visible;
       if (this._searchQuery) {
-        // Mode recherche : afficher TOUS les outils correspondants, OK inclus
         visible = this._filtered(all);
       } else {
-        // Mode normal : seulement warn + critical
-        visible = all.filter(a => a.severity !== 'ok');
+        visible = all.filter(a => a.severity === 'warn' || a.severity === 'critical');
       }
+
+      // Compte les outils sans baseline (pour notice info)
+      const needBaselineCount = all.filter(a => a.severity === 'needs-baseline').length;
 
       if (!all.length) {
         const toolsCount = state.tools ? Object.keys(state.tools).length : 0;
@@ -13172,30 +13190,68 @@ section[data-view] h1,
         </div>`;
         return;
       }
+
       if (!visible.length) {
-        const totalCount = all.length;
-        wrap.innerHTML = `<div class="wear-alerts__empty">✅ Aucune alerte active<br><span style="font-size:.7rem">${totalCount} outil${totalCount > 1 ? 's' : ''} sous le seuil 75% (225k cycles)</span></div>`;
+        let html = '';
+        if (needBaselineCount > 0) {
+          html += `<div class="wear-alerts__empty" style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px;padding:.85rem;margin-bottom:.5rem;text-align:left">
+            <div style="font-weight:700;color:#a5b4fc;margin-bottom:.3rem">📍 ${needBaselineCount} outil${needBaselineCount > 1 ? 's' : ''} sans baseline PDR</div>
+            <div style="font-size:.72rem;color:var(--text-secondary);line-height:1.4">
+              Ces outils ont des cycles enregistrés mais <strong>aucun changement PDR n'a été validé</strong>.
+              Le système ne peut pas calculer l'usure réelle.<br>
+              💡 Validez un bon avec pièces cochées (poinçon, enclume…) pour <strong>initialiser la baseline</strong>.
+              Les vraies alertes apparaîtront après le 2ᵉ changement PDR.
+            </div>
+          </div>`;
+        }
+        html += `<div class="wear-alerts__empty">✅ Aucune alerte usure active<br><span style="font-size:.7rem">${all.length - needBaselineCount} outil${(all.length - needBaselineCount) > 1 ? 's' : ''} avec baseline · 0 alerte</span></div>`;
+        wrap.innerHTML = html;
         return;
       }
 
       // Limite à 25 lignes max pour ne pas saturer (les autres sont accessibles via search)
       const slice = visible.slice(0, 25);
 
-      wrap.innerHTML = slice.map(a => {
+      let extraHtml = '';
+      if (needBaselineCount > 0 && !this._searchQuery) {
+        extraHtml = `<div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem;font-size:.72rem;color:#a5b4fc">
+          📍 <strong>${needBaselineCount}</strong> outil${needBaselineCount > 1 ? 's sans' : ' sans'} baseline PDR (cycles enregistrés mais aucun changement validé). Validez un bon avec pièces cochées pour initialiser.
+        </div>`;
+      }
+
+      wrap.innerHTML = extraHtml + slice.map(a => {
         const pct = Math.round(a.ratio * 100);
         const cls = `wear-alerts__row wear-alerts__row--${a.severity}`;
-        const icon = a.severity === 'critical' ? '🔴' : a.severity === 'warn' ? '🟡' : '✅';
-        const colorBar = a.severity === 'critical' ? '#ef4444' : a.severity === 'warn' ? '#f59e0b' : '#10b981';
-        const pctClamped = Math.min(100, pct);
-        const cyclesText = a.severity === 'critical'
-          ? `<strong style="color:#fca5a5">${this._fmtCycles(a.cyclesSince)}</strong> / ${this._fmtCycles(a.cyclesLife)} depuis PDR`
-          : `<strong>${this._fmtCycles(a.cyclesSince)}</strong> / ${this._fmtCycles(a.cyclesLife)} cycles`;
+        let icon, colorBar, cyclesText, statusLabel;
+
+        if (a.severity === 'needs-baseline') {
+          icon = '📍';
+          colorBar = '#818cf8';
+          cyclesText = `<strong>${this._fmtCycles(a.cyclesCum)}</strong> cycles · pas de PDR`;
+          statusLabel = 'Baseline requise';
+        } else if (a.severity === 'critical') {
+          icon = '🔴';
+          colorBar = '#ef4444';
+          cyclesText = `<strong style="color:#fca5a5">${this._fmtCycles(a.cyclesSince)}</strong> / ${this._fmtCycles(a.cyclesLife)} depuis PDR`;
+          statusLabel = `${pct}%`;
+        } else if (a.severity === 'warn') {
+          icon = '🟡';
+          colorBar = '#f59e0b';
+          cyclesText = `<strong>${this._fmtCycles(a.cyclesSince)}</strong> / ${this._fmtCycles(a.cyclesLife)} cycles`;
+          statusLabel = `${pct}%`;
+        } else {
+          icon = '✅';
+          colorBar = '#10b981';
+          cyclesText = `<strong>${this._fmtCycles(a.cyclesSince)}</strong> / ${this._fmtCycles(a.cyclesLife)} cycles`;
+          statusLabel = `${pct}%`;
+        }
+        const pctClamped = a.severity === 'needs-baseline' ? 100 : Math.min(100, pct);
         return `
           <div class="${cls}" data-tool-id="${this._escAttr(a.tool.id)}">
             <span class="wear-alerts__icon">${icon}</span>
             <div class="wear-alerts__body">
               <span class="wear-alerts__id">${this._esc(a.id)}</span>
-              <span style="color:${colorBar};font-weight:700">${pct}%</span>
+              <span style="color:${colorBar};font-weight:700">${statusLabel}</span>
               <span class="wear-alerts__desc">${this._esc(a.description)}</span>
             </div>
             <div class="wear-alerts__metric">${cyclesText}</div>
@@ -14683,10 +14739,13 @@ section[data-view] h1,
         const alerts = [];
         // 🔧 NOUVEAU : utilise wearAlerts.computeAll() qui dérive les cycles
         // depuis les BONS d'intervention (pas seulement du catalogue)
+        // ⚠️ On filtre les outils SANS BASELINE (severity = 'needs-baseline')
+        // pour ne pas afficher d'alertes basées sur des cycles depuis 0.
         if (typeof wearAlerts !== 'undefined' && wearAlerts.computeAll) {
           const wearList = wearAlerts.computeAll();
           wearList.forEach(a => {
-            if (a.severity === 'ok') return;
+            // Skip OK et needs-baseline → seules les vraies alertes (warn/critical) sont affichées
+            if (a.severity === 'ok' || a.severity === 'needs-baseline') return;
             alerts.push({
               id: a.id,
               description: a.description,

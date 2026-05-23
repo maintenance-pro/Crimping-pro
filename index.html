@@ -13071,10 +13071,17 @@ section[data-view] h1,
           stats.maxCycles = cycles;
         }
 
-        // Détection d'un changement PDR : statut validé + au moins 1 pièce cochée
-        if (i.status === 'validated' && i.crimping?.piecesChanged) {
-          const piecesList = Object.entries(i.crimping.piecesChanged).filter(([k, v]) => !!v);
-          if (piecesList.length > 0) {
+        // Détection d'un changement PDR : statut validé + ELARGIE
+        //  • piecesChanged a au moins 1 pièce cochée
+        //  • OU type indique un changement PDR (requalification, changement_pdr, etc.)
+        if (i.status === 'validated') {
+          const piecesChanged = i.crimping?.piecesChanged || {};
+          const piecesList = Object.entries(piecesChanged).filter(([k, v]) => !!v);
+          const bonType = (i.crimping?.type || i.type || '').toLowerCase();
+          const typeIndicatesPdr = /changement[_ ]?pdr|requalif|^pdr$|pdr[_ ]change/i.test(bonType);
+          const isPdrChangeEvt = (piecesList.length > 0) || typeIndicatesPdr;
+
+          if (isPdrChangeEvt) {
             const validatedAt = (i.sla && i.sla.decidedAt) || i.updatedAt || 0;
             if (validatedAt > stats.lastPdrAt) {
               stats.lastPdrAt = validatedAt;
@@ -13327,11 +13334,16 @@ section[data-view] h1,
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 2️⃣ PDR CHANGE : si au moins une pièce cochée
+        // 2️⃣ PDR CHANGE : détection ÉLARGIE
+        //    - Si au moins une pièce cochée dans piecesChanged
+        //    - OU si le type du bon indique un changement PDR :
+        //      "changement_pdr", "requalification", "PDR", etc.
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         const piecesChanged = (bonData.crimping && bonData.crimping.piecesChanged) || {};
         const piecesList = Object.entries(piecesChanged).filter(([k, v]) => !!v).map(([k]) => k);
-        const isPdrChange = piecesList.length > 0;
+        const bonType = (bonData.crimping?.type || bonData.type || '').toLowerCase();
+        const typeIndicatesPdr = /changement[_ ]?pdr|requalif|^pdr$|pdr[_ ]change/i.test(bonType);
+        const isPdrChange = (piecesList.length > 0) || typeIndicatesPdr;
 
         let pdrHistoryPushed = false;
         let isPremature = false;
@@ -13492,15 +13504,17 @@ section[data-view] h1,
 
     /**
      * 🔁 SYNCHRONISATION RÉTROACTIVE
-     * Parcourt TOUS les bons validés et met à jour le catalogue avec :
-     *   - cyclesCum max de chaque outil
-     *   - cyclesAtLastPdr du dernier bon avec piecesChanged
+     * Parcourt TOUS les bons validés et met à jour :
+     *   1) Le catalogue tools/ avec cyclesCum max et cyclesAtLastPdr du dernier PDR
+     *   2) Le pdrChangeHistory en backfill (créer les entrées manquantes
+     *      pour les bons avec piecesChanged qui n'ont jamais été enregistrés)
      *
      * Utile au démarrage de l'app après ajout de cette feature, OU
      * pour rattraper des bons importés sans synchro automatique.
      */
     async syncCatalogFromAllBons(opts = {}) {
       const dry = !!opts.dry;
+      const force = !!opts.force; // Force backfill même si déjà fait
       const direct = firebase.database();
       console.group('🔁 Sync catalogue ← bons d\'intervention' + (dry ? ' (dry-run)' : ''));
 
@@ -13513,10 +13527,21 @@ section[data-view] h1,
       try {
         const interventions = state.interventions ? Object.values(state.interventions) : [];
         const tools = state.tools || {};
+        const PDR_THRESHOLD = this.PDR_LIFE_DEFAULT;
 
-        // Agréger par outil
-        // toolKey → { maxCycles, lastPdrCycles, lastPdrAt, lastPdrBonReg }
-        const stats = {};
+        const pieceLabels = {
+          pAr: 'P-AR Poinçon Arrière', pAv: 'P-AV Poinçon Avant',
+          eAr: 'E-AR Enclume Arrière', eAv: 'E-AV Enclume Avant',
+          cAr: 'C-AR Couteau Arrière', cAv: 'C-AV Couteau Avant',
+          ejector: 'Éjecteur', couteauBanda: 'Couteau Banda'
+        };
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 1️⃣ Collecter TOUS les changements PDR par outil (triés par date)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const pdrChangesByTool = {}; // toolKey → [{ numBon, validatedAt, cycles, piecesList, type }]
+        const cumByTool = {};         // toolKey → max cycles
+
         for (const i of interventions) {
           if (!i || !i.tool) continue;
           const toolKey = this._findToolKey(i.tool);
@@ -13524,56 +13549,144 @@ section[data-view] h1,
           const cycles = parseFloat(i.crimping?.cycles) || 0;
           if (!cycles) continue;
 
-          if (!stats[toolKey]) stats[toolKey] = { maxCycles: 0, lastPdrCycles: 0, lastPdrAt: 0, lastPdrBonReg: null };
-          const s = stats[toolKey];
+          // Suivi cycles max (pour cyclesCum)
+          if (!cumByTool[toolKey] || cycles > cumByTool[toolKey]) {
+            cumByTool[toolKey] = cycles;
+          }
 
-          if (cycles > s.maxCycles) s.maxCycles = cycles;
-
-          if (i.status === 'validated' && i.crimping?.piecesChanged) {
-            const piecesList = Object.entries(i.crimping.piecesChanged).filter(([k, v]) => !!v);
-            if (piecesList.length > 0) {
-              const validatedAt = (i.sla && i.sla.decidedAt) || i.updatedAt || 0;
-              if (validatedAt > s.lastPdrAt) {
-                s.lastPdrAt = validatedAt;
-                s.lastPdrCycles = cycles;
-                s.lastPdrBonReg = i.numBon;
-              }
+          // Détection PDR change ÉLARGIE :
+          //  - piecesChanged a au moins 1 pièce, OU
+          //  - type indique un changement PDR (requalif, changement_pdr, etc.)
+          if (i.status === 'validated') {
+            const piecesChanged = i.crimping?.piecesChanged || {};
+            const piecesList = Object.entries(piecesChanged).filter(([k, v]) => !!v).map(([k]) => k);
+            const bonType = (i.crimping?.type || i.type || '').toLowerCase();
+            const typeIndicatesPdr = /changement[_ ]?pdr|requalif|^pdr$|pdr[_ ]change/i.test(bonType);
+            if (piecesList.length > 0 || typeIndicatesPdr) {
+              const validatedAt = (i.sla && i.sla.decidedAt) || i.updatedAt || i.createdAt || 0;
+              if (!pdrChangesByTool[toolKey]) pdrChangesByTool[toolKey] = [];
+              pdrChangesByTool[toolKey].push({
+                numBon: i.numBon,
+                validatedAt,
+                cycles,
+                piecesList,
+                type: i.crimping?.type || i.type || ''
+              });
             }
           }
         }
 
-        console.info('📊 Stats agrégées :', stats);
+        // Trier les PDR changes par date pour chaque outil
+        Object.values(pdrChangesByTool).forEach(arr => arr.sort((a, b) => a.validatedAt - b.validatedAt));
 
-        // Mettre à jour le catalogue
+        const totalPdrChanges = Object.values(pdrChangesByTool).reduce((s, arr) => s + arr.length, 0);
+        console.info('📊 PDR changes détectés dans les bons :', totalPdrChanges, '(sur', Object.keys(pdrChangesByTool).length, 'outils)');
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 2️⃣ Backfill pdrChangeHistory (créer les entrées manquantes)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const existingHistorySnap = await direct.ref('pdrChangeHistory').once('value');
+        const existingHistory = existingHistorySnap.val() || {};
+        const existingBons = new Set();
+        Object.values(existingHistory).forEach(ev => {
+          if (ev.numBon) existingBons.add(String(ev.numBon));
+        });
+
+        const backfilled = [];
+        const backfillErrors = [];
+        for (const [toolKey, changes] of Object.entries(pdrChangesByTool)) {
+          const tool = tools[toolKey];
+          const labelTool = tool?.serial || tool?.outilId || tool?.doutils || toolKey;
+          let prevCycles = 0;
+          for (const c of changes) {
+            const bonKey = String(c.numBon);
+            if (existingBons.has(bonKey)) {
+              // Déjà enregistré → on suit juste prevCycles
+              prevCycles = c.cycles;
+              continue;
+            }
+
+            const since = Math.max(0, c.cycles - prevCycles);
+            const isFirst = (prevCycles === 0);
+            const isPremature = !isFirst && (since > 0) && (since < PDR_THRESHOLD);
+            const piecesReadable = c.piecesList.map(p => pieceLabels[p] || p).join(', ');
+
+            const event = {
+              ts: c.validatedAt,
+              numBon: c.numBon,
+              toolId: toolKey,
+              toolLabel: labelTool,
+              cyclesAtChange: c.cycles,
+              cyclesSinceLastPdr: since,
+              cyclesThreshold: PDR_THRESHOLD,
+              piecesChanged: c.piecesList,
+              piecesReadable,
+              interventionType: c.type,
+              source: 'backfill',
+              prematureChange: isPremature,
+              shortBy: isPremature ? (PDR_THRESHOLD - since) : 0,
+              changedBy: 'Système (rétroactif)',
+              changedByUid: 'system',
+              changedByRole: 'system'
+            };
+
+            if (dry) {
+              console.info('  [DRY backfill]', labelTool, 'bon', c.numBon, '→', { since: this._fmtCycles(since), isPremature, isFirst });
+            } else {
+              try {
+                await direct.ref('pdrChangeHistory').push(event);
+                console.info('  📜', labelTool, 'bon', c.numBon, ':', this._fmtCycles(c.cycles), 'cycles', isFirst ? '(baseline)' : isPremature ? '🚨 PRÉMATURÉ' : '✅ normal');
+                existingBons.add(bonKey);
+              } catch(e) {
+                backfillErrors.push(`bon ${c.numBon}: ${e.message || e.code}`);
+                console.error('  ❌ Backfill error', c.numBon, ':', e);
+              }
+            }
+            backfilled.push({ toolKey, label: labelTool, numBon: c.numBon, cycles: c.cycles, since, isPremature, isFirst });
+            prevCycles = c.cycles;
+          }
+        }
+
+        console.info('📜 Backfill :', backfilled.length, 'événements' + (dry ? ' (dry-run, aucune écriture)' : ' créés'));
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 3️⃣ Mettre à jour le catalogue tools/{id} avec cyclesCum et cyclesAtLastPdr
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         const updated = [];
         const errors = [];
-        for (const [toolKey, s] of Object.entries(stats)) {
+        for (const toolKey of new Set([...Object.keys(cumByTool), ...Object.keys(pdrChangesByTool)])) {
           const tool = tools[toolKey];
           if (!tool) continue;
 
           const updates = {};
           const currentCum = parseFloat(tool.cyclesCum) || 0;
-          if (s.maxCycles > currentCum) {
-            updates.cyclesCum = s.maxCycles;
+          const maxCycles = cumByTool[toolKey] || 0;
+          if (maxCycles > currentCum) {
+            updates.cyclesCum = maxCycles;
             updates.cyclesCumSyncedAt = Date.now();
           }
-          const currentAtLast = parseFloat(tool.cyclesAtLastPdr) || 0;
-          if (s.lastPdrCycles > currentAtLast) {
-            updates.cyclesAtLastPdr = s.lastPdrCycles;
-            updates.lastPdrChangeAt = s.lastPdrAt;
-            updates.lastPdrChangeBonReg = s.lastPdrBonReg;
+
+          // Dernier PDR change pour cet outil
+          const changes = pdrChangesByTool[toolKey] || [];
+          if (changes.length > 0) {
+            const lastChange = changes[changes.length - 1];
+            const currentAtLast = parseFloat(tool.cyclesAtLastPdr) || 0;
+            if (lastChange.cycles > currentAtLast) {
+              updates.cyclesAtLastPdr = lastChange.cycles;
+              updates.lastPdrChangeAt = lastChange.validatedAt;
+              updates.lastPdrChangeBonReg = lastChange.numBon;
+            }
           }
 
           if (Object.keys(updates).length > 0) {
             const label = tool.serial || tool.outilId || toolKey;
             if (dry) {
-              console.info('  [DRY] ' + label + ' :', updates);
+              console.info('  [DRY tool] ' + label + ' :', updates);
             } else {
               try {
                 await direct.ref('tools/' + toolKey).update(updates);
-                // Mettre à jour state local
                 Object.assign(tool, updates);
-                console.info('  ✅ ' + label + ' :', updates);
+                console.info('  ✅ tool ' + label + ' :', updates);
               } catch(e) {
                 errors.push(toolKey + ': ' + (e.message || e.code));
                 console.error('  ❌ ' + label + ' :', e);
@@ -13583,23 +13696,37 @@ section[data-view] h1,
           }
         }
 
-        console.info('🎉 Sync terminé : ' + updated.length + ' outils' + (dry ? ' (aucune modif réelle)' : ' mis à jour') + (errors.length ? ', ' + errors.length + ' erreur(s)' : ''));
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 4️⃣ Marquer la sync comme effectuée
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if (!dry && backfilled.length > 0) {
+          try {
+            await direct.ref('system').update({
+              lastPdrSyncAt: Date.now(),
+              lastPdrSyncBackfilled: backfilled.length,
+              lastPdrSyncToolsUpdated: updated.length
+            });
+          } catch(e) {}
+        }
+
+        console.info('🎉 Sync terminée :', { toolsUpdated: updated.length, historyBackfilled: backfilled.length, errors: errors.length + backfillErrors.length });
         console.groupEnd();
 
         if (typeof ui !== 'undefined' && ui.toast && !dry) {
-          if (errors.length) {
-            ui.toast(`⚠️ Sync : ${updated.length} outils synchronisés avec ${errors.length} erreur(s)`, 'warn');
-          } else if (updated.length === 0) {
-            ui.toast(`✅ Catalogue déjà à jour (rien à synchroniser)`, 'info');
+          if (errors.length + backfillErrors.length > 0) {
+            ui.toast(`⚠️ Sync : ${updated.length} outils + ${backfilled.length} événements avec ${errors.length + backfillErrors.length} erreur(s)`, 'warn');
+          } else if (updated.length === 0 && backfilled.length === 0) {
+            ui.toast(`✅ Catalogue + historique déjà à jour`, 'info');
           } else {
-            ui.toast(`✅ ${updated.length} outils synchronisés depuis les bons`, 'success');
+            const msgParts = [];
+            if (backfilled.length > 0) msgParts.push(`${backfilled.length} événements PDR ajoutés`);
+            if (updated.length > 0) msgParts.push(`${updated.length} outils synchronisés`);
+            ui.toast(`✅ ${msgParts.join(' · ')}`, 'success');
           }
         }
 
-        // Re-render
         this.render();
-
-        return { updated, errors };
+        return { updated, backfilled, errors: errors.concat(backfillErrors) };
       } catch(e) {
         console.error('[syncCatalogFromAllBons] error:', e);
         console.groupEnd();
@@ -20118,8 +20245,34 @@ Erreur Firebase : ${e.message}`;
         const period = document.getElementById('perf-period')?.value || 'month';
         this._period = period;   // 🆕 mémorise pour le sous-titre cockpit
         const since = this._periodStart(period);
+
+        // 🔧 DURÉE PAR DÉFAUT par type de bon (en minutes)
+        //    Utilisée comme estimation quand le champ duration n'est pas saisi.
+        //    Permet aux bons validés de compter dans le total heures travaillées
+        //    même si le technicien a oublié de saisir la durée.
+        const DEFAULT_DURATION_MIN = {
+          preventive:      30,
+          preventive5j:    15,
+          corrective:      45,
+          curative:        45,
+          requalification: 60,
+          homologation:    90,
+          changement_pdr:  45,
+          changementpdr:   45,
+          autre:           30
+        };
+        const _estimateDuration = (i) => {
+          const d = parseFloat(i.crimping?.duration) || 0;
+          if (d > 0) return d; // valeur saisie utilisée prioritairement
+          // Fallback selon type
+          const type = (i.crimping?.type || i.type || '').toLowerCase().replace(/[\s-]/g, '_');
+          return DEFAULT_DURATION_MIN[type] || 30;
+        };
+
+        // 🆕 Inclure TOUS les bons validés (avec fallback durée), pas seulement ceux avec duration saisie
         const list = Object.values(state.interventions || {})
-          .filter(i => i.crimping?.duration && (i.createdAt||0) >= since);
+          .filter(i => i.status === 'validated' && (i.createdAt||0) >= since)
+          .map(i => ({ ...i, _durationEstimated: _estimateDuration(i), _isDurationSaisi: parseFloat(i.crimping?.duration) > 0 }));
 
         // Group by technician
         // 🔧 PRIORITÉ au nom SAISI dans le bon (i.crimping.technicienNom)
@@ -20135,15 +20288,16 @@ Erreur Firebase : ${e.message}`;
                     || '';
           // Normalise la clé (insensible casse, espaces collapsed) pour fusionner les variantes
           const key = name.toLowerCase().replace(/\s+/g, ' ') + '|' + mat.toLowerCase();
-          if (!byTech[key]) byTech[key] = { name, matricule: mat, total: 0, count: 0, durations: [] };
-          byTech[key].total += i.crimping.duration;
+          if (!byTech[key]) byTech[key] = { name, matricule: mat, total: 0, count: 0, durations: [], saisiCount: 0 };
+          byTech[key].total += i._durationEstimated;
           byTech[key].count++;
-          byTech[key].durations.push(i.crimping.duration);
+          byTech[key].durations.push(i._durationEstimated);
+          if (i._isDurationSaisi) byTech[key].saisiCount++;
         });
         const techs = Object.values(byTech).sort((a,b) => b.total - a.total);
 
         // KPIs
-        const totalMin = list.reduce((s,i) => s + (i.crimping.duration || 0), 0);
+        const totalMin = list.reduce((s,i) => s + (i._durationEstimated || 0), 0);
         const avgMin = list.length ? Math.round(totalMin / list.length) : 0;
         const top = techs[0];
 
@@ -20336,7 +20490,7 @@ Erreur Firebase : ${e.message}`;
                 if (ts < b.start || ts >= b.end) return false;
                 const techName = (i.crimping?.technicienNom || i.crimping?.filledBy?.name || '').trim().toLowerCase();
                 return techName === t.name.trim().toLowerCase();
-              }).reduce((sum,i) => sum + (i.crimping?.duration||0), 0);
+              }).reduce((sum,i) => sum + (i._durationEstimated || 0), 0);
               return Math.round(totalMin/60 * 10) / 10;
             });
             const totalHours = data.reduce((s,v) => s+v, 0);
@@ -20446,7 +20600,16 @@ Erreur Firebase : ${e.message}`;
               week:  '45h30 par semaine (7×6h30)',
               month: '~195h/mois (jours réels × 6h30)'
             };
-            objLabel.textContent = '(' + (map[period] || '6h30 par jour') + ')';
+            // Calculer combien de bons utilisent une durée estimée vs saisie
+            const totalBons = list.length;
+            const saisi = list.filter(i => i._isDurationSaisi).length;
+            const estime = totalBons - saisi;
+            const pctSaisi = totalBons ? Math.round(saisi / totalBons * 100) : 0;
+            const baseLabel = '(' + (map[period] || '6h30 par jour') + ')';
+            const dataQualityLabel = totalBons > 0
+              ? ` · ${saisi}/${totalBons} bons avec durée saisie (${pctSaisi}%)${estime > 0 ? ` — ${estime} estimés` : ''}`
+              : '';
+            objLabel.textContent = baseLabel + dataQualityLabel;
           }
 
           this._charts.trend = new Chart(c3, {

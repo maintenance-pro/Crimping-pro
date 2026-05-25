@@ -17656,19 +17656,37 @@ section[data-view] h1,
         // Récupère les pièces depuis tool.pieces OU racine (rétro-compat)
         const piece = (k) => (tool.pieces && tool.pieces[k]) || tool[k] || '';
 
-        const title = tool.serial || tool.doutils || tool.outilId || tool.refOutil || '(sans nom)';
+        // 🆕 Priorité au D'OUTILS dans le titre (= nom de l'outil, ex: WZ2158C-01)
+        const title = tool.designation || tool.doutils || tool.serial || tool.outilId || tool.refOutil || '(sans nom)';
         document.getElementById('tool-details-title').innerHTML =
           `🔧 ${ui.escape(title)}` +
           (tool.groupe ? ` <span style="font-size:.7em;background:rgba(0,229,160,.15);color:#00e5a0;padding:.18rem .55rem;border-radius:5px;letter-spacing:.04em;vertical-align:middle">🏷 ${ui.escape(tool.groupe)}</span>` : '') +
           (tool.projet ? ` <span style="font-size:.7em;background:rgba(255,139,107,.15);color:#ff8b6b;padding:.18rem .55rem;border-radius:5px;letter-spacing:.04em;vertical-align:middle">📋 ${ui.escape(tool.projet)}</span>` : '');
 
+        // 🆕 COMPTEUR DE COMPLETION : on suit tous les champs affichés
+        const fieldStatus = []; // [{label, filled, fieldName}]
+
         // Helper pour générer une ligne d'info (label + valeur)
-        const row = (label, value, mono = true) => {
-          const v = value && String(value).trim() ? String(value) : '—';
-          const isEmpty = v === '—';
+        // Si la valeur est vide ET fieldName est fourni → badge "⚠️ À COMPLÉTER" cliquable
+        // Si fieldName n'est PAS fourni (métadonnées) → simple "—" sans badge
+        const row = (label, value, fieldName, mono = true) => {
+          // Détection : fieldName peut être null/undefined/false pour les métadonnées
+          // ou string pour les vrais champs éditables
+          const editable = typeof fieldName === 'string' && fieldName.length > 0;
+          const v = value && String(value).trim() ? String(value) : '';
+          const isEmpty = !v;
+          if (editable) fieldStatus.push({ label, filled: !isEmpty, fieldName });
+          if (isEmpty && editable) {
+            return `<div data-tool-empty-field="${ui.escape(fieldName)}" data-tool-empty-label="${ui.escape(label)}" style="display:flex;justify-content:space-between;align-items:center;padding:.45rem .65rem;border-bottom:1px solid var(--border-soft);gap:.75rem;cursor:pointer;transition:background .12s" onmouseover="this.style.background='rgba(255,180,71,.08)'" onmouseout="this.style.background=''">
+              <span style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;white-space:nowrap">${ui.escape(label)}</span>
+              <span style="font-size:.72rem;background:rgba(255,180,71,.18);color:#ffb547;padding:.18rem .55rem;border-radius:5px;font-weight:700;letter-spacing:.04em">⚠️ À COMPLÉTER ➜</span>
+            </div>`;
+          }
+          // Valeur présente OU métadonnée
+          const displayValue = v || '—';
           return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:.45rem .65rem;border-bottom:1px solid var(--border-soft);gap:.75rem">
             <span style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;white-space:nowrap">${ui.escape(label)}</span>
-            <span style="${mono ? 'font-family:var(--font-mono);' : ''}font-size:.86rem;color:${isEmpty ? 'var(--text-muted)' : 'var(--text-primary)'};font-weight:600;text-align:right;word-break:break-word;${isEmpty ? 'font-style:italic;' : ''}">${ui.escape(v)}</span>
+            <span style="${mono ? 'font-family:var(--font-mono);' : ''}font-size:.86rem;color:${isEmpty ? 'var(--text-muted)' : 'var(--text-primary)'};font-weight:600;text-align:right;word-break:break-word;${isEmpty ? 'font-style:italic;' : ''}">${ui.escape(displayValue)}</span>
           </div>`;
         };
 
@@ -17680,47 +17698,50 @@ section[data-view] h1,
         const body = document.getElementById('tool-details-body');
         const fmtDate = (ts) => ts ? new Date(ts).toLocaleString('fr-FR') : '—';
         body.innerHTML = `
+          <!-- 🆕 PLACEHOLDER pour la barre de complétion (remplie après calcul) -->
+          <div id="tool-details-completion" style="margin-bottom:.75rem"></div>
+
           <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
             ${sectionTitle('🆔', 'Identification', 'var(--accent-500)')}
-            ${row('Serial', tool.serial)}
-            ${row("D'Outils", tool.doutils)}
-            ${row('Groupe', tool.groupe)}
-            ${row('Connection', tool.connection)}
-            ${row('Terminal', tool.terminal)}
-            ${row('N° Contact - Outils', tool.numContact)}
-            ${row("N° d'inventaire D'Outils", tool.numInventaire)}
+            ${row('Serial', tool.serial, 'serial')}
+            ${row("D'Outils", tool.doutils, 'doutils')}
+            ${row('Groupe', tool.groupe, 'groupe')}
+            ${row('Connection', tool.connection, 'connection')}
+            ${row('Terminal', tool.terminal, 'terminal')}
+            ${row('N° Contact - Outils', tool.numContact, 'numContact')}
+            ${row("N° d'inventaire D'Outils", tool.numInventaire, 'numInventaire')}
           </div>
 
           <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
             ${sectionTitle('📋', 'Compatibilité (ancien format)', 'var(--text-muted)')}
-            ${row('Réf Outil', tool.refOutil)}
-            ${row('Outil ID', tool.outilId)}
-            ${row('Fabricant', tool.fabricant, false)}
-            ${row('Réf Fabricant', tool.refFabricant)}
-            ${row('Fréquence cycle', tool.frequenceCycle ? fmt.number(tool.frequenceCycle) + ' cycles' : '—')}
+            ${row('Réf Outil', tool.refOutil, 'refOutil')}
+            ${row('Outil ID', tool.outilId, 'outilId')}
+            ${row('Fabricant', tool.fabricant, 'fabricant', false)}
+            ${row('Réf Fabricant', tool.refFabricant, 'refFabricant')}
+            ${row('Fréquence cycle', tool.frequenceCycle ? fmt.number(tool.frequenceCycle) + ' cycles' : '', 'frequenceCycle')}
           </div>
 
           <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
             ${sectionTitle('🔧', 'Pièces (PDR)', '#ffb547')}
-            ${row('P-AR · Poinçon condu (Wire Crimper)', piece('pAr'))}
-            ${row('P-AV · Poinçon isolant (Ins Crimper)', piece('pAv'))}
-            ${row('E-AR · Enclume condu (Anvil)', piece('eAr'))}
-            ${row('E-AV · Enclume isolant (Anvil)', piece('eAv'))}
-            ${row('C-AR · Couteaux (Floating Shear)', piece('cAr'))}
-            ${row('C-AV · Matrice couteau (Shear)', piece('cAv'))}
+            ${row('P-AR · Poinçon condu (Wire Crimper)', piece('pAr'), 'pAr')}
+            ${row('P-AV · Poinçon isolant (Ins Crimper)', piece('pAv'), 'pAv')}
+            ${row('E-AR · Enclume condu (Anvil)', piece('eAr'), 'eAr')}
+            ${row('E-AV · Enclume isolant (Anvil)', piece('eAv'), 'eAv')}
+            ${row('C-AR · Couteaux (Floating Shear)', piece('cAr'), 'cAr')}
+            ${row('C-AV · Matrice couteau (Shear)', piece('cAv'), 'cAv')}
           </div>
 
           <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
             ${sectionTitle('⚙️', 'Presseur & Matrices', '#00e5a0')}
-            ${row('Presseur (hold down)', tool.presseur)}
-            ${row('Matrice avant', tool.matriceAvant)}
-            ${row('Matrice arrière', tool.matriceArriere)}
+            ${row('Presseur (hold down)', tool.presseur, 'presseur')}
+            ${row('Matrice avant', tool.matriceAvant, 'matriceAvant')}
+            ${row('Matrice arrière', tool.matriceArriere, 'matriceArriere')}
           </div>
 
           <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
             ${sectionTitle('🏭', 'Logistique', '#ff8b6b')}
-            ${row('Fournisseur', tool.fournisseur, false)}
-            ${row('Projet', tool.projet, false)}
+            ${row('Fournisseur', tool.fournisseur, 'fournisseur', false)}
+            ${row('Projet', tool.projet, 'projet', false)}
           </div>
 
           <div id="tool-attachments-section" style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem"></div>
@@ -17735,6 +17756,62 @@ section[data-view] h1,
 
         // 📎 Charger et afficher la section des pièces jointes
         toolAttachments.renderForTool(tool);
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 🆕 BARRE DE COMPLÉTION : compte combien de champs sont remplis
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const totalFields = fieldStatus.length;
+        const filledFields = fieldStatus.filter(f => f.filled).length;
+        const missingFields = totalFields - filledFields;
+        const completionPct = totalFields ? Math.round(filledFields / totalFields * 100) : 0;
+        const barColor = completionPct >= 80 ? '#10b981' : completionPct >= 50 ? '#ffb547' : '#ef4444';
+        const completionEl = document.getElementById('tool-details-completion');
+        if (completionEl) {
+          completionEl.innerHTML = `
+            <div style="background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:8px;padding:.65rem .85rem">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.35rem">
+                <span style="font-size:.78rem;font-weight:700;color:var(--text-primary)">📊 Complétion de la fiche outil</span>
+                <span style="font-size:.92rem;font-weight:800;color:${barColor};font-family:var(--font-mono)">${completionPct}% · ${filledFields}/${totalFields}</span>
+              </div>
+              <div style="height:6px;background:var(--bg-3);border-radius:3px;overflow:hidden">
+                <div style="height:100%;background:${barColor};width:${completionPct}%;transition:width .3s"></div>
+              </div>
+              ${missingFields > 0
+                ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.4rem">💡 ${missingFields} champ${missingFields > 1 ? 's' : ''} à compléter — cliquez sur "⚠️ À COMPLÉTER" ci-dessous pour ouvrir le formulaire d'édition</div>`
+                : `<div style="font-size:.72rem;color:#10b981;margin-top:.4rem;font-weight:600">✅ Fiche complète</div>`}
+            </div>`;
+        }
+
+        // 🆕 CLICK HANDLER sur chaque champ vide → ouvre l'édition focalisée sur ce champ
+        body.querySelectorAll('[data-tool-empty-field]').forEach(el => {
+          el.addEventListener('click', () => {
+            const fieldName = el.dataset.toolEmptyField;
+            const fieldLabel = el.dataset.toolEmptyLabel;
+            const canEdit = ['admin','super_admin','responsable'].includes(state.role);
+            if (!canEdit) {
+              ui.toast(`🚫 Édition réservée aux admins / responsables (champ : ${fieldLabel})`, 'warn');
+              return;
+            }
+            modal.hidden = true;
+            this.openModal(tool);
+            // Focus sur le champ après ouverture (laisser le temps au modal de se monter)
+            setTimeout(() => {
+              const form = document.getElementById('form-tool');
+              const input = form?.querySelector(`[name="${fieldName}"]`);
+              if (input) {
+                input.focus();
+                input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Highlight visuel temporaire
+                const originalBg = input.style.backgroundColor;
+                input.style.backgroundColor = 'rgba(255,180,71,.25)';
+                input.style.transition = 'background-color .8s';
+                setTimeout(() => { input.style.backgroundColor = originalBg; }, 1500);
+              } else {
+                ui.toast(`⚠️ Champ "${fieldLabel}" non trouvé dans le formulaire — l'édition est ouverte`, 'info');
+              }
+            }, 200);
+          });
+        });
 
         // Bouton Modifier branché
         const editBtn = document.getElementById('btn-tool-details-edit');

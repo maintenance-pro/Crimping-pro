@@ -13998,6 +13998,89 @@ section[data-view] h1,
   window.wearAlerts = wearAlerts;
 
   /* ==========================================================================
+     12.7b  🔧 Réparation du catalogue : remplir designation rétroactivement
+     ========================================================================== */
+  // Utilisable en console : await window.catalogFix.backfillDesignations()
+  //                          ou await window.catalogFix.backfillDesignations({ dry: true })
+  // → Parcourt state.tools et remplit le champ `designation` à partir du meilleur candidat
+  //   disponible (serial, doutils, outilId) pour que les cartes affichent un nom lisible
+  //   même sans re-import Excel.
+  window.catalogFix = {
+    async backfillDesignations(opts = {}) {
+      const dry = !!opts.dry;
+      if (!['admin', 'super_admin'].includes(state.role)) {
+        console.error('🚫 Réservé admin/super_admin (rôle actuel: ' + state.role + ')');
+        return { error: 'unauthorized' };
+      }
+      console.group('🔧 Backfill designations' + (dry ? ' (DRY-RUN)' : ''));
+      const tools = state.tools || {};
+      const ids = Object.keys(tools);
+      console.info('Total outils à examiner :', ids.length);
+
+      const updates = {};
+      const skipped = [];
+      let withDesignation = 0;
+
+      for (const id of ids) {
+        const t = tools[id];
+        if (t.designation && String(t.designation).trim()) {
+          withDesignation++;
+          continue;
+        }
+        // Chercher la meilleure désignation candidate
+        const candidate = (t.doutils || t.serial || t.outilId || t.refOutil || '').toString().trim();
+        // Heuristique : on préfère les noms qui contiennent une lettre ET un chiffre
+        // (style "WZ 2158C-01" plutôt que juste "1005")
+        const hasMixedAlphaDigit = candidate && /[a-z]/i.test(candidate) && /[0-9]/.test(candidate);
+        if (candidate && (hasMixedAlphaDigit || !/^\d+$/.test(candidate))) {
+          updates[id] = candidate;
+        } else {
+          skipped.push({ id, reason: 'pas de candidat alphabétique disponible', candidate });
+        }
+      }
+
+      console.info('✅ Outils ayant déjà une designation :', withDesignation);
+      console.info('🔧 Outils à remplir :', Object.keys(updates).length);
+      console.info('⊘ Outils sans candidat lisible :', skipped.length);
+      if (skipped.length && skipped.length < 30) console.table(skipped);
+
+      if (dry) {
+        console.info('DRY-RUN : aucune modification appliquée. Échantillon :');
+        const sample = Object.entries(updates).slice(0, 10);
+        console.table(sample.map(([id, d]) => ({ id, designation: d })));
+        console.groupEnd();
+        return { dry: true, wouldUpdate: Object.keys(updates).length, skipped: skipped.length, sample };
+      }
+
+      // Application : update Firebase + state local
+      const writes = [];
+      let done = 0;
+      const total = Object.keys(updates).length;
+      const direct = firebase.database();
+      for (const [id, designation] of Object.entries(updates)) {
+        try {
+          await direct.ref('tools/' + id).update({ designation });
+          if (state.tools[id]) state.tools[id].designation = designation;
+          writes.push({ id, designation });
+          done++;
+          if (done % 50 === 0) console.info('  Progression : ' + done + ' / ' + total);
+        } catch(e) {
+          console.error('Erreur sur ' + id + ' :', e.message || e);
+        }
+      }
+
+      console.info('🎉 Terminé : ' + writes.length + ' designations renseignées');
+      if (typeof ui !== 'undefined' && ui.toast) {
+        ui.toast(`✅ ${writes.length} outils ont une désignation lisible`, 'success');
+      }
+      console.groupEnd();
+      // Re-render catalog
+      if (state.currentView === 'catalog' && views.catalog?.render) views.catalog.render();
+      return { updated: writes.length, skipped: skipped.length };
+    }
+  };
+
+  /* ==========================================================================
      12.8  🔄 PRODUCTION SWITCH — Toggle TEST ↔ PROD (deux dataspaces séparés)
      ========================================================================== */
   const productionSwitch = {
@@ -17853,6 +17936,28 @@ section[data-view] h1,
               'reffabricant'            : 'refFabricant',
               'referencefabricant'      : 'refFabricant',
 
+              // ── 🆕 Désignation / Nom de l'outil (ex: "WZ 2158C-01") ──
+              // Recommandé : mettre une colonne "Désignation" ou "Nom Outil" dans votre Excel.
+              // Plusieurs synonymes sont supportés pour s'adapter à différents formats.
+              'nom'                     : 'designation',
+              'name'                    : 'designation',
+              'designation'             : 'designation',
+              'design'                  : 'designation',
+              'designationoutil'        : 'designation',
+              'designationtool'         : 'designation',
+              'nomoutil'                : 'designation',
+              'nomdoutil'               : 'designation',
+              'libelle'                 : 'designation',
+              'libelleoutil'            : 'designation',
+              'description'             : 'designation',
+              'descriptionoutil'        : 'designation',
+              'tooldesignation'         : 'designation',
+              'toolname'                : 'designation',
+              'modele'                  : 'designation',
+              'modeleoutil'             : 'designation',
+              'model'                   : 'designation',
+              'modeloutil'              : 'designation',
+
               // ── Pièces : NOUVEAUX NOMS (cellules avec parenthèses dépouillées) ──
               'poinconconduwirecrimper' : 'pAr',
               'poinconcondu'            : 'pAr',
@@ -17914,6 +18019,32 @@ section[data-view] h1,
               c.includes('poincon') || c.includes('groupe') || c === 'serial' || c === 'doutils'
             );
             console.log(`[Import] Format détecté: ${isNewFormat ? '🆕 NOUVEAU (riche)' : '📋 ANCIEN (simple)'}, ${rows.length} lignes`);
+
+            // 🔍 Diagnostic : afficher quelles colonnes Excel sont mappées à quel champ
+            console.group('[Import] 🔍 Mapping des colonnes Excel');
+            const colMapping = {};
+            const ignoredCols = [];
+            Object.keys(rows[0]).forEach(col => {
+              const norm = normalize(col);
+              const field = MAP[norm];
+              if (field) {
+                colMapping[col] = field;
+              } else {
+                ignoredCols.push(col + ' (normalisé: "' + norm + '")');
+              }
+            });
+            console.table(colMapping);
+            if (ignoredCols.length) {
+              console.warn('Colonnes IGNORÉES (non mappées) :', ignoredCols);
+              console.info('💡 Astuce : si une colonne contient le nom de l\'outil (ex: "WZ 2158C-01"), renommez-la en "Désignation", "Nom Outil" ou "D\'outils" pour qu\'elle soit importée.');
+            }
+            const hasDesignation = Object.values(colMapping).includes('designation');
+            const hasDoutils = Object.values(colMapping).includes('doutils');
+            const hasSerial = Object.values(colMapping).includes('serial');
+            if (!hasDesignation && !hasDoutils && !hasSerial) {
+              console.warn('⚠️ Aucune colonne "Désignation" / "D\'outils" / "Serial" détectée — les outils n\'auront pas de nom lisible.');
+            }
+            console.groupEnd();
 
             let imported = 0, skipped = 0;
             const errors = [];
@@ -18023,6 +18154,7 @@ section[data-view] h1,
         if (filterFab) list = list.filter(t => (t.fabricant || '').trim() === filterFab);
 
         if (q) list = list.filter(t =>
+          (t.designation || '').toLowerCase().includes(q) ||
           (t.refOutil || '').toLowerCase().includes(q) ||
           (t.outilId || '').toLowerCase().includes(q) ||
           (t.fabricant || '').toLowerCase().includes(q) ||
@@ -18071,7 +18203,10 @@ section[data-view] h1,
           const tid = t.id || t.outilId || '';
           const complete = this._isComplete(t);
           // Titre : SERIAL (unique) > doutils > outilId > refOutil
-          const titleText = t.serial || t.doutils || t.outilId || t.refOutil || t.refFabricant || (complete ? '(sans nom)' : '⚠️ Outil incomplet');
+          // 🆕 Le nom affiché en gros sur la carte :
+          //    Priorité : designation > serial > doutils > outilId > refOutil > refFabricant
+          //    Cela permet d'afficher "WZ 2158C-01" si la colonne "Désignation" / "Nom" est dans l'Excel.
+          const titleText = t.designation || t.serial || t.doutils || t.outilId || t.refOutil || t.refFabricant || (complete ? '(sans nom)' : '⚠️ Outil incomplet');
           const accentBorder = complete ? 'var(--accent-500)' : '#ff3d5a';
 
           // Badge fabricant ou état incomplet
@@ -20242,8 +20377,12 @@ Erreur Firebase : ${e.message}`;
 
       render() {
         if (state.currentView !== 'performance') return;
-        const period = document.getElementById('perf-period')?.value || 'month';
-        this._period = period;   // 🆕 mémorise pour le sous-titre cockpit
+        // 🔧 BUGFIX : Priorité à this._period (défini par les boutons toggle Jour/Semaine/Mois)
+        //    avant le <select id="perf-period"> (qui sert pour les KPIs uniquement par défaut).
+        //    Avant la correction, _setPeriod() définissait this._period mais render() le
+        //    réécrasait avec la valeur du select, donc le toggle n'avait aucun effet sur les KPIs.
+        const period = this._period || document.getElementById('perf-period')?.value || 'month';
+        this._period = period;
         const since = this._periodStart(period);
 
         // 🔧 DURÉE PAR DÉFAUT par type de bon (en minutes)

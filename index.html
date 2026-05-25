@@ -6765,6 +6765,11 @@ section[data-view] h1,
           <span class="topbar__badge" id="notif-badge" hidden>0</span>
         </button>
 
+        <button class="topbar__btn topbar__btn--icon" id="btn-anomalies" aria-label="Anomalies détectées" title="🔍 Anomalies détectées dans les données">
+          🔍
+          <span class="topbar__badge" id="anomalies-badge" hidden>0</span>
+        </button>
+
         <button class="topbar__btn topbar__btn--icon" id="btn-language" aria-label="Changer la langue" title="Changer la langue / Change language" style="font-weight:700;font-size:.85rem;min-width:42px">FR</button>
 
         <button class="topbar__btn topbar__btn--icon" id="btn-theme" aria-label="Changer le thème">◐</button>
@@ -13998,6 +14003,216 @@ section[data-view] h1,
   window.wearAlerts = wearAlerts;
 
   /* ==========================================================================
+     12.7c  🔍 DÉTECTION AUTOMATIQUE D'ANOMALIES
+     ========================================================================== */
+  // Module qui analyse les bons & outils pour détecter :
+  //   1. Doublons (même outil + même tech + même jour, cycles trop proches)
+  //   2. Compteurs cycle qui DIMINUENT (impossible physiquement)
+  //   3. Bons "stuck" en file > 7 jours
+  //   4. Changements PDR prématurés (déjà géré, on ajoute la liste)
+  //   5. Outils sans aucune intervention depuis > 60 jours (potentiellement abandonnés)
+  //   6. Bons sans technicien identifié
+  const anomalies = {
+    STUCK_DAYS: 7,
+    ABANDONED_DAYS: 60,
+    DUPLICATE_CYCLE_THRESHOLD: 1000, // si 2 bons même tool/jour/tech avec <1000 cycles d'écart = suspect
+
+    /** Calcule la liste complète des anomalies détectées */
+    detectAll() {
+      const interventions = Object.values(state.interventions || {});
+      const tools = state.tools || {};
+      const now = Date.now();
+      const DAY = 86400000;
+      const results = [];
+
+      // ── 1. DOUBLONS (même outil + même tech + même jour, cycles très proches) ──
+      const byKey = {}; // toolId|tech|YYYY-MM-DD → [bons]
+      interventions.forEach(i => {
+        if (!i.tool || !i.crimping) return;
+        const toolKey = i.tool.id || i.tool.serial || i.tool.outilId;
+        const tech = (i.crimping.technicienNom || i.crimping.filledBy?.name || '').toLowerCase();
+        const ts = i.crimping.date || i.createdAt;
+        if (!toolKey || !tech || !ts) return;
+        const d = new Date(ts);
+        const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        const k = `${toolKey}|${tech}|${dayKey}`;
+        if (!byKey[k]) byKey[k] = [];
+        byKey[k].push(i);
+      });
+      Object.entries(byKey).forEach(([k, bons]) => {
+        if (bons.length < 2) return;
+        const sorted = bons.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        for (let n = 1; n < sorted.length; n++) {
+          const prev = sorted[n - 1];
+          const cur = sorted[n];
+          const cycPrev = parseFloat(prev.crimping?.cycles) || 0;
+          const cycCur = parseFloat(cur.crimping?.cycles) || 0;
+          const diff = Math.abs(cycCur - cycPrev);
+          if (diff < this.DUPLICATE_CYCLE_THRESHOLD) {
+            results.push({
+              type: 'duplicate',
+              severity: 'warn',
+              icon: '👯',
+              title: 'Bons probablement en doublon',
+              detail: `Bons #${prev.numBon} et #${cur.numBon} sur ${prev.tool.serial || prev.tool.outilId || prev.tool.id} (même jour, même tech, écart ${diff} cycles)`,
+              numBons: [prev.numBon, cur.numBon],
+              ts: cur.createdAt || now
+            });
+          }
+        }
+      });
+
+      // ── 2. COMPTEURS QUI DIMINUENT (par outil) ──
+      const byTool = {};
+      interventions.forEach(i => {
+        if (!i.tool || !i.crimping) return;
+        const k = i.tool.id || i.tool.serial || i.tool.outilId;
+        if (!k) return;
+        if (!byTool[k]) byTool[k] = [];
+        byTool[k].push(i);
+      });
+      Object.entries(byTool).forEach(([toolId, bons]) => {
+        const sorted = bons.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        for (let n = 1; n < sorted.length; n++) {
+          const prev = sorted[n - 1];
+          const cur = sorted[n];
+          const cycPrev = parseFloat(prev.crimping?.cycles) || 0;
+          const cycCur = parseFloat(cur.crimping?.cycles) || 0;
+          if (cycPrev > 0 && cycCur > 0 && cycCur < cycPrev - 1000) { // tolérance 1000 cycles (erreur de saisie)
+            results.push({
+              type: 'cycle-decrease',
+              severity: 'critical',
+              icon: '⬇️',
+              title: 'Compteur cycles diminué (impossible)',
+              detail: `Bon #${cur.numBon} sur ${cur.tool.serial || cur.tool.outilId || cur.tool.id} : ${cycCur.toLocaleString()} cycles < bon #${prev.numBon} (${cycPrev.toLocaleString()}). Vérifier saisie.`,
+              numBons: [prev.numBon, cur.numBon],
+              ts: cur.createdAt || now
+            });
+          }
+        }
+      });
+
+      // ── 3. BONS STUCK EN FILE > 7 jours ──
+      interventions.forEach(i => {
+        if (i.status === 'validated' || i.status === 'rejected') return;
+        const age = now - (i.createdAt || now);
+        const days = Math.floor(age / DAY);
+        if (days >= this.STUCK_DAYS) {
+          results.push({
+            type: 'stuck',
+            severity: days >= 14 ? 'critical' : 'warn',
+            icon: '⏱',
+            title: `Bon en attente depuis ${days} jours`,
+            detail: `Bon #${i.numBon} sur ${i.tool?.serial || i.tool?.outilId || i.tool?.id || '?'} — statut: ${i.status || '?'} — créé ${new Date(i.createdAt).toLocaleDateString('fr-FR')}`,
+            numBons: [i.numBon],
+            ts: i.createdAt || now
+          });
+        }
+      });
+
+      // ── 4. BONS SANS TECHNICIEN IDENTIFIÉ ──
+      interventions.forEach(i => {
+        if (i.status !== 'validated') return;
+        const tech = (i.crimping?.technicienNom || i.crimping?.filledBy?.name || '').trim();
+        if (!tech) {
+          results.push({
+            type: 'no-tech',
+            severity: 'warn',
+            icon: '👻',
+            title: 'Bon sans technicien identifié',
+            detail: `Bon #${i.numBon} validé sans nom de technicien saisi.`,
+            numBons: [i.numBon],
+            ts: i.createdAt || now
+          });
+        }
+      });
+
+      // ── 5. OUTILS ABANDONNÉS (aucune intervention depuis > 60 jours) ──
+      // Seulement si l'outil a EU des interventions par le passé (pas un outil qui n'a JAMAIS servi)
+      Object.values(tools).forEach(t => {
+        if (!t.cyclesCum || t.cyclesCum < 10000) return; // n'a probablement jamais servi
+        const bons = byTool[t.id] || [];
+        if (!bons.length) return;
+        const lastBon = bons.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+        const age = now - (lastBon.createdAt || now);
+        const days = Math.floor(age / DAY);
+        if (days >= this.ABANDONED_DAYS) {
+          results.push({
+            type: 'abandoned',
+            severity: 'info',
+            icon: '🪦',
+            title: `Outil sans intervention depuis ${days} jours`,
+            detail: `${t.serial || t.doutils || t.outilId || t.id} — dernier bon #${lastBon.numBon} le ${new Date(lastBon.createdAt).toLocaleDateString('fr-FR')}`,
+            toolId: t.id,
+            ts: lastBon.createdAt || 0
+          });
+        }
+      });
+
+      // Tri : critical → warn → info, puis par date décroissante
+      const sevOrder = { critical: 0, warn: 1, info: 2 };
+      results.sort((a, b) => {
+        if (sevOrder[a.severity] !== sevOrder[b.severity]) return sevOrder[a.severity] - sevOrder[b.severity];
+        return (b.ts || 0) - (a.ts || 0);
+      });
+      return results;
+    },
+
+    /** Compte par catégorie pour KPI */
+    counts() {
+      const list = this.detectAll();
+      return {
+        total: list.length,
+        critical: list.filter(a => a.severity === 'critical').length,
+        warn: list.filter(a => a.severity === 'warn').length,
+        info: list.filter(a => a.severity === 'info').length,
+        byType: list.reduce((acc, a) => { acc[a.type] = (acc[a.type] || 0) + 1; return acc; }, {})
+      };
+    },
+
+    /** Affiche une modale avec la liste complète des anomalies */
+    showModal() {
+      const list = this.detectAll();
+      document.getElementById('anomalies-modal')?.remove();
+
+      const sevColor = { critical: '#ef4444', warn: '#f59e0b', info: '#3b82f6' };
+      const sevLabel = { critical: 'CRITIQUE', warn: 'ATTENTION', info: 'INFO' };
+
+      const html = `
+        <div id="anomalies-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:9998;display:flex;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)this.remove()">
+          <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:12px;padding:1.5rem;max-width:780px;width:100%;max-height:85vh;overflow-y:auto">
+            <header style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft)">
+              <h2 style="margin:0;color:var(--text-primary);font-size:1.15rem">🔍 Anomalies détectées (${list.length})</h2>
+              <button onclick="this.closest('#anomalies-modal').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem">✕</button>
+            </header>
+            ${list.length === 0 ? `
+              <div style="text-align:center;padding:3rem 1rem;color:var(--text-muted)">
+                <div style="font-size:2rem;margin-bottom:.5rem">✅</div>
+                <div>Aucune anomalie détectée !</div>
+                <div style="font-size:.78rem;margin-top:.5rem">Vos données semblent cohérentes.</div>
+              </div>
+            ` : list.map(a => `
+              <div style="display:flex;gap:.75rem;padding:.75rem;border-radius:8px;background:rgba(${a.severity==='critical'?'239,68,68':a.severity==='warn'?'245,158,11':'59,130,246'},.06);border-left:3px solid ${sevColor[a.severity]};margin-bottom:.5rem">
+                <div style="font-size:1.3rem">${a.icon}</div>
+                <div style="flex:1">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;flex-wrap:wrap">
+                    <strong style="color:var(--text-primary);font-size:.92rem">${a.title}</strong>
+                    <span style="font-size:.62rem;font-weight:700;color:${sevColor[a.severity]};letter-spacing:.05em">${sevLabel[a.severity]}</span>
+                  </div>
+                  <div style="font-size:.78rem;color:var(--text-secondary);margin-top:.25rem;line-height:1.4">${a.detail}</div>
+                  <div style="font-size:.68rem;color:var(--text-muted);margin-top:.3rem;font-family:var(--font-mono)">${new Date(a.ts).toLocaleString('fr-FR')}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', html);
+    }
+  };
+  window.anomalies = anomalies;
+
+  /* ==========================================================================
      12.7b  🔧 Réparation du catalogue : remplir designation rétroactivement
      ========================================================================== */
   // Utilisable en console : await window.catalogFix.backfillDesignations()
@@ -17499,13 +17714,45 @@ section[data-view] h1,
             }
           });
         }
-        // ── Load More ──
-        document.getElementById('catalog-loadmore')?.addEventListener('click', (e) => {
-          if (e.target.matches('[data-loadmore]')) {
-            this._page = (this._page || 1) + 1;
-            this.render();
+        // ── 🚀 AUTO-INFINITE SCROLL (remplace le bouton "Charger plus") ──
+        // Utilise IntersectionObserver : dès que la zone de fin entre dans le viewport,
+        // on charge automatiquement la page suivante. Pas de clic nécessaire.
+        const loadmoreEl = document.getElementById('catalog-loadmore');
+        if (loadmoreEl && 'IntersectionObserver' in window) {
+          // Garde le clic en fallback (au cas où l'observer ne tire pas)
+          loadmoreEl.addEventListener('click', (e) => {
+            if (e.target.matches('[data-loadmore]')) {
+              this._page = (this._page || 1) + 1;
+              this.render();
+            }
+          });
+          // Observer : déclenchement automatique
+          if (!this._infiniteObserver) {
+            this._infiniteObserver = new IntersectionObserver((entries) => {
+              entries.forEach(entry => {
+                if (entry.isIntersecting && !this._loadingMore) {
+                  const btn = loadmoreEl.querySelector('[data-loadmore]');
+                  if (btn) {
+                    this._loadingMore = true;
+                    this._page = (this._page || 1) + 1;
+                    this.render();
+                    // Petit délai pour éviter de tirer en boucle si la nouvelle page n'a pas le temps de s'afficher
+                    setTimeout(() => { this._loadingMore = false; }, 300);
+                  }
+                }
+              });
+            }, { rootMargin: '300px' }); // Anticipe : déclenche 300px AVANT que la zone soit visible
+            this._infiniteObserver.observe(loadmoreEl);
           }
-        });
+        } else {
+          // Fallback navigateurs anciens : ancien comportement avec bouton
+          loadmoreEl?.addEventListener('click', (e) => {
+            if (e.target.matches('[data-loadmore]')) {
+              this._page = (this._page || 1) + 1;
+              this.render();
+            }
+          });
+        }
       },
 
       _page: 1,
@@ -18382,14 +18629,29 @@ section[data-view] h1,
           });
         });
 
-        // Bouton "Charger plus"
+        // 🚀 Indicateur de scroll auto (remplace l'ancien bouton manuel)
         const lm = document.getElementById('catalog-loadmore');
         if (lm) {
           if (slice.length < list.length) {
             const remaining = list.length - slice.length;
-            lm.innerHTML = `<button data-loadmore class="btn btn--secondary" style="font-size:.85rem">⬇️ Charger ${Math.min(size, remaining)} de plus (${remaining} restant${remaining>1?'s':''})</button>`;
+            const loaded = slice.length;
+            const pct = list.length ? Math.round(loaded / list.length * 100) : 0;
+            // Bouton "Charger plus" caché par défaut (juste détecté par l'observer) + barre de progression visible
+            lm.innerHTML = `
+              <div style="display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:.8rem;background:var(--bg-elevated);border-radius:8px;border:1px solid var(--border-soft)">
+                <div style="font-size:.78rem;color:var(--text-secondary);font-family:var(--font-mono)">
+                  ⏳ ${loaded} / ${list.length} affichés · ${remaining} restant${remaining > 1 ? 's' : ''}
+                </div>
+                <div style="height:4px;background:var(--bg-3);width:200px;max-width:100%;border-radius:2px;overflow:hidden">
+                  <div style="height:100%;background:linear-gradient(90deg,#00d4ff,#00e5a0);width:${pct}%;transition:width .3s"></div>
+                </div>
+                <div style="font-size:.7rem;color:var(--text-muted);font-style:italic">📜 Scrollez pour charger automatiquement</div>
+                <button data-loadmore class="btn btn--secondary" style="font-size:.75rem;opacity:.6;padding:.3rem .8rem">⬇️ Forcer le chargement</button>
+              </div>`;
           } else {
-            lm.innerHTML = '';
+            lm.innerHTML = list.length > 0
+              ? `<div style="font-size:.72rem;color:var(--text-muted);padding:.5rem;text-align:center">✅ Tous les outils sont affichés (${list.length})</div>`
+              : '';
           }
         }
 
@@ -24410,6 +24672,215 @@ Erreur Firebase : ${e.message}`;
   window.i18n = i18n;
 
   /* ==========================================================================
+     14.5  ⌨️ RACCOURCIS CLAVIER GLOBAUX
+     ========================================================================== */
+  // Productivité +30% pour admins/responsables.
+  // ESC fonctionne pour tous. Les actions de création/édition vérifient le rôle.
+  const keyboardShortcuts = {
+    _enabled: true,
+    _gPending: false,
+    _gTimeout: null,
+
+    /** Liste des raccourcis (pour la modale d'aide ?) */
+    SHORTCUTS: [
+      { keys: 'Ctrl/⌘ + K', desc: 'Focus barre de recherche', section: 'Navigation' },
+      { keys: '/',          desc: 'Focus barre de recherche (alternative)', section: 'Navigation' },
+      { keys: 'Ctrl/⌘ + N', desc: 'Créer un nouveau bon (admin/responsable)', section: 'Actions' },
+      { keys: 'Esc',        desc: 'Fermer la modale active', section: 'Navigation' },
+      { keys: 'g puis h',   desc: 'Aller au Dashboard (home)', section: 'Navigation rapide' },
+      { keys: 'g puis c',   desc: 'Aller au Catalogue', section: 'Navigation rapide' },
+      { keys: 'g puis l',   desc: 'Aller à l\'Historique', section: 'Navigation rapide' },
+      { keys: 'g puis q',   desc: 'Aller à la File d\'attente', section: 'Navigation rapide' },
+      { keys: 'g puis p',   desc: 'Aller au PDR', section: 'Navigation rapide' },
+      { keys: 'g puis s',   desc: 'Aller au Stock', section: 'Navigation rapide' },
+      { keys: '?',          desc: 'Afficher cette aide', section: 'Aide' },
+    ],
+
+    /** Indique si on doit ignorer le keydown (utilisateur en train de taper) */
+    _shouldIgnore(e) {
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+      if (e.target.isContentEditable) return true;
+      return false;
+    },
+
+    /** Focus la première barre de recherche visible */
+    _focusSearch() {
+      const candidates = ['#catalog-search', '#history-search', '#queue-search', '#stock-search', '#wear-alerts-search', 'input[type="search"]'];
+      for (const sel of candidates) {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) { // visible
+          el.focus();
+          el.select?.();
+          return true;
+        }
+      }
+      // Fallback : focus n'importe quelle input visible avec placeholder de recherche
+      const inputs = document.querySelectorAll('input[type="text"], input:not([type])');
+      for (const el of inputs) {
+        if (el.offsetParent !== null && /recherch|search/i.test(el.placeholder || '')) {
+          el.focus();
+          el.select?.();
+          return true;
+        }
+      }
+      return false;
+    },
+
+    /** Ouvrir le formulaire de création de bon si autorisé */
+    _newBon() {
+      const allowed = ['admin', 'super_admin', 'responsable', 'crimping'].includes(state.role);
+      if (!allowed) {
+        ui?.toast?.('🚫 Création de bon réservée aux techniciens / admins', 'warn');
+        return;
+      }
+      // Ouvrir la modale d'intervention
+      if (typeof intervention !== 'undefined' && intervention.openNew) {
+        intervention.openNew();
+        return;
+      }
+      // Fallback : cliquer sur le bouton "Nouveau bon" s'il existe
+      const btn = document.querySelector('#btn-new-intervention, #btn-create-intervention, [data-action="new-bon"]');
+      if (btn) btn.click();
+      else ui?.toast?.('Ouverture du nouveau bon indisponible ici', 'info');
+    },
+
+    /** Fermer la modale active (la plus récente non-cachée) */
+    _closeModal() {
+      const modals = document.querySelectorAll('.modal:not([hidden]), [class*="modal"]:not([hidden])');
+      // Préférer celle visible la plus haute dans le z-index (la dernière ouverte)
+      let target = null;
+      modals.forEach(m => {
+        if (m.offsetParent !== null && !m.hidden) target = m;
+      });
+      if (target) {
+        // Trouver bouton de close si présent, sinon set hidden
+        const closeBtn = target.querySelector('[data-close], .modal__close');
+        if (closeBtn) closeBtn.click();
+        else target.hidden = true;
+        return true;
+      }
+      return false;
+    },
+
+    /** Navigation rapide g+X */
+    _navigateTo(routeName) {
+      if (typeof router !== 'undefined' && router.go) {
+        router.go(routeName);
+        ui?.toast?.(`📍 → ${routeName}`, 'info', 1500);
+        return true;
+      }
+      return false;
+    },
+
+    /** Affiche la modale d'aide */
+    showHelp() {
+      // Supprime l'aide existante si présente
+      document.getElementById('keyboard-help-modal')?.remove();
+
+      const grouped = {};
+      this.SHORTCUTS.forEach(s => {
+        if (!grouped[s.section]) grouped[s.section] = [];
+        grouped[s.section].push(s);
+      });
+
+      const html = `
+        <div id="keyboard-help-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)this.remove()">
+          <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:12px;padding:1.5rem;max-width:640px;width:100%;max-height:85vh;overflow-y:auto">
+            <header style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft)">
+              <h2 style="margin:0;color:var(--text-primary);font-size:1.15rem">⌨️ Raccourcis clavier</h2>
+              <button onclick="this.closest('#keyboard-help-modal').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem">✕</button>
+            </header>
+            ${Object.entries(grouped).map(([section, items]) => `
+              <div style="margin-bottom:1rem">
+                <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-500);font-weight:700;margin-bottom:.5rem">${section}</div>
+                ${items.map(s => `
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--border-soft)">
+                    <span style="font-size:.85rem;color:var(--text-primary)">${s.desc}</span>
+                    <kbd style="font-family:var(--font-mono);font-size:.75rem;background:var(--bg-3);border:1px solid var(--border-soft);border-radius:4px;padding:.18rem .5rem;color:#00d4ff">${s.keys}</kbd>
+                  </div>
+                `).join('')}
+              </div>
+            `).join('')}
+            <div style="font-size:.7rem;color:var(--text-muted);text-align:center;margin-top:.5rem">Appuyez sur <kbd style="background:var(--bg-3);padding:.1rem .4rem;border-radius:3px">Esc</kbd> ou cliquez en dehors pour fermer</div>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', html);
+    },
+
+    /** Handler principal */
+    _onKeydown(e) {
+      if (!this._enabled) return;
+      if (this._shouldIgnore(e)) {
+        // Permettre Esc même dans les inputs (pour blur)
+        if (e.key === 'Escape') e.target.blur?.();
+        return;
+      }
+
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      // Ctrl/⌘ + K : focus recherche
+      if (ctrl && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (!this._focusSearch()) ui?.toast?.('Pas de barre de recherche sur cette vue', 'info');
+        return;
+      }
+      // Ctrl/⌘ + N : nouveau bon
+      if (ctrl && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        this._newBon();
+        return;
+      }
+      // Esc : fermer modale
+      if (e.key === 'Escape') {
+        // Si modale d'aide ouverte, la fermer
+        const help = document.getElementById('keyboard-help-modal');
+        if (help) { help.remove(); return; }
+        this._closeModal();
+        return;
+      }
+      // / (slash) : focus recherche
+      if (e.key === '/' && !ctrl) {
+        e.preventDefault();
+        this._focusSearch();
+        return;
+      }
+      // ? : show help
+      if (e.key === '?' && !ctrl) {
+        e.preventDefault();
+        this.showHelp();
+        return;
+      }
+      // g + X : navigation rapide
+      if (this._gPending) {
+        this._gPending = false;
+        clearTimeout(this._gTimeout);
+        const map = { h: 'hub', c: 'catalog', l: 'history', q: 'queue', p: 'pdr', s: 'stock', a: 'performance' };
+        const route = map[e.key.toLowerCase()];
+        if (route) {
+          e.preventDefault();
+          this._navigateTo(route);
+        }
+        return;
+      }
+      if (e.key === 'g' && !ctrl) {
+        e.preventDefault();
+        this._gPending = true;
+        this._gTimeout = setTimeout(() => { this._gPending = false; }, 1200);
+        // Indicateur visuel discret
+        ui?.toast?.('g + [h, c, l, q, p, s] pour naviguer…', 'info', 1200);
+      }
+    },
+
+    init() {
+      document.addEventListener('keydown', (e) => this._onKeydown(e));
+      console.info('⌨️ Raccourcis clavier activés. Appuyez sur ? pour la liste.');
+    }
+  };
+  window.keyboardShortcuts = keyboardShortcuts;
+
+  /* ==========================================================================
      15. BOOTSTRAP
      ========================================================================== */
   document.addEventListener('DOMContentLoaded', () => {
@@ -24496,6 +24967,37 @@ Erreur Firebase : ${e.message}`;
     app.initUI();
     router.init();
     if (typeof i18n !== 'undefined') i18n.init();
+    // ⌨️ Raccourcis clavier (productivité +30% pour les admins)
+    if (typeof keyboardShortcuts !== 'undefined') keyboardShortcuts.init();
+
+    // 🔍 Bouton anomalies dans la topbar + badge dynamique
+    if (typeof anomalies !== 'undefined') {
+      const btnAnomalies = document.getElementById('btn-anomalies');
+      const badgeAnomalies = document.getElementById('anomalies-badge');
+      if (btnAnomalies) {
+        btnAnomalies.addEventListener('click', () => anomalies.showModal());
+      }
+      // Met à jour le badge toutes les 30 secondes (et au chargement initial après 5s)
+      const updateAnomaliesBadge = () => {
+        try {
+          const cnt = anomalies.counts();
+          if (!badgeAnomalies) return;
+          if (cnt.total > 0) {
+            badgeAnomalies.textContent = String(cnt.total);
+            badgeAnomalies.hidden = false;
+            // Animer si critique
+            badgeAnomalies.style.background = cnt.critical > 0 ? '#ef4444' : (cnt.warn > 0 ? '#f59e0b' : '#3b82f6');
+            btnAnomalies.title = `🔍 ${cnt.total} anomalies (${cnt.critical} critiques, ${cnt.warn} attention, ${cnt.info} info)`;
+          } else {
+            badgeAnomalies.hidden = true;
+            btnAnomalies.title = '🔍 Aucune anomalie détectée';
+          }
+        } catch (e) { /* ignore */ }
+      };
+      setTimeout(updateAnomaliesBadge, 5000);
+      setInterval(updateAnomaliesBadge, 30000);
+      window.__updateAnomaliesBadge = updateAnomaliesBadge; // exposé pour debug
+    }
     views.intervention.init();
     views.history.init();
     views.queue.init();

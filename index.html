@@ -17515,11 +17515,24 @@ section[data-view] h1,
        * Détermine si un outil est "complet" (a au moins un identifiant utile)
        */
       _isComplete(t) {
+        // 🆕 Un outil est COMPLET si et seulement si il a un VRAI NOM lisible :
+        //    - designation (saisie manuelle), OU
+        //    - doutils (= colonne D'OUTILS du fichier Excel, ex: "WZ2158C-01"),
+        //    Sinon, l'outil est marqué INCOMPLET pour inciter à compléter son nom.
+        //    L'utilisateur considère que SANS NOM lisible, l'outil n'est pas exploitable.
+        const hasName = !!(
+          (t.designation && String(t.designation).trim()) ||
+          (t.doutils     && String(t.doutils).trim())
+        );
+        if (!hasName) return false; // ⚠️ Le nom est obligatoire pour être considéré "complet"
+
+        // Si le nom est là, on demande aussi au moins un identifiant secondaire (outilId/refOutil/fabricant)
         return !!(
-          (t.outilId && String(t.outilId).trim()) ||
-          (t.refOutil && String(t.refOutil).trim()) ||
-          (t.fabricant && String(t.fabricant).trim()) ||
-          (t.refFabricant && String(t.refFabricant).trim())
+          (t.outilId     && String(t.outilId).trim()) ||
+          (t.refOutil    && String(t.refOutil).trim()) ||
+          (t.fabricant   && String(t.fabricant).trim()) ||
+          (t.refFabricant&& String(t.refFabricant).trim()) ||
+          (t.serial      && String(t.serial).trim())
         );
       },
 
@@ -17917,12 +17930,20 @@ section[data-view] h1,
               'numerodecontactoutils'   : 'numContact',
               'ndecontactoutils'        : 'numContact',
               'ncontactoutils'          : 'numContact',
+              'numerodecontact'         : 'numContact',  // 🆕 sans suffixe "outils"
+              'ndecontact'              : 'numContact',  // 🆕 sans suffixe "outils"
+              'ncontact'                : 'numContact',  // 🆕 alias court
+              'numdecontact'            : 'numContact',  // 🆕 abréviation
+              'contact'                 : 'numContact',  // 🆕 ultra-court
               'doutils'                 : 'doutils',
               'serial'                  : 'serial',
               'serie'                   : 'serial',
               'numerodinventairedoutils': 'numInventaire',
               'ndinventairedoutils'     : 'numInventaire',
+              'ndinventaire'            : 'numInventaire',  // 🆕 sans suffixe
+              'numerodinventaire'       : 'numInventaire',  // 🆕 sans suffixe
               'ninventaire'             : 'numInventaire',
+              'inventaire'              : 'numInventaire',  // 🆕 ultra-court
 
               // ── Compatibilité ANCIEN format ──
               'refoutil'                : 'refOutil',
@@ -18006,11 +18027,15 @@ section[data-view] h1,
               'frequence'               : 'frequenceCycle',
             };
 
-            // Normalisation agressive : retire accents, espaces, parenthèses, tirets, points
+            // 🔧 BUGFIX : Normalisation TRÈS agressive — strip TOUT ce qui n'est pas alphanumérique
+            //    Cela inclut : espaces, accents, parenthèses, tirets, points, virgules, degrés,
+            //    APOSTROPHES (' droite et ' courbe), guillemets, etc.
+            //    Sans cette correction, "D'OUTILS" devenait "d'outils" et ne matchait PAS
+            //    la clé "doutils" → la colonne du nom d'outil était ignorée silencieusement.
             const normalize = (k) => (k || '').toString()
               .toLowerCase()
-              .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip accents
-              .replace(/[\s\-_().,°ºº]/g, '')                       // strip spaces, dashes, parens, etc.
+              .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip accents (é → e, à → a)
+              .replace(/[^a-z0-9]/g, '')                          // strip TOUT le reste (apostrophes, espaces, ponctuation)
               .trim();
 
             // ── Détection du format (pour log / debug) ──
@@ -18203,10 +18228,13 @@ section[data-view] h1,
           const tid = t.id || t.outilId || '';
           const complete = this._isComplete(t);
           // Titre : SERIAL (unique) > doutils > outilId > refOutil
-          // 🆕 Le nom affiché en gros sur la carte :
-          //    Priorité : designation > serial > doutils > outilId > refOutil > refFabricant
-          //    Cela permet d'afficher "WZ 2158C-01" si la colonne "Désignation" / "Nom" est dans l'Excel.
-          const titleText = t.designation || t.serial || t.doutils || t.outilId || t.refOutil || t.refFabricant || (complete ? '(sans nom)' : '⚠️ Outil incomplet');
+          // 🆕 PRIORITÉ DU TITRE selon souhait utilisateur :
+          //    1. designation (si saisi manuellement ou importé)
+          //    2. doutils   (= colonne D'OUTILS du fichier Excel — le VRAI NOM, ex: "WZ2158C-01")
+          //    3. serial    (= colonne SERIAL, ex: "K0280", "P0667" — secondaire)
+          //    4. outilId, refOutil, refFabricant (fallbacks numériques)
+          //    L'utilisateur préfère TOUJOURS voir le nom doutils plutôt qu'un serial.
+          const titleText = t.designation || t.doutils || t.serial || t.outilId || t.refOutil || t.refFabricant || (complete ? '(sans nom)' : '⚠️ Outil incomplet');
           const accentBorder = complete ? 'var(--accent-500)' : '#ff3d5a';
 
           // Badge fabricant ou état incomplet

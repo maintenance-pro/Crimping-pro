@@ -7002,6 +7002,7 @@ section[data-view] h1,
             <article class="control-center__card">
               <div class="control-center__card-title" style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
                 <span>🔧 Alertes Usure PDR · Outils</span>
+                <button type="button" id="btn-wear-heatmap" class="btn btn--ghost" style="font-size:.7rem;padding:.25rem .55rem;background:rgba(239,68,68,.10);color:#ef4444;border:1px solid rgba(239,68,68,.25);font-weight:700" title="🔥 Visualiser les outils défaillants en heat map">🔥 Heat Map</button>
                 <button type="button" id="btn-wear-history" class="btn btn--ghost" style="font-size:.7rem;padding:.25rem .55rem;background:rgba(0,212,255,.10);color:#00d4ff;border:1px solid rgba(0,212,255,.25);font-weight:700">📋 Historique</button>
               </div>
               <div style="padding:.5rem .75rem .25rem">
@@ -8650,6 +8651,9 @@ section[data-view] h1,
                   <button type="button" class="perf-period-btn" data-period="week" data-selected="true">📆 Semaine</button>
                   <button type="button" class="perf-period-btn" data-period="month">🗓 Mois</button>
                 </div>
+                <button type="button" id="btn-team-compare" style="background:linear-gradient(135deg,#a855f7,#7c3aed);color:white;border:none;padding:.4rem .8rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.78rem;display:inline-flex;align-items:center;gap:.35rem" title="Comparatif détaillé des équipes A/B/C/N">
+                  👥 Comparatif équipes
+                </button>
               </div>
             </header>
             <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.5rem;font-size:.78rem;color:var(--text-muted);flex-wrap:wrap">
@@ -8870,6 +8874,7 @@ section[data-view] h1,
           📝 Choisir Annex 5
         </button>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="btn btn--secondary" id="btn-tool-details-timeline" style="background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.3);font-weight:700" title="Voir l'historique chronologique complet de cet outil">📈 Timeline</button>
           <button class="btn btn--secondary" id="btn-tool-details-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Générer un QR code pour cet outil">📱 QR Code</button>
           <button class="btn btn--ghost" data-close>Fermer</button>
           <button class="btn btn--secondary" id="btn-tool-details-edit" style="background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3)">✏️ Modifier</button>
@@ -12578,6 +12583,20 @@ section[data-view] h1,
           else ui.toast('Réessayez : aucun outil sélectionné', 'warn');
         };
       }
+      // 📈 Bouton Timeline dans la modale détails outil
+      const btnTimeline = document.getElementById('btn-tool-details-timeline');
+      if (btnTimeline) {
+        btnTimeline.onclick = () => {
+          const tool = views.catalog && views.catalog._lastDetailsTool;
+          if (tool && typeof toolTimeline !== 'undefined') {
+            const detailsModal = document.getElementById('modal-tool-details');
+            if (detailsModal) detailsModal.hidden = true;
+            toolTimeline.show(tool.id);
+          } else {
+            ui?.toast?.('Aucun outil sélectionné ou module timeline indisponible', 'warn');
+          }
+        };
+      }
 
       // Bouton "Imprimer QR codes" dans header catalogue
       const btnPrintAll = document.getElementById('btn-catalog-print-qr');
@@ -14077,6 +14096,12 @@ section[data-view] h1,
       // Bouton historique
       const histBtn = document.getElementById('btn-wear-history');
       if (histBtn) histBtn.onclick = () => this.openHistory();
+      // 🔥 Bouton heat map
+      const heatBtn = document.getElementById('btn-wear-heatmap');
+      if (heatBtn) heatBtn.onclick = () => {
+        if (typeof heatMap !== 'undefined') heatMap.showModal();
+        else ui?.toast?.('Heat map non disponible', 'warn');
+      };
     },
 
     /** Indique si on doit afficher la section prédictions */
@@ -14874,6 +14899,582 @@ section[data-view] h1,
     }
   };
   window.reports = reports;
+
+  /* ==========================================================================
+     12.7f  🔥 HEAT MAP DES OUTILS DÉFAILLANTS
+     ========================================================================== */
+  // Visualise les outils les plus problématiques sous forme de grille colorée.
+  // Score combiné : interventions récentes + PDR prématurés + bons rejetés.
+  const heatMap = {
+    SCORE_WEIGHTS: {
+      intervention: 1,    // chaque bon = 1 point
+      premature: 8,       // PDR prématuré = 8 points (très lourd)
+      rejected: 3,        // bon rejeté = 3 points
+      pending: 2,         // bon en attente > 7j = 2 points
+      cycleRate: 0.0001   // 1 point par 10k cycles/jour (consommation rapide)
+    },
+
+    /** Calcule le score "défaillance" de chaque outil sur les 90 derniers jours */
+    computeScores(daysWindow = 90) {
+      const tools = state.tools || {};
+      const interventions = Object.values(state.interventions || {});
+      const since = Date.now() - daysWindow * 86400000;
+      const stuckCutoff = Date.now() - 7 * 86400000;
+
+      // Map outils → scores
+      const scores = {};
+      Object.values(tools).forEach(t => {
+        const key = t.id;
+        const label = t.designation || t.doutils || t.serial || t.outilId || t.id;
+        scores[key] = {
+          tool: t, label,
+          interventions: 0, premature: 0, rejected: 0, pending: 0,
+          totalCycles: 0, lastIntervention: 0, score: 0
+        };
+      });
+
+      // Parcours bons
+      interventions.forEach(i => {
+        if (!i.tool || (i.createdAt || 0) < since) return;
+        const toolKey = (typeof wearAlerts !== 'undefined' && wearAlerts._findToolKey)
+          ? wearAlerts._findToolKey(i.tool) : (i.tool.id || null);
+        if (!toolKey || !scores[toolKey]) return;
+        const s = scores[toolKey];
+        s.interventions++;
+        if (i.status === 'rejected') s.rejected++;
+        else if (i.status !== 'validated' && (i.createdAt || 0) < stuckCutoff) s.pending++;
+        if ((i.createdAt || 0) > s.lastIntervention) s.lastIntervention = i.createdAt || 0;
+        s.totalCycles = Math.max(s.totalCycles, parseFloat(i.crimping?.cycles) || 0);
+      });
+
+      // PDR prématurés depuis pdrChangeHistory
+      try {
+        const hist = state.pdrChangeHistory || {};
+        Object.values(hist).forEach(p => {
+          if (!p || (p.ts || 0) < since) return;
+          if (p.prematureChange && p.toolId && scores[p.toolId]) {
+            scores[p.toolId].premature++;
+          }
+        });
+      } catch(e) { /* ignore */ }
+
+      // Calcul du score combiné
+      const W = this.SCORE_WEIGHTS;
+      const out = Object.values(scores).filter(s => s.interventions > 0 || s.premature > 0).map(s => {
+        const cyclesPerDay = (typeof wearAlerts !== 'undefined' && wearAlerts._cyclesPerDayForTool)
+          ? (wearAlerts._cyclesPerDayForTool(s.tool.id) || 0) : 0;
+        s.cyclesPerDay = cyclesPerDay;
+        s.score = Math.round(
+          s.interventions * W.intervention +
+          s.premature * W.premature +
+          s.rejected * W.rejected +
+          s.pending * W.pending +
+          cyclesPerDay * W.cycleRate
+        );
+        return s;
+      });
+      out.sort((a, b) => b.score - a.score);
+      return out;
+    },
+
+    /** Convertit un score en couleur (vert → jaune → orange → rouge) */
+    _scoreColor(score, maxScore) {
+      if (maxScore === 0) return { bg: '#10b981', text: '#fff' };
+      const ratio = Math.min(1, score / maxScore);
+      if (ratio < 0.25) return { bg: '#10b981', text: '#fff' };
+      if (ratio < 0.5)  return { bg: '#fbbf24', text: '#000' };
+      if (ratio < 0.75) return { bg: '#f97316', text: '#fff' };
+      return { bg: '#ef4444', text: '#fff' };
+    },
+
+    showModal(daysWindow = 90) {
+      document.getElementById('heatmap-modal')?.remove();
+      const scores = this.computeScores(daysWindow);
+      const maxScore = scores.length ? scores[0].score : 0;
+      const top = scores.slice(0, 60); // top 60 outils
+
+      const cells = top.map(s => {
+        const col = this._scoreColor(s.score, maxScore);
+        return `<div data-tool-id="${s.tool.id}" style="background:${col.bg};color:${col.text};padding:.5rem .3rem;border-radius:6px;cursor:pointer;text-align:center;min-height:60px;display:flex;flex-direction:column;justify-content:center;transition:transform .1s,box-shadow .1s" onmouseover="this.style.transform='scale(1.05)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.3)'" onmouseout="this.style.transform='';this.style.boxShadow=''" title="Score ${s.score} · ${s.interventions} bons · ${s.premature} prématuré${s.premature > 1 ? 's' : ''} · ${s.rejected} rejeté${s.rejected > 1 ? 's' : ''}">
+          <div style="font-size:.68rem;font-weight:700;font-family:var(--font-mono);line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.label.slice(0, 12)}</div>
+          <div style="font-size:1.1rem;font-weight:800;margin-top:.15rem">${s.score}</div>
+          <div style="font-size:.55rem;opacity:.85;margin-top:.1rem">${s.interventions}b${s.premature ? ' ·' + s.premature + 'p' : ''}</div>
+        </div>`;
+      }).join('');
+
+      const html = `
+        <div id="heatmap-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);z-index:9998;display:flex;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)this.remove()">
+          <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:12px;padding:1.2rem 1.5rem;max-width:900px;width:100%;max-height:90vh;overflow-y:auto">
+            <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft);flex-wrap:wrap;gap:.5rem">
+              <h2 style="margin:0;color:var(--text-primary);font-size:1.1rem">🔥 Heat Map · Outils défaillants <span style="font-weight:400;color:var(--text-muted);font-size:.78rem">— ${daysWindow} derniers jours</span></h2>
+              <div style="display:flex;gap:.4rem;align-items:center">
+                <select id="heatmap-window" style="background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);padding:.35rem .5rem;border-radius:6px;font-size:.78rem">
+                  <option value="30"${daysWindow===30?' selected':''}>30 jours</option>
+                  <option value="60"${daysWindow===60?' selected':''}>60 jours</option>
+                  <option value="90"${daysWindow===90?' selected':''}>90 jours</option>
+                  <option value="180"${daysWindow===180?' selected':''}>180 jours</option>
+                </select>
+                <button onclick="this.closest('#heatmap-modal').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.3rem">✕</button>
+              </div>
+            </header>
+
+            <div style="display:flex;gap:.5rem;font-size:.7rem;color:var(--text-secondary);margin-bottom:.8rem;flex-wrap:wrap">
+              <span><span style="display:inline-block;width:12px;height:12px;background:#10b981;border-radius:2px;vertical-align:middle"></span> Calme (&lt;25%)</span>
+              <span><span style="display:inline-block;width:12px;height:12px;background:#fbbf24;border-radius:2px;vertical-align:middle"></span> Modéré (25-50%)</span>
+              <span><span style="display:inline-block;width:12px;height:12px;background:#f97316;border-radius:2px;vertical-align:middle"></span> Préoccupant (50-75%)</span>
+              <span><span style="display:inline-block;width:12px;height:12px;background:#ef4444;border-radius:2px;vertical-align:middle"></span> Critique (&gt;75%)</span>
+              <span style="margin-left:auto;font-family:var(--font-mono);color:var(--text-muted)">${top.length} outils affichés · Score max ${maxScore}</span>
+            </div>
+
+            ${top.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(85px,1fr));gap:.4rem">${cells}</div>` : `
+              <div style="text-align:center;padding:3rem 1rem;color:var(--text-muted)">
+                <div style="font-size:2rem">✨</div>
+                <div>Aucun outil avec interventions sur la période</div>
+              </div>
+            `}
+
+            <div style="font-size:.7rem;color:var(--text-muted);margin-top:.8rem;font-style:italic;border-top:1px solid var(--border-soft);padding-top:.6rem">
+              💡 Score = ${this.SCORE_WEIGHTS.intervention}×bon + ${this.SCORE_WEIGHTS.premature}×PDR-prématuré + ${this.SCORE_WEIGHTS.rejected}×rejet + ${this.SCORE_WEIGHTS.pending}×en-attente — Cliquez sur une cellule pour ouvrir la fiche outil.
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', html);
+
+      // Window change
+      document.getElementById('heatmap-window').onchange = (e) => {
+        const newDays = parseInt(e.target.value);
+        this.showModal(newDays);
+      };
+      // Click cell → tool details
+      document.querySelectorAll('#heatmap-modal [data-tool-id]').forEach(el => {
+        el.addEventListener('click', () => {
+          const id = el.dataset.toolId;
+          const tool = state.tools?.[id];
+          if (tool && views.catalog?.showDetails) {
+            document.getElementById('heatmap-modal').remove();
+            router?.go?.('catalog');
+            setTimeout(() => views.catalog.showDetails(tool), 200);
+          }
+        });
+      });
+    }
+  };
+  window.heatMap = heatMap;
+
+  /* ==========================================================================
+     12.7g  📈 TIMELINE COMPLÈTE PAR OUTIL
+     ========================================================================== */
+  // Vue chronologique de toutes les interventions d'un outil :
+  //   - Graphe ligne : évolution du compteur cycles
+  //   - Marqueurs colorés aux changements PDR (normal vs prématuré)
+  //   - Liste détaillée scrollable
+  const toolTimeline = {
+    /** Charge Chart.js si nécessaire (déjà utilisé ailleurs dans l'app) */
+    _loadChartJs() {
+      return new Promise((res, rej) => {
+        if (window.Chart) return res();
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    },
+
+    /** Récupère les événements d'un outil (bons + PDR changes) triés chronologiquement */
+    _gatherEvents(toolKey) {
+      if (!toolKey) return [];
+      const interventions = Object.values(state.interventions || {}).filter(i => {
+        if (!i.tool) return false;
+        const k = (typeof wearAlerts !== 'undefined' && wearAlerts._findToolKey)
+          ? wearAlerts._findToolKey(i.tool) : i.tool.id;
+        return k === toolKey;
+      });
+      const pdrHistory = Object.values(state.pdrChangeHistory || {}).filter(p => p.toolId === toolKey);
+
+      const events = [];
+      interventions.forEach(i => {
+        events.push({
+          ts: i.createdAt || 0,
+          type: 'intervention',
+          numBon: i.numBon,
+          bonType: i.crimping?.type || '?',
+          cycles: parseFloat(i.crimping?.cycles) || 0,
+          status: i.status,
+          tech: i.crimping?.technicienNom || i.crimping?.filledBy?.name || '?',
+          observation: i.crimping?.observation || ''
+        });
+      });
+      pdrHistory.forEach(p => {
+        events.push({
+          ts: p.ts || 0,
+          type: 'pdr-change',
+          numBon: p.numBon,
+          cycles: p.cyclesAtChange || 0,
+          cyclesSince: p.cyclesSinceLastPdr || 0,
+          premature: p.prematureChange === true,
+          piecesReadable: p.piecesReadable || '',
+          tech: p.changedBy || '?'
+        });
+      });
+      events.sort((a, b) => a.ts - b.ts);
+      return events;
+    },
+
+    async show(toolKeyOrId) {
+      const tool = state.tools?.[toolKeyOrId];
+      if (!tool) { ui?.toast?.('Outil introuvable', 'warn'); return; }
+
+      document.getElementById('timeline-modal')?.remove();
+      const events = this._gatherEvents(toolKeyOrId);
+      const label = tool.designation || tool.doutils || tool.serial || tool.outilId || tool.id;
+
+      const stats = {
+        interventions: events.filter(e => e.type === 'intervention').length,
+        pdrChanges: events.filter(e => e.type === 'pdr-change').length,
+        premature: events.filter(e => e.type === 'pdr-change' && e.premature).length,
+        firstEvent: events[0]?.ts || 0,
+        lastEvent: events[events.length - 1]?.ts || 0,
+        maxCycles: Math.max(...events.map(e => e.cycles || 0), 0)
+      };
+      const span = stats.firstEvent && stats.lastEvent
+        ? Math.round((stats.lastEvent - stats.firstEvent) / 86400000) : 0;
+
+      const fmtDate = (ts) => new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const fmtN = (n) => Number(n).toLocaleString('fr-FR');
+
+      const html = `
+        <div id="timeline-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);z-index:9998;display:flex;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)this.remove()">
+          <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:12px;padding:1.2rem 1.5rem;max-width:900px;width:100%;max-height:90vh;overflow-y:auto">
+            <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft)">
+              <h2 style="margin:0;color:var(--text-primary);font-size:1.1rem">📈 Timeline · <span style="color:#00d4ff;font-family:var(--font-mono)">${label}</span></h2>
+              <button onclick="this.closest('#timeline-modal').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.3rem">✕</button>
+            </header>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:.5rem;margin-bottom:1rem">
+              <div style="background:rgba(0,212,255,.08);padding:.5rem;border-radius:6px;border-left:3px solid #00d4ff">
+                <div style="font-size:.62rem;color:var(--text-muted);text-transform:uppercase">Interventions</div>
+                <div style="font-size:1.2rem;font-weight:700;color:#00d4ff">${stats.interventions}</div>
+              </div>
+              <div style="background:rgba(168,85,247,.08);padding:.5rem;border-radius:6px;border-left:3px solid #a855f7">
+                <div style="font-size:.62rem;color:var(--text-muted);text-transform:uppercase">Chgts PDR</div>
+                <div style="font-size:1.2rem;font-weight:700;color:#a855f7">${stats.pdrChanges}</div>
+              </div>
+              <div style="background:rgba(239,68,68,.08);padding:.5rem;border-radius:6px;border-left:3px solid #ef4444">
+                <div style="font-size:.62rem;color:var(--text-muted);text-transform:uppercase">Prématurés</div>
+                <div style="font-size:1.2rem;font-weight:700;color:#ef4444">${stats.premature}</div>
+              </div>
+              <div style="background:rgba(0,229,160,.08);padding:.5rem;border-radius:6px;border-left:3px solid #00e5a0">
+                <div style="font-size:.62rem;color:var(--text-muted);text-transform:uppercase">Période</div>
+                <div style="font-size:1.2rem;font-weight:700;color:#00e5a0">${span}j</div>
+              </div>
+              <div style="background:rgba(255,180,71,.08);padding:.5rem;border-radius:6px;border-left:3px solid #ffb547">
+                <div style="font-size:.62rem;color:var(--text-muted);text-transform:uppercase">Cycles Max</div>
+                <div style="font-size:.95rem;font-weight:700;color:#ffb547;font-family:var(--font-mono)">${fmtN(stats.maxCycles)}</div>
+              </div>
+            </div>
+
+            <div style="background:var(--bg-3);border:1px solid var(--border-soft);border-radius:8px;padding:.75rem;margin-bottom:1rem">
+              <canvas id="timeline-chart" style="max-height:280px"></canvas>
+            </div>
+
+            <div style="margin-bottom:.5rem;font-size:.78rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">📋 Détail chronologique (${events.length} événements)</div>
+            <div style="max-height:300px;overflow-y:auto;border:1px solid var(--border-soft);border-radius:8px">
+              ${events.length === 0 ? `
+                <div style="padding:2rem;text-align:center;color:var(--text-muted);font-style:italic">Aucun événement enregistré pour cet outil</div>
+              ` : events.slice().reverse().map(e => {
+                if (e.type === 'pdr-change') {
+                  const color = e.premature ? '#ef4444' : '#a855f7';
+                  const lbl = e.premature ? '🚨 PDR PRÉMATURÉ' : '🔧 PDR Changé';
+                  return `<div style="padding:.5rem .65rem;border-bottom:1px solid var(--border-soft);background:rgba(${e.premature?'239,68,68':'168,85,247'},.04)">
+                    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;flex-wrap:wrap">
+                      <span style="font-size:.66rem;color:var(--text-muted);font-family:var(--font-mono)">${fmtDate(e.ts)}</span>
+                      <span style="font-size:.65rem;font-weight:700;color:${color}">${lbl}</span>
+                    </div>
+                    <div style="font-size:.78rem;color:var(--text-primary);margin-top:.2rem">
+                      Bon <strong style="color:#00d4ff">#${e.numBon||'?'}</strong> · ${fmtN(e.cycles)} cycles ${e.cyclesSince ? `(<strong style="color:${color}">${fmtN(e.cyclesSince)}</strong> cycles depuis PDR précédent)` : ''}
+                    </div>
+                    ${e.piecesReadable ? `<div style="font-size:.7rem;color:var(--text-muted);margin-top:.15rem">Pièces : ${e.piecesReadable}</div>` : ''}
+                  </div>`;
+                } else {
+                  const statusColor = e.status === 'validated' ? '#10b981' : e.status === 'rejected' ? '#ef4444' : '#fbbf24';
+                  return `<div style="padding:.5rem .65rem;border-bottom:1px solid var(--border-soft)">
+                    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;flex-wrap:wrap">
+                      <span style="font-size:.66rem;color:var(--text-muted);font-family:var(--font-mono)">${fmtDate(e.ts)}</span>
+                      <span style="font-size:.6rem;font-weight:700;color:${statusColor};text-transform:uppercase">${e.status||'?'}</span>
+                    </div>
+                    <div style="font-size:.78rem;color:var(--text-primary);margin-top:.2rem">
+                      Bon <strong style="color:#00d4ff">#${e.numBon||'?'}</strong> · ${e.bonType} · ${fmtN(e.cycles)} cycles · ${e.tech}
+                    </div>
+                    ${e.observation ? `<div style="font-size:.7rem;color:var(--text-muted);margin-top:.15rem;font-style:italic">"${e.observation.slice(0, 100)}${e.observation.length > 100 ? '…' : ''}"</div>` : ''}
+                  </div>`;
+                }
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', html);
+
+      // Render chart
+      try {
+        await this._loadChartJs();
+        const ctx = document.getElementById('timeline-chart');
+        if (ctx && events.length > 0) {
+          const labels = events.map(e => fmtDate(e.ts));
+          const data = events.map(e => e.cycles || 0);
+          const pointColors = events.map(e =>
+            e.type === 'pdr-change' ? (e.premature ? '#ef4444' : '#a855f7') : '#00d4ff'
+          );
+          const pointRadius = events.map(e => e.type === 'pdr-change' ? 6 : 3);
+          new Chart(ctx.getContext('2d'), {
+            type: 'line',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Cycles cumulés',
+                data,
+                borderColor: '#00d4ff',
+                backgroundColor: 'rgba(0,212,255,.1)',
+                borderWidth: 2,
+                tension: 0.15,
+                pointBackgroundColor: pointColors,
+                pointBorderColor: pointColors,
+                pointRadius,
+                pointHoverRadius: 8,
+                fill: true
+              }]
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => {
+                      const e = events[ctx.dataIndex];
+                      const lines = [`Cycles : ${fmtN(e.cycles)}`];
+                      if (e.type === 'pdr-change') {
+                        lines.push(`🔧 Changement PDR${e.premature ? ' PRÉMATURÉ 🚨' : ''}`);
+                        if (e.cyclesSince) lines.push(`${fmtN(e.cyclesSince)} cycles depuis PDR précédent`);
+                      } else {
+                        lines.push(`Bon #${e.numBon} · ${e.bonType}`);
+                        lines.push(`Tech : ${e.tech}`);
+                      }
+                      return lines;
+                    }
+                  }
+                }
+              },
+              scales: {
+                x: { ticks: { color: '#888', maxRotation: 45, autoSkip: true, maxTicksLimit: 8 }, grid: { color: 'rgba(255,255,255,.05)' } },
+                y: { ticks: { color: '#888', callback: (v) => fmtN(v) }, grid: { color: 'rgba(255,255,255,.05)' } }
+              }
+            }
+          });
+        }
+      } catch(e) { console.error('[toolTimeline]', e); }
+    }
+  };
+  window.toolTimeline = toolTimeline;
+
+  /* ==========================================================================
+     12.7h  👥 COMPARATIF ÉQUIPES A/B/C/N
+     ========================================================================== */
+  // Compare la productivité et qualité entre les équipes (rotation matin/après-midi/nuit).
+  // L'équipe est extraite du nom technicien via les suffixes [A], [B], [C], [N].
+  const teamCompare = {
+    TEAMS: ['A', 'B', 'C', 'N'],
+    TEAM_LABELS: { A: 'Équipe A · Matin', B: 'Équipe B · Après-midi', C: 'Équipe C · Soir', N: 'Équipe N · Nuit' },
+    TEAM_COLORS: { A: '#00d4ff', B: '#00e5a0', C: '#ffb547', N: '#a855f7', unknown: '#6b7280' },
+
+    /** Extrait l'équipe du nom technicien : "BILAL [N]" → "N" */
+    _extractTeam(name) {
+      if (!name) return 'unknown';
+      const m = String(name).match(/\[([ABCN])\]/i);
+      return m ? m[1].toUpperCase() : 'unknown';
+    },
+
+    /** Durée par défaut par type (cohérent avec performance.render) */
+    _estDuration(i) {
+      const d = parseFloat(i.crimping?.duration) || 0;
+      if (d > 0) return d;
+      const type = (i.crimping?.type || i.type || '').toLowerCase().replace(/[\s-]/g, '_');
+      const DEF = { preventive: 30, preventive5j: 15, corrective: 45, curative: 45, requalification: 60, homologation: 90, changement_pdr: 45, autre: 30 };
+      return DEF[type] || 30;
+    },
+
+    /** Calcule les stats par équipe pour la période donnée */
+    computeStats(daysWindow = 30) {
+      const since = Date.now() - daysWindow * 86400000;
+      const interventions = Object.values(state.interventions || {})
+        .filter(i => (i.createdAt || 0) >= since);
+
+      const stats = {};
+      [...this.TEAMS, 'unknown'].forEach(t => {
+        stats[t] = {
+          team: t,
+          label: this.TEAM_LABELS[t] || 'Sans équipe',
+          color: this.TEAM_COLORS[t],
+          bons: 0,
+          validated: 0,
+          rejected: 0,
+          pending: 0,
+          totalMin: 0,
+          totalCycles: 0,
+          piecesChanged: 0,
+          uniqueTechs: new Set(),
+          uniqueTools: new Set()
+        };
+      });
+
+      interventions.forEach(i => {
+        const techName = i.crimping?.technicienNom || i.crimping?.filledBy?.name || '';
+        const team = this._extractTeam(techName);
+        const s = stats[team];
+        s.bons++;
+        if (i.status === 'validated') s.validated++;
+        else if (i.status === 'rejected') s.rejected++;
+        else s.pending++;
+        s.totalMin += this._estDuration(i);
+        s.totalCycles = Math.max(s.totalCycles, parseFloat(i.crimping?.cycles) || 0);
+        if (techName) s.uniqueTechs.add(techName.replace(/\s*\[[ABCN]\]\s*$/i, '').trim());
+        const toolKey = i.tool?.id || i.tool?.serial || i.tool?.outilId;
+        if (toolKey) s.uniqueTools.add(toolKey);
+        const piecesObj = i.crimping?.piecesChanged || {};
+        if (Object.values(piecesObj).some(v => !!v)) s.piecesChanged++;
+      });
+
+      // PDR prématurés sur la période
+      try {
+        const hist = Object.values(state.pdrChangeHistory || {}).filter(p => (p.ts || 0) >= since);
+        hist.forEach(p => {
+          if (p.prematureChange && p.changedBy) {
+            const team = this._extractTeam(p.changedBy);
+            if (stats[team]) {
+              stats[team].premature = (stats[team].premature || 0) + 1;
+            }
+          }
+        });
+      } catch(e) {}
+
+      // Finaliser
+      Object.values(stats).forEach(s => {
+        s.uniqueTechsCount = s.uniqueTechs.size;
+        s.uniqueToolsCount = s.uniqueTools.size;
+        s.avgMin = s.bons ? Math.round(s.totalMin / s.bons) : 0;
+        s.validationRate = s.bons ? Math.round(s.validated / s.bons * 100) : 0;
+        s.rejectionRate = s.bons ? Math.round(s.rejected / s.bons * 100) : 0;
+        delete s.uniqueTechs;
+        delete s.uniqueTools;
+      });
+
+      return stats;
+    },
+
+    showModal(daysWindow = 30) {
+      document.getElementById('teamcompare-modal')?.remove();
+      const stats = this.computeStats(daysWindow);
+      const teams = [...this.TEAMS, 'unknown'].map(t => stats[t]).filter(s => s.bons > 0);
+
+      const fmtH = (min) => Math.round(min / 60 * 10) / 10 + 'h';
+      const card = (s) => `
+        <div style="background:var(--bg-elevated);border:1px solid var(--border-soft);border-left:4px solid ${s.color};border-radius:8px;padding:.85rem;display:flex;flex-direction:column;gap:.4rem">
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <div style="font-weight:700;color:${s.color};font-size:.85rem">${s.label}</div>
+            <div style="font-size:.66rem;color:var(--text-muted)">${s.uniqueTechsCount} tech${s.uniqueTechsCount > 1 ? 's' : ''}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.35rem;font-size:.74rem">
+            <div style="background:var(--bg-3);padding:.3rem .5rem;border-radius:5px">
+              <div style="font-size:.6rem;color:var(--text-muted);text-transform:uppercase">Bons</div>
+              <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary)">${s.bons}</div>
+            </div>
+            <div style="background:var(--bg-3);padding:.3rem .5rem;border-radius:5px">
+              <div style="font-size:.6rem;color:var(--text-muted);text-transform:uppercase">Heures</div>
+              <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary)">${fmtH(s.totalMin)}</div>
+            </div>
+            <div style="background:rgba(16,185,129,.08);padding:.3rem .5rem;border-radius:5px">
+              <div style="font-size:.6rem;color:#10b981;text-transform:uppercase">Validés</div>
+              <div style="font-size:.95rem;font-weight:700;color:#10b981">${s.validated} (${s.validationRate}%)</div>
+            </div>
+            <div style="background:rgba(239,68,68,.08);padding:.3rem .5rem;border-radius:5px">
+              <div style="font-size:.6rem;color:#ef4444;text-transform:uppercase">Rejets</div>
+              <div style="font-size:.95rem;font-weight:700;color:#ef4444">${s.rejected} (${s.rejectionRate}%)</div>
+            </div>
+            <div style="background:rgba(168,85,247,.08);padding:.3rem .5rem;border-radius:5px;grid-column:span 2">
+              <div style="font-size:.6rem;color:#a855f7;text-transform:uppercase">PDR Prématurés</div>
+              <div style="font-size:.95rem;font-weight:700;color:#a855f7">${s.premature || 0}</div>
+            </div>
+          </div>
+          <div style="font-size:.7rem;color:var(--text-muted);margin-top:.2rem">
+            Moy : <strong>${s.avgMin}min/bon</strong> · ${s.uniqueToolsCount} outil${s.uniqueToolsCount > 1 ? 's' : ''} distinct${s.uniqueToolsCount > 1 ? 's' : ''} · ${s.piecesChanged} bon${s.piecesChanged > 1 ? 's' : ''} avec changement pièces
+          </div>
+        </div>
+      `;
+
+      // Récapitulatif comparatif (qui domine sur quel critère)
+      const winnerOn = (key, direction = 'max') => {
+        const sorted = [...teams].sort((a, b) => direction === 'max' ? b[key] - a[key] : a[key] - b[key]);
+        if (!sorted.length) return null;
+        return sorted[0];
+      };
+      const topBons = winnerOn('bons', 'max');
+      const topHours = winnerOn('totalMin', 'max');
+      const bestQuality = winnerOn('validationRate', 'max');
+      const worstReject = winnerOn('rejectionRate', 'max');
+
+      const html = `
+        <div id="teamcompare-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);z-index:9998;display:flex;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)this.remove()">
+          <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:12px;padding:1.2rem 1.5rem;max-width:1000px;width:100%;max-height:90vh;overflow-y:auto">
+            <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft);flex-wrap:wrap;gap:.5rem">
+              <h2 style="margin:0;color:var(--text-primary);font-size:1.1rem">👥 Comparatif Équipes A/B/C/N <span style="font-weight:400;color:var(--text-muted);font-size:.78rem">— ${daysWindow} derniers jours</span></h2>
+              <div style="display:flex;gap:.4rem;align-items:center">
+                <select id="teamcompare-window" style="background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);padding:.35rem .5rem;border-radius:6px;font-size:.78rem">
+                  <option value="7"${daysWindow===7?' selected':''}>7 jours</option>
+                  <option value="30"${daysWindow===30?' selected':''}>30 jours</option>
+                  <option value="90"${daysWindow===90?' selected':''}>90 jours</option>
+                  <option value="180"${daysWindow===180?' selected':''}>180 jours</option>
+                </select>
+                <button onclick="this.closest('#teamcompare-modal').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.3rem">✕</button>
+              </div>
+            </header>
+
+            ${teams.length === 0 ? `
+              <div style="text-align:center;padding:3rem;color:var(--text-muted)">
+                <div style="font-size:2rem">📊</div>
+                <div>Aucune donnée d'équipe sur cette période</div>
+                <div style="font-size:.78rem;margin-top:.5rem">Vérifiez que les noms de techniciens contiennent les suffixes [A], [B], [C] ou [N]</div>
+              </div>
+            ` : `
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.6rem;margin-bottom:1rem">
+                ${teams.map(card).join('')}
+              </div>
+
+              <div style="background:linear-gradient(135deg,rgba(0,212,255,.06),rgba(0,229,160,.04));border:1px solid rgba(0,212,255,.2);border-radius:8px;padding:.85rem;margin-top:.5rem">
+                <div style="font-size:.78rem;font-weight:700;color:#00d4ff;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem">🏆 RÉCAPITULATIF — Qui domine</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.4rem;font-size:.78rem">
+                  ${topBons ? `<div>📈 <strong style="color:${topBons.color}">${topBons.label}</strong> : volume max (${topBons.bons} bons)</div>` : ''}
+                  ${topHours ? `<div>⏱ <strong style="color:${topHours.color}">${topHours.label}</strong> : heures max (${fmtH(topHours.totalMin)})</div>` : ''}
+                  ${bestQuality ? `<div>✅ <strong style="color:${bestQuality.color}">${bestQuality.label}</strong> : meilleur taux validation (${bestQuality.validationRate}%)</div>` : ''}
+                  ${worstReject && worstReject.rejectionRate > 0 ? `<div>⚠️ <strong style="color:${worstReject.color}">${worstReject.label}</strong> : taux rejet max (${worstReject.rejectionRate}%) — à investiguer</div>` : ''}
+                </div>
+              </div>
+            `}
+
+            <div style="font-size:.68rem;color:var(--text-muted);margin-top:1rem;font-style:italic;border-top:1px solid var(--border-soft);padding-top:.6rem">
+              💡 L'équipe est extraite du suffixe [A], [B], [C] ou [N] dans le nom technicien. Vérifiez vos profils utilisateurs si "Sans équipe" est élevé.
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', html);
+
+      document.getElementById('teamcompare-window').onchange = (e) => {
+        this.showModal(parseInt(e.target.value));
+      };
+    }
+  };
+  window.teamCompare = teamCompare;
 
   /* ==========================================================================
      12.9  📷 PHOTOS SUR LES BONS — preuves visuelles d'intervention
@@ -18799,6 +19400,119 @@ section[data-view] h1,
        * 🔍 Affiche TOUS les détails de l'outil dans une modal lecture seule
        * organisée en 5 sections logiques.
        */
+      /**
+       * 📈 TIMELINE D'UN OUTIL — Rendu chronologique de toutes ses interventions
+       * Pour visualiser d'un coup d'œil l'historique complet d'usage d'un outil.
+       */
+      _renderToolTimeline(tool) {
+        const container = document.getElementById('tool-timeline-section');
+        if (!container || !tool) return;
+
+        // Récupérer tous les bons pour cet outil (par toolKey flexible)
+        const toolKey = tool.id;
+        const targetIds = [tool.id, tool.serial, tool.outilId, tool.doutils, tool.refOutil].filter(Boolean).map(s => String(s).toLowerCase());
+        const bons = Object.values(state.interventions || {}).filter(i => {
+          if (!i.tool) return false;
+          const cands = [i.tool.id, i.tool.serial, i.tool.outilId, i.tool.doutils, i.tool.refOutil].filter(Boolean).map(s => String(s).toLowerCase());
+          return cands.some(c => targetIds.includes(c));
+        }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        const sectionTitle = `<div style="margin:0 .65rem .5rem;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:#00d4ff;font-weight:700">📈 Timeline interventions <span style="color:var(--text-muted);font-weight:400">(${bons.length})</span></div>`;
+
+        if (!bons.length) {
+          container.innerHTML = sectionTitle + `<div style="padding:1rem;text-align:center;color:var(--text-muted);font-style:italic;font-size:.78rem">📭 Aucun bon d'intervention trouvé pour cet outil</div>`;
+          return;
+        }
+
+        // Map type → couleur + emoji
+        const typeMap = {
+          preventive:        { c: '#00e5a0', e: '🛡' },
+          preventive5j:      { c: '#00d4ff', e: '📅' },
+          corrective:        { c: '#ef4444', e: '🔥' },
+          curative:          { c: '#ef4444', e: '🔥' },
+          requalification:   { c: '#a78bfa', e: '🔧' },
+          homologation:      { c: '#fbbf24', e: '🏆' },
+          changement_pdr:    { c: '#ff8b6b', e: '🔄' },
+          autre:             { c: '#94a3b8', e: '📋' }
+        };
+        const statusBadge = (s) => {
+          const map = { validated: ['✅ Validé', '#00e5a0'], rejected: ['❌ Rejeté', '#ef4444'], submitted: ['📤 Soumis', '#fbbf24'], draft: ['📝 Brouillon', '#94a3b8'] };
+          const [lbl, col] = map[s] || ['?', '#94a3b8'];
+          return `<span style="font-size:.6rem;font-weight:700;color:${col};background:rgba(${col === '#00e5a0' ? '0,229,160' : col === '#ef4444' ? '239,68,68' : col === '#fbbf24' ? '251,191,36' : '148,163,184'},.18);padding:.1rem .4rem;border-radius:3px">${lbl}</span>`;
+        };
+
+        // Render timeline items (last 20 max for performance)
+        const limit = 20;
+        const items = bons.slice(0, limit).map((b, idx) => {
+          const cType = (b.crimping?.type || b.type || 'autre').toLowerCase().replace(/[\s-]/g, '_');
+          const meta = typeMap[cType] || typeMap.autre;
+          const date = new Date(b.createdAt);
+          const dateStr = date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' });
+          const timeStr = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+          // Compteur de pièces changées
+          const piecesChanged = b.crimping?.piecesChanged || {};
+          const piecesCount = Object.values(piecesChanged).filter(v => !!v).length;
+          const piecesBadge = piecesCount > 0
+            ? `<span style="font-size:.62rem;color:#ff8b6b;background:rgba(255,139,107,.15);padding:.1rem .35rem;border-radius:3px;font-weight:600">🔧 ${piecesCount} pièce${piecesCount > 1 ? 's' : ''}</span>`
+            : '';
+          const tech = b.crimping?.technicienNom || b.crimping?.filledBy?.name || '—';
+          const cycles = b.crimping?.cycles ? Number(b.crimping.cycles).toLocaleString('fr-FR') : null;
+          // Detect premature PDR (if recorded)
+          const isPremature = b.crimping?.prematureChange || (piecesCount > 0 && b._cyclesSinceLastPdr && b._cyclesSinceLastPdr < 300000);
+
+          return `<div style="position:relative;padding:.6rem .65rem .6rem 2.2rem;border-bottom:1px solid var(--border-soft);cursor:pointer;transition:background .12s" data-bon-reg="${b.numBon}" onmouseover="this.style.background='rgba(0,212,255,.05)'" onmouseout="this.style.background=''">
+            <!-- Vertical line -->
+            <div style="position:absolute;left:1rem;top:0;bottom:0;width:2px;background:${meta.c};opacity:.3"></div>
+            <!-- Dot -->
+            <div style="position:absolute;left:.65rem;top:.85rem;width:14px;height:14px;border-radius:50%;background:${meta.c};border:2px solid var(--bg-2);box-shadow:0 0 0 2px ${meta.c}40">
+              ${idx === 0 ? '<div style="position:absolute;inset:-3px;border-radius:50%;border:2px solid ' + meta.c + ';animation:pulse 2s infinite"></div>' : ''}
+            </div>
+            <!-- Content -->
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:.5rem">
+              <div style="display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;flex:1;min-width:0">
+                <span style="font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.85rem">#${b.numBon || '?'}</span>
+                <span style="font-size:.74rem">${meta.e} <span style="color:${meta.c};font-weight:600;text-transform:capitalize">${(b.crimping?.type || '?').replace(/_/g, ' ')}</span></span>
+                ${piecesBadge}
+                ${isPremature ? '<span style="font-size:.6rem;color:#ef4444;background:rgba(239,68,68,.18);padding:.1rem .35rem;border-radius:3px;font-weight:700">🚨 PRÉMATURÉ</span>' : ''}
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-size:.7rem;color:var(--text-secondary);font-family:var(--font-mono)">${dateStr} · ${timeStr}</div>
+                ${cycles ? `<div style="font-size:.66rem;color:var(--text-muted);font-family:var(--font-mono)">${cycles} cycles</div>` : ''}
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.2rem;gap:.5rem">
+              <div style="font-size:.7rem;color:var(--text-muted)">👤 ${this._esc ? this._esc(tech) : tech}</div>
+              ${statusBadge(b.status)}
+            </div>
+            ${b.crimping?.observation ? `<div style="font-size:.7rem;color:var(--text-secondary);margin-top:.25rem;font-style:italic;padding:.2rem .4rem;background:rgba(0,0,0,.15);border-radius:3px;border-left:2px solid ${meta.c}">💬 ${(b.crimping.observation || '').slice(0, 120)}${b.crimping.observation.length > 120 ? '…' : ''}</div>` : ''}
+          </div>`;
+        }).join('');
+
+        const more = bons.length > limit
+          ? `<div style="text-align:center;padding:.5rem;font-size:.7rem;color:var(--text-muted);font-style:italic">+ ${bons.length - limit} bon${bons.length - limit > 1 ? 's' : ''} plus anciens (voir Historique global)</div>`
+          : '';
+
+        container.innerHTML = sectionTitle + items + more;
+
+        // Click on a timeline item → open the bon
+        container.querySelectorAll('[data-bon-reg]').forEach(el => {
+          el.addEventListener('click', () => {
+            const reg = el.dataset.bonReg;
+            // Close current modal and open intervention
+            document.getElementById('modal-tool-details')?.setAttribute('hidden', '');
+            if (views.intervention && views.intervention.open) {
+              setTimeout(() => views.intervention.open(reg), 100);
+            }
+          });
+        });
+      },
+
+      /** Helper escape — délégué au util global ou inline */
+      _esc(s) {
+        if (typeof ui !== 'undefined' && ui.escape) return ui.escape(s);
+        return String(s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+      },
+
       showDetails(tool) {
         if (!tool) return;
         // 📱 Mémoriser pour le bouton QR Code
@@ -18899,6 +19613,9 @@ section[data-view] h1,
 
           <div id="tool-attachments-section" style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem"></div>
 
+          <!-- 📈 NOUVEAU : Timeline complète des interventions sur cet outil -->
+          <div id="tool-timeline-section" style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem"></div>
+
           <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0">
             ${sectionTitle('📅', 'Métadonnées', 'var(--text-muted)')}
             ${row('ID interne', tool.id)}
@@ -18909,6 +19626,9 @@ section[data-view] h1,
 
         // 📎 Charger et afficher la section des pièces jointes
         toolAttachments.renderForTool(tool);
+
+        // 📈 Charger et afficher la timeline complète de cet outil
+        this._renderToolTimeline(tool);
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // 🆕 BARRE DE COMPLÉTION : compte combien de champs sont remplis
@@ -25908,6 +26628,16 @@ Erreur Firebase : ${e.message}`;
     // 📊 Bouton Rapports PDF
     if (typeof reports !== 'undefined') {
       document.getElementById('btn-reports')?.addEventListener('click', () => reports.showModal());
+    }
+
+    // 👥 Bouton Comparatif équipes (dans la vue Performance)
+    if (typeof teamCompare !== 'undefined') {
+      // Délégation : le bouton peut apparaître à n'importe quel moment
+      document.addEventListener('click', (e) => {
+        if (e.target.closest('#btn-team-compare')) {
+          teamCompare.showModal();
+        }
+      });
     }
     views.intervention.init();
     views.history.init();

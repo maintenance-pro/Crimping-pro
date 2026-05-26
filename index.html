@@ -6770,6 +6770,10 @@ section[data-view] h1,
           <span class="topbar__badge" id="anomalies-badge" hidden>0</span>
         </button>
 
+        <button class="topbar__btn topbar__btn--icon" id="btn-reports" aria-label="Rapports PDF" title="📊 Générer un rapport PDF (hebdo/mensuel/personnalisé)">
+          📊
+        </button>
+
         <button class="topbar__btn topbar__btn--icon" id="btn-language" aria-label="Changer la langue" title="Changer la langue / Change language" style="font-weight:700;font-size:.85rem;min-width:42px">FR</button>
 
         <button class="topbar__btn topbar__btn--icon" id="btn-theme" aria-label="Changer le thème">◐</button>
@@ -7323,6 +7327,15 @@ section[data-view] h1,
                 <button class="upload__btn" type="button" data-target="file-cycles" data-i18n="t.ajouter_une_photo">📷 Ajouter une photo</button>
                 <div class="upload__preview" id="preview-cycles"></div>
               </div>
+            </div>
+
+            <!-- 📷 NOUVEAU : Photos d'intervention (multi-photos, jusqu'à 5) -->
+            <div class="field field--full">
+              <label class="field__label" aria-label="Photos d'intervention">
+                📷 Photos d'intervention <span style="font-weight:400;color:var(--text-muted);font-size:.7rem">— preuves visuelles, max 5, optionnel</span>
+              </label>
+              <div id="bon-photos-uploader" style="margin-top:.4rem"></div>
+              <input type="hidden" name="photos" id="bon-photos-data" value="">
             </div>
 
             <div class="field field--full">
@@ -11315,6 +11328,8 @@ section[data-view] h1,
           configurationsCount: data.configurationsCount || 0,  // pour homologation
           piecesChanged: data.piecesChanged || {},
           observation: data.observation || '',
+          // 📷 NOUVEAU : Photos d'intervention (array de base64)
+          photos: data.photos || [],
           cyclesPhotoUrl: data.cyclesPhotoUrl || null,
           signatureUrl: data.signatureUrl || null
         },
@@ -13004,6 +13019,9 @@ section[data-view] h1,
     PDR_LIFE_DEFAULT: 300000,      // Cycle de remplacement standard PDR sertissage
     WARN_THRESHOLD: 0.75,           // 75% = warning
     CRIT_THRESHOLD: 1.00,           // 100% = critical (≥300k cycles depuis dernier PDR)
+    PREDICT_HORIZON_DAYS: 30,       // 🔮 On ne prédit pas au-delà de 30 jours
+    PREDICT_URGENT_DAYS: 3,         // 🔮 < 3j = urgent
+    PREDICT_SOON_DAYS: 7,           // 🔮 < 7j = bientôt
 
     /** Format compact des cycles (k / M) */
     _fmtCycles(n) {
@@ -13024,6 +13042,51 @@ section[data-view] h1,
     /** Durée de vie nominale d'un outil (per-tool ou défaut) */
     lifeFor(tool) {
       return parseFloat(tool.cyclesNom) || parseFloat(tool.cyclesNominal) || this.PDR_LIFE_DEFAULT;
+    },
+
+    /**
+     * 🔮 PRÉDICTIF : combien de cycles/jour cet outil utilise-t-il en moyenne ?
+     *    Basé sur les bons validés des 60 derniers jours pour cet outil.
+     *    Retourne null si données insuffisantes.
+     */
+    _cyclesPerDayForTool(toolKey) {
+      if (!toolKey) return null;
+      const since = Date.now() - 60 * 86400000;
+      const bons = Object.values(state.interventions || {})
+        .filter(i => {
+          if (!i.tool || i.status !== 'validated') return false;
+          if (this._findToolKey(i.tool) !== toolKey) return false;
+          return (i.createdAt || 0) >= since;
+        })
+        .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      if (bons.length < 2) return null;
+      const oldest = bons[0];
+      const latest = bons[bons.length - 1];
+      const cyclesOld = parseFloat(oldest.crimping?.cycles) || 0;
+      const cyclesNew = parseFloat(latest.crimping?.cycles) || 0;
+      const days = ((latest.createdAt || 0) - (oldest.createdAt || 0)) / 86400000;
+      if (days < 1) return null;
+      const rate = (cyclesNew - cyclesOld) / days;
+      return rate > 0 ? rate : null;
+    },
+
+    /**
+     * 🔮 Prédit dans combien de jours l'outil atteindra le seuil 300k depuis dernier PDR.
+     *    Retourne :
+     *      • nombre entier ≥ 0 : jours estimés avant criticité (0 = déjà critique)
+     *      • null              : données insuffisantes pour prédire
+     */
+    predictDaysUntilCritical(toolKey) {
+      if (!toolKey) return null;
+      const t = state.tools?.[toolKey];
+      if (!t) return null;
+      const since = this.cyclesSinceLastPdr(t);
+      const life = this.lifeFor(t);
+      const remaining = Math.max(0, life - since);
+      if (remaining <= 0) return 0;
+      const rate = this._cyclesPerDayForTool(toolKey);
+      if (!rate) return null;
+      return Math.ceil(remaining / rate);
     },
 
     /** Recherche la clé d'un outil dans state.tools à partir d'un identifiant flou */
@@ -13144,6 +13207,9 @@ section[data-view] h1,
           ratio,
           severity,
           hasBaseline,
+          // 🔮 Prédiction : jours avant criticité (uniquement si baseline)
+          daysUntilCritical: hasBaseline ? this.predictDaysUntilCritical(t.id) : null,
+          cyclesPerDay: hasBaseline ? this._cyclesPerDayForTool(t.id) : null,
           lastPdrChangeAt: stats.lastPdrAt || t.lastPdrChangeAt || null,
           lastPdrBonReg: stats.lastBonReg || t.lastPdrChangeBonReg || null
         });
@@ -13192,6 +13258,15 @@ section[data-view] h1,
       // Compte les outils sans baseline (pour notice info)
       const needBaselineCount = all.filter(a => a.severity === 'needs-baseline').length;
 
+      // 🔮 PRÉDICTIF : outils qui vont devenir critiques dans les 7 jours
+      //    (mais pas encore en warn/critical actuellement)
+      const predicted = all.filter(a =>
+        a.severity === 'ok' &&
+        a.daysUntilCritical !== null &&
+        a.daysUntilCritical <= 7 &&
+        a.daysUntilCritical > 0
+      ).sort((a, b) => a.daysUntilCritical - b.daysUntilCritical);
+
       if (!all.length) {
         const toolsCount = state.tools ? Object.keys(state.tools).length : 0;
         const intvCount = state.interventions ? Object.keys(state.interventions).length : 0;
@@ -13225,8 +13300,12 @@ section[data-view] h1,
       const slice = visible.slice(0, 25);
 
       let extraHtml = '';
+      // 🔮 BANDEAU PRÉDICTIF — version avancée à 3 niveaux (URGENT < 3j, BIENTÔT < 7j, PRÉVISIONNEL ≤ 30j)
+      if (!this._searchQuery && this._renderPredictions) {
+        extraHtml += this._renderPredictions();
+      }
       if (needBaselineCount > 0 && !this._searchQuery) {
-        extraHtml = `<div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem;font-size:.72rem;color:#a5b4fc">
+        extraHtml += `<div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem;font-size:.72rem;color:#a5b4fc">
           📍 <strong>${needBaselineCount}</strong> outil${needBaselineCount > 1 ? 's sans' : ' sans'} baseline PDR (cycles enregistrés mais aucun changement validé). Validez un bon avec pièces cochées pour initialiser.
         </div>`;
       }
@@ -13998,6 +14077,52 @@ section[data-view] h1,
       // Bouton historique
       const histBtn = document.getElementById('btn-wear-history');
       if (histBtn) histBtn.onclick = () => this.openHistory();
+    },
+
+    /** Indique si on doit afficher la section prédictions */
+    _shouldShowPredictions() {
+      return true; // toujours actif si baseline disponible
+    },
+
+    /** Rendu de la section "🔮 Prochaines échéances PDR" (tools qui vont devenir critiques bientôt) */
+    _renderPredictions() {
+      const all = this.computeAll();
+      const predictions = all
+        .filter(a => a.severity === 'ok' && a.daysUntilCritical != null && a.daysUntilCritical >= 0 && a.daysUntilCritical <= this.PREDICT_HORIZON_DAYS)
+        .sort((a, b) => a.daysUntilCritical - b.daysUntilCritical);
+      if (!predictions.length) return '';
+
+      const fmtDate = (days) => {
+        const d = new Date(Date.now() + days * 86400000);
+        return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+      };
+
+      const items = predictions.slice(0, 5).map(a => {
+        const isUrgent = a.daysUntilCritical < this.PREDICT_URGENT_DAYS;
+        const isSoon = a.daysUntilCritical < this.PREDICT_SOON_DAYS;
+        const color = isUrgent ? '#ef4444' : isSoon ? '#f59e0b' : '#a78bfa';
+        const label = isUrgent ? 'URGENT' : isSoon ? 'BIENTÔT' : 'PRÉVISIONNEL';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem .65rem;border-radius:6px;background:rgba(${isUrgent?'239,68,68':isSoon?'245,158,11':'167,139,250'},.08);border-left:3px solid ${color};margin-bottom:.3rem;cursor:pointer" data-tool-id="${this._escAttr(a.tool.id)}">
+          <div style="display:flex;flex-direction:column;gap:.15rem;min-width:0;flex:1">
+            <span style="font-weight:700;font-size:.82rem;color:var(--text-primary);font-family:var(--font-mono)">${this._esc(a.id)}</span>
+            <span style="font-size:.68rem;color:var(--text-muted)">${this._esc(a.description)}</span>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:.82rem;font-weight:700;color:${color};font-family:var(--font-mono)">~${a.daysUntilCritical}j</div>
+            <div style="font-size:.62rem;color:var(--text-muted)">${fmtDate(a.daysUntilCritical)} · ${a.cyclesPerDay ? Math.round(a.cyclesPerDay).toLocaleString() + '/j' : ''}</div>
+          </div>
+          <span style="font-size:.58rem;font-weight:700;color:${color};padding:.1rem .35rem;border-radius:3px;background:rgba(${isUrgent?'239,68,68':isSoon?'245,158,11':'167,139,250'},.18);margin-left:.5rem">${label}</span>
+        </div>`;
+      }).join('');
+
+      return `<div style="background:linear-gradient(135deg,rgba(167,139,250,.06),rgba(99,102,241,.03));border:1px solid rgba(167,139,250,.18);border-radius:8px;padding:.6rem .75rem;margin-bottom:.6rem">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.4rem">
+          <div style="font-weight:700;font-size:.76rem;color:#a78bfa;text-transform:uppercase;letter-spacing:.05em">🔮 Prochaines échéances PDR</div>
+          <span style="font-size:.66rem;color:var(--text-muted)">${predictions.length} outil${predictions.length > 1 ? 's' : ''} dans les ${this.PREDICT_HORIZON_DAYS}j</span>
+        </div>
+        ${items}
+        <div style="font-size:.64rem;color:var(--text-muted);margin-top:.3rem;font-style:italic">📊 Estimations basées sur la consommation des 60 derniers jours</div>
+      </div>`;
     }
   };
   window.wearAlerts = wearAlerts;
@@ -14211,6 +14336,760 @@ section[data-view] h1,
     }
   };
   window.anomalies = anomalies;
+
+  /* ==========================================================================
+     12.7d  📷 PHOTOS ATTACHÉES AUX BONS
+     ========================================================================== */
+  // Capture / upload de photos avec compression côté client.
+  //   - Max 5 photos / bon
+  //   - Compression auto : max 1280px, JPEG Q=70% → ~80-150 KB par photo
+  //   - Stockage : Base64 dans bonData.crimping.photos (array de strings)
+  //   - Pas de Firebase Storage requis (pratique sans configuration supplémentaire)
+  //   - Mobile : ouvre directement la caméra (capture="environment")
+  const photoCapture = {
+    MAX_PHOTOS: 5,
+    MAX_DIMENSION: 1280,
+    JPEG_QUALITY: 0.7,
+    MAX_BASE64_LEN: 600 * 1024, // ~450 KB image après compression — limite hard
+
+    /** Compresse un fichier image et retourne un base64 JPEG */
+    async compress(file) {
+      return new Promise((resolve, reject) => {
+        if (!file.type.startsWith('image/')) {
+          return reject(new Error('Fichier non-image'));
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              let w = img.width, h = img.height;
+              const max = this.MAX_DIMENSION;
+              if (Math.max(w, h) > max) {
+                const scale = max / Math.max(w, h);
+                w = Math.round(w * scale);
+                h = Math.round(h * scale);
+              }
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, w, h);
+              let quality = this.JPEG_QUALITY;
+              let base64 = canvas.toDataURL('image/jpeg', quality);
+              // Re-compresser si encore trop gros
+              while (base64.length > this.MAX_BASE64_LEN && quality > 0.3) {
+                quality -= 0.1;
+                base64 = canvas.toDataURL('image/jpeg', quality);
+              }
+              resolve({ base64, width: w, height: h, size: base64.length, originalSize: file.size, originalName: file.name });
+            } catch (err) { reject(err); }
+          };
+          img.onerror = () => reject(new Error("Impossible de charger l'image"));
+          img.src = e.target.result;
+        };
+        reader.onerror = () => reject(new Error('Lecture du fichier échouée'));
+        reader.readAsDataURL(file);
+      });
+    },
+
+    /** Affiche une photo en plein écran avec bouton de téléchargement */
+    showFullScreen(base64, name = 'photo.jpg') {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;cursor:zoom-out';
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+      modal.innerHTML = `
+        <img src="${base64}" style="max-width:95%;max-height:90vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);cursor:default" onclick="event.stopPropagation()">
+        <button id="ph-dl" style="position:absolute;top:1rem;right:4rem;background:rgba(0,212,255,.85);color:#001;border:none;border-radius:6px;padding:.55rem 1rem;cursor:pointer;font-weight:700">📥 Télécharger</button>
+        <button id="ph-close" style="position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,.15);color:white;border:none;border-radius:50%;width:42px;height:42px;cursor:pointer;font-size:1.2rem">✕</button>
+      `;
+      document.body.appendChild(modal);
+      modal.querySelector('#ph-dl').onclick = (e) => {
+        e.stopPropagation();
+        const a = document.createElement('a');
+        a.href = base64;
+        a.download = name;
+        a.click();
+      };
+      modal.querySelector('#ph-close').onclick = () => modal.remove();
+    },
+
+    /** Rendu HTML d'un tableau de photos (array de base64) — pour bon détails */
+    renderGrid(photos, opts = {}) {
+      if (!photos || !photos.length) {
+        if (opts.showEmpty) {
+          return '<div style="padding:1rem;text-align:center;color:var(--text-muted);font-style:italic;font-size:.78rem">📷 Aucune photo attachée</div>';
+        }
+        return '';
+      }
+      const items = photos.map((p, i) => {
+        const src = typeof p === 'string' ? p : p.base64;
+        const name = typeof p === 'object' ? p.originalName : `photo-${i+1}.jpg`;
+        return `<div style="position:relative;cursor:pointer;border-radius:6px;overflow:hidden;border:1px solid var(--border-soft);aspect-ratio:1;background:var(--bg-3)" onclick="window.photoCapture.showFullScreen('${src.replace(/'/g, '\\\'')}', '${name.replace(/'/g, '')}')">
+          <img src="${src}" style="width:100%;height:100%;object-fit:cover" loading="lazy" alt="Photo ${i+1}">
+          <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,rgba(0,0,0,.7),transparent);padding:.2rem .4rem;font-size:.6rem;color:white;font-weight:600">📷 #${i+1}</div>
+        </div>`;
+      }).join('');
+      return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.5rem;padding:.5rem 0">${items}</div>`;
+    },
+
+    /** Crée un widget complet d'upload (avec preview + delete) — pour formulaire bon
+     *  Container element should have id="bon-photos-uploader"
+     *  Initial photos: array of base64 strings or {base64, ...} objects
+     *  onChange: callback(photosArray) appelé à chaque ajout/suppression
+     */
+    mountUploader(container, initialPhotos = [], onChange = null) {
+      if (!container) return null;
+      const state = { photos: Array.isArray(initialPhotos) ? [...initialPhotos] : [] };
+
+      const render = () => {
+        const items = state.photos.map((p, i) => {
+          const src = typeof p === 'string' ? p : p.base64;
+          return `<div style="position:relative;cursor:pointer;border-radius:6px;overflow:hidden;border:1px solid var(--border-soft);aspect-ratio:1;background:var(--bg-3)">
+            <img src="${src}" style="width:100%;height:100%;object-fit:cover" data-action="view" data-idx="${i}">
+            <button type="button" data-action="del" data-idx="${i}" style="position:absolute;top:.25rem;right:.25rem;background:rgba(239,68,68,.85);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:.85rem;line-height:1">✕</button>
+            <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,rgba(0,0,0,.7),transparent);padding:.18rem .35rem;font-size:.58rem;color:white;font-weight:600">📷 #${i+1}</div>
+          </div>`;
+        }).join('');
+        const canAddMore = state.photos.length < photoCapture.MAX_PHOTOS;
+        const addBtn = canAddMore ? `<label style="display:flex;align-items:center;justify-content:center;border:2px dashed var(--border-soft);border-radius:6px;aspect-ratio:1;cursor:pointer;background:var(--bg-elevated);transition:all .15s;font-size:.7rem;color:var(--text-secondary);text-align:center" onmouseover="this.style.borderColor='#00d4ff';this.style.color='#00d4ff'" onmouseout="this.style.borderColor='';this.style.color=''">
+          <div>
+            <div style="font-size:1.5rem">📷</div>
+            <div style="font-size:.65rem;margin-top:.15rem">Ajouter</div>
+            <div style="font-size:.58rem;color:var(--text-muted);margin-top:.15rem">${state.photos.length}/${photoCapture.MAX_PHOTOS}</div>
+          </div>
+          <input type="file" accept="image/*" capture="environment" multiple style="display:none" data-action="upload">
+        </label>` : `<div style="display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-soft);border-radius:6px;aspect-ratio:1;background:rgba(239,68,68,.05);color:#fca5a5;font-size:.65rem;text-align:center;padding:.5rem">⚠️ Limite ${photoCapture.MAX_PHOTOS} photos atteinte</div>`;
+        container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(85px,1fr));gap:.4rem">${items}${addBtn}</div>`;
+
+        // Wire upload
+        const fileInput = container.querySelector('[data-action="upload"]');
+        if (fileInput) {
+          fileInput.onchange = async (e) => {
+            const files = Array.from(e.target.files || []);
+            for (const f of files) {
+              if (state.photos.length >= photoCapture.MAX_PHOTOS) break;
+              try {
+                if (typeof ui !== 'undefined' && ui.toast) ui.toast('⏳ Compression de la photo...', 'info', 1500);
+                const result = await photoCapture.compress(f);
+                state.photos.push({ base64: result.base64, name: result.originalName, ts: Date.now(), size: result.size });
+              } catch (err) {
+                if (typeof ui !== 'undefined' && ui.toast) ui.toast('⚠️ Erreur : ' + err.message, 'danger');
+              }
+            }
+            render();
+            if (onChange) onChange(state.photos);
+          };
+        }
+        // Wire delete & view
+        container.querySelectorAll('[data-action="del"]').forEach(btn => {
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            const idx = parseInt(btn.dataset.idx);
+            if (confirm('Supprimer cette photo ?')) {
+              state.photos.splice(idx, 1);
+              render();
+              if (onChange) onChange(state.photos);
+            }
+          };
+        });
+        container.querySelectorAll('[data-action="view"]').forEach(img => {
+          img.onclick = () => {
+            const idx = parseInt(img.dataset.idx);
+            const p = state.photos[idx];
+            photoCapture.showFullScreen(typeof p === 'string' ? p : p.base64, p.name || 'photo.jpg');
+          };
+        });
+      };
+
+      render();
+      return {
+        getPhotos: () => state.photos.slice(),
+        setPhotos: (arr) => { state.photos = Array.isArray(arr) ? [...arr] : []; render(); },
+        rerender: render
+      };
+    }
+  };
+  window.photoCapture = photoCapture;
+
+  /* ==========================================================================
+     12.7e  📊 RAPPORTS PDF AUTOMATIQUES (hebdomadaire / mensuel / personnalisé)
+     ========================================================================== */
+  // Génération d'un rapport PDF complet sur une période choisie.
+  // Contenu : couverture LEONI · KPIs · Top outils · Top techniciens · Anomalies · Liste des bons
+  // Utilise jsPDF (chargé à la demande depuis CDN — déjà utilisé ailleurs)
+  const reports = {
+    _loadJsPDF() {
+      return new Promise((res, rej) => {
+        if (window.jspdf) return res();
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    },
+
+    _loadAutoTable() {
+      return new Promise((res, rej) => {
+        if (window.jspdf?.jsPDF?.API?.autoTable) return res();
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.0/jspdf.plugin.autotable.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    },
+
+    /** Calcule toutes les statistiques pour la période donnée */
+    _computeStats(fromTs, toTs) {
+      const interventions = Object.values(state.interventions || {}).filter(i => {
+        const ts = i.createdAt || 0;
+        return ts >= fromTs && ts <= toTs;
+      });
+      const tools = state.tools || {};
+
+      // KPIs globaux
+      const total = interventions.length;
+      const validated = interventions.filter(i => i.status === 'validated').length;
+      const rejected = interventions.filter(i => i.status === 'rejected').length;
+      const pending = total - validated - rejected;
+
+      // Heures travaillées (avec fallback comme dans le perf chart)
+      const DEFAULT_DUR = { preventive: 30, preventive5j: 15, corrective: 45, curative: 45, requalification: 60, homologation: 90, changement_pdr: 45, autre: 30 };
+      const estDur = (i) => {
+        const d = parseFloat(i.crimping?.duration) || 0;
+        if (d > 0) return d;
+        const type = (i.crimping?.type || i.type || '').toLowerCase().replace(/[\s-]/g, '_');
+        return DEFAULT_DUR[type] || 30;
+      };
+      const totalMin = interventions.reduce((s, i) => s + estDur(i), 0);
+
+      // Top outils
+      const byTool = {};
+      interventions.forEach(i => {
+        if (!i.tool) return;
+        const k = i.tool.id || i.tool.serial || i.tool.outilId || 'unknown';
+        const label = i.tool.designation || i.tool.doutils || i.tool.serial || i.tool.outilId || 'Inconnu';
+        if (!byTool[k]) byTool[k] = { label, count: 0, durations: 0 };
+        byTool[k].count++;
+        byTool[k].durations += estDur(i);
+      });
+      const topTools = Object.values(byTool).sort((a, b) => b.count - a.count).slice(0, 10);
+
+      // Top techniciens
+      const byTech = {};
+      interventions.forEach(i => {
+        const name = (i.crimping?.technicienNom || i.crimping?.filledBy?.name || 'Inconnu').trim();
+        if (!byTech[name]) byTech[name] = { name, count: 0, durations: 0 };
+        byTech[name].count++;
+        byTech[name].durations += estDur(i);
+      });
+      const topTechs = Object.values(byTech).sort((a, b) => b.durations - a.durations).slice(0, 10);
+
+      // Anomalies dans la période
+      let anomaliesCount = { total: 0, critical: 0, premature: 0 };
+      try {
+        if (typeof anomalies !== 'undefined') {
+          const all = anomalies.detectAll();
+          // Filtrer par période
+          const inPeriod = all.filter(a => a.ts >= fromTs && a.ts <= toTs);
+          anomaliesCount.total = inPeriod.length;
+          anomaliesCount.critical = inPeriod.filter(a => a.severity === 'critical').length;
+        }
+        // Premature PDR changes
+        if (state.pdrChangeHistory) {
+          anomaliesCount.premature = Object.values(state.pdrChangeHistory).filter(p =>
+            p.ts >= fromTs && p.ts <= toTs && p.prematureChange
+          ).length;
+        }
+      } catch(e) { /* ignore */ }
+
+      return {
+        period: { from: fromTs, to: toTs },
+        kpi: { total, validated, rejected, pending, totalMin, avgMin: total ? Math.round(totalMin / total) : 0 },
+        topTools,
+        topTechs,
+        anomalies: anomaliesCount,
+        interventions: interventions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      };
+    },
+
+    /** Génère le rapport PDF */
+    async generate(fromDate, toDate, opts = {}) {
+      const title = opts.title || 'Rapport maintenance';
+      ui?.showLoader?.('Génération du rapport PDF…');
+
+      try {
+        await this._loadJsPDF();
+        await this._loadAutoTable();
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+        const fromTs = fromDate.getTime();
+        const toTs = toDate.getTime();
+        const stats = this._computeStats(fromTs, toTs);
+        const W = 210;
+        const margin = 15;
+
+        // ════════ COUVERTURE ════════
+        doc.setFillColor(10, 14, 26);
+        doc.rect(0, 0, W, 80, 'F');
+        doc.setTextColor(0, 212, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(28);
+        doc.text('LEONI', margin, 30);
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Wiring Systems · Annex 5', margin, 38);
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'bold');
+        doc.text(title, margin, 55);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const fmtD = (d) => d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+        doc.text(`Période : ${fmtD(fromDate)} → ${fmtD(toDate)}`, margin, 65);
+        doc.text(`Généré le ${new Date().toLocaleString('fr-FR')}`, margin, 72);
+        doc.setTextColor(0, 229, 160);
+        doc.setFontSize(8);
+        doc.text('Maintenance Pro · Generated by LEONI ERP', W - margin, 75, { align: 'right' });
+
+        let y = 95;
+
+        // ════════ KPIs ════════
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.setFillColor(0, 212, 255);
+        doc.rect(margin, y - 5, W - margin*2, 7, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.text('📊 INDICATEURS CLÉS', margin + 2, y);
+        y += 8;
+
+        const drawKpi = (x, y, label, value, color = [0, 0, 0]) => {
+          doc.setFillColor(245, 247, 250);
+          doc.rect(x, y, 42, 18, 'F');
+          doc.setTextColor(...color);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(14);
+          doc.text(String(value), x + 21, y + 9, { align: 'center' });
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(120, 120, 120);
+          doc.text(label, x + 21, y + 14, { align: 'center' });
+        };
+        drawKpi(margin,        y, 'TOTAL BONS',       stats.kpi.total,                    [0, 100, 200]);
+        drawKpi(margin + 45,   y, 'VALIDÉS',          stats.kpi.validated,                [0, 150, 80]);
+        drawKpi(margin + 90,   y, 'EN ATTENTE',       stats.kpi.pending,                  [200, 130, 0]);
+        drawKpi(margin + 135,  y, 'REJETÉS',          stats.kpi.rejected,                 [200, 0, 0]);
+        y += 22;
+        drawKpi(margin,        y, 'HEURES TOTAL',     Math.round(stats.kpi.totalMin / 60) + 'h', [0, 100, 200]);
+        drawKpi(margin + 45,   y, 'MOY / BON',        stats.kpi.avgMin + 'min',           [80, 80, 80]);
+        drawKpi(margin + 90,   y, 'ANOMALIES',        stats.anomalies.total,              stats.anomalies.total > 0 ? [200, 0, 0] : [120, 120, 120]);
+        drawKpi(margin + 135,  y, 'PDR PRÉMATURÉS',   stats.anomalies.premature,          stats.anomalies.premature > 0 ? [200, 0, 0] : [120, 120, 120]);
+        y += 26;
+
+        // ════════ TOP OUTILS ════════
+        if (stats.topTools.length > 0) {
+          doc.setFillColor(255, 180, 71);
+          doc.rect(margin, y - 5, W - margin*2, 7, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(11);
+          doc.text('🔧 TOP 10 OUTILS UTILISÉS', margin + 2, y);
+          y += 3;
+          doc.autoTable({
+            startY: y + 2,
+            head: [['#', 'Outil', 'Interventions', 'Heures']],
+            body: stats.topTools.map((t, i) => [i + 1, t.label, t.count, Math.round(t.durations / 60 * 10) / 10 + 'h']),
+            theme: 'striped',
+            headStyles: { fillColor: [255, 180, 71], textColor: 255, fontSize: 9 },
+            styles: { fontSize: 8, cellPadding: 1.5 },
+            margin: { left: margin, right: margin }
+          });
+          y = doc.lastAutoTable.finalY + 6;
+        }
+
+        // ════════ TOP TECHNICIENS ════════
+        if (stats.topTechs.length > 0) {
+          if (y > 220) { doc.addPage(); y = 20; }
+          doc.setFillColor(0, 229, 160);
+          doc.rect(margin, y - 5, W - margin*2, 7, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(11);
+          doc.text('👤 TOP 10 TECHNICIENS', margin + 2, y);
+          y += 3;
+          doc.autoTable({
+            startY: y + 2,
+            head: [['#', 'Technicien', 'Bons', 'Heures', 'Moy/bon']],
+            body: stats.topTechs.map((t, i) => [
+              i + 1, t.name, t.count,
+              Math.round(t.durations / 60 * 10) / 10 + 'h',
+              Math.round(t.durations / t.count) + 'min'
+            ]),
+            theme: 'striped',
+            headStyles: { fillColor: [0, 229, 160], textColor: 255, fontSize: 9 },
+            styles: { fontSize: 8, cellPadding: 1.5 },
+            margin: { left: margin, right: margin }
+          });
+          y = doc.lastAutoTable.finalY + 6;
+        }
+
+        // ════════ LISTE DES BONS (paginée) ════════
+        if (stats.interventions.length > 0) {
+          if (y > 220) { doc.addPage(); y = 20; }
+          doc.setFillColor(0, 100, 200);
+          doc.rect(margin, y - 5, W - margin*2, 7, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(11);
+          doc.text(`📜 BONS D'INTERVENTION (${stats.interventions.length})`, margin + 2, y);
+          y += 3;
+          const statusMap = { validated: 'Validé', rejected: 'Rejeté', submitted: 'Soumis', draft: 'Brouillon' };
+          doc.autoTable({
+            startY: y + 2,
+            head: [['N°', 'Date', 'Outil', 'Type', 'Technicien', 'Cycles', 'Statut']],
+            body: stats.interventions.map(i => [
+              i.numBon || '?',
+              new Date(i.createdAt).toLocaleDateString('fr-FR'),
+              (i.tool?.designation || i.tool?.doutils || i.tool?.serial || i.tool?.outilId || '?').slice(0, 18),
+              (i.crimping?.type || '?').slice(0, 12),
+              (i.crimping?.technicienNom || '—').slice(0, 16),
+              i.crimping?.cycles ? Number(i.crimping.cycles).toLocaleString('fr-FR') : '—',
+              statusMap[i.status] || i.status || '?'
+            ]),
+            theme: 'striped',
+            headStyles: { fillColor: [0, 100, 200], textColor: 255, fontSize: 8 },
+            styles: { fontSize: 7, cellPadding: 1.2 },
+            margin: { left: margin, right: margin }
+          });
+        }
+
+        // ════════ Footer sur chaque page ════════
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let p = 1; p <= pageCount; p++) {
+          doc.setPage(p);
+          doc.setFontSize(7);
+          doc.setTextColor(150, 150, 150);
+          doc.text(`LEONI Annex 5 · ${title} · page ${p}/${pageCount}`, margin, 290);
+          doc.text(new Date().toLocaleString('fr-FR'), W - margin, 290, { align: 'right' });
+        }
+
+        // Téléchargement
+        const fname = `LEONI_Rapport_${fromDate.toISOString().slice(0, 10)}_${toDate.toISOString().slice(0, 10)}.pdf`;
+        doc.save(fname);
+
+        ui?.hideLoader?.();
+        ui?.toast?.(`✅ Rapport généré : ${fname}`, 'success');
+        return { ok: true, filename: fname, stats };
+      } catch (e) {
+        ui?.hideLoader?.();
+        console.error('[reports] generate error:', e);
+        ui?.toast?.('⛔ Erreur génération PDF : ' + (e.message || e), 'danger');
+        return { ok: false, error: e.message };
+      }
+    },
+
+    /** Rapport hebdomadaire (7 derniers jours) */
+    async generateWeekly() {
+      const to = new Date();
+      const from = new Date(to.getTime() - 7 * 86400000);
+      return this.generate(from, to, { title: 'Rapport Hebdomadaire' });
+    },
+
+    /** Rapport mensuel (30 derniers jours) */
+    async generateMonthly() {
+      const to = new Date();
+      const from = new Date(to.getTime() - 30 * 86400000);
+      return this.generate(from, to, { title: 'Rapport Mensuel' });
+    },
+
+    /** Modale de sélection de période + génération */
+    showModal() {
+      document.getElementById('reports-modal')?.remove();
+      const today = new Date().toISOString().slice(0, 10);
+      const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+      const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+
+      const html = `
+        <div id="reports-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:9998;display:flex;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)this.remove()">
+          <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:12px;padding:1.5rem;max-width:560px;width:100%;max-height:85vh;overflow-y:auto">
+            <header style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft)">
+              <h2 style="margin:0;color:var(--text-primary);font-size:1.15rem">📊 Génération de rapport PDF</h2>
+              <button onclick="this.closest('#reports-modal').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem">✕</button>
+            </header>
+
+            <div style="display:flex;flex-direction:column;gap:.6rem;margin-bottom:1.2rem">
+              <button id="rpt-weekly" style="background:linear-gradient(135deg,#00d4ff,#0084d4);color:white;border:none;padding:.85rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.92rem;text-align:left">
+                📅 Rapport Hebdomadaire <span style="opacity:.8;font-weight:400;font-size:.78rem">— 7 derniers jours</span>
+              </button>
+              <button id="rpt-monthly" style="background:linear-gradient(135deg,#00e5a0,#00a075);color:white;border:none;padding:.85rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.92rem;text-align:left">
+                🗓 Rapport Mensuel <span style="opacity:.8;font-weight:400;font-size:.78rem">— 30 derniers jours</span>
+              </button>
+            </div>
+
+            <div style="border-top:1px solid var(--border-soft);padding-top:1rem">
+              <div style="font-size:.78rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.6rem">📐 Période personnalisée</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.75rem">
+                <label style="display:flex;flex-direction:column;gap:.2rem">
+                  <span style="font-size:.7rem;color:var(--text-muted)">DU</span>
+                  <input type="date" id="rpt-from" value="${monthAgo}" max="${today}" style="background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);padding:.5rem;border-radius:6px;font-family:var(--font-mono)">
+                </label>
+                <label style="display:flex;flex-direction:column;gap:.2rem">
+                  <span style="font-size:.7rem;color:var(--text-muted)">AU</span>
+                  <input type="date" id="rpt-to" value="${today}" max="${today}" style="background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);padding:.5rem;border-radius:6px;font-family:var(--font-mono)">
+                </label>
+              </div>
+              <button id="rpt-custom" style="width:100%;background:linear-gradient(135deg,#a78bfa,#7c3aed);color:white;border:none;padding:.7rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.85rem">
+                ✨ Générer le rapport personnalisé
+              </button>
+            </div>
+
+            <div style="font-size:.7rem;color:var(--text-muted);margin-top:1rem;font-style:italic;text-align:center">
+              💡 Le rapport inclut : KPIs, top outils, top techniciens, anomalies, liste détaillée des bons
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', html);
+
+      document.getElementById('rpt-weekly').onclick = () => {
+        document.getElementById('reports-modal').remove();
+        this.generateWeekly();
+      };
+      document.getElementById('rpt-monthly').onclick = () => {
+        document.getElementById('reports-modal').remove();
+        this.generateMonthly();
+      };
+      document.getElementById('rpt-custom').onclick = () => {
+        const fromVal = document.getElementById('rpt-from').value;
+        const toVal = document.getElementById('rpt-to').value;
+        if (!fromVal || !toVal) { ui?.toast?.('Sélectionnez les deux dates', 'warn'); return; }
+        const from = new Date(fromVal + 'T00:00:00');
+        const to = new Date(toVal + 'T23:59:59');
+        if (from > to) { ui?.toast?.('La date "AU" doit être après "DU"', 'warn'); return; }
+        document.getElementById('reports-modal').remove();
+        this.generate(from, to, { title: `Rapport ${fromVal} → ${toVal}` });
+      };
+    }
+  };
+  window.reports = reports;
+
+  /* ==========================================================================
+     12.9  📷 PHOTOS SUR LES BONS — preuves visuelles d'intervention
+     ========================================================================== */
+  // Permet aux techniciens d'attacher des photos (camera ou galerie) à chaque bon.
+  // Stockage : Firebase Realtime DB, path `bonPhotos/{numBon}/{photoId}`.
+  // Compression : max 1024×768 / JPEG 75% → ~70-150 KB par photo.
+  // Permissions : créer = crimping/admin/responsable ; supprimer = uploader OU admin.
+  const bonPhotos = {
+    MAX_WIDTH: 1024,
+    MAX_HEIGHT: 768,
+    QUALITY: 0.75,
+    MAX_PER_BON: 12, // limite raisonnable
+
+    /** Lit toutes les photos d'un bon */
+    async getPhotos(numBon) {
+      try {
+        const snap = await fbDb.ref('bonPhotos/' + numBon).once('value');
+        return snap.val() || {};
+      } catch (e) {
+        console.error('[bonPhotos] read error:', e);
+        return {};
+      }
+    },
+
+    /** Compresse un fichier image vers dataURL JPEG */
+    _compress(file) {
+      return new Promise((resolve, reject) => {
+        if (!file.type.startsWith('image/')) {
+          return reject(new Error('Fichier non-image : ' + file.type));
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            let w = img.width, h = img.height;
+            if (w > this.MAX_WIDTH) { h = h * this.MAX_WIDTH / w; w = this.MAX_WIDTH; }
+            if (h > this.MAX_HEIGHT) { w = w * this.MAX_HEIGHT / h; h = this.MAX_HEIGHT; }
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(w);
+            canvas.height = Math.round(h);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', this.QUALITY));
+          };
+          img.onerror = () => reject(new Error('Image illisible'));
+          img.src = e.target.result;
+        };
+        reader.onerror = () => reject(new Error('Lecture fichier échouée'));
+        reader.readAsDataURL(file);
+      });
+    },
+
+    /** Ajoute une photo (avec compression) */
+    async addPhoto(numBon, file) {
+      const dataUrl = await this._compress(file);
+      const photoId = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+      const photo = {
+        data: dataUrl,
+        size: dataUrl.length,
+        ts: Date.now(),
+        uploadedBy: state.profile?.displayName || state.user?.email || 'Inconnu',
+        uploadedByUid: state.user?.uid || '',
+        originalName: file.name || '(sans nom)',
+        originalSize: file.size || 0
+      };
+      await fbDb.ref('bonPhotos/' + numBon + '/' + photoId).set(photo);
+      try { db.audit?.('photo.add', numBon, { photoId, size: photo.size }); } catch (e) {}
+      return photoId;
+    },
+
+    /** Supprime une photo (uploader OU admin) */
+    async deletePhoto(numBon, photoId) {
+      const snap = await fbDb.ref('bonPhotos/' + numBon + '/' + photoId).once('value');
+      const photo = snap.val();
+      if (!photo) throw new Error('Photo introuvable');
+      const canDelete = photo.uploadedByUid === state.user?.uid
+        || ['admin', 'super_admin', 'responsable'].includes(state.role);
+      if (!canDelete) throw new Error('Suppression non autorisée');
+      await fbDb.ref('bonPhotos/' + numBon + '/' + photoId).remove();
+      try { db.audit?.('photo.delete', numBon, { photoId }); } catch (e) {}
+    },
+
+    /** Affiche la photo en plein écran */
+    showFullscreen(dataUrl) {
+      const dlg = document.createElement('div');
+      dlg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:99999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:1rem';
+      dlg.innerHTML = `<img src="${dataUrl}" style="max-width:95%;max-height:95%;object-fit:contain;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.5)" onclick="event.stopPropagation()">
+        <button style="position:absolute;top:1rem;right:1rem;background:rgba(0,0,0,.6);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:50%;width:38px;height:38px;font-size:1.2rem;cursor:pointer;backdrop-filter:blur(8px)">✕</button>`;
+      dlg.addEventListener('click', () => dlg.remove());
+      document.body.appendChild(dlg);
+    },
+
+    /** Ouvre le sélecteur de fichier (avec accès camera sur mobile) */
+    async openUploadDialog(numBon, onUpdate) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.capture = 'environment'; // camera arrière sur mobile
+      input.multiple = true;
+      input.style.display = 'none';
+      document.body.appendChild(input);
+      input.addEventListener('change', async () => {
+        const files = Array.from(input.files || []);
+        input.remove();
+        if (!files.length) return;
+
+        // Vérifier la limite
+        const existing = await this.getPhotos(numBon);
+        const existingCount = Object.keys(existing).length;
+        if (existingCount + files.length > this.MAX_PER_BON) {
+          ui.toast(`⚠️ Maximum ${this.MAX_PER_BON} photos par bon (vous en avez déjà ${existingCount})`, 'warn');
+          return;
+        }
+
+        ui.toast(`📤 Compression & envoi de ${files.length} photo${files.length > 1 ? 's' : ''}…`, 'info');
+        let success = 0;
+        const errors = [];
+        for (const file of files) {
+          try {
+            await this.addPhoto(numBon, file);
+            success++;
+          } catch (e) {
+            errors.push(file.name + ' : ' + e.message);
+            console.error('[bonPhotos] upload error', file.name, e);
+          }
+        }
+        if (success) ui.toast(`✅ ${success}/${files.length} photo${success > 1 ? 's' : ''} ajoutée${success > 1 ? 's' : ''}`, 'success');
+        if (errors.length) console.warn('[bonPhotos] errors:', errors);
+        onUpdate?.();
+      });
+      input.click();
+    },
+
+    /** Rend la section photos dans un conteneur donné, avec listener Firebase temps réel */
+    renderForBon(numBon, container) {
+      if (!container || !numBon) return;
+      const ref = fbDb.ref('bonPhotos/' + numBon);
+
+      // Cleanup ancien listener si présent
+      if (container._photosUnsub) container._photosUnsub();
+
+      const handler = (snap) => {
+        const photos = snap.val() || {};
+        this._renderHtml(numBon, container, photos);
+      };
+      ref.on('value', handler);
+      container._photosUnsub = () => ref.off('value', handler);
+    },
+
+    _renderHtml(numBon, container, photos) {
+      const entries = Object.entries(photos).sort((a, b) => (b[1].ts || 0) - (a[1].ts || 0));
+      const canEdit = ['admin', 'super_admin', 'responsable', 'crimping'].includes(state.role);
+      const totalKB = Math.round(Object.values(photos).reduce((s, p) => s + (p.size || 0), 0) / 1024);
+
+      container.innerHTML = `
+        <div style="background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:8px;padding:.85rem;margin-top:.75rem">
+          <header style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.5rem;flex-wrap:wrap;gap:.5rem">
+            <div style="font-size:.85rem;font-weight:700;color:var(--text-primary)">
+              📷 Photos d'intervention
+              <span style="background:rgba(0,212,255,.15);color:#00d4ff;padding:.1rem .45rem;border-radius:4px;font-size:.7rem;margin-left:.3rem">${entries.length}/${this.MAX_PER_BON}</span>
+              ${entries.length > 0 ? `<span style="color:var(--text-muted);font-size:.7rem;margin-left:.3rem">· ${totalKB} KB</span>` : ''}
+            </div>
+            ${canEdit && entries.length < this.MAX_PER_BON ? `
+              <button data-photo-add style="background:linear-gradient(135deg,#00d4ff,#0ea5e9);color:#fff;border:none;padding:.35rem .7rem;border-radius:6px;font-size:.74rem;font-weight:700;cursor:pointer">📷 Ajouter</button>
+            ` : ''}
+          </header>
+          ${entries.length === 0
+            ? `<div style="font-size:.78rem;color:var(--text-muted);font-style:italic;padding:.5rem 0">Aucune photo. ${canEdit ? 'Cliquez "+ Ajouter" pour en attacher.' : ''}</div>`
+            : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.5rem">
+                ${entries.map(([id, p]) => {
+                  const canDel = (p.uploadedByUid === state.user?.uid)
+                              || ['admin', 'super_admin', 'responsable'].includes(state.role);
+                  return `<div style="position:relative;aspect-ratio:1/1;border-radius:6px;overflow:hidden;background:var(--bg-3);cursor:zoom-in" data-photo-id="${id}">
+                    <img src="${p.data}" alt="Photo bon ${numBon}" style="width:100%;height:100%;object-fit:cover" data-photo-fullscreen>
+                    <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top, rgba(0,0,0,.7), transparent);color:#fff;padding:.3rem;font-size:.62rem;line-height:1.2">
+                      <div style="font-weight:600;truncate">${ui.escape(p.uploadedBy || '?')}</div>
+                      <div style="opacity:.8">${new Date(p.ts).toLocaleDateString('fr-FR')}</div>
+                    </div>
+                    ${canDel ? `<button data-photo-delete="${id}" title="Supprimer" style="position:absolute;top:.2rem;right:.2rem;background:rgba(239,68,68,.85);color:#fff;border:none;width:22px;height:22px;border-radius:50%;font-size:.7rem;cursor:pointer">✕</button>` : ''}
+                  </div>`;
+                }).join('')}
+              </div>`
+          }
+        </div>
+      `;
+
+      // Wire add
+      container.querySelector('[data-photo-add]')?.addEventListener('click', () => {
+        this.openUploadDialog(numBon);
+      });
+
+      // Wire fullscreen
+      container.querySelectorAll('[data-photo-fullscreen]').forEach(img => {
+        img.addEventListener('click', (e) => {
+          if (e.target.matches('[data-photo-delete]')) return;
+          this.showFullscreen(img.src);
+        });
+      });
+
+      // Wire delete
+      container.querySelectorAll('[data-photo-delete]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm('Supprimer cette photo définitivement ?')) return;
+          try {
+            await this.deletePhoto(numBon, btn.dataset.photoDelete);
+            ui.toast('🗑️ Photo supprimée', 'success');
+          } catch (e) {
+            ui.toast('⛔ ' + e.message, 'danger');
+          }
+        });
+      });
+    }
+  };
+  window.bonPhotos = bonPhotos;
 
   /* ==========================================================================
      12.7b  🔧 Réparation du catalogue : remplir designation rétroactivement
@@ -15752,6 +16631,20 @@ section[data-view] h1,
           $('#int-type').value = data.crimping.type || '';
           $('#int-observation').value = data.crimping.observation || '';
           $('#obs-counter').textContent = `${(data.crimping.observation || '').length} / 1000`;
+          // 📷 NOUVEAU : Charger les photos existantes dans le widget multi-photos
+          this._photosUploader = null;
+          const photosContainer = document.getElementById('bon-photos-uploader');
+          if (photosContainer && typeof photoCapture !== 'undefined') {
+            const initial = data.crimping.photos || [];
+            this._photosUploader = photoCapture.mountUploader(photosContainer, initial, (photos) => {
+              // Sync vers input caché pour qu'on puisse récupérer à la sauvegarde
+              const hidden = document.getElementById('bon-photos-data');
+              if (hidden) hidden.value = JSON.stringify(photos);
+            });
+            // Init valeur cachée
+            const hidden = document.getElementById('bon-photos-data');
+            if (hidden) hidden.value = JSON.stringify(initial);
+          }
           // Load duration + subType + configurations (helper met à jour pills + affichage)
           if (typeof window._setIntDurationFromValue === 'function') {
             window._setIntDurationFromValue(
@@ -16351,7 +17244,19 @@ section[data-view] h1,
           piecesChanged: pieces,
           observation: $('#int-observation').value,
           technicienNom:       crimpName,
-          technicienMatricule: crimpMat
+          technicienMatricule: crimpMat,
+          // 📷 Photos d'intervention récupérées depuis le widget multi-photos
+          photos: (() => {
+            try {
+              const raw = document.getElementById('bon-photos-data')?.value;
+              if (raw) return JSON.parse(raw);
+            } catch(e) { console.warn('Photos parse error:', e); }
+            // Fallback : lire directement depuis le widget mounté
+            if (this._photosUploader && this._photosUploader.getPhotos) {
+              return this._photosUploader.getPhotos();
+            }
+            return [];
+          })()
         };
       },
 
@@ -16432,6 +17337,7 @@ section[data-view] h1,
               'crimping/type': data.type,
               'crimping/piecesChanged': data.piecesChanged,
               'crimping/observation': data.observation,
+              'crimping/photos': data.photos || [],  // 📷 photos d'intervention
               'crimping/duration': durationVal,                          // ⏱ AUTO : durée enregistrée au submit
               'crimping/subType': subTypeVal,
               'crimping/configurationsCount': configsCountVal
@@ -24997,6 +25903,11 @@ Erreur Firebase : ${e.message}`;
       setTimeout(updateAnomaliesBadge, 5000);
       setInterval(updateAnomaliesBadge, 30000);
       window.__updateAnomaliesBadge = updateAnomaliesBadge; // exposé pour debug
+    }
+
+    // 📊 Bouton Rapports PDF
+    if (typeof reports !== 'undefined') {
+      document.getElementById('btn-reports')?.addEventListener('click', () => reports.showModal());
     }
     views.intervention.init();
     views.history.init();

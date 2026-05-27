@@ -20812,9 +20812,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const filterFab    = document.getElementById('cat-filter-fab')?.value || '';
         const filterStatus = document.getElementById('cat-filter-status')?.value || 'complete';
         const sortBy       = document.getElementById('cat-filter-sort')?.value || 'name';
-        const allTools = Object.values(state.tools);
+        const allToolsRaw = Object.values(state.tools);
 
-        // ── KPIs (sur l'ensemble complet) ──
+        // 🆕 SCOPE PAR RÔLE : l'admin voit tout, les autres ne voient QUE production
+        //    Tous les calculs (KPIs, fabricants, dropdown, etc.) doivent se baser sur ce scope
+        //    pour ne PAS révéler l'existence d'outils cachés aux non-admin.
+        const isAdminRole = ['admin', 'super_admin'].includes(state.role);
+        const allTools = isAdminRole
+          ? allToolsRaw
+          : allToolsRaw.filter(t => this._getToolStatus(t) === 'production');
+
+        // ── KPIs (sur l'ensemble VISIBLE selon le rôle) ──
         const completeAll   = allTools.filter(t => this._isComplete(t));
         const incompleteAll = allTools.length - completeAll.length;
         const fabSet = new Set(completeAll.map(t => (t.fabricant || '').trim()).filter(Boolean));
@@ -20828,29 +20836,28 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (kpiIncomplete) kpiIncomplete.textContent = incompleteAll;
         if (kpiFabs)       kpiFabs.textContent = fabSet.size;
 
-        // 🆕 Comptage des outils non-production (admin uniquement, info)
-        const nonProductionCount = allTools.filter(t => this._getToolStatus(t) !== 'production').length;
+        // 🆕 Comptage des outils non-production (UNIQUEMENT pour info admin)
+        //    Calculé depuis allToolsRaw (avant filtre rôle) pour avoir le vrai chiffre
+        const nonProductionCount = isAdminRole
+          ? allToolsRaw.filter(t => this._getToolStatus(t) !== 'production').length
+          : 0;
 
-        // 🛡 Bandeau d'information selon le rôle
+        // 🛡 Bandeau d'information — UNIQUEMENT pour l'admin
+        //    Les non-admin ne savent PAS qu'il existe des outils cachés (discrétion totale)
         const roleBanner = document.getElementById('catalog-role-banner');
         if (roleBanner) {
           const isAdminUser = ['admin', 'super_admin'].includes(state.role);
           if (isAdminUser && nonProductionCount > 0) {
-            // Admin : info que tous statuts sont affichés
+            // Admin uniquement : info que tous statuts sont affichés
             roleBanner.style.display = 'block';
             roleBanner.style.background = 'rgba(168,85,247,.08)';
             roleBanner.style.borderLeft = '3px solid #a855f7';
             roleBanner.style.color = '#a78bfa';
             roleBanner.innerHTML = `🛡 <strong>Vue admin</strong> — Vous voyez tous les statuts (${nonProductionCount} outil${nonProductionCount > 1 ? 's' : ''} non-production inclus dans la liste). Les autres rôles ne voient que les outils en production.`;
-          } else if (!isAdminUser && nonProductionCount > 0) {
-            // Non-admin : info que des outils sont cachés
-            roleBanner.style.display = 'block';
-            roleBanner.style.background = 'rgba(0,212,255,.06)';
-            roleBanner.style.borderLeft = '3px solid #00d4ff';
-            roleBanner.style.color = '#00d4ff';
-            roleBanner.innerHTML = `🔒 ${nonProductionCount} outil${nonProductionCount > 1 ? 's' : ''} non-production ${nonProductionCount > 1 ? 'sont cachés' : 'est caché'} — contactez l'admin pour y accéder si besoin.`;
           } else {
+            // Non-admin ou admin sans outils cachés : aucun bandeau
             roleBanner.style.display = 'none';
+            roleBanner.innerHTML = '';
           }
         }
 
@@ -20864,16 +20871,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
         // ── Filtrage ──
         let list = allTools.slice();
-
-        // 🆕 FILTRE DE RÔLE : seul l'admin/super_admin voit tous les statuts
-        //    Les autres rôles ne voient QUE les outils "En production" (ou sans statut = défaut production)
-        const isAdmin = ['admin', 'super_admin'].includes(state.role);
-        if (!isAdmin) {
-          list = list.filter(t => {
-            const st = this._getToolStatus(t);
-            return st === 'production'; // strict : production uniquement
-          });
-        }
+        // Note : le filtre par rôle est déjà appliqué en amont (allTools = allToolsRaw filtré pour non-admin)
 
         if (filterStatus === 'complete')        list = list.filter(t => this._isComplete(t));
         else if (filterStatus === 'incomplete') list = list.filter(t => !this._isComplete(t));

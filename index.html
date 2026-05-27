@@ -21078,38 +21078,64 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 const statusKey = this._getToolStatus(active[0]);
                 const statusInfo = this.TOOL_STATUSES[statusKey];
 
-                // Afficher une modale de confirmation détaillée
-                const confirmed = await new Promise(resolve => {
+                // Afficher une modale de choix : marquer l'ancien comme endommagé/obsolète, ou annuler
+                // resolve(false) = annuler, resolve('endommage'|'obsolete') = créer le nouveau + assigner statut à l'ancien
+                const choice = await new Promise(resolve => {
                   document.getElementById('dup-confirm-modal')?.remove();
                   const html = `
                     <div id="dup-confirm-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:1rem">
-                      <div style="background:var(--bg-2);border:2px solid #f59e0b;border-radius:12px;padding:1.5rem;max-width:560px;width:100%">
+                      <div style="background:var(--bg-2);border:2px solid #f59e0b;border-radius:12px;padding:1.5rem;max-width:580px;width:100%;max-height:90vh;overflow-y:auto">
                         <header style="margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:.5rem">
                           <span style="font-size:1.8rem">⚠️</span>
-                          <h2 style="margin:0;color:#f59e0b;font-size:1.1rem">Outil potentiellement en doublon</h2>
+                          <h2 style="margin:0;color:#f59e0b;font-size:1.05rem">Un outil avec ce nom existe déjà</h2>
                         </header>
-                        <div style="font-size:.88rem;color:var(--text-primary);line-height:1.5;margin-bottom:1rem">
-                          Un outil portant le même <strong>${matchedField}</strong> existe déjà dans le catalogue :
+
+                        <div style="font-size:.84rem;color:var(--text-primary);line-height:1.5;margin-bottom:.8rem">
+                          Le catalogue contient déjà un outil avec le même <strong>${matchedField}</strong> :
                         </div>
-                        <div style="background:var(--bg-3);border-left:3px solid ${statusInfo.color};padding:.75rem 1rem;border-radius:6px;margin-bottom:1rem">
+
+                        <div style="background:var(--bg-3);border-left:3px solid ${statusInfo.color};padding:.7rem 1rem;border-radius:6px;margin-bottom:1rem">
                           <div style="font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.95rem">${ui.escape(matchedValue || '?')}</div>
-                          <div style="font-size:.78rem;color:var(--text-secondary);margin-top:.25rem">
+                          <div style="font-size:.74rem;color:var(--text-secondary);margin-top:.2rem">
                             ${ui.escape(active[0].designation || active[0].doutils || '')}
                             ${active[0].groupe ? ` · 🏷 ${ui.escape(active[0].groupe)}` : ''}
                           </div>
                           <div style="margin-top:.4rem">
                             ${this._renderStatusBadge(active[0], { clickable: false, size: 'small' })}
                           </div>
-                          ${duplicates.length > 1 ? `<div style="font-size:.7rem;color:var(--text-muted);margin-top:.4rem;font-style:italic">+ ${duplicates.length - 1} autre${duplicates.length > 2 ? 's' : ''} doublon${duplicates.length > 2 ? 's' : ''} détecté${duplicates.length > 2 ? 's' : ''}</div>` : ''}
+                          ${duplicates.length > 1 ? `<div style="font-size:.68rem;color:var(--text-muted);margin-top:.4rem;font-style:italic">+ ${duplicates.length - 1} autre${duplicates.length > 2 ? 's' : ''} doublon${duplicates.length > 2 ? 's' : ''}</div>` : ''}
                         </div>
-                        <div style="font-size:.78rem;color:var(--text-secondary);margin-bottom:1.2rem;padding:.6rem .75rem;background:rgba(0,212,255,.06);border-radius:6px;border:1px solid rgba(0,212,255,.15)">
-                          💡 Si vous voulez <strong>remplacer</strong> l'ancien outil, marquez-le d'abord en
-                          <strong style="color:#ef4444">⚠️ Endommagé</strong> ou
-                          <strong style="color:#9ca3af">🚫 Obsolète</strong>, puis recréez le nouveau.
+
+                        <div style="font-size:.82rem;color:var(--text-primary);font-weight:700;margin-bottom:.6rem;padding:.5rem .75rem;background:rgba(0,212,255,.06);border-radius:6px">
+                          👉 Que voulez-vous faire de l'ancien outil ?
                         </div>
-                        <div style="display:flex;gap:.5rem;justify-content:flex-end">
-                          <button id="dup-cancel" style="background:var(--bg-3);color:var(--text-primary);border:1px solid var(--border-soft);padding:.6rem 1.2rem;border-radius:6px;cursor:pointer;font-weight:600">✕ Annuler</button>
-                          <button id="dup-confirm" style="background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid #f59e0b;padding:.6rem 1.2rem;border-radius:6px;cursor:pointer;font-weight:700">⚠️ Créer quand même</button>
+
+                        <div style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:1rem">
+                          <!-- Choix 1 : Endommagé -->
+                          <button id="dup-mark-endommage" style="background:rgba(239,68,68,.08);color:#ef4444;border:2px solid rgba(239,68,68,.4);padding:.75rem 1rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.88rem;text-align:left;display:flex;align-items:center;gap:.6rem;transition:all .15s" onmouseover="this.style.background='rgba(239,68,68,.15)';this.style.transform='translateX(4px)'" onmouseout="this.style.background='rgba(239,68,68,.08)';this.style.transform=''">
+                            <span style="font-size:1.5rem">⚠️</span>
+                            <div style="flex:1">
+                              <div>Marquer l'ancien comme <strong>ENDOMMAGÉ</strong></div>
+                              <div style="font-size:.7rem;font-weight:400;opacity:.85;margin-top:.15rem">→ Garde l'ancien visible avec statut rouge + crée le nouveau en production</div>
+                            </div>
+                          </button>
+
+                          <!-- Choix 2 : Obsolète -->
+                          <button id="dup-mark-obsolete" style="background:rgba(107,114,128,.08);color:#9ca3af;border:2px solid rgba(107,114,128,.4);padding:.75rem 1rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.88rem;text-align:left;display:flex;align-items:center;gap:.6rem;transition:all .15s" onmouseover="this.style.background='rgba(107,114,128,.15)';this.style.transform='translateX(4px)'" onmouseout="this.style.background='rgba(107,114,128,.08)';this.style.transform=''">
+                            <span style="font-size:1.5rem">🚫</span>
+                            <div style="flex:1">
+                              <div>Marquer l'ancien comme <strong>OBSOLÈTE</strong></div>
+                              <div style="font-size:.7rem;font-weight:400;opacity:.85;margin-top:.15rem">→ Garde l'ancien visible avec statut gris + crée le nouveau en production</div>
+                            </div>
+                          </button>
+                        </div>
+
+                        <div style="display:flex;gap:.5rem;justify-content:flex-end;padding-top:.75rem;border-top:1px solid var(--border-soft)">
+                          <button id="dup-cancel" style="background:var(--bg-3);color:var(--text-primary);border:1px solid var(--border-soft);padding:.55rem 1.1rem;border-radius:6px;cursor:pointer;font-weight:600;font-size:.85rem">✕ Annuler la création</button>
+                        </div>
+
+                        <div style="font-size:.68rem;color:var(--text-muted);margin-top:.6rem;text-align:center;font-style:italic">
+                          💡 Les deux outils resteront visibles dans le catalogue, distingués par leur statut.
                         </div>
                       </div>
                     </div>
@@ -21119,14 +21145,41 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                     document.getElementById('dup-confirm-modal').remove();
                     resolve(false);
                   };
-                  document.getElementById('dup-confirm').onclick = () => {
+                  document.getElementById('dup-mark-endommage').onclick = () => {
                     document.getElementById('dup-confirm-modal').remove();
-                    resolve(true);
+                    resolve('endommage');
+                  };
+                  document.getElementById('dup-mark-obsolete').onclick = () => {
+                    document.getElementById('dup-confirm-modal').remove();
+                    resolve('obsolete');
                   };
                 });
-                if (!confirmed) return; // annulation par l'utilisateur
-                // Si confirmé → on continue la sauvegarde normalement ci-dessous
-                ui.toast('⚠️ Outil créé malgré le doublon — pensez à archiver l\'ancien', 'warn', 5000);
+
+                if (!choice) return; // annulation par l'utilisateur
+
+                // Mettre à jour TOUS les anciens outils actifs avec le statut choisi
+                try {
+                  const ts = Date.now();
+                  const updatedBy = state.user?.name || state.user?.email || 'admin';
+                  for (const oldTool of active) {
+                    await fbDb.ref(`tools/${oldTool.id}/status`).set(choice);
+                    await fbDb.ref(`tools/${oldTool.id}/statusUpdatedAt`).set(ts);
+                    await fbDb.ref(`tools/${oldTool.id}/statusUpdatedBy`).set(updatedBy);
+                    // Mettre à jour le state local immédiatement
+                    if (state.tools[oldTool.id]) {
+                      state.tools[oldTool.id].status = choice;
+                      state.tools[oldTool.id].statusUpdatedAt = ts;
+                    }
+                  }
+                  const statusLabel = this.TOOL_STATUSES[choice].label;
+                  const statusIcon = this.TOOL_STATUSES[choice].icon;
+                  ui.toast(`${statusIcon} Ancien outil marqué : ${statusLabel} · Nouveau outil créé`, 'success', 5000);
+                } catch (err) {
+                  console.error('[catalog dup-resolve]', err);
+                  ui.toast('⛔ Erreur mise à jour ancien outil : ' + err.message, 'danger');
+                  return;
+                }
+                // Le nouveau outil sera créé avec le statut par défaut (production) via le flow normal ci-dessous
               } else {
                 // Tous les doublons sont en statut "remplaçable" (endommagé/obsolète) → OK silencieux
                 console.info('[catalog] Doublon détecté mais ancien outil endommagé/obsolète, création autorisée :', duplicates.map(d => d.id));

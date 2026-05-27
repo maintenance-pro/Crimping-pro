@@ -8113,6 +8113,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           </div>
         </div>
 
+        <!-- 🛡 Bandeau info rôle (Vague 5) — affiché dynamiquement selon le rôle -->
+        <div id="catalog-role-banner" style="display:none;margin-bottom:.8rem;padding:.6rem .85rem;border-radius:8px;font-size:.78rem;font-weight:600"></div>
+
         <!-- 🔧 Filters bar -->
         <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;padding:.65rem .85rem;background:var(--bg-elevated);border-radius:9px;border:1px solid var(--border-soft)">
           <select id="cat-filter-fab" class="filter__input" style="font-size:.85rem;min-width:160px">
@@ -20825,6 +20828,32 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (kpiIncomplete) kpiIncomplete.textContent = incompleteAll;
         if (kpiFabs)       kpiFabs.textContent = fabSet.size;
 
+        // 🆕 Comptage des outils non-production (admin uniquement, info)
+        const nonProductionCount = allTools.filter(t => this._getToolStatus(t) !== 'production').length;
+
+        // 🛡 Bandeau d'information selon le rôle
+        const roleBanner = document.getElementById('catalog-role-banner');
+        if (roleBanner) {
+          const isAdminUser = ['admin', 'super_admin'].includes(state.role);
+          if (isAdminUser && nonProductionCount > 0) {
+            // Admin : info que tous statuts sont affichés
+            roleBanner.style.display = 'block';
+            roleBanner.style.background = 'rgba(168,85,247,.08)';
+            roleBanner.style.borderLeft = '3px solid #a855f7';
+            roleBanner.style.color = '#a78bfa';
+            roleBanner.innerHTML = `🛡 <strong>Vue admin</strong> — Vous voyez tous les statuts (${nonProductionCount} outil${nonProductionCount > 1 ? 's' : ''} non-production inclus dans la liste). Les autres rôles ne voient que les outils en production.`;
+          } else if (!isAdminUser && nonProductionCount > 0) {
+            // Non-admin : info que des outils sont cachés
+            roleBanner.style.display = 'block';
+            roleBanner.style.background = 'rgba(0,212,255,.06)';
+            roleBanner.style.borderLeft = '3px solid #00d4ff';
+            roleBanner.style.color = '#00d4ff';
+            roleBanner.innerHTML = `🔒 ${nonProductionCount} outil${nonProductionCount > 1 ? 's' : ''} non-production ${nonProductionCount > 1 ? 'sont cachés' : 'est caché'} — contactez l'admin pour y accéder si besoin.`;
+          } else {
+            roleBanner.style.display = 'none';
+          }
+        }
+
         // ── Peupler le dropdown fabricant ──
         const fabSelect = document.getElementById('cat-filter-fab');
         if (fabSelect && fabSelect.options.length <= 1 + fabSet.size) {
@@ -20835,6 +20864,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
         // ── Filtrage ──
         let list = allTools.slice();
+
+        // 🆕 FILTRE DE RÔLE : seul l'admin/super_admin voit tous les statuts
+        //    Les autres rôles ne voient QUE les outils "En production" (ou sans statut = défaut production)
+        const isAdmin = ['admin', 'super_admin'].includes(state.role);
+        if (!isAdmin) {
+          list = list.filter(t => {
+            const st = this._getToolStatus(t);
+            return st === 'production'; // strict : production uniquement
+          });
+        }
+
         if (filterStatus === 'complete')        list = list.filter(t => this._isComplete(t));
         else if (filterStatus === 'incomplete') list = list.filter(t => !this._isComplete(t));
         // 'all' → pas de filtre

@@ -9038,6 +9038,21 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <div class="field"><label aria-label="Fournisseur">Fournisseur</label><input name="fournisseur" placeholder="Ex: THB" / autocomplete="off"></div>
           <div class="field"><label aria-label="Projet">Projet</label><input name="projet" placeholder="Ex: C-NEO" / autocomplete="off"></div>
         </div>
+        <!-- 🆕 STATUT OPÉRATIONNEL DE L'OUTIL -->
+        <div class="intervention__grid intervention__grid--2">
+          <div class="field">
+            <label aria-label="Statut">🏷 Statut opérationnel</label>
+            <select name="status" style="width:100%;padding:.6rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-family:var(--font-mono)">
+              <option value="production">✅ En production (par défaut)</option>
+              <option value="nouveau">🆕 Nouveau (jamais utilisé)</option>
+              <option value="maintenance">🔧 En maintenance</option>
+              <option value="endommage">⚠️ Endommagé</option>
+              <option value="reserve">🔒 Réservé</option>
+              <option value="obsolete">🚫 Obsolète (retiré)</option>
+            </select>
+          </div>
+          <div class="field"></div>
+        </div>
       </form>
       <footer class="modal__footer">
         <button class="btn btn--ghost" data-close data-i18n="t.annuler">Annuler</button>
@@ -19753,8 +19768,105 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       }
     },
 
+    /* ========== 🏷 STATUT DES OUTILS (catalogue) ========== */
+    // Liste des statuts disponibles pour qualifier l'état opérationnel d'un outil.
+    // Stocké dans tool.status (string parmi les clés ci-dessous, défaut: 'production')
+    // Affiché comme badge coloré dans la modale détails + filtrable dans le catalogue.
     /* ========== CATALOG ========== */
     catalog: {
+      // 🏷 STATUTS POSSIBLES D'UN OUTIL — affichés en badge coloré
+      TOOL_STATUSES: {
+        nouveau:       { label: 'Nouveau',       icon: '🆕', bg: 'rgba(0,212,255,.15)',   color: '#00d4ff' },
+        production:    { label: 'En production', icon: '✅', bg: 'rgba(0,229,160,.15)',   color: '#00e5a0' },
+        maintenance:   { label: 'En maintenance',icon: '🔧', bg: 'rgba(255,180,71,.15)',  color: '#ffb547' },
+        endommage:     { label: 'Endommagé',     icon: '⚠️', bg: 'rgba(239,68,68,.15)',   color: '#ef4444' },
+        reserve:       { label: 'Réservé',       icon: '🔒', bg: 'rgba(168,85,247,.15)',  color: '#a855f7' },
+        obsolete:      { label: 'Obsolète',      icon: '🚫', bg: 'rgba(107,114,128,.15)', color: '#9ca3af' }
+      },
+      DEFAULT_STATUS: 'production',
+
+      /** Récupère le statut d'un outil (avec fallback) */
+      _getToolStatus(tool) {
+        const s = tool?.status;
+        if (s && this.TOOL_STATUSES[s]) return s;
+        return this.DEFAULT_STATUS;
+      },
+
+      /** Génère le badge HTML du statut (pour le titre de la modale détails) */
+      _renderStatusBadge(tool, opts = {}) {
+        const statusKey = this._getToolStatus(tool);
+        const s = this.TOOL_STATUSES[statusKey];
+        const clickable = opts.clickable !== false;
+        const size = opts.size || 'normal'; // 'normal' | 'small'
+        const sizeStyle = size === 'small'
+          ? 'font-size:.6rem;padding:.1rem .35rem'
+          : 'font-size:.7em;padding:.18rem .55rem';
+        const cursor = clickable ? 'cursor:pointer' : '';
+        const title = clickable ? `title="Cliquer pour changer le statut"` : '';
+        const dataAttr = clickable ? `data-change-status="${ui.escape(tool.id || '')}"` : '';
+        return `<span ${dataAttr} ${title} style="${sizeStyle};background:${s.bg};color:${s.color};border-radius:5px;letter-spacing:.04em;vertical-align:middle;font-weight:700;${cursor};display:inline-flex;align-items:center;gap:.25rem">${s.icon} ${ui.escape(s.label)}</span>`;
+      },
+
+      /** Modale pour changer le statut d'un outil */
+      async _showStatusPicker(toolId) {
+        const tool = state.tools?.[toolId];
+        if (!tool) return;
+        document.getElementById('status-picker-modal')?.remove();
+        const current = this._getToolStatus(tool);
+        const html = `
+          <div id="status-picker-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)this.remove()">
+            <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:12px;padding:1.5rem;max-width:480px;width:100%">
+              <header style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft)">
+                <h2 style="margin:0;color:var(--text-primary);font-size:1.05rem">🏷 Statut · <span style="color:#00d4ff;font-family:var(--font-mono);font-size:.9em">${ui.escape(tool.designation || tool.doutils || tool.id)}</span></h2>
+                <button onclick="this.closest('#status-picker-modal').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem">✕</button>
+              </header>
+              <div style="display:flex;flex-direction:column;gap:.4rem">
+                ${Object.entries(this.TOOL_STATUSES).map(([key, s]) => `
+                  <button data-status-key="${key}" style="background:${s.bg};color:${s.color};border:2px solid ${current === key ? s.color : 'transparent'};padding:.7rem 1rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.92rem;text-align:left;display:flex;align-items:center;gap:.5rem;transition:all .15s" onmouseover="this.style.transform='translateX(4px)'" onmouseout="this.style.transform=''">
+                    <span style="font-size:1.3rem">${s.icon}</span>
+                    <span>${s.label}</span>
+                    ${current === key ? '<span style="margin-left:auto;font-size:.7rem">✓ Actuel</span>' : ''}
+                  </button>
+                `).join('')}
+              </div>
+              <div style="font-size:.7rem;color:var(--text-muted);margin-top:1rem;font-style:italic;text-align:center">
+                💡 Le statut est enregistré immédiatement et visible dans le catalogue
+              </div>
+            </div>
+          </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+        // Wire click handlers
+        document.querySelectorAll('#status-picker-modal [data-status-key]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const newStatus = btn.dataset.statusKey;
+            if (newStatus === current) {
+              document.getElementById('status-picker-modal').remove();
+              return;
+            }
+            try {
+              // Sauvegarde Firebase (la base 'tools' n'est pas namespaced — partagée TEST/PROD)
+              await fbDb.ref(`tools/${tool.id}/status`).set(newStatus);
+              await fbDb.ref(`tools/${tool.id}/statusUpdatedAt`).set(Date.now());
+              await fbDb.ref(`tools/${tool.id}/statusUpdatedBy`).set(state.user?.name || state.user?.email || 'admin');
+              // Mettre à jour le state local immédiatement
+              if (state.tools[tool.id]) {
+                state.tools[tool.id].status = newStatus;
+                state.tools[tool.id].statusUpdatedAt = Date.now();
+              }
+              ui.toast(`✅ Statut changé : ${this.TOOL_STATUSES[newStatus].icon} ${this.TOOL_STATUSES[newStatus].label}`, 'success');
+              document.getElementById('status-picker-modal').remove();
+              // Rafraîchir la modale détails si ouverte
+              this.showDetails(state.tools[tool.id]);
+              // Rafraîchir aussi le catalogue
+              this.render?.();
+            } catch (err) {
+              console.error('[catalog status]', err);
+              ui.toast('⛔ Erreur : ' + err.message, 'danger');
+            }
+          });
+        });
+      },
       init() {
         $('#catalog-search').addEventListener('input', debounce(() => { this._page = 1; this.render(); }, 200));
         $('#btn-catalog-add').addEventListener('click', () => this.openModal());
@@ -20114,7 +20226,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         document.getElementById('tool-details-title').innerHTML =
           `🔧 ${ui.escape(title)}` +
           (tool.groupe ? ` <span style="font-size:.7em;background:rgba(0,229,160,.15);color:#00e5a0;padding:.18rem .55rem;border-radius:5px;letter-spacing:.04em;vertical-align:middle">🏷 ${ui.escape(tool.groupe)}</span>` : '') +
-          (tool.projet ? ` <span style="font-size:.7em;background:rgba(255,139,107,.15);color:#ff8b6b;padding:.18rem .55rem;border-radius:5px;letter-spacing:.04em;vertical-align:middle">📋 ${ui.escape(tool.projet)}</span>` : '');
+          (tool.projet ? ` <span style="font-size:.7em;background:rgba(255,139,107,.15);color:#ff8b6b;padding:.18rem .55rem;border-radius:5px;letter-spacing:.04em;vertical-align:middle">📋 ${ui.escape(tool.projet)}</span>` : '') +
+          // 🆕 STATUT (badge cliquable pour changer)
+          ' ' + this._renderStatusBadge(tool, { clickable: true });
+
+        // Wire click handler pour le badge statut (event delegation sur le titre)
+        const titleEl = document.getElementById('tool-details-title');
+        if (titleEl && !titleEl._statusWired) {
+          titleEl._statusWired = true;
+          titleEl.addEventListener('click', (e) => {
+            const target = e.target.closest('[data-change-status]');
+            if (target) {
+              const id = target.dataset.changeStatus;
+              if (id) this._showStatusPicker(id);
+            }
+          });
+        }
 
         // 🆕 COMPTEUR DE COMPLETION : on suit tous les champs affichés
         const fieldStatus = []; // [{label, filled, fieldName}]
@@ -20788,6 +20915,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             ? `<span style="background:rgba(0,229,160,.12);color:#00e5a0;font-size:.62rem;padding:.12rem .45rem;border-radius:5px;font-weight:700;letter-spacing:.04em">🏷 ${ui.escape(t.groupe)}</span>`
             : '';
 
+          // 🆕 Badge STATUT (toujours affiché)
+          const statusBadge = this._renderStatusBadge(t, { clickable: false, size: 'small' });
+
           const actionsHtml = (canEdit || canDelete) ? `
             <footer style="display:flex;gap:.4rem;margin-top:.6rem;padding-top:.5rem;border-top:1px solid var(--border-soft)">
               ${canEdit ? `
@@ -20818,7 +20948,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                   ${badge}
                 </div>
               </header>
-              ${groupeBadge || projetBadge ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap">${groupeBadge}${projetBadge}</div>` : ''}
+              ${groupeBadge || projetBadge || statusBadge ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">${statusBadge}${groupeBadge}${projetBadge}</div>` : ''}
               <div style="color:var(--text-secondary);font-size:.74rem;font-family:var(--font-mono);line-height:1.5">
                 <div>Réf: ${ui.escape(t.refOutil || '—')}</div>
                 <div>Fab: ${ui.escape(t.refFabricant || '—')}</div>
@@ -20911,6 +21041,96 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (!idSource) {
               ui.toast('⚠️ Au moins un identifiant requis : Serial, D\'Outils, OUTIL ID ou Réf outil', 'danger');
               return;
+            }
+          }
+
+          // 🆕 ANTI-DOUBLON : vérifier si un outil portant le même nom existe déjà
+          //   Règle : si l'existant est "endommagé" ou "obsolète" → OK, on peut le remplacer
+          //           Sinon → notification + demande de confirmation
+          //   On compare sur les 3 champs identifiants : doutils, serial, outilId (case-insensitive)
+          if (!tool) { // uniquement à la création, pas à l'édition
+            const newDoutils = (data.doutils || '').trim().toLowerCase();
+            const newSerial = (data.serial || '').trim().toLowerCase();
+            const newOutilId = (data.outilId || '').trim().toLowerCase();
+            // Chercher dans le catalogue existant
+            const duplicates = Object.values(state.tools || {}).filter(t => {
+              if (!t) return false;
+              const dou = (t.doutils || '').trim().toLowerCase();
+              const ser = (t.serial || '').trim().toLowerCase();
+              const oid = (t.outilId || '').trim().toLowerCase();
+              return (newDoutils && dou === newDoutils) ||
+                     (newSerial && ser === newSerial) ||
+                     (newOutilId && oid === newOutilId);
+            });
+            if (duplicates.length > 0) {
+              // Vérifier les statuts des doublons : si TOUS sont endommagés/obsolètes → OK silencieux
+              const STATUSES_ALLOW_REPLACE = ['endommage', 'obsolete'];
+              const allReplaceable = duplicates.every(d => STATUSES_ALLOW_REPLACE.includes(d.status));
+              if (!allReplaceable) {
+                // Au moins un doublon est encore actif → AVERTIR
+                const active = duplicates.filter(d => !STATUSES_ALLOW_REPLACE.includes(d.status));
+                const matchedField = newDoutils && active[0].doutils?.toLowerCase().trim() === newDoutils ? 'D\'OUTILS'
+                                   : newSerial && active[0].serial?.toLowerCase().trim() === newSerial ? 'SERIAL'
+                                   : 'OUTIL ID';
+                const matchedValue = matchedField === 'D\'OUTILS' ? active[0].doutils
+                                   : matchedField === 'SERIAL' ? active[0].serial
+                                   : active[0].outilId;
+                const statusKey = this._getToolStatus(active[0]);
+                const statusInfo = this.TOOL_STATUSES[statusKey];
+
+                // Afficher une modale de confirmation détaillée
+                const confirmed = await new Promise(resolve => {
+                  document.getElementById('dup-confirm-modal')?.remove();
+                  const html = `
+                    <div id="dup-confirm-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:1rem">
+                      <div style="background:var(--bg-2);border:2px solid #f59e0b;border-radius:12px;padding:1.5rem;max-width:560px;width:100%">
+                        <header style="margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:.5rem">
+                          <span style="font-size:1.8rem">⚠️</span>
+                          <h2 style="margin:0;color:#f59e0b;font-size:1.1rem">Outil potentiellement en doublon</h2>
+                        </header>
+                        <div style="font-size:.88rem;color:var(--text-primary);line-height:1.5;margin-bottom:1rem">
+                          Un outil portant le même <strong>${matchedField}</strong> existe déjà dans le catalogue :
+                        </div>
+                        <div style="background:var(--bg-3);border-left:3px solid ${statusInfo.color};padding:.75rem 1rem;border-radius:6px;margin-bottom:1rem">
+                          <div style="font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.95rem">${ui.escape(matchedValue || '?')}</div>
+                          <div style="font-size:.78rem;color:var(--text-secondary);margin-top:.25rem">
+                            ${ui.escape(active[0].designation || active[0].doutils || '')}
+                            ${active[0].groupe ? ` · 🏷 ${ui.escape(active[0].groupe)}` : ''}
+                          </div>
+                          <div style="margin-top:.4rem">
+                            ${this._renderStatusBadge(active[0], { clickable: false, size: 'small' })}
+                          </div>
+                          ${duplicates.length > 1 ? `<div style="font-size:.7rem;color:var(--text-muted);margin-top:.4rem;font-style:italic">+ ${duplicates.length - 1} autre${duplicates.length > 2 ? 's' : ''} doublon${duplicates.length > 2 ? 's' : ''} détecté${duplicates.length > 2 ? 's' : ''}</div>` : ''}
+                        </div>
+                        <div style="font-size:.78rem;color:var(--text-secondary);margin-bottom:1.2rem;padding:.6rem .75rem;background:rgba(0,212,255,.06);border-radius:6px;border:1px solid rgba(0,212,255,.15)">
+                          💡 Si vous voulez <strong>remplacer</strong> l'ancien outil, marquez-le d'abord en
+                          <strong style="color:#ef4444">⚠️ Endommagé</strong> ou
+                          <strong style="color:#9ca3af">🚫 Obsolète</strong>, puis recréez le nouveau.
+                        </div>
+                        <div style="display:flex;gap:.5rem;justify-content:flex-end">
+                          <button id="dup-cancel" style="background:var(--bg-3);color:var(--text-primary);border:1px solid var(--border-soft);padding:.6rem 1.2rem;border-radius:6px;cursor:pointer;font-weight:600">✕ Annuler</button>
+                          <button id="dup-confirm" style="background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid #f59e0b;padding:.6rem 1.2rem;border-radius:6px;cursor:pointer;font-weight:700">⚠️ Créer quand même</button>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                  document.body.insertAdjacentHTML('beforeend', html);
+                  document.getElementById('dup-cancel').onclick = () => {
+                    document.getElementById('dup-confirm-modal').remove();
+                    resolve(false);
+                  };
+                  document.getElementById('dup-confirm').onclick = () => {
+                    document.getElementById('dup-confirm-modal').remove();
+                    resolve(true);
+                  };
+                });
+                if (!confirmed) return; // annulation par l'utilisateur
+                // Si confirmé → on continue la sauvegarde normalement ci-dessous
+                ui.toast('⚠️ Outil créé malgré le doublon — pensez à archiver l\'ancien', 'warn', 5000);
+              } else {
+                // Tous les doublons sont en statut "remplaçable" (endommagé/obsolète) → OK silencieux
+                console.info('[catalog] Doublon détecté mais ancien outil endommagé/obsolète, création autorisée :', duplicates.map(d => d.id));
+              }
             }
           }
 

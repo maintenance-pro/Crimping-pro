@@ -13,8 +13,65 @@
   <!-- Icône SVG haute qualité (visible favicon + iOS) -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230a1424'/%3E%3Cpath d='M30 25h12v45h28v10H30z' fill='%2300d4ff'/%3E%3Ccircle cx='75' cy='30' r='5' fill='%2300e5a0'/%3E%3C/svg%3E" />
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230a1424'/%3E%3Cpath d='M30 25h12v45h28v10H30z' fill='%2300d4ff'/%3E%3Ccircle cx='75' cy='30' r='5' fill='%2300e5a0'/%3E%3C/svg%3E" />
-  <!-- 📱 PWA Manifest inline (base64 JSON pour fonctionner sans fichier séparé) -->
-  <link rel="manifest" href='data:application/manifest+json,{"name":"LEONI Maintenance Pro","short_name":"LEONI","start_url":".","display":"standalone","orientation":"portrait-primary","background_color":"%230a1424","theme_color":"%230a0e1a","description":"Maintenance Management LEONI Wiring System","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27 viewBox%3D%270 0 100 100%27%3E%3Crect width%3D%27100%27 height%3D%27100%27 rx%3D%2722%27 fill%3D%27%230a1424%27%2F%3E%3Cpath d%3D%27M30 25h12v45h28v10H30z%27 fill%3D%27%2300d4ff%27%2F%3E%3Ccircle cx%3D%2775%27 cy%3D%2730%27 r%3D%275%27 fill%3D%27%2300e5a0%27%2F%3E%3C%2Fsvg%3E","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}' />
+  <!-- 📱 PWA Manifest généré dynamiquement par JS au chargement
+       Pourquoi : Chrome refuse les data:image/svg+xml dans les icônes du manifest.
+       Solution : on génère une icône PNG 192x192 via Canvas, puis on construit le manifest
+       comme Blob URL (méthode native PWA, sans warning). -->
+  <script>
+    (function() {
+      try {
+        // Génère une icône PNG 192x192 (même graphisme que le favicon)
+        const c = document.createElement('canvas');
+        c.width = 192; c.height = 192;
+        const ctx = c.getContext('2d');
+        // Fond arrondi (bg dark LEONI)
+        ctx.fillStyle = '#0a1424';
+        if (ctx.roundRect) {
+          ctx.beginPath(); ctx.roundRect(0, 0, 192, 192, 42); ctx.fill();
+        } else {
+          ctx.fillRect(0, 0, 192, 192); // fallback navigateurs anciens
+        }
+        // Lettre "L" (cyan)
+        ctx.fillStyle = '#00d4ff';
+        ctx.fillRect(58, 48, 23, 86);
+        ctx.fillRect(58, 117, 54, 17);
+        // Point vert
+        ctx.fillStyle = '#00e5a0';
+        ctx.beginPath(); ctx.arc(144, 58, 10, 0, Math.PI * 2); ctx.fill();
+        // Convertit en PNG base64
+        const pngDataUrl = c.toDataURL('image/png');
+
+        // Construit le manifest avec l'icône PNG (sera accepté par Chrome/Edge/Firefox)
+        const manifest = {
+          name: "LEONI Maintenance Pro",
+          short_name: "LEONI",
+          start_url: ".",
+          display: "standalone",
+          orientation: "portrait-primary",
+          background_color: "#0a1424",
+          theme_color: "#0a0e1a",
+          description: "Maintenance Management LEONI Wiring System",
+          icons: [{
+            src: pngDataUrl,
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any maskable"
+          }]
+        };
+        // Génère un Blob URL (méthode officielle PWA, pas de data: URI sur le manifest)
+        const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+        const blobUrl = URL.createObjectURL(blob);
+        // Remplace le manifest statique par celui-ci
+        document.querySelectorAll('link[rel="manifest"]').forEach(l => l.remove());
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = blobUrl;
+        document.head.appendChild(link);
+      } catch (e) {
+        console.warn('[manifest] Génération dynamique échouée, pas grave :', e.message);
+      }
+    })();
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <!-- Optimisation chargement réseau (Firebase + CDN) -->
   <link rel="preconnect" href="https://leoni-sertissage-labo-default-rtdb.europe-west1.firebasedatabase.app" crossorigin/>

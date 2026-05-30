@@ -8190,9 +8190,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <!-- Filtres + Import -->
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;padding:.75rem;background:var(--bg-elevated);border-radius:9px;border:1px solid var(--border-soft)">
           <input id="bl-search" type="search" placeholder="🔍 Recherche par Inventory N°…" style="flex:1;min-width:180px;padding:.55rem .8rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-family:var(--font-mono);font-size:.85rem">
-          <select id="bl-master-location" style="padding:.55rem .8rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-size:.85rem;min-width:160px">
-            <option value="">📍 Tous les projets</option>
-          </select>
+          <div style="position:relative">
+            <button id="bl-project-toggle" type="button" style="padding:.55rem .8rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-size:.85rem;min-width:200px;cursor:pointer;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+              <span id="bl-project-label">📍 Tous les projets</span>
+              <span style="font-size:.7rem;opacity:.6">▼</span>
+            </button>
+            <div id="bl-project-panel" hidden style="position:absolute;top:calc(100% + 4px);left:0;min-width:240px;background:var(--bg-2);border:1px solid var(--border-soft);border-radius:8px;padding:.4rem;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:50;max-height:300px;overflow-y:auto">
+              <div style="display:flex;gap:.3rem;padding:.3rem .4rem;border-bottom:1px solid var(--border-soft);margin-bottom:.3rem">
+                <button type="button" id="bl-project-all" style="flex:1;background:rgba(0,212,255,.1);color:#00d4ff;border:1px solid rgba(0,212,255,.3);padding:.3rem .55rem;border-radius:5px;cursor:pointer;font-size:.7rem;font-weight:700">✓ Tout</button>
+                <button type="button" id="bl-project-none" style="flex:1;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3);padding:.3rem .55rem;border-radius:5px;cursor:pointer;font-size:.7rem;font-weight:700">✕ Rien</button>
+              </div>
+              <div id="bl-project-options" style="display:flex;flex-direction:column;gap:.15rem"></div>
+            </div>
+          </div>
           <select id="bl-status-filter" style="padding:.55rem .8rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-size:.85rem;min-width:140px">
             <option value="">🎯 Tous statuts</option>
             <option value="blocked" selected>🚫 Bloqués uniquement</option>
@@ -8209,20 +8219,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <!-- Tableau -->
         <div style="background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:9px;overflow:hidden">
           <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:65vh;overflow-y:auto">
-            <table id="bl-table" style="width:100%;border-collapse:collapse;font-size:.78rem;min-width:760px">
+            <table id="bl-table" style="width:100%;border-collapse:collapse;font-size:.78rem;min-width:920px">
               <thead style="position:sticky;top:0;background:var(--bg-2);z-index:1">
                 <tr style="border-bottom:2px solid var(--border-soft)">
                   <th style="text-align:left;padding:.6rem .75rem;font-weight:700;color:var(--text-primary);font-family:var(--font-mono);font-size:.72rem">📋 Inventory No.</th>
+                  <th style="text-align:right;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">🔧 Maint. Cnt</th>
+                  <th style="text-align:right;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">📊 Total Cnt</th>
                   <th style="text-align:left;padding:.6rem .75rem;font-weight:700;color:var(--text-primary);font-size:.72rem">📍 Projet</th>
                   <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">⏰ Requalif Time</th>
                   <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">🔁 Requalif Strokes</th>
                   <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">🔧 Maintenance</th>
                   <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">📅 Days In Use</th>
-                  <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.72rem">🚦 Global</th>
+                  <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.72rem">🚦 Cause</th>
                 </tr>
               </thead>
               <tbody id="bl-tbody">
-                <tr><td colspan="7" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>
+                <tr><td colspan="9" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>
               </tbody>
             </table>
           </div>
@@ -22410,6 +22422,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         'Manufacturer':                        'manufacturer',
         'Locked':                              'locked',
         'Maintenance Counter':                 'maintenanceCounter',
+        'Total Counter':                       'totalCounter',
         'Requalification by Strokes Counter':  'requalifStrokesCounter',
         'Days In Use Counter':                 'daysInUseCounter',
         'Requalification Last Maintenance':    'lastMaintenance'
@@ -22424,14 +22437,41 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (s === 'overrun') return `<span style="background:rgba(239,68,68,.15);color:#ef4444;padding:.18rem .5rem;border-radius:4px;font-size:.65rem;font-weight:700;letter-spacing:.04em">🚫 OVERRUN</span>`;
         return `<span style="font-size:.7rem">${ui.escape(String(status))}</span>`;
       },
-      _globalBadge(toolStatus) {
-        // toolStatus: green | yellow | red
-        const s = String(toolStatus || '').toLowerCase();
-        if (s === 'green')  return `<span style="background:#10b981;color:white;padding:.18rem .55rem;border-radius:4px;font-size:.65rem;font-weight:700">🟢 OK</span>`;
-        if (s === 'yellow') return `<span style="background:#f59e0b;color:white;padding:.18rem .55rem;border-radius:4px;font-size:.65rem;font-weight:700">🟡 ALERTE</span>`;
-        if (s === 'red')    return `<span style="background:#ef4444;color:white;padding:.18rem .55rem;border-radius:4px;font-size:.65rem;font-weight:700">🔴 BLOQUÉ</span>`;
-        return `<span style="font-size:.7rem;color:var(--text-muted)">—</span>`;
+
+      /** 🆕 Badge "CAUSE DE BLOCAGE" avec 3 niveaux de priorité :
+       *   1. Requalif (Time OU Strokes) en OVERRUN → "BLOQUÉE REQUALIF" (priorité absolue, masque tout)
+       *   2. Maintenance en OVERRUN → "BLOQUÉE MAINTENANCE"
+       *   3. Days In Use en OVERRUN (avec Maintenance OK) → "BLOQUÉE 5 JOURS"
+       *   4. Sinon si warning → "ALERTE"
+       *   5. Sinon → "OK"
+       */
+      _causeBadge(row) {
+        const reqTime    = String(row.requalifTimeStatus || '').toLowerCase();
+        const reqStrokes = String(row.requalifStrokesStatus || '').toLowerCase();
+        const maint      = String(row.maintenanceStatus || '').toLowerCase();
+        const days       = String(row.daysInUseStatus || '').toLowerCase();
+        // Priorité 1 : Requalification (annule la maintenance et days in use)
+        if (reqTime === 'overrun' || reqStrokes === 'overrun') {
+          const tags = [];
+          if (reqTime === 'overrun')    tags.push('TIME');
+          if (reqStrokes === 'overrun') tags.push('STROKES');
+          return `<span style="background:#dc2626;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em;white-space:nowrap;display:inline-block;line-height:1.2">🔴 BLOQUÉE REQUALIF<br><span style="font-size:.55rem;font-weight:600;opacity:.9">${tags.join(' + ')}</span></span>`;
+        }
+        // Priorité 2 : Maintenance overrun (peu importe Days In Use)
+        if (maint === 'overrun') {
+          return `<span style="background:#ea580c;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em;white-space:nowrap;display:inline-block;line-height:1.2">🟠 BLOQUÉE MAINTENANCE${days === 'overrun' ? '<br><span style="font-size:.55rem;font-weight:600;opacity:.9">+ 5 JOURS</span>' : ''}</span>`;
+        }
+        // Priorité 3 : Days In Use overrun (mais Maintenance OK)
+        if (days === 'overrun') {
+          return `<span style="background:#d97706;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em;white-space:nowrap;display:inline-block;line-height:1.2">🟡 BLOQUÉE 5 JOURS</span>`;
+        }
+        // Priorité 4 : Warning
+        if (reqTime === 'warning' || reqStrokes === 'warning' || maint === 'warning' || days === 'warning') {
+          return `<span style="background:#f59e0b;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em;white-space:nowrap">⚠️ ALERTE</span>`;
+        }
+        return `<span style="background:#10b981;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em">✅ OK</span>`;
       },
+
       /** Détermine si une ligne est "bloquée" : au moins un statut overrun */
       _isBlocked(row) {
         const fields = ['requalifTimeStatus', 'requalifStrokesStatus', 'maintenanceStatus', 'daysInUseStatus'];
@@ -22443,12 +22483,21 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return fields.some(f => String(row[f] || '').toLowerCase() === 'warning');
       },
 
+      /** Formate un nombre avec séparateurs (5368 → 5,368) */
+      _fmtNum(v) {
+        if (v === null || v === undefined || v === '') return '—';
+        const n = Number(v);
+        return isNaN(n) ? String(v) : n.toLocaleString('fr-FR');
+      },
+
+      // 🆕 État du multi-select projets (Set des projets sélectionnés ; vide = tous)
+      _selectedProjects: new Set(),
+
       init() {
         if (this._initialized) return;
         this._initialized = true;
         // Wire UI events
         document.getElementById('bl-search')?.addEventListener('input', () => this.render());
-        document.getElementById('bl-master-location')?.addEventListener('change', () => this.render());
         document.getElementById('bl-status-filter')?.addEventListener('change', () => this.render());
         document.getElementById('bl-import-btn')?.addEventListener('click', () => {
           document.getElementById('bl-import-file').click();
@@ -22458,8 +22507,84 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (f) this.importExcel(f);
           e.target.value = ''; // reset
         });
+
+        // 🆕 Multi-select projets : toggle du panel
+        const toggleBtn = document.getElementById('bl-project-toggle');
+        const panel = document.getElementById('bl-project-panel');
+        if (toggleBtn && panel) {
+          toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            panel.hidden = !panel.hidden;
+          });
+          // Click extérieur → fermer
+          document.addEventListener('click', (e) => {
+            if (!panel.hidden && !panel.contains(e.target) && e.target !== toggleBtn) {
+              panel.hidden = true;
+            }
+          });
+        }
+        // Boutons "Tout" et "Rien"
+        document.getElementById('bl-project-all')?.addEventListener('click', () => {
+          this._selectedProjects.clear(); // vide = tous (logique inverse)
+          this._renderProjectOptions();
+          this._updateProjectLabel();
+          this.render();
+        });
+        document.getElementById('bl-project-none')?.addEventListener('click', () => {
+          // "Rien" = sélectionner un projet impossible pour ne rien afficher
+          this._selectedProjects = new Set(['__NONE__']);
+          this._renderProjectOptions();
+          this._updateProjectLabel();
+          this.render();
+        });
+
         // Charge depuis Firebase si déjà importé
         this._loadFromFirebase();
+      },
+
+      /** Met à jour le texte du bouton multi-select selon la sélection */
+      _updateProjectLabel() {
+        const lbl = document.getElementById('bl-project-label');
+        if (!lbl) return;
+        if (this._selectedProjects.size === 0) {
+          lbl.textContent = '📍 Tous les projets';
+        } else if (this._selectedProjects.has('__NONE__')) {
+          lbl.textContent = '📍 Aucun projet';
+        } else {
+          const arr = [...this._selectedProjects];
+          lbl.textContent = '📍 ' + (arr.length > 2 ? `${arr.length} projets` : arr.join(', '));
+        }
+      },
+
+      /** Re-rend les checkboxes des projets selon les données */
+      _renderProjectOptions() {
+        const container = document.getElementById('bl-project-options');
+        if (!container) return;
+        const locations = [...new Set(this._data.map(r => r.masterLocation).filter(Boolean))].sort();
+        container.innerHTML = locations.map(loc => {
+          const checked = this._selectedProjects.size === 0 || (this._selectedProjects.has(loc) && !this._selectedProjects.has('__NONE__'));
+          return `<label style="display:flex;align-items:center;gap:.4rem;padding:.35rem .4rem;border-radius:5px;cursor:pointer;font-size:.78rem;color:var(--text-primary)" onmouseover="this.style.background='rgba(0,212,255,.08)'" onmouseout="this.style.background=''">
+            <input type="checkbox" value="${ui.escape(loc)}" ${checked ? 'checked' : ''} data-bl-proj style="cursor:pointer;width:14px;height:14px;accent-color:#00d4ff">
+            <span>${ui.escape(loc)}</span>
+          </label>`;
+        }).join('');
+        // Wire change events
+        container.querySelectorAll('[data-bl-proj]').forEach(cb => {
+          cb.addEventListener('change', () => {
+            // Construire le Set depuis les checkboxes cochées
+            const checked = [...container.querySelectorAll('[data-bl-proj]:checked')].map(c => c.value);
+            const total = container.querySelectorAll('[data-bl-proj]').length;
+            if (checked.length === 0) {
+              this._selectedProjects = new Set(['__NONE__']);
+            } else if (checked.length === total) {
+              this._selectedProjects.clear(); // vide = tous
+            } else {
+              this._selectedProjects = new Set(checked);
+            }
+            this._updateProjectLabel();
+            this.render();
+          });
+        });
       },
 
       /** Charge depuis Firebase au démarrage */
@@ -22470,11 +22595,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (data && Array.isArray(data)) {
             this._data = data;
             console.info(`[blocked] ${data.length} outils chargés depuis Firebase`);
+            this._renderProjectOptions();
             this.render();
             this._updateNavBadge();
           } else if (data && typeof data === 'object') {
             // Si stocké comme objet (clé:valeur) → convertir en array
             this._data = Object.values(data);
+            this._renderProjectOptions();
             this.render();
             this._updateNavBadge();
           }
@@ -22561,6 +22688,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           });
           ui.hideLoader?.();
           ui.toast(`✅ ${cleaned.length} outils importés et sauvegardés`, 'success', 4000);
+          this._renderProjectOptions();
+          this._updateProjectLabel();
           this.render();
           this._updateNavBadge();
         } catch (e) {
@@ -22570,18 +22699,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
       },
 
-      /** Filtrage selon les sélecteurs UI */
+      /** Filtrage selon les sélecteurs UI (avec multi-projets) */
       _getFiltered() {
         const search = (document.getElementById('bl-search')?.value || '').trim().toLowerCase();
-        const project = document.getElementById('bl-master-location')?.value || '';
         const statusFilter = document.getElementById('bl-status-filter')?.value || '';
         return this._data.filter(r => {
           if (search) {
             const inv = String(r.inventoryNo || '').toLowerCase();
             if (!inv.includes(search)) return false;
           }
-          if (project) {
-            if (String(r.masterLocation || '') !== project) return false;
+          // 🆕 Multi-projet : vide = tous, __NONE__ = aucun, sinon = liste explicite
+          if (this._selectedProjects.size > 0) {
+            if (this._selectedProjects.has('__NONE__')) return false;
+            if (!this._selectedProjects.has(r.masterLocation)) return false;
           }
           if (statusFilter === 'blocked' && !this._isBlocked(r)) return false;
           if (statusFilter === 'warning' && (!this._hasWarning(r) || this._isBlocked(r))) return false;
@@ -22600,18 +22730,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       render() {
-        // Peuple le dropdown Master Location
-        const sel = document.getElementById('bl-master-location');
-        if (sel && sel.children.length <= 1 && this._data.length > 0) {
-          const locations = [...new Set(this._data.map(r => r.masterLocation).filter(Boolean))].sort();
-          locations.forEach(loc => {
-            const opt = document.createElement('option');
-            opt.value = loc;
-            opt.textContent = loc;
-            sel.appendChild(opt);
-          });
-        }
-
         // KPIs globaux (sur l'ensemble, pas filtré)
         const total = this._data.length;
         const blocked = this._data.filter(r => this._isBlocked(r)).length;
@@ -22627,7 +22745,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const tbody = document.getElementById('bl-tbody');
         if (!total) {
           if (banner) banner.style.display = 'none';
-          if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>`;
+          if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>`;
           return;
         }
 
@@ -22638,15 +22756,37 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           banner.style.background = 'rgba(0,212,255,.08)';
           banner.style.borderLeft = '3px solid #00d4ff';
           banner.style.color = '#00d4ff';
-          banner.innerHTML = `📊 <strong>${filtered.length}</strong> outils affichés sur ${total} · ${blocked > 0 ? `<strong style="color:#ef4444">${blocked} bloqués 🚫</strong> · ` : ''}${warning > 0 ? `<strong style="color:#f59e0b">${warning} en warning ⚠️</strong>` : ''}`;
+          // Détailler les 3 causes de blocage dans le bandeau
+          const causeReq = filtered.filter(r =>
+            String(r.requalifTimeStatus||'').toLowerCase() === 'overrun' ||
+            String(r.requalifStrokesStatus||'').toLowerCase() === 'overrun'
+          ).length;
+          const causeMaint = filtered.filter(r => {
+            const reqT = String(r.requalifTimeStatus||'').toLowerCase();
+            const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
+            const m = String(r.maintenanceStatus||'').toLowerCase();
+            return (reqT !== 'overrun' && reqS !== 'overrun') && m === 'overrun';
+          }).length;
+          const cause5j = filtered.filter(r => {
+            const reqT = String(r.requalifTimeStatus||'').toLowerCase();
+            const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
+            const m = String(r.maintenanceStatus||'').toLowerCase();
+            const d = String(r.daysInUseStatus||'').toLowerCase();
+            return (reqT !== 'overrun' && reqS !== 'overrun') && m !== 'overrun' && d === 'overrun';
+          }).length;
+          let causeHtml = '';
+          if (causeReq > 0)   causeHtml += ` · <strong style="color:#dc2626">${causeReq} BLOQUÉE REQUALIF 🔴</strong>`;
+          if (causeMaint > 0) causeHtml += ` · <strong style="color:#ea580c">${causeMaint} BLOQUÉE MAINTENANCE 🟠</strong>`;
+          if (cause5j > 0)    causeHtml += ` · <strong style="color:#d97706">${cause5j} BLOQUÉE 5 JOURS 🟡</strong>`;
+          banner.innerHTML = `📊 <strong>${filtered.length}</strong> outils affichés sur ${total}${causeHtml}`;
         }
 
         if (!filtered.length) {
-          tbody.innerHTML = `<tr><td colspan="7" style="padding:2rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">🔍 Aucun outil ne correspond aux filtres</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="9" style="padding:2rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">🔍 Aucun outil ne correspond aux filtres</td></tr>`;
           return;
         }
 
-        // Limiter à 500 lignes pour les perfs (avec note si dépassé)
+        // Limiter à 500 lignes pour les perfs
         const MAX_DISPLAY = 500;
         const slice = filtered.slice(0, MAX_DISPLAY);
         tbody.innerHTML = slice.map(r => {
@@ -22655,18 +22795,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           return `
             <tr style="border-bottom:1px solid var(--border-soft);${rowStyle}">
               <td style="padding:.55rem .75rem;font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.78rem">${ui.escape(r.inventoryNo || '?')}</td>
+              <td style="padding:.55rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.74rem">${this._fmtNum(r.maintenanceCounter)}</td>
+              <td style="padding:.55rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.74rem;font-weight:700">${this._fmtNum(r.totalCounter)}</td>
               <td style="padding:.55rem .75rem;color:var(--text-secondary);font-size:.74rem">${ui.escape(r.masterLocation || '—')}</td>
               <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.requalifTimeStatus)}</td>
               <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.requalifStrokesStatus)}</td>
               <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.maintenanceStatus)}</td>
               <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.daysInUseStatus)}</td>
-              <td style="padding:.55rem .5rem;text-align:center">${this._globalBadge(r.toolStatus)}</td>
+              <td style="padding:.55rem .5rem;text-align:center">${this._causeBadge(r)}</td>
             </tr>
           `;
         }).join('');
 
         if (filtered.length > MAX_DISPLAY) {
-          tbody.innerHTML += `<tr><td colspan="7" style="padding:1rem;text-align:center;color:var(--text-muted);font-style:italic;background:rgba(255,180,71,.05)">⚠️ ${filtered.length - MAX_DISPLAY} lignes supplémentaires non affichées — affinez les filtres pour les voir</td></tr>`;
+          tbody.innerHTML += `<tr><td colspan="9" style="padding:1rem;text-align:center;color:var(--text-muted);font-style:italic;background:rgba(255,180,71,.05)">⚠️ ${filtered.length - MAX_DISPLAY} lignes supplémentaires non affichées — affinez les filtres pour les voir</td></tr>`;
         }
       }
     },

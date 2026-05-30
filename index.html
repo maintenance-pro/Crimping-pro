@@ -8203,12 +8203,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <div id="bl-project-options" style="display:flex;flex-direction:column;gap:.15rem"></div>
             </div>
           </div>
-          <select id="bl-status-filter" style="padding:.55rem .8rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-size:.85rem;min-width:180px">
+          <select id="bl-status-filter" style="padding:.55rem .8rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-size:.85rem;min-width:200px">
             <option value="">🎯 Tous statuts</option>
             <option value="blocked" selected>🚫 Bloqués (tous)</option>
-            <option value="cause-requalif">🔴 BLOQUÉE REQUALIF</option>
-            <option value="cause-maintenance">🟠 BLOQUÉE MAINTENANCE</option>
-            <option value="cause-5jours">🟡 BLOQUÉE 5 JOURS</option>
+            <option value="cause-requalif">🔴 REQUALIF (Labo)</option>
+            <option value="cause-coupe">🟠 COUPE (Labo)</option>
+            <option value="cause-binding">🟡 BINDING (Labo)</option>
+            <option value="cause-5j">⚙️ VÉRIFICATION 5J (Cellule)</option>
             <option value="warning">⚠️ Warning uniquement</option>
             <option value="ok">✅ OK uniquement</option>
           </select>
@@ -22432,8 +22433,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           color: '#003057',
           projects: ['CMA', 'MEP1', 'SPA3'],
           rules: {
-            unlockPolicy: 'crimping-cell',
+            unlockPolicy: 'laboratoire',  // ✅ TOUS les outils débloqués par Labo
             criticalToolPatterns: [],
+            manualLabTools: [],            // (non utilisé en mode 'laboratoire')
             thresholds: { warningPct: 0.75, overrunPct: 1.00 }
           }
         },
@@ -22443,11 +22445,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           color: '#0066CC',
           projects: ['PSA', 'P8'],
           rules: {
-            // ⚠️ POLITIQUE MIXTE : déblocage différencié selon criticité
+            // ⚠️ POLITIQUE MIXTE : déblocage différencié
             unlockPolicy: 'mixed',
-            criticalUnlockBy: 'laboratoire',     // Outils critiques → Labo
-            regularUnlockBy: 'crimping-cell',    // Autres outils → Cellule sertissage
-            criticalToolPatterns: [],            // À remplir : ex ['^WZ23', 'CRIT-']
+            criticalUnlockBy: 'laboratoire',     // Outils critiques (patterns) → Labo
+            regularUnlockBy: 'crimping-cell',    // Autres outils non-marqués → Cellule sertissage
+            criticalToolPatterns: [],            // Patterns regex pour critiques
+            manualLabTools: [],                  // 🆕 Liste manuelle d'Inventory No. → Labo
             thresholds: { warningPct: 0.70, overrunPct: 1.00 }
           }
         },
@@ -22457,8 +22460,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           color: '#FFC000',
           projects: ['C-NEO', 'XJK-XJI'],
           rules: {
-            unlockPolicy: 'crimping-cell',
+            unlockPolicy: 'laboratoire',  // ✅ TOUS les outils débloqués par Labo
             criticalToolPatterns: [],
+            manualLabTools: [],
             thresholds: { warningPct: 0.75, overrunPct: 1.00 }
           }
         }
@@ -22487,14 +22491,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       /** 🔑 Identifie QUI doit débloquer un outil donné selon les règles client.
-       *  Retourne { handler, label, icon, color, critical? }
+       *  Retourne { handler, label, icon, color, critical?, manualLab? }
        */
       _getUnlockHandler(projectName, inventoryNo) {
         const client = this._getClientForProject(projectName);
         if (!client) return { handler: 'unknown', label: '—', icon: '❓', color: '#9ca3af' };
         const rules = client.rules || {};
-        // Politique mixte (Stellantis) : vérifier si l'outil est dans la liste critique
+        // Politique mixte (Stellantis) : critique → labo, marqué manuellement → labo, autres → sertissage
         if (rules.unlockPolicy === 'mixed') {
+          // Vérification 1 : pattern critique
           const isCritical = (rules.criticalToolPatterns || []).some(pattern => {
             try { return new RegExp(pattern, 'i').test(String(inventoryNo || '')); }
             catch(e) { return String(inventoryNo || '').toLowerCase().includes(String(pattern).toLowerCase()); }
@@ -22502,12 +22507,57 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (isCritical) {
             return { handler: 'laboratoire', label: 'LABO', icon: '🧪', color: '#a855f7', critical: true };
           }
+          // Vérification 2 : liste manuelle "marqué pour Labo"
+          const isMarkedLab = (rules.manualLabTools || []).includes(String(inventoryNo || ''));
+          if (isMarkedLab) {
+            return { handler: 'laboratoire', label: 'LABO', icon: '🧪', color: '#a855f7', critical: false, manualLab: true };
+          }
+          // Sinon → cellule sertissage
           return { handler: 'crimping-cell', label: 'SERTISSAGE', icon: '⚙️', color: '#00d4ff', critical: false };
         }
         if (rules.unlockPolicy === 'laboratoire') {
           return { handler: 'laboratoire', label: 'LABO', icon: '🧪', color: '#a855f7' };
         }
         return { handler: 'crimping-cell', label: 'SERTISSAGE', icon: '⚙️', color: '#00d4ff' };
+      },
+
+      /** 🆕 Toggle "marquer pour Labo" sur un outil Stellantis non-critique */
+      async _toggleManualLab(inventoryNo) {
+        const cfg = this.clientsConfig || this.DEFAULT_CLIENTS_CONFIG;
+        if (!cfg.stellantis || !cfg.stellantis.rules) return;
+        if (!cfg.stellantis.rules.manualLabTools) cfg.stellantis.rules.manualLabTools = [];
+        const list = cfg.stellantis.rules.manualLabTools;
+        const idx = list.indexOf(String(inventoryNo));
+        if (idx >= 0) {
+          list.splice(idx, 1);
+          ui.toast(`⚙️ ${inventoryNo} → retour Cellule Sertissage`, 'info', 3000);
+        } else {
+          list.push(String(inventoryNo));
+          ui.toast(`🧪 ${inventoryNo} → marqué pour Laboratoire`, 'success', 3000);
+        }
+        await this._saveClientsConfig();
+        this.render();
+      },
+
+      /** Détermine si une ligne est "bloquée" :
+       *    - tout overrun (Requalif Time/Strokes, Maintenance, Days In Use)
+       *    - 🆕 OU Maintenance en warning (compté comme bloqué selon règle métier)
+       */
+      _isBlocked(row) {
+        const reqT = String(row.requalifTimeStatus || '').toLowerCase();
+        const reqS = String(row.requalifStrokesStatus || '').toLowerCase();
+        const m    = String(row.maintenanceStatus || '').toLowerCase();
+        const d    = String(row.daysInUseStatus || '').toLowerCase();
+        if (reqT === 'overrun' || reqS === 'overrun' || d === 'overrun') return true;
+        // 🆕 Maintenance : warning OU overrun = bloqué
+        if (m === 'overrun' || m === 'warning') return true;
+        return false;
+      },
+      /** Détermine si une ligne a un warning "soft" (sans déclencher blocage) */
+      _hasWarning(row) {
+        const fields = ['requalifTimeStatus', 'requalifStrokesStatus', 'daysInUseStatus'];
+        // Note : maintenance warning est désormais traité comme blocage, pas warning
+        return fields.some(f => String(row[f] || '').toLowerCase() === 'warning');
       },
 
       /** Charge la config clients depuis Firebase (avec fallback) */
@@ -22571,49 +22621,50 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return `<span style="font-size:.7rem">${ui.escape(String(status))}</span>`;
       },
 
-      /** 🆕 Badge "CAUSE DE BLOCAGE" avec 3 niveaux de priorité :
-       *   1. Requalif (Time OU Strokes) en OVERRUN → "BLOQUÉE REQUALIF" (priorité absolue, masque tout)
-       *   2. Maintenance en OVERRUN → "BLOQUÉE MAINTENANCE"
-       *   3. Days In Use en OVERRUN (avec Maintenance OK) → "BLOQUÉE 5 JOURS"
-       *   4. Sinon si warning → "ALERTE"
-       *   5. Sinon → "OK"
+      /** 🆕 Badge "CAUSE DE BLOCAGE" — basé sur QUI débloque et POURQUOI :
+       *   Cellule Sertissage → toujours "VÉRIFICATION VISUELLE 5J"
+       *   Laboratoire :
+       *     - Priorité 1 : Requalif overrun → "REQUALIF" (+ tag TIME/STROKES)
+       *     - Priorité 2 : Maintenance overrun/warning → "COUPE"
+       *     - Priorité 3 : Days In Use overrun → "BINDING"
+       *   Sinon ALERTE / OK
        */
       _causeBadge(row) {
         const reqTime    = String(row.requalifTimeStatus || '').toLowerCase();
         const reqStrokes = String(row.requalifStrokesStatus || '').toLowerCase();
         const maint      = String(row.maintenanceStatus || '').toLowerCase();
         const days       = String(row.daysInUseStatus || '').toLowerCase();
-        // Priorité 1 : Requalification (annule la maintenance et days in use)
+        const unlock = this._getUnlockHandler(row.masterLocation, row.inventoryNo);
+        const blocked = this._isBlocked(row);
+
+        // Pas bloqué → ok ou warning soft
+        if (!blocked) {
+          if (this._hasWarning(row)) {
+            return `<span style="background:#f59e0b;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em">⚠️ ALERTE</span>`;
+          }
+          return `<span style="background:#10b981;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em">✅ OK</span>`;
+        }
+
+        // Bloqué + Cellule Sertissage → toujours "VÉRIFICATION VISUELLE 5J"
+        if (unlock.handler === 'crimping-cell') {
+          return `<span style="background:#00d4ff;color:#001;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em;white-space:nowrap;display:inline-block;line-height:1.2">⚙️ VÉRIFICATION VISUELLE<br><span style="font-size:.6rem;font-weight:700">5J</span></span>`;
+        }
+
+        // Bloqué + Laboratoire → cause spécifique avec priorité
         if (reqTime === 'overrun' || reqStrokes === 'overrun') {
           const tags = [];
           if (reqTime === 'overrun')    tags.push('TIME');
           if (reqStrokes === 'overrun') tags.push('STROKES');
-          return `<span style="background:#dc2626;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em;white-space:nowrap;display:inline-block;line-height:1.2">🔴 BLOQUÉE REQUALIF<br><span style="font-size:.55rem;font-weight:600;opacity:.9">${tags.join(' + ')}</span></span>`;
+          return `<span style="background:#dc2626;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em;white-space:nowrap;display:inline-block;line-height:1.2">🔴 REQUALIF<br><span style="font-size:.55rem;font-weight:600;opacity:.9">${tags.join(' + ')}</span></span>`;
         }
-        // Priorité 2 : Maintenance overrun (peu importe Days In Use)
-        if (maint === 'overrun') {
-          return `<span style="background:#ea580c;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em;white-space:nowrap;display:inline-block;line-height:1.2">🟠 BLOQUÉE MAINTENANCE${days === 'overrun' ? '<br><span style="font-size:.55rem;font-weight:600;opacity:.9">+ 5 JOURS</span>' : ''}</span>`;
+        if (maint === 'overrun' || maint === 'warning') {
+          const lvl = maint === 'overrun' ? '' : ' (warning)';
+          return `<span style="background:#ea580c;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em;white-space:nowrap;display:inline-block;line-height:1.2">🟠 COUPE${lvl ? '<br><span style="font-size:.55rem;font-weight:600;opacity:.9">WARN</span>' : ''}</span>`;
         }
-        // Priorité 3 : Days In Use overrun (mais Maintenance OK)
         if (days === 'overrun') {
-          return `<span style="background:#d97706;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em;white-space:nowrap;display:inline-block;line-height:1.2">🟡 BLOQUÉE 5 JOURS</span>`;
-        }
-        // Priorité 4 : Warning
-        if (reqTime === 'warning' || reqStrokes === 'warning' || maint === 'warning' || days === 'warning') {
-          return `<span style="background:#f59e0b;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em;white-space:nowrap">⚠️ ALERTE</span>`;
+          return `<span style="background:#d97706;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em;white-space:nowrap;display:inline-block;line-height:1.2">🟡 BINDING</span>`;
         }
         return `<span style="background:#10b981;color:white;padding:.22rem .55rem;border-radius:4px;font-size:.62rem;font-weight:800;letter-spacing:.04em">✅ OK</span>`;
-      },
-
-      /** Détermine si une ligne est "bloquée" : au moins un statut overrun */
-      _isBlocked(row) {
-        const fields = ['requalifTimeStatus', 'requalifStrokesStatus', 'maintenanceStatus', 'daysInUseStatus'];
-        return fields.some(f => String(row[f] || '').toLowerCase() === 'overrun');
-      },
-      /** Détermine si une ligne a au moins un warning (sans overrun) */
-      _hasWarning(row) {
-        const fields = ['requalifTimeStatus', 'requalifStrokesStatus', 'maintenanceStatus', 'daysInUseStatus'];
-        return fields.some(f => String(row[f] || '').toLowerCase() === 'warning');
       },
 
       /** Formate un nombre avec séparateurs (5368 → 5,368) */
@@ -22623,23 +22674,27 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return isNaN(n) ? String(v) : n.toLocaleString('fr-FR');
       },
 
-      /** 🆕 Retourne le texte (pas HTML) de la cause pour l'export Excel */
+      /** 🆕 Retourne le texte (pas HTML) de la cause pour l'export Excel — nouvelle logique */
       _causeText(row) {
         const reqTime    = String(row.requalifTimeStatus || '').toLowerCase();
         const reqStrokes = String(row.requalifStrokesStatus || '').toLowerCase();
         const maint      = String(row.maintenanceStatus || '').toLowerCase();
         const days       = String(row.daysInUseStatus || '').toLowerCase();
+        const unlock = this._getUnlockHandler(row.masterLocation, row.inventoryNo);
+        const blocked = this._isBlocked(row);
+        if (!blocked) return this._hasWarning(row) ? 'ALERTE' : 'OK';
+        // Cellule sertissage → vérification visuelle 5J
+        if (unlock.handler === 'crimping-cell') return 'VÉRIFICATION VISUELLE 5J';
+        // Laboratoire → cause spécifique
         if (reqTime === 'overrun' || reqStrokes === 'overrun') {
           const tags = [];
           if (reqTime === 'overrun')    tags.push('TIME');
           if (reqStrokes === 'overrun') tags.push('STROKES');
-          return `BLOQUÉE REQUALIF (${tags.join(' + ')})`;
+          return `REQUALIF (${tags.join(' + ')})`;
         }
-        if (maint === 'overrun') {
-          return days === 'overrun' ? 'BLOQUÉE MAINTENANCE + 5 JOURS' : 'BLOQUÉE MAINTENANCE';
-        }
-        if (days === 'overrun') return 'BLOQUÉE 5 JOURS';
-        if (reqTime === 'warning' || reqStrokes === 'warning' || maint === 'warning' || days === 'warning') return 'ALERTE';
+        if (maint === 'overrun') return 'COUPE';
+        if (maint === 'warning') return 'COUPE (WARNING)';
+        if (days === 'overrun')  return 'BINDING';
         return 'OK';
       },
 
@@ -23182,16 +23237,38 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (this._selectedProjects.has('__NONE__')) return false;
             if (!this._selectedProjects.has(r.masterLocation)) return false;
           }
-          // 🆕 Filtres de cause spécifiques
+          // 🆕 Filtres de cause spécifiques (nouvelle logique Lab/Cellule)
           if (statusFilter) {
             const reqT = String(r.requalifTimeStatus || '').toLowerCase();
             const reqS = String(r.requalifStrokesStatus || '').toLowerCase();
             const m    = String(r.maintenanceStatus || '').toLowerCase();
             const d    = String(r.daysInUseStatus || '').toLowerCase();
-            if (statusFilter === 'blocked'           && !this._isBlocked(r)) return false;
-            if (statusFilter === 'cause-requalif'    && !(reqT === 'overrun' || reqS === 'overrun')) return false;
-            if (statusFilter === 'cause-maintenance' && !((reqT !== 'overrun' && reqS !== 'overrun') && m === 'overrun')) return false;
-            if (statusFilter === 'cause-5jours'      && !((reqT !== 'overrun' && reqS !== 'overrun') && m !== 'overrun' && d === 'overrun')) return false;
+            const blocked = this._isBlocked(r);
+            const unlock = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+            if (statusFilter === 'blocked' && !blocked) return false;
+            if (statusFilter === 'cause-requalif') {
+              if (!blocked) return false;
+              if (unlock.handler !== 'laboratoire') return false;
+              if (!(reqT === 'overrun' || reqS === 'overrun')) return false;
+            }
+            if (statusFilter === 'cause-coupe') {
+              if (!blocked) return false;
+              if (unlock.handler !== 'laboratoire') return false;
+              // Pas de requalif overrun + maintenance overrun ou warning
+              if (reqT === 'overrun' || reqS === 'overrun') return false;
+              if (!(m === 'overrun' || m === 'warning')) return false;
+            }
+            if (statusFilter === 'cause-binding') {
+              if (!blocked) return false;
+              if (unlock.handler !== 'laboratoire') return false;
+              if (reqT === 'overrun' || reqS === 'overrun') return false;
+              if (m === 'overrun' || m === 'warning') return false;
+              if (d !== 'overrun') return false;
+            }
+            if (statusFilter === 'cause-5j') {
+              if (!blocked) return false;
+              if (unlock.handler !== 'crimping-cell') return false;
+            }
             if (statusFilter === 'warning' && (!this._hasWarning(r) || this._isBlocked(r))) return false;
             if (statusFilter === 'ok'      && (this._isBlocked(r) || this._hasWarning(r))) return false;
           }
@@ -23245,28 +23322,44 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           banner.style.background = 'rgba(0,212,255,.08)';
           banner.style.borderLeft = '3px solid #00d4ff';
           banner.style.color = '#00d4ff';
-          // Détailler les 3 causes de blocage dans le bandeau
-          const causeReq = filtered.filter(r =>
-            String(r.requalifTimeStatus||'').toLowerCase() === 'overrun' ||
-            String(r.requalifStrokesStatus||'').toLowerCase() === 'overrun'
-          ).length;
-          const causeMaint = filtered.filter(r => {
+          // Détailler les 4 causes (Lab : REQUALIF / COUPE / BINDING + Cellule : 5J)
+          const causeReq = filtered.filter(r => {
+            if (!this._isBlocked(r)) return false;
+            const u = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+            if (u.handler !== 'laboratoire') return false;
+            const reqT = String(r.requalifTimeStatus||'').toLowerCase();
+            const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
+            return reqT === 'overrun' || reqS === 'overrun';
+          }).length;
+          const causeCoupe = filtered.filter(r => {
+            if (!this._isBlocked(r)) return false;
+            const u = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+            if (u.handler !== 'laboratoire') return false;
             const reqT = String(r.requalifTimeStatus||'').toLowerCase();
             const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
             const m = String(r.maintenanceStatus||'').toLowerCase();
-            return (reqT !== 'overrun' && reqS !== 'overrun') && m === 'overrun';
+            return (reqT !== 'overrun' && reqS !== 'overrun') && (m === 'overrun' || m === 'warning');
           }).length;
-          const cause5j = filtered.filter(r => {
+          const causeBinding = filtered.filter(r => {
+            if (!this._isBlocked(r)) return false;
+            const u = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+            if (u.handler !== 'laboratoire') return false;
             const reqT = String(r.requalifTimeStatus||'').toLowerCase();
             const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
             const m = String(r.maintenanceStatus||'').toLowerCase();
             const d = String(r.daysInUseStatus||'').toLowerCase();
-            return (reqT !== 'overrun' && reqS !== 'overrun') && m !== 'overrun' && d === 'overrun';
+            return (reqT !== 'overrun' && reqS !== 'overrun') && !(m === 'overrun' || m === 'warning') && d === 'overrun';
+          }).length;
+          const cause5j = filtered.filter(r => {
+            if (!this._isBlocked(r)) return false;
+            const u = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+            return u.handler === 'crimping-cell';
           }).length;
           let causeHtml = '';
-          if (causeReq > 0)   causeHtml += ` · <strong style="color:#dc2626">${causeReq} BLOQUÉE REQUALIF 🔴</strong>`;
-          if (causeMaint > 0) causeHtml += ` · <strong style="color:#ea580c">${causeMaint} BLOQUÉE MAINTENANCE 🟠</strong>`;
-          if (cause5j > 0)    causeHtml += ` · <strong style="color:#d97706">${cause5j} BLOQUÉE 5 JOURS 🟡</strong>`;
+          if (causeReq > 0)     causeHtml += ` · <strong style="color:#dc2626">${causeReq} REQUALIF 🔴</strong>`;
+          if (causeCoupe > 0)   causeHtml += ` · <strong style="color:#ea580c">${causeCoupe} COUPE 🟠</strong>`;
+          if (causeBinding > 0) causeHtml += ` · <strong style="color:#d97706">${causeBinding} BINDING 🟡</strong>`;
+          if (cause5j > 0)      causeHtml += ` · <strong style="color:#00d4ff">${cause5j} VÉRIF 5J ⚙️</strong>`;
           banner.innerHTML = `📊 <strong>${filtered.length}</strong> outils affichés sur ${total} · 🔢 <strong style="color:#00e5a0">Total Compteur : ${totalCounterSum.toLocaleString('fr-FR')}</strong> cycles${causeHtml}`;
         }
 
@@ -23285,7 +23378,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const unlock = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
           const client = this._getClientForProject(r.masterLocation);
           const unlockBadge = isBlocked
-            ? `<div style="display:inline-flex;align-items:center;gap:.2rem;background:${unlock.color}22;color:${unlock.color};font-size:.55rem;padding:.05rem .3rem;border-radius:3px;font-weight:700;margin-top:.15rem">${unlock.icon} ${unlock.label}${unlock.critical ? ' ⚠️' : ''}</div>`
+            ? `<div style="display:inline-flex;align-items:center;gap:.2rem;background:${unlock.color}22;color:${unlock.color};font-size:.55rem;padding:.05rem .3rem;border-radius:3px;font-weight:700;margin-top:.15rem">${unlock.icon} ${unlock.label}${unlock.critical ? ' ⚠️CRITIQUE' : ''}${unlock.manualLab ? ' 📌' : ''}</div>`
+            : '';
+          // 🔄 Bouton toggle Stellantis non-critique : permet de basculer Lab/Cellule
+          const isStellantis = client && client.key === 'stellantis';
+          const toggleBtn = (isBlocked && isStellantis && !unlock.critical)
+            ? `<button data-bl-toggle="${ui.escape(r.inventoryNo||'')}" title="${unlock.manualLab ? 'Retirer du Labo (→ Cellule)' : 'Marquer pour Labo'}" style="background:none;border:1px solid ${unlock.manualLab ? '#a855f7' : 'rgba(255,255,255,.2)'};color:${unlock.manualLab ? '#a855f7' : 'var(--text-muted)'};font-size:.55rem;padding:.05rem .35rem;border-radius:3px;cursor:pointer;margin-left:.25rem;font-weight:700">🔄</button>`
             : '';
           const clientBadge = client
             ? `<span style="font-size:.55rem;color:${client.color};font-weight:700;letter-spacing:.04em">${client.icon} ${client.name.toUpperCase()}</span>`
@@ -23294,7 +23392,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <tr style="border-bottom:1px solid var(--border-soft);${rowStyle}">
               <td style="padding:.55rem .75rem">
                 <div style="font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.78rem">${ui.escape(r.inventoryNo || '?')}</div>
-                ${unlockBadge}
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.15rem">${unlockBadge}${toggleBtn}</div>
               </td>
               <td style="padding:.55rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.74rem">${this._fmtNum(r.maintenanceCounter)}</td>
               <td style="padding:.55rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.74rem;font-weight:700">${this._fmtNum(r.totalCounter)}</td>
@@ -23314,6 +23412,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (filtered.length > MAX_DISPLAY) {
           tbody.innerHTML += `<tr><td colspan="9" style="padding:1rem;text-align:center;color:var(--text-muted);font-style:italic;background:rgba(255,180,71,.05)">⚠️ ${filtered.length - MAX_DISPLAY} lignes supplémentaires non affichées — affinez les filtres pour les voir</td></tr>`;
         }
+
+        // 🔄 Câbler les boutons toggle Lab/Cellule Stellantis (event delegation)
+        tbody.querySelectorAll('[data-bl-toggle]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const inv = btn.dataset.blToggle;
+            this._toggleManualLab(inv);
+          });
+        });
       }
     },
 

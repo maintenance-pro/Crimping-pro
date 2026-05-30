@@ -22410,6 +22410,135 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       _data: [],          // données importées en mémoire
       _initialized: false,
 
+      // ╔══════════════════════════════════════════════════════════════════════╗
+      // ║ 🏭 CONFIGURATION CLIENTS / CONSTRUCTEURS AUTOMOBILES                ║
+      // ╠══════════════════════════════════════════════════════════════════════╣
+      // ║ Chaque client possède :                                              ║
+      // ║   • name, icon, color     → identité visuelle                        ║
+      // ║   • projects[]            → liste des Master Locations Komax         ║
+      // ║   • rules.unlockPolicy    → 'crimping-cell' | 'laboratoire' | 'mixed'║
+      // ║   • rules.thresholds      → seuils d'alerte spécifiques au client    ║
+      // ║   • rules.criticalToolPatterns → regex/strings pour identifier les   ║
+      // ║     outils critiques (cas 'mixed' : Stellantis)                      ║
+      // ║                                                                       ║
+      // ║ Pour ajouter à chaud, voir bouton "➕ Ajouter client / projet"      ║
+      // ║ La config personnalisée est sauvegardée sur Firebase                 ║
+      // ║   (path: blockedTools/clientsConfig)                                  ║
+      // ╚══════════════════════════════════════════════════════════════════════╝
+      DEFAULT_CLIENTS_CONFIG: {
+        volvo: {
+          name: 'Volvo',
+          icon: '🚛',
+          color: '#003057',
+          projects: ['CMA', 'MEP1', 'SPA3'],
+          rules: {
+            unlockPolicy: 'crimping-cell',
+            criticalToolPatterns: [],
+            thresholds: { warningPct: 0.75, overrunPct: 1.00 }
+          }
+        },
+        stellantis: {
+          name: 'Stellantis',
+          icon: '🚗',
+          color: '#0066CC',
+          projects: ['PSA', 'P8'],
+          rules: {
+            // ⚠️ POLITIQUE MIXTE : déblocage différencié selon criticité
+            unlockPolicy: 'mixed',
+            criticalUnlockBy: 'laboratoire',     // Outils critiques → Labo
+            regularUnlockBy: 'crimping-cell',    // Autres outils → Cellule sertissage
+            criticalToolPatterns: [],            // À remplir : ex ['^WZ23', 'CRIT-']
+            thresholds: { warningPct: 0.70, overrunPct: 1.00 }
+          }
+        },
+        renault: {
+          name: 'Renault',
+          icon: '🔷',
+          color: '#FFC000',
+          projects: ['C-NEO', 'XJK-XJI'],
+          rules: {
+            unlockPolicy: 'crimping-cell',
+            criticalToolPatterns: [],
+            thresholds: { warningPct: 0.75, overrunPct: 1.00 }
+          }
+        }
+      },
+
+      // Config active (chargée depuis Firebase, fallback sur DEFAULT)
+      clientsConfig: null,
+
+      /** Renvoie le client (constructeur) propriétaire d'un projet — ou null si inconnu */
+      _getClientForProject(projectName) {
+        if (!projectName) return null;
+        const cfg = this.clientsConfig || this.DEFAULT_CLIENTS_CONFIG;
+        const normalized = String(projectName).trim().toUpperCase();
+        for (const [key, client] of Object.entries(cfg)) {
+          if ((client.projects || []).some(p => String(p).toUpperCase() === normalized)) {
+            return { key, ...client };
+          }
+        }
+        return null;
+      },
+
+      /** Renvoie les règles applicables à un projet */
+      _getRulesForProject(projectName) {
+        const client = this._getClientForProject(projectName);
+        return client ? client.rules : null;
+      },
+
+      /** 🔑 Identifie QUI doit débloquer un outil donné selon les règles client.
+       *  Retourne { handler, label, icon, color, critical? }
+       */
+      _getUnlockHandler(projectName, inventoryNo) {
+        const client = this._getClientForProject(projectName);
+        if (!client) return { handler: 'unknown', label: '—', icon: '❓', color: '#9ca3af' };
+        const rules = client.rules || {};
+        // Politique mixte (Stellantis) : vérifier si l'outil est dans la liste critique
+        if (rules.unlockPolicy === 'mixed') {
+          const isCritical = (rules.criticalToolPatterns || []).some(pattern => {
+            try { return new RegExp(pattern, 'i').test(String(inventoryNo || '')); }
+            catch(e) { return String(inventoryNo || '').toLowerCase().includes(String(pattern).toLowerCase()); }
+          });
+          if (isCritical) {
+            return { handler: 'laboratoire', label: 'LABO', icon: '🧪', color: '#a855f7', critical: true };
+          }
+          return { handler: 'crimping-cell', label: 'SERTISSAGE', icon: '⚙️', color: '#00d4ff', critical: false };
+        }
+        if (rules.unlockPolicy === 'laboratoire') {
+          return { handler: 'laboratoire', label: 'LABO', icon: '🧪', color: '#a855f7' };
+        }
+        return { handler: 'crimping-cell', label: 'SERTISSAGE', icon: '⚙️', color: '#00d4ff' };
+      },
+
+      /** Charge la config clients depuis Firebase (avec fallback) */
+      async _loadClientsConfig() {
+        try {
+          const snap = await fbDb.ref('blockedTools/clientsConfig').once('value');
+          const custom = snap.val();
+          // Fusion avec défaut pour ne jamais perdre Volvo/Stellantis/Renault
+          if (custom && typeof custom === 'object') {
+            this.clientsConfig = { ...this.DEFAULT_CLIENTS_CONFIG, ...custom };
+            console.info('[blocked] Config clients personnalisée chargée');
+          } else {
+            this.clientsConfig = JSON.parse(JSON.stringify(this.DEFAULT_CLIENTS_CONFIG));
+          }
+        } catch (e) {
+          console.warn('[blocked] Chargement config clients échoué, fallback défaut');
+          this.clientsConfig = JSON.parse(JSON.stringify(this.DEFAULT_CLIENTS_CONFIG));
+        }
+      },
+
+      /** Sauvegarde la config clients sur Firebase */
+      async _saveClientsConfig() {
+        try {
+          await fbDb.ref('blockedTools/clientsConfig').set(this.clientsConfig);
+          return true;
+        } catch (e) {
+          console.error('[blocked] Save clientsConfig:', e);
+          return false;
+        }
+      },
+
       // 🔑 Mapping des colonnes Excel → clés Firebase-safe
       //    Firebase refuse les caractères . # $ / [ ] dans les clés
       //    "Inventory No." contient un point → on doit renommer
@@ -22537,6 +22666,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           // En-têtes en français pour l'export
           const headers = [
             'Inventory No.',
+            'Client',
             'Master Location',
             'Maintenance Counter',
             'Total Counter',
@@ -22545,14 +22675,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             'Maintenance Status',
             'Days In Use Status',
             'Cause de Blocage',
+            'Débloqué par',
+            'Critique',
             'Description',
             'Manufacturer',
             'Last Maintenance'
           ];
           const aoa = [headers];
           filtered.forEach(r => {
+            const client = this._getClientForProject(r.masterLocation);
+            const unlock = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
             aoa.push([
               r.inventoryNo || '',
+              client ? client.name : '—',
               r.masterLocation || '',
               Number(r.maintenanceCounter) || 0,
               Number(r.totalCounter) || 0,
@@ -22561,6 +22696,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               r.maintenanceStatus || '',
               r.daysInUseStatus || '',
               this._causeText(r),
+              unlock.label || '—',
+              unlock.critical ? 'OUI' : '',
               r.description || '',
               r.manufacturer || '',
               r.lastMaintenance || ''
@@ -22571,9 +22708,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const ws = XLSX.utils.aoa_to_sheet(aoa);
           // Largeurs de colonnes pour lisibilité
           ws['!cols'] = [
-            { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
+            { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
             { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 14 },
-            { wch: 28 }, { wch: 30 }, { wch: 14 }, { wch: 14 }
+            { wch: 28 }, { wch: 14 }, { wch: 10 }, { wch: 30 }, { wch: 14 }, { wch: 14 }
           ];
           // Gel de la première ligne
           ws['!freeze'] = { xSplit: 0, ySplit: 1 };
@@ -22657,6 +22794,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           this.render();
         });
 
+        // 🆕 Charger la config clients (Volvo / Stellantis / Renault + custom)
+        this._loadClientsConfig().then(() => {
+          // Re-render après chargement asynchrone (au cas où les données soient déjà là)
+          if (this._data.length) this._renderProjectOptions();
+        });
         // Charge depuis Firebase si déjà importé
         this._loadFromFirebase();
       },
@@ -22675,28 +22817,88 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
       },
 
-      /** Re-rend les checkboxes des projets selon les données */
+      /** Re-rend les checkboxes des projets — GROUPÉS PAR CLIENT/CONSTRUCTEUR */
       _renderProjectOptions() {
         const container = document.getElementById('bl-project-options');
         if (!container) return;
-        const locations = [...new Set(this._data.map(r => r.masterLocation).filter(Boolean))].sort();
-        container.innerHTML = locations.map(loc => {
-          const checked = this._selectedProjects.size === 0 || (this._selectedProjects.has(loc) && !this._selectedProjects.has('__NONE__'));
-          return `<label style="display:flex;align-items:center;gap:.4rem;padding:.35rem .4rem;border-radius:5px;cursor:pointer;font-size:.78rem;color:var(--text-primary)" onmouseover="this.style.background='rgba(0,212,255,.08)'" onmouseout="this.style.background=''">
-            <input type="checkbox" value="${ui.escape(loc)}" ${checked ? 'checked' : ''} data-bl-proj style="cursor:pointer;width:14px;height:14px;accent-color:#00d4ff">
-            <span>${ui.escape(loc)}</span>
-          </label>`;
-        }).join('');
-        // Wire change events
+        // Toutes les locations présentes dans les données
+        const allLocs = [...new Set(this._data.map(r => r.masterLocation).filter(Boolean))].sort();
+        if (!allLocs.length) {
+          container.innerHTML = `<div style="padding:1rem;text-align:center;color:var(--text-muted);font-size:.78rem;font-style:italic">Aucun projet dans les données. Importez d'abord un fichier Excel.</div>`;
+          return;
+        }
+
+        // 1️⃣ Grouper les projets par client connu
+        const cfg = this.clientsConfig || this.DEFAULT_CLIENTS_CONFIG;
+        const grouped = {};   // { clientKey: [projects présents dans data] }
+        const orphans = [];   // projets non rattachés à un client
+        allLocs.forEach(loc => {
+          const client = this._getClientForProject(loc);
+          if (client) {
+            if (!grouped[client.key]) grouped[client.key] = { config: client, projects: [] };
+            grouped[client.key].projects.push(loc);
+          } else {
+            orphans.push(loc);
+          }
+        });
+
+        // 2️⃣ Générer le HTML : sections par client
+        let html = '';
+        Object.values(grouped).forEach(({ config, projects }) => {
+          html += `<div style="margin-bottom:.5rem;border-radius:6px;overflow:hidden;border:1px solid ${config.color}33;background:${config.color}08">
+            <div style="background:${config.color}1a;padding:.35rem .55rem;font-size:.7rem;font-weight:800;color:${config.color};letter-spacing:.05em;display:flex;align-items:center;gap:.35rem;border-bottom:1px solid ${config.color}22">
+              <span style="font-size:.9rem">${config.icon}</span>
+              <span>${config.name.toUpperCase()}</span>
+              <span style="margin-left:auto;font-size:.6rem;opacity:.8;font-weight:600">${projects.length} projet${projects.length > 1 ? 's' : ''}</span>
+            </div>
+            <div style="padding:.2rem">
+              ${projects.map(loc => {
+                const checked = this._selectedProjects.size === 0 || (this._selectedProjects.has(loc) && !this._selectedProjects.has('__NONE__'));
+                return `<label style="display:flex;align-items:center;gap:.4rem;padding:.3rem .45rem;border-radius:4px;cursor:pointer;font-size:.76rem;color:var(--text-primary)" onmouseover="this.style.background='${config.color}15'" onmouseout="this.style.background=''">
+                  <input type="checkbox" value="${ui.escape(loc)}" ${checked ? 'checked' : ''} data-bl-proj style="cursor:pointer;width:14px;height:14px;accent-color:${config.color}">
+                  <span>${ui.escape(loc)}</span>
+                </label>`;
+              }).join('')}
+            </div>
+          </div>`;
+        });
+
+        // 3️⃣ Projets orphelins (importés mais sans constructeur)
+        if (orphans.length) {
+          html += `<div style="margin-bottom:.5rem;border-radius:6px;overflow:hidden;border:1px solid rgba(107,114,128,.3);background:rgba(107,114,128,.05)">
+            <div style="background:rgba(107,114,128,.15);padding:.35rem .55rem;font-size:.7rem;font-weight:800;color:#9ca3af;letter-spacing:.05em;display:flex;align-items:center;gap:.35rem">
+              <span>❓</span>
+              <span>NON CLASSÉ</span>
+              <span style="margin-left:auto;font-size:.6rem;opacity:.8">${orphans.length}</span>
+            </div>
+            <div style="padding:.2rem">
+              ${orphans.map(loc => {
+                const checked = this._selectedProjects.size === 0 || (this._selectedProjects.has(loc) && !this._selectedProjects.has('__NONE__'));
+                return `<label style="display:flex;align-items:center;gap:.4rem;padding:.3rem .45rem;border-radius:4px;cursor:pointer;font-size:.76rem;color:var(--text-primary)" onmouseover="this.style.background='rgba(107,114,128,.08)'" onmouseout="this.style.background=''">
+                  <input type="checkbox" value="${ui.escape(loc)}" ${checked ? 'checked' : ''} data-bl-proj style="cursor:pointer;width:14px;height:14px;accent-color:#9ca3af">
+                  <span>${ui.escape(loc)} <span style="font-size:.6rem;color:var(--text-muted);font-style:italic">→ à classer</span></span>
+                </label>`;
+              }).join('')}
+            </div>
+          </div>`;
+        }
+
+        // 4️⃣ Bouton "Ajouter client / projet"
+        html += `<button type="button" id="bl-add-client-btn" style="width:100%;background:linear-gradient(135deg,rgba(0,212,255,.1),rgba(0,229,160,.08));border:1px dashed rgba(0,212,255,.4);color:#00d4ff;padding:.5rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.76rem;margin-top:.3rem;transition:all .15s" onmouseover="this.style.background='rgba(0,212,255,.15)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(0,212,255,.1),rgba(0,229,160,.08))'">
+          ➕ Ajouter client / projet
+        </button>`;
+
+        container.innerHTML = html;
+
+        // Wire change events sur les checkboxes
         container.querySelectorAll('[data-bl-proj]').forEach(cb => {
           cb.addEventListener('change', () => {
-            // Construire le Set depuis les checkboxes cochées
             const checked = [...container.querySelectorAll('[data-bl-proj]:checked')].map(c => c.value);
             const total = container.querySelectorAll('[data-bl-proj]').length;
             if (checked.length === 0) {
               this._selectedProjects = new Set(['__NONE__']);
             } else if (checked.length === total) {
-              this._selectedProjects.clear(); // vide = tous
+              this._selectedProjects.clear();
             } else {
               this._selectedProjects = new Set(checked);
             }
@@ -22704,6 +22906,154 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             this.render();
           });
         });
+
+        // Wire bouton "Ajouter"
+        document.getElementById('bl-add-client-btn')?.addEventListener('click', () => this._showAddClientModal());
+      },
+
+      /** Modale pour ajouter un client ou un projet à un client existant */
+      _showAddClientModal() {
+        document.getElementById('bl-add-modal')?.remove();
+        const cfg = this.clientsConfig || this.DEFAULT_CLIENTS_CONFIG;
+        const html = `
+          <div id="bl-add-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);z-index:10001;display:flex;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)this.remove()">
+            <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:12px;padding:1.5rem;max-width:560px;width:100%;max-height:90vh;overflow-y:auto">
+              <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft)">
+                <h2 style="margin:0;color:var(--text-primary);font-size:1.1rem">➕ Ajouter client / projet</h2>
+                <button onclick="this.closest('#bl-add-modal').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.3rem">✕</button>
+              </header>
+
+              <!-- Tab switcher -->
+              <div style="display:flex;gap:.3rem;margin-bottom:1rem;background:var(--bg-3);padding:.25rem;border-radius:8px">
+                <button data-tab="project" class="bl-tab" style="flex:1;background:rgba(0,212,255,.15);color:#00d4ff;border:none;padding:.55rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.8rem">➕ Projet à client existant</button>
+                <button data-tab="client" class="bl-tab" style="flex:1;background:transparent;color:var(--text-secondary);border:none;padding:.55rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.8rem">🏭 Nouveau client</button>
+              </div>
+
+              <!-- Tab 1 : Ajouter projet à client existant -->
+              <div id="bl-tab-project" class="bl-tab-content">
+                <div style="font-size:.78rem;color:var(--text-secondary);margin-bottom:.7rem">Ajoutez un projet (Master Location) à un constructeur existant.</div>
+                <label style="display:block;margin-bottom:.6rem">
+                  <span style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:.2rem">CLIENT</span>
+                  <select id="bl-add-client-select" style="width:100%;padding:.55rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px">
+                    ${Object.entries(cfg).map(([k, c]) => `<option value="${k}">${c.icon} ${c.name} (${(c.projects||[]).join(', ') || 'aucun projet'})</option>`).join('')}
+                  </select>
+                </label>
+                <label style="display:block;margin-bottom:1rem">
+                  <span style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:.2rem">NOM DU PROJET (Master Location)</span>
+                  <input id="bl-add-project-name" placeholder="Ex: SPA4, P9, NOUVELLE-USINE" autocomplete="off" style="width:100%;padding:.55rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-family:var(--font-mono)">
+                </label>
+                <button id="bl-add-project-btn" style="width:100%;background:linear-gradient(135deg,#00d4ff,#0084d4);color:white;border:none;padding:.65rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.85rem">✓ Ajouter ce projet</button>
+              </div>
+
+              <!-- Tab 2 : Nouveau client -->
+              <div id="bl-tab-client" class="bl-tab-content" hidden>
+                <div style="font-size:.78rem;color:var(--text-secondary);margin-bottom:.7rem">Créez un nouveau constructeur avec ses projets et règles.</div>
+                <div style="display:grid;grid-template-columns:1fr 80px;gap:.5rem;margin-bottom:.5rem">
+                  <label>
+                    <span style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:.2rem">NOM CLIENT</span>
+                    <input id="bl-new-client-name" placeholder="Ex: BMW, Mercedes" autocomplete="off" style="width:100%;padding:.55rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px">
+                  </label>
+                  <label>
+                    <span style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:.2rem">ICÔNE</span>
+                    <input id="bl-new-client-icon" placeholder="🏭" maxlength="2" autocomplete="off" style="width:100%;padding:.55rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;text-align:center;font-size:1.1rem">
+                  </label>
+                </div>
+                <label style="display:block;margin-bottom:.5rem">
+                  <span style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:.2rem">PROJETS (séparés par virgule)</span>
+                  <input id="bl-new-client-projects" placeholder="Ex: PROJ1, PROJ2, PROJ3" autocomplete="off" style="width:100%;padding:.55rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-family:var(--font-mono)">
+                </label>
+                <label style="display:block;margin-bottom:1rem">
+                  <span style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:.2rem">POLITIQUE DE DÉBLOCAGE</span>
+                  <select id="bl-new-client-policy" style="width:100%;padding:.55rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px">
+                    <option value="crimping-cell">⚙️ Cellule sertissage (défaut)</option>
+                    <option value="laboratoire">🧪 Laboratoire</option>
+                    <option value="mixed">🔀 Mixte (critiques→Labo, autres→Sertissage)</option>
+                  </select>
+                </label>
+                <button id="bl-add-newclient-btn" style="width:100%;background:linear-gradient(135deg,#a855f7,#7c3aed);color:white;border:none;padding:.65rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.85rem">✓ Créer ce client</button>
+              </div>
+
+              <div style="font-size:.68rem;color:var(--text-muted);margin-top:1rem;font-style:italic;border-top:1px solid var(--border-soft);padding-top:.6rem;text-align:center">
+                💡 Les modifications sont sauvegardées sur Firebase et synchronisées pour toute l'équipe.
+              </div>
+            </div>
+          </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+
+        // Switch tabs
+        document.querySelectorAll('#bl-add-modal .bl-tab').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('#bl-add-modal .bl-tab').forEach(b => {
+              b.style.background = 'transparent';
+              b.style.color = 'var(--text-secondary)';
+            });
+            btn.style.background = 'rgba(0,212,255,.15)';
+            btn.style.color = '#00d4ff';
+            document.querySelectorAll('#bl-add-modal .bl-tab-content').forEach(c => c.hidden = true);
+            document.getElementById('bl-tab-' + btn.dataset.tab).hidden = false;
+          });
+        });
+
+        // Ajouter projet à client existant
+        document.getElementById('bl-add-project-btn').onclick = async () => {
+          const clientKey = document.getElementById('bl-add-client-select').value;
+          const projectName = document.getElementById('bl-add-project-name').value.trim().toUpperCase();
+          if (!projectName) { ui.toast('⚠️ Nom de projet requis', 'warn'); return; }
+          if (!this.clientsConfig[clientKey]) { ui.toast('⛔ Client inconnu', 'danger'); return; }
+          if (!this.clientsConfig[clientKey].projects) this.clientsConfig[clientKey].projects = [];
+          // Vérif doublon
+          const exists = Object.values(this.clientsConfig).some(c => (c.projects||[]).some(p => String(p).toUpperCase() === projectName));
+          if (exists) { ui.toast('⚠️ Ce projet existe déjà', 'warn'); return; }
+          this.clientsConfig[clientKey].projects.push(projectName);
+          const saved = await this._saveClientsConfig();
+          if (saved) {
+            ui.toast(`✅ Projet ${projectName} ajouté à ${this.clientsConfig[clientKey].name}`, 'success');
+            document.getElementById('bl-add-modal').remove();
+            this._renderProjectOptions();
+            this.render();
+          } else {
+            ui.toast('⛔ Erreur sauvegarde Firebase', 'danger');
+          }
+        };
+
+        // Créer nouveau client
+        document.getElementById('bl-add-newclient-btn').onclick = async () => {
+          const name = document.getElementById('bl-new-client-name').value.trim();
+          const icon = document.getElementById('bl-new-client-icon').value.trim() || '🏭';
+          const projectsRaw = document.getElementById('bl-new-client-projects').value.trim();
+          const policy = document.getElementById('bl-new-client-policy').value;
+          if (!name) { ui.toast('⚠️ Nom du client requis', 'warn'); return; }
+          const projects = projectsRaw.split(',').map(p => p.trim().toUpperCase()).filter(Boolean);
+          if (!projects.length) { ui.toast('⚠️ Au moins un projet requis', 'warn'); return; }
+          // Clé : nom minuscule sans espace
+          const key = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (this.clientsConfig[key]) { ui.toast('⚠️ Ce client existe déjà', 'warn'); return; }
+          // Couleur aléatoire mais lisible
+          const colors = ['#10b981', '#3b82f6', '#ec4899', '#f97316', '#8b5cf6', '#06b6d4'];
+          const color = colors[Object.keys(this.clientsConfig).length % colors.length];
+          this.clientsConfig[key] = {
+            name, icon, color, projects,
+            rules: {
+              unlockPolicy: policy,
+              ...(policy === 'mixed' && {
+                criticalUnlockBy: 'laboratoire',
+                regularUnlockBy: 'crimping-cell',
+                criticalToolPatterns: []
+              }),
+              thresholds: { warningPct: 0.75, overrunPct: 1.00 }
+            }
+          };
+          const saved = await this._saveClientsConfig();
+          if (saved) {
+            ui.toast(`✅ Client ${name} créé avec ${projects.length} projet${projects.length > 1 ? 's' : ''}`, 'success');
+            document.getElementById('bl-add-modal').remove();
+            this._renderProjectOptions();
+            this.render();
+          } else {
+            ui.toast('⛔ Erreur sauvegarde Firebase', 'danger');
+          }
+        };
       },
 
       /** Charge depuis Firebase au démarrage */
@@ -22931,12 +23281,27 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         tbody.innerHTML = slice.map(r => {
           const isBlocked = this._isBlocked(r);
           const rowStyle = isBlocked ? 'background:rgba(239,68,68,.04)' : '';
+          // 🆕 Détermine qui doit débloquer (selon règles client)
+          const unlock = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+          const client = this._getClientForProject(r.masterLocation);
+          const unlockBadge = isBlocked
+            ? `<div style="display:inline-flex;align-items:center;gap:.2rem;background:${unlock.color}22;color:${unlock.color};font-size:.55rem;padding:.05rem .3rem;border-radius:3px;font-weight:700;margin-top:.15rem">${unlock.icon} ${unlock.label}${unlock.critical ? ' ⚠️' : ''}</div>`
+            : '';
+          const clientBadge = client
+            ? `<span style="font-size:.55rem;color:${client.color};font-weight:700;letter-spacing:.04em">${client.icon} ${client.name.toUpperCase()}</span>`
+            : '';
           return `
             <tr style="border-bottom:1px solid var(--border-soft);${rowStyle}">
-              <td style="padding:.55rem .75rem;font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.78rem">${ui.escape(r.inventoryNo || '?')}</td>
+              <td style="padding:.55rem .75rem">
+                <div style="font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.78rem">${ui.escape(r.inventoryNo || '?')}</div>
+                ${unlockBadge}
+              </td>
               <td style="padding:.55rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.74rem">${this._fmtNum(r.maintenanceCounter)}</td>
               <td style="padding:.55rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.74rem;font-weight:700">${this._fmtNum(r.totalCounter)}</td>
-              <td style="padding:.55rem .75rem;color:var(--text-secondary);font-size:.74rem">${ui.escape(r.masterLocation || '—')}</td>
+              <td style="padding:.55rem .75rem;color:var(--text-secondary);font-size:.74rem">
+                <div>${ui.escape(r.masterLocation || '—')}</div>
+                ${clientBadge}
+              </td>
               <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.requalifTimeStatus)}</td>
               <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.requalifStrokesStatus)}</td>
               <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.maintenanceStatus)}</td>

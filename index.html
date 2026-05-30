@@ -22393,6 +22393,28 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     blocked: {
       _data: [],          // données importées en mémoire
       _initialized: false,
+
+      // 🔑 Mapping des colonnes Excel → clés Firebase-safe
+      //    Firebase refuse les caractères . # $ / [ ] dans les clés
+      //    "Inventory No." contient un point → on doit renommer
+      FIELD_MAP: {
+        'Inventory No.':                       'inventoryNo',
+        'Master Location':                     'masterLocation',
+        'Location':                            'location',
+        'Tool Status':                         'toolStatus',
+        'Maintenance Status':                  'maintenanceStatus',
+        'Requalification by Strokes Status':   'requalifStrokesStatus',
+        'Requalification by Time Status':      'requalifTimeStatus',
+        'Days In Use Status':                  'daysInUseStatus',
+        'Description':                         'description',
+        'Manufacturer':                        'manufacturer',
+        'Locked':                              'locked',
+        'Maintenance Counter':                 'maintenanceCounter',
+        'Requalification by Strokes Counter':  'requalifStrokesCounter',
+        'Days In Use Counter':                 'daysInUseCounter',
+        'Requalification Last Maintenance':    'lastMaintenance'
+      },
+
       _statusBadge(status) {
         // status: OK | warning | overrun | null
         if (!status || status === '—') return `<span style="color:var(--text-muted);font-size:.7rem">—</span>`;
@@ -22412,12 +22434,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
       /** Détermine si une ligne est "bloquée" : au moins un statut overrun */
       _isBlocked(row) {
-        const fields = ['Requalification by Time Status', 'Requalification by Strokes Status', 'Maintenance Status', 'Days In Use Status'];
+        const fields = ['requalifTimeStatus', 'requalifStrokesStatus', 'maintenanceStatus', 'daysInUseStatus'];
         return fields.some(f => String(row[f] || '').toLowerCase() === 'overrun');
       },
       /** Détermine si une ligne a au moins un warning (sans overrun) */
       _hasWarning(row) {
-        const fields = ['Requalification by Time Status', 'Requalification by Strokes Status', 'Maintenance Status', 'Days In Use Status'];
+        const fields = ['requalifTimeStatus', 'requalifStrokesStatus', 'maintenanceStatus', 'daysInUseStatus'];
         return fields.some(f => String(row[f] || '').toLowerCase() === 'warning');
       },
 
@@ -22490,26 +22512,47 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           }
           ui.showLoader?.(`Import de ${rows.length} outils...`);
 
-          // Garde uniquement les colonnes utiles pour économiser l'espace Firebase
-          const keepFields = [
-            'Inventory No.', 'Master Location', 'Location', 'Tool Status',
-            'Maintenance Status', 'Requalification by Strokes Status',
-            'Requalification by Time Status', 'Days In Use Status',
-            'Description', 'Manufacturer', 'Locked',
-            'Maintenance Counter', 'Requalification by Strokes Counter',
-            'Days In Use Counter', 'Requalification Last Maintenance'
-          ];
+          // 🔑 Normalisation : on renomme les colonnes Excel en clés Firebase-safe
+          //    Firebase refuse les caractères . # $ / [ ] dans les clés
           const cleaned = rows.map(r => {
             const out = {};
-            keepFields.forEach(f => { if (r[f] !== undefined) out[f] = r[f]; });
-            return out;
-          });
+            Object.entries(this.FIELD_MAP).forEach(([excelKey, fbKey]) => {
+              if (r[excelKey] !== undefined && r[excelKey] !== null && r[excelKey] !== '') {
+                // Convertir en string pour éviter les soucis de type Firebase
+                const val = r[excelKey];
+                out[fbKey] = (typeof val === 'object') ? String(val) : val;
+              }
+            });
+            // Skip rows without inventoryNo
+            return out.inventoryNo ? out : null;
+          }).filter(Boolean);
+
+          if (!cleaned.length) {
+            ui.hideLoader?.();
+            ui.toast('⛔ Aucune ligne valide trouvée (Inventory No. manquant partout)', 'danger');
+            return;
+          }
 
           this._data = cleaned;
 
-          // Sauvegarder sur Firebase (par chunks de 200 pour éviter timeout)
+          // Sauvegarder sur Firebase (par chunks de 500 pour éviter timeout sur gros volumes)
           const ts = Date.now();
-          await fbDb.ref('blockedTools/data').set(cleaned);
+          const CHUNK_SIZE = 500;
+          if (cleaned.length <= CHUNK_SIZE) {
+            await fbDb.ref('blockedTools/data').set(cleaned);
+          } else {
+            // Pour les gros volumes, on découpe
+            await fbDb.ref('blockedTools/data').remove();
+            for (let i = 0; i < cleaned.length; i += CHUNK_SIZE) {
+              const chunk = cleaned.slice(i, i + CHUNK_SIZE);
+              const updates = {};
+              chunk.forEach((row, idx) => {
+                updates[`blockedTools/data/${i + idx}`] = row;
+              });
+              await fbDb.ref().update(updates);
+              ui.showLoader?.(`Import : ${Math.min(i + CHUNK_SIZE, cleaned.length)}/${cleaned.length}...`);
+            }
+          }
           await fbDb.ref('blockedTools/meta').set({
             importedAt: ts,
             importedBy: state.user?.name || state.user?.email || 'admin',
@@ -22534,11 +22577,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const statusFilter = document.getElementById('bl-status-filter')?.value || '';
         return this._data.filter(r => {
           if (search) {
-            const inv = String(r['Inventory No.'] || '').toLowerCase();
+            const inv = String(r.inventoryNo || '').toLowerCase();
             if (!inv.includes(search)) return false;
           }
           if (project) {
-            if (String(r['Master Location'] || '') !== project) return false;
+            if (String(r.masterLocation || '') !== project) return false;
           }
           if (statusFilter === 'blocked' && !this._isBlocked(r)) return false;
           if (statusFilter === 'warning' && (!this._hasWarning(r) || this._isBlocked(r))) return false;
@@ -22560,7 +22603,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         // Peuple le dropdown Master Location
         const sel = document.getElementById('bl-master-location');
         if (sel && sel.children.length <= 1 && this._data.length > 0) {
-          const locations = [...new Set(this._data.map(r => r['Master Location']).filter(Boolean))].sort();
+          const locations = [...new Set(this._data.map(r => r.masterLocation).filter(Boolean))].sort();
           locations.forEach(loc => {
             const opt = document.createElement('option');
             opt.value = loc;
@@ -22611,13 +22654,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const rowStyle = isBlocked ? 'background:rgba(239,68,68,.04)' : '';
           return `
             <tr style="border-bottom:1px solid var(--border-soft);${rowStyle}">
-              <td style="padding:.55rem .75rem;font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.78rem">${ui.escape(r['Inventory No.'] || '?')}</td>
-              <td style="padding:.55rem .75rem;color:var(--text-secondary);font-size:.74rem">${ui.escape(r['Master Location'] || '—')}</td>
-              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r['Requalification by Time Status'])}</td>
-              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r['Requalification by Strokes Status'])}</td>
-              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r['Maintenance Status'])}</td>
-              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r['Days In Use Status'])}</td>
-              <td style="padding:.55rem .5rem;text-align:center">${this._globalBadge(r['Tool Status'])}</td>
+              <td style="padding:.55rem .75rem;font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.78rem">${ui.escape(r.inventoryNo || '?')}</td>
+              <td style="padding:.55rem .75rem;color:var(--text-secondary);font-size:.74rem">${ui.escape(r.masterLocation || '—')}</td>
+              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.requalifTimeStatus)}</td>
+              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.requalifStrokesStatus)}</td>
+              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.maintenanceStatus)}</td>
+              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.daysInUseStatus)}</td>
+              <td style="padding:.55rem .5rem;text-align:center">${this._globalBadge(r.toolStatus)}</td>
             </tr>
           `;
         }).join('');

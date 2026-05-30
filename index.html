@@ -8203,13 +8203,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <div id="bl-project-options" style="display:flex;flex-direction:column;gap:.15rem"></div>
             </div>
           </div>
-          <select id="bl-status-filter" style="padding:.55rem .8rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-size:.85rem;min-width:140px">
+          <select id="bl-status-filter" style="padding:.55rem .8rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-size:.85rem;min-width:180px">
             <option value="">🎯 Tous statuts</option>
-            <option value="blocked" selected>🚫 Bloqués uniquement</option>
+            <option value="blocked" selected>🚫 Bloqués (tous)</option>
+            <option value="cause-requalif">🔴 BLOQUÉE REQUALIF</option>
+            <option value="cause-maintenance">🟠 BLOQUÉE MAINTENANCE</option>
+            <option value="cause-5jours">🟡 BLOQUÉE 5 JOURS</option>
             <option value="warning">⚠️ Warning uniquement</option>
             <option value="ok">✅ OK uniquement</option>
           </select>
           <button id="bl-import-btn" class="btn btn--secondary" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700;font-size:.78rem">📥 Importer Excel</button>
+          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.3);font-weight:700;font-size:.78rem" title="Télécharger le résultat filtré en Excel">📤 Exporter Excel</button>
           <input type="file" id="bl-import-file" accept=".xlsx,.xls" hidden>
         </div>
 
@@ -22490,6 +22494,119 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return isNaN(n) ? String(v) : n.toLocaleString('fr-FR');
       },
 
+      /** 🆕 Retourne le texte (pas HTML) de la cause pour l'export Excel */
+      _causeText(row) {
+        const reqTime    = String(row.requalifTimeStatus || '').toLowerCase();
+        const reqStrokes = String(row.requalifStrokesStatus || '').toLowerCase();
+        const maint      = String(row.maintenanceStatus || '').toLowerCase();
+        const days       = String(row.daysInUseStatus || '').toLowerCase();
+        if (reqTime === 'overrun' || reqStrokes === 'overrun') {
+          const tags = [];
+          if (reqTime === 'overrun')    tags.push('TIME');
+          if (reqStrokes === 'overrun') tags.push('STROKES');
+          return `BLOQUÉE REQUALIF (${tags.join(' + ')})`;
+        }
+        if (maint === 'overrun') {
+          return days === 'overrun' ? 'BLOQUÉE MAINTENANCE + 5 JOURS' : 'BLOQUÉE MAINTENANCE';
+        }
+        if (days === 'overrun') return 'BLOQUÉE 5 JOURS';
+        if (reqTime === 'warning' || reqStrokes === 'warning' || maint === 'warning' || days === 'warning') return 'ALERTE';
+        return 'OK';
+      },
+
+      /** 🆕 Exporte les résultats filtrés en Excel */
+      async exportFiltered() {
+        const filtered = this._getFiltered();
+        if (!filtered.length) {
+          ui.toast('⚠️ Aucune donnée à exporter — modifiez les filtres', 'warn');
+          return;
+        }
+        try {
+          // Charger SheetJS si nécessaire
+          if (typeof XLSX === 'undefined') {
+            ui.toast('⏳ Chargement de la librairie d\'export...', 'info', 2000);
+            await new Promise((res, rej) => {
+              const s = document.createElement('script');
+              s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+              s.onload = res; s.onerror = rej;
+              document.head.appendChild(s);
+            });
+          }
+          ui.showLoader?.(`Export de ${filtered.length} outils...`);
+
+          // En-têtes en français pour l'export
+          const headers = [
+            'Inventory No.',
+            'Master Location',
+            'Maintenance Counter',
+            'Total Counter',
+            'Requalif Time Status',
+            'Requalif Strokes Status',
+            'Maintenance Status',
+            'Days In Use Status',
+            'Cause de Blocage',
+            'Description',
+            'Manufacturer',
+            'Last Maintenance'
+          ];
+          const aoa = [headers];
+          filtered.forEach(r => {
+            aoa.push([
+              r.inventoryNo || '',
+              r.masterLocation || '',
+              Number(r.maintenanceCounter) || 0,
+              Number(r.totalCounter) || 0,
+              r.requalifTimeStatus || '',
+              r.requalifStrokesStatus || '',
+              r.maintenanceStatus || '',
+              r.daysInUseStatus || '',
+              this._causeText(r),
+              r.description || '',
+              r.manufacturer || '',
+              r.lastMaintenance || ''
+            ]);
+          });
+
+          // Création du workbook
+          const ws = XLSX.utils.aoa_to_sheet(aoa);
+          // Largeurs de colonnes pour lisibilité
+          ws['!cols'] = [
+            { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
+            { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 14 },
+            { wch: 28 }, { wch: 30 }, { wch: 14 }, { wch: 14 }
+          ];
+          // Gel de la première ligne
+          ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Outils Bloqués');
+
+          // Nom de fichier basé sur les filtres actifs
+          const dateStr = new Date().toISOString().slice(0, 10);
+          const statusFilter = document.getElementById('bl-status-filter')?.value || '';
+          const statusTag = {
+            'cause-requalif':    '_REQUALIF',
+            'cause-maintenance': '_MAINTENANCE',
+            'cause-5jours':      '_5JOURS',
+            'blocked':           '_BLOQUES',
+            'warning':           '_WARNING',
+            'ok':                '_OK'
+          }[statusFilter] || '';
+          const projTag = this._selectedProjects.size === 1 && !this._selectedProjects.has('__NONE__')
+            ? '_' + [...this._selectedProjects][0]
+            : '';
+          const filename = `LEONI_OutilsBloques${projTag}${statusTag}_${dateStr}.xlsx`;
+          XLSX.writeFile(wb, filename);
+
+          ui.hideLoader?.();
+          ui.toast(`✅ ${filtered.length} outils exportés → ${filename}`, 'success', 5000);
+        } catch (e) {
+          ui.hideLoader?.();
+          console.error('[blocked export]', e);
+          ui.toast('⛔ Erreur export : ' + e.message, 'danger');
+        }
+      },
+
       // 🆕 État du multi-select projets (Set des projets sélectionnés ; vide = tous)
       _selectedProjects: new Set(),
 
@@ -22507,6 +22624,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (f) this.importExcel(f);
           e.target.value = ''; // reset
         });
+        // 🆕 Bouton Exporter Excel
+        document.getElementById('bl-export-btn')?.addEventListener('click', () => this.exportFiltered());
 
         // 🆕 Multi-select projets : toggle du panel
         const toggleBtn = document.getElementById('bl-project-toggle');
@@ -22708,14 +22827,24 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             const inv = String(r.inventoryNo || '').toLowerCase();
             if (!inv.includes(search)) return false;
           }
-          // 🆕 Multi-projet : vide = tous, __NONE__ = aucun, sinon = liste explicite
+          // Multi-projet : vide = tous, __NONE__ = aucun, sinon = liste explicite
           if (this._selectedProjects.size > 0) {
             if (this._selectedProjects.has('__NONE__')) return false;
             if (!this._selectedProjects.has(r.masterLocation)) return false;
           }
-          if (statusFilter === 'blocked' && !this._isBlocked(r)) return false;
-          if (statusFilter === 'warning' && (!this._hasWarning(r) || this._isBlocked(r))) return false;
-          if (statusFilter === 'ok' && (this._isBlocked(r) || this._hasWarning(r))) return false;
+          // 🆕 Filtres de cause spécifiques
+          if (statusFilter) {
+            const reqT = String(r.requalifTimeStatus || '').toLowerCase();
+            const reqS = String(r.requalifStrokesStatus || '').toLowerCase();
+            const m    = String(r.maintenanceStatus || '').toLowerCase();
+            const d    = String(r.daysInUseStatus || '').toLowerCase();
+            if (statusFilter === 'blocked'           && !this._isBlocked(r)) return false;
+            if (statusFilter === 'cause-requalif'    && !(reqT === 'overrun' || reqS === 'overrun')) return false;
+            if (statusFilter === 'cause-maintenance' && !((reqT !== 'overrun' && reqS !== 'overrun') && m === 'overrun')) return false;
+            if (statusFilter === 'cause-5jours'      && !((reqT !== 'overrun' && reqS !== 'overrun') && m !== 'overrun' && d === 'overrun')) return false;
+            if (statusFilter === 'warning' && (!this._hasWarning(r) || this._isBlocked(r))) return false;
+            if (statusFilter === 'ok'      && (this._isBlocked(r) || this._hasWarning(r))) return false;
+          }
           return true;
         });
       },
@@ -22735,10 +22864,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const blocked = this._data.filter(r => this._isBlocked(r)).length;
         const warning = this._data.filter(r => this._hasWarning(r) && !this._isBlocked(r)).length;
         const ok = total - blocked - warning;
-        document.getElementById('bl-kpi-total').textContent = total;
-        document.getElementById('bl-kpi-ok').textContent = ok;
-        document.getElementById('bl-kpi-warning').textContent = warning;
-        document.getElementById('bl-kpi-overrun').textContent = blocked;
+        // 🆕 Pourcentages
+        const pct = (n) => total ? Math.round(n / total * 100) : 0;
+        const pctSpan = (n) => `<span style="font-size:.65rem;color:var(--text-muted);font-weight:400;margin-left:.3rem">(${pct(n)}%)</span>`;
+        document.getElementById('bl-kpi-total').innerHTML = total.toLocaleString('fr-FR');
+        document.getElementById('bl-kpi-ok').innerHTML = ok.toLocaleString('fr-FR') + pctSpan(ok);
+        document.getElementById('bl-kpi-warning').innerHTML = warning.toLocaleString('fr-FR') + pctSpan(warning);
+        document.getElementById('bl-kpi-overrun').innerHTML = blocked.toLocaleString('fr-FR') + pctSpan(blocked);
 
         // Bandeau info si pas de données
         const banner = document.getElementById('bl-info-banner');
@@ -22751,6 +22883,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
         // Filtrage et rendu
         const filtered = this._getFiltered();
+
+        // 🆕 Total Compteur cumulé sur les résultats filtrés
+        const totalCounterSum = filtered.reduce((sum, r) => {
+          const v = Number(r.totalCounter);
+          return sum + (isNaN(v) ? 0 : v);
+        }, 0);
+
         if (banner) {
           banner.style.display = 'block';
           banner.style.background = 'rgba(0,212,255,.08)';
@@ -22778,7 +22917,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (causeReq > 0)   causeHtml += ` · <strong style="color:#dc2626">${causeReq} BLOQUÉE REQUALIF 🔴</strong>`;
           if (causeMaint > 0) causeHtml += ` · <strong style="color:#ea580c">${causeMaint} BLOQUÉE MAINTENANCE 🟠</strong>`;
           if (cause5j > 0)    causeHtml += ` · <strong style="color:#d97706">${cause5j} BLOQUÉE 5 JOURS 🟡</strong>`;
-          banner.innerHTML = `📊 <strong>${filtered.length}</strong> outils affichés sur ${total}${causeHtml}`;
+          banner.innerHTML = `📊 <strong>${filtered.length}</strong> outils affichés sur ${total} · 🔢 <strong style="color:#00e5a0">Total Compteur : ${totalCounterSum.toLocaleString('fr-FR')}</strong> cycles${causeHtml}`;
         }
 
         if (!filtered.length) {

@@ -6975,6 +6975,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <ul class="topbar__user-dropdown" id="user-dropdown" hidden>
             <li><button data-action="profile" data-i18n="user.profile">Mon profil</button></li>
             <li><button data-action="password" data-i18n="user.changePassword">Changer mot de passe</button></li>
+            <li><button data-action="backend-config" id="dropdown-backend-config" hidden>🔄 Configuration Backend</button></li>
             <li><hr /></li>
             <li><button data-action="logout" data-i18n="user.logout">Se déconnecter</button></li>
           </ul>
@@ -7017,6 +7018,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <li class="sidebar__item" data-requires-role="admin,super_admin,responsable">
             <button class="sidebar__link" data-nav="catalog">
               <span class="sidebar__icon">🛠</span><span class="sidebar__label" data-i18n="nav.catalog">Catalogue outils</span>
+            </button>
+          </li>
+          <!-- 🚫 OUTILS BLOQUÉS — Suivi des statuts critiques par projet (import Excel) -->
+          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping">
+            <button class="sidebar__link" data-nav="blocked">
+              <span class="sidebar__icon">🚫</span><span class="sidebar__label">Outils Bloqués</span>
+              <span class="sidebar__pill sidebar__pill--danger" id="nav-blocked-count" style="background:rgba(239,68,68,.18);color:#ef4444">0</span>
             </button>
           </li>
           <!-- 👥 ÉQUIPE — Utilisateurs + Techniciens fusionnés -->
@@ -8148,6 +8156,81 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <!-- cards injected -->
         </div>
         <div id="catalog-loadmore" style="text-align:center;margin-top:1rem"></div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- VIEW 6.5 — OUTILS BLOQUÉS (statuts critiques par projet)         -->
+      <!-- ================================================================= -->
+      <section class="catalog" id="view-blocked" data-view="blocked" hidden>
+        <header class="catalog__header" style="margin-bottom:1rem">
+          <h1 style="margin:0;font-size:1.4rem;color:#ef4444">🚫 Outils Bloqués · Statuts Critiques</h1>
+          <p style="margin:.3rem 0 0;color:var(--text-secondary);font-size:.85rem">Tableau de bord des outils en statut <strong style="color:#f59e0b">warning</strong> ou <strong style="color:#ef4444">overrun</strong> · Importé depuis Komax/DocuLink</p>
+        </header>
+
+        <!-- KPIs -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem;margin-bottom:1rem">
+          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #00d4ff">
+            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">📦 Total outils</div>
+            <div id="bl-kpi-total" style="font-size:1.6rem;font-weight:700;color:#00d4ff">0</div>
+          </div>
+          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #10b981">
+            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">✅ OK (sains)</div>
+            <div id="bl-kpi-ok" style="font-size:1.6rem;font-weight:700;color:#10b981">0</div>
+          </div>
+          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #f59e0b">
+            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">⚠️ Warning</div>
+            <div id="bl-kpi-warning" style="font-size:1.6rem;font-weight:700;color:#f59e0b">0</div>
+          </div>
+          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #ef4444">
+            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">🚫 Overrun (bloqués)</div>
+            <div id="bl-kpi-overrun" style="font-size:1.6rem;font-weight:700;color:#ef4444">0</div>
+          </div>
+        </div>
+
+        <!-- Filtres + Import -->
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;padding:.75rem;background:var(--bg-elevated);border-radius:9px;border:1px solid var(--border-soft)">
+          <input id="bl-search" type="search" placeholder="🔍 Recherche par Inventory N°…" style="flex:1;min-width:180px;padding:.55rem .8rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-family:var(--font-mono);font-size:.85rem">
+          <select id="bl-master-location" style="padding:.55rem .8rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-size:.85rem;min-width:160px">
+            <option value="">📍 Tous les projets</option>
+          </select>
+          <select id="bl-status-filter" style="padding:.55rem .8rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-size:.85rem;min-width:140px">
+            <option value="">🎯 Tous statuts</option>
+            <option value="blocked" selected>🚫 Bloqués uniquement</option>
+            <option value="warning">⚠️ Warning uniquement</option>
+            <option value="ok">✅ OK uniquement</option>
+          </select>
+          <button id="bl-import-btn" class="btn btn--secondary" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700;font-size:.78rem">📥 Importer Excel</button>
+          <input type="file" id="bl-import-file" accept=".xlsx,.xls" hidden>
+        </div>
+
+        <!-- Bandeau info -->
+        <div id="bl-info-banner" style="display:none;margin-bottom:.8rem;padding:.6rem .85rem;border-radius:8px;font-size:.78rem"></div>
+
+        <!-- Tableau -->
+        <div style="background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:9px;overflow:hidden">
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:65vh;overflow-y:auto">
+            <table id="bl-table" style="width:100%;border-collapse:collapse;font-size:.78rem;min-width:760px">
+              <thead style="position:sticky;top:0;background:var(--bg-2);z-index:1">
+                <tr style="border-bottom:2px solid var(--border-soft)">
+                  <th style="text-align:left;padding:.6rem .75rem;font-weight:700;color:var(--text-primary);font-family:var(--font-mono);font-size:.72rem">📋 Inventory No.</th>
+                  <th style="text-align:left;padding:.6rem .75rem;font-weight:700;color:var(--text-primary);font-size:.72rem">📍 Projet</th>
+                  <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">⏰ Requalif Time</th>
+                  <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">🔁 Requalif Strokes</th>
+                  <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">🔧 Maintenance</th>
+                  <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">📅 Days In Use</th>
+                  <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.72rem">🚦 Global</th>
+                </tr>
+              </thead>
+              <tbody id="bl-tbody">
+                <tr><td colspan="7" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="font-size:.7rem;color:var(--text-muted);margin-top:.6rem;text-align:center;font-style:italic">
+          💡 Les statuts proviennent du système Komax. Importez régulièrement le fichier Excel pour synchroniser.
+        </div>
       </section>
 
 
@@ -9926,7 +10009,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         • Realtime Database → Créer une base de données ✅
         • Storage → Commencer ✅
      ========================================================================== */
-  const FIREBASE_CONFIG = {
+  const FIREBASE_CONFIG_DEFAULT = {
     apiKey:            "AIzaSyBIW4I1DRqyqcmNEdajXbptQ5-RWFIG1V4",
     authDomain:        "leoni-sertissage-labo.firebaseapp.com",
     databaseURL:       "https://leoni-sertissage-labo-default-rtdb.europe-west1.firebasedatabase.app",
@@ -9936,6 +10019,27 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     appId:             "1:432527114405:web:b141f6ae74f11b1cbb0d4c",
     measurementId:     "G-5YSFB1HGC8"
   };
+
+  // 🔄 BACKEND CONFIGURABLE : on lit d'abord une éventuelle config personnalisée
+  //    stockée dans localStorage (définie via le panneau "Configuration Backend").
+  //    Permet de pointer vers un AUTRE projet/serveur Firebase sans modifier le code.
+  //    Si aucune config custom → on utilise la config par défaut ci-dessus.
+  const FIREBASE_CONFIG = (() => {
+    try {
+      const custom = localStorage.getItem('leoni_backend_config');
+      if (custom) {
+        const parsed = JSON.parse(custom);
+        // Validation minimale : databaseURL + apiKey requis
+        if (parsed && parsed.databaseURL && parsed.apiKey) {
+          console.info('🔄 [Backend] Config personnalisée chargée :', parsed.databaseURL);
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('[Backend] Config custom invalide, fallback défaut :', e.message);
+    }
+    return FIREBASE_CONFIG_DEFAULT;
+  })();
 
   // Tolérances par défaut pour le calcul Cm/Cmk (à ajuster par outil/produit)
   const DEFAULT_TOLERANCES = {
@@ -11360,6 +11464,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       $('#user-name').textContent = p.displayName || '—';
       $('#topbar-user-role').textContent = p.role || '—';
       $('#user-avatar').textContent = (p.displayName || '?').charAt(0).toUpperCase();
+      // 🔄 Bouton "Configuration Backend" visible uniquement pour admin/super_admin
+      const backendBtn = document.getElementById('dropdown-backend-config');
+      if (backendBtn) {
+        backendBtn.hidden = !['admin', 'super_admin'].includes(p.role);
+      }
       // 🌅 Salutation personnalisée selon l'heure
       const h = new Date().getHours();
       const greet = h < 6 ? 'Bonsoir' : h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir';
@@ -12201,7 +12310,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         mergedTarget = hash;
         resolvedHash = mergedHubs[hash];
       }
-      const valid = ['hub','intervention','preventive5j','history','queue','catalog','users','technicians','stats','auditlog','magasin','performance','pdr','demandes-pdr'];
+      const valid = ['hub','intervention','preventive5j','history','queue','catalog','blocked','users','technicians','stats','auditlog','magasin','performance','pdr','demandes-pdr'];
       let view = valid.includes(resolvedHash) ? resolvedHash : 'hub';
 
       // ── Restrictions par rôle ──
@@ -15967,6 +16076,214 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     }
   };
   window.tvDashboard = tvDashboard;
+
+  /* ==========================================================================
+     12.7j  🔄 CONFIGURATION BACKEND — Remplacer le serveur Firebase
+     ========================================================================== */
+  // Permet à l'admin de pointer l'app vers un AUTRE backend Firebase :
+  //   - Un autre projet Firebase (migration, environnement séparé)
+  //   - Un serveur Firebase auto-hébergé / compatible (ex: instance privée)
+  // La config est stockée dans localStorage et lue au démarrage (voir FIREBASE_CONFIG).
+  // ⚠️ Pour un backend NON-Firebase (REST, Supabase…), une couche d'adaptation
+  //    serait nécessaire — voir documentation.
+  const backendConfig = {
+    STORAGE_KEY: 'leoni_backend_config',
+
+    /** Récupère la config active (custom ou défaut) */
+    getActive() {
+      try {
+        const custom = localStorage.getItem(this.STORAGE_KEY);
+        if (custom) return { config: JSON.parse(custom), isCustom: true };
+      } catch(e) {}
+      return { config: FIREBASE_CONFIG_DEFAULT, isCustom: false };
+    },
+
+    /** Teste une config Firebase en tentant une connexion */
+    async testConfig(cfg) {
+      return new Promise((resolve) => {
+        try {
+          // Crée une app temporaire pour tester (nom unique pour éviter conflit)
+          const testAppName = 'test-' + Date.now();
+          const testApp = firebase.initializeApp(cfg, testAppName);
+          const testDb = testApp.database();
+          let resolved = false;
+          const timeout = setTimeout(() => {
+            if (!resolved) {
+              resolved = true;
+              testApp.delete().catch(()=>{});
+              resolve({ ok: false, error: 'Timeout (5s) — vérifiez databaseURL et la connexion' });
+            }
+          }, 5000);
+          // Tente de lire .info/connected
+          testDb.ref('.info/connected').once('value')
+            .then(() => {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeout);
+                testApp.delete().catch(()=>{});
+                resolve({ ok: true });
+              }
+            })
+            .catch((err) => {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeout);
+                testApp.delete().catch(()=>{});
+                resolve({ ok: false, error: err.message });
+              }
+            });
+        } catch (e) {
+          resolve({ ok: false, error: e.message });
+        }
+      });
+    },
+
+    /** Sauvegarde une nouvelle config et propose de recharger */
+    save(cfg) {
+      try {
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(cfg));
+        return true;
+      } catch (e) {
+        ui?.toast?.('⛔ Erreur sauvegarde : ' + e.message, 'danger');
+        return false;
+      }
+    },
+
+    /** Réinitialise à la config par défaut */
+    reset() {
+      localStorage.removeItem(this.STORAGE_KEY);
+    },
+
+    /** Affiche la modale de configuration */
+    showModal() {
+      // Réservé admin
+      if (!['admin', 'super_admin'].includes(state.role)) {
+        ui?.toast?.('🚫 Configuration backend réservée à l\'administrateur', 'warn');
+        return;
+      }
+      document.getElementById('backend-config-modal')?.remove();
+      const { config, isCustom } = this.getActive();
+      const fields = [
+        { key: 'apiKey',            label: 'API Key',             required: true,  ph: 'AIzaSy...' },
+        { key: 'authDomain',        label: 'Auth Domain',         required: false, ph: 'projet.firebaseapp.com' },
+        { key: 'databaseURL',       label: 'Database URL',        required: true,  ph: 'https://projet-rtdb.firebasedatabase.app' },
+        { key: 'projectId',         label: 'Project ID',          required: false, ph: 'mon-projet' },
+        { key: 'storageBucket',     label: 'Storage Bucket',      required: false, ph: 'projet.firebasestorage.app' },
+        { key: 'messagingSenderId', label: 'Messaging Sender ID', required: false, ph: '123456789' },
+        { key: 'appId',             label: 'App ID',              required: false, ph: '1:123:web:abc' },
+        { key: 'measurementId',     label: 'Measurement ID',      required: false, ph: 'G-XXXXXXX' }
+      ];
+
+      const html = `
+        <div id="backend-config-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)this.remove()">
+          <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:12px;padding:1.5rem;max-width:640px;width:100%;max-height:90vh;overflow-y:auto">
+            <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft)">
+              <h2 style="margin:0;color:var(--text-primary);font-size:1.1rem">🔄 Configuration Backend</h2>
+              <button onclick="this.closest('#backend-config-modal').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.3rem">✕</button>
+            </header>
+
+            <div style="padding:.7rem .85rem;border-radius:8px;margin-bottom:1rem;background:${isCustom ? 'rgba(245,158,11,.08)' : 'rgba(0,229,160,.08)'};border:1px solid ${isCustom ? 'rgba(245,158,11,.3)' : 'rgba(0,229,160,.3)'}">
+              <div style="font-size:.8rem;font-weight:700;color:${isCustom ? '#f59e0b' : '#00e5a0'}">
+                ${isCustom ? '⚠️ Backend personnalisé actif' : '✅ Backend par défaut (LEONI Sertissage Labo)'}
+              </div>
+              <div style="font-size:.72rem;color:var(--text-secondary);margin-top:.25rem;font-family:var(--font-mono);word-break:break-all">
+                ${ui.escape(config.databaseURL || '?')}
+              </div>
+            </div>
+
+            <div style="font-size:.78rem;color:var(--text-secondary);margin-bottom:1rem;line-height:1.5">
+              Pour pointer vers un <strong>autre projet Firebase</strong>, collez les valeurs depuis
+              <em>Console Firebase → Paramètres du projet → Vos applications → Configuration SDK</em>.
+            </div>
+
+            <form id="backend-config-form" style="display:flex;flex-direction:column;gap:.6rem">
+              ${fields.map(f => `
+                <div class="field">
+                  <label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:.2rem">${f.label}${f.required ? ' <span style="color:#ef4444">*</span>' : ''}</label>
+                  <input name="${f.key}" value="${ui.escape(config[f.key] || '')}" placeholder="${f.ph}" ${f.required ? 'required' : ''} autocomplete="off" style="width:100%;padding:.55rem .7rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-family:var(--font-mono);font-size:.78rem">
+                </div>
+              `).join('')}
+            </form>
+
+            <div id="backend-test-result" style="display:none;margin-top:.8rem;padding:.6rem .8rem;border-radius:6px;font-size:.78rem"></div>
+
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1.2rem;padding-top:.85rem;border-top:1px solid var(--border-soft)">
+              <button id="bc-test" style="background:rgba(0,212,255,.12);color:#00d4ff;border:1px solid rgba(0,212,255,.3);padding:.6rem 1rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.82rem">🔌 Tester la connexion</button>
+              <button id="bc-save" style="background:linear-gradient(135deg,#00d4ff,#0084d4);color:white;border:none;padding:.6rem 1rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.82rem">💾 Enregistrer + Recharger</button>
+              ${isCustom ? `<button id="bc-reset" style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3);padding:.6rem 1rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.82rem;margin-left:auto">↺ Restaurer défaut</button>` : ''}
+            </div>
+
+            <div style="font-size:.68rem;color:var(--text-muted);margin-top:1rem;line-height:1.5;border-top:1px solid var(--border-soft);padding-top:.7rem">
+              💡 <strong>Note :</strong> Cette option fonctionne pour tout backend <strong>Firebase</strong> (autre projet ou serveur compatible).
+              Pour un backend totalement différent (REST API, Supabase, Node.js…), une couche d'adaptation du code serait nécessaire — demandez à votre développeur.
+              <br>⚠️ La config est stockée <strong>localement sur cet appareil</strong> (localStorage). Chaque appareil doit être configuré séparément.
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', html);
+
+      const form = document.getElementById('backend-config-form');
+      const getFormConfig = () => {
+        const cfg = {};
+        new FormData(form).forEach((v, k) => { if (v.trim()) cfg[k] = v.trim(); });
+        return cfg;
+      };
+      const resultEl = document.getElementById('backend-test-result');
+      const showResult = (ok, msg) => {
+        resultEl.style.display = 'block';
+        resultEl.style.background = ok ? 'rgba(0,229,160,.1)' : 'rgba(239,68,68,.1)';
+        resultEl.style.color = ok ? '#00e5a0' : '#ef4444';
+        resultEl.innerHTML = msg;
+      };
+
+      // Tester
+      document.getElementById('bc-test').onclick = async () => {
+        const cfg = getFormConfig();
+        if (!cfg.apiKey || !cfg.databaseURL) {
+          showResult(false, '⚠️ API Key et Database URL sont obligatoires');
+          return;
+        }
+        showResult(true, '⏳ Test de connexion en cours...');
+        const res = await this.testConfig(cfg);
+        if (res.ok) showResult(true, '✅ Connexion réussie ! Vous pouvez enregistrer.');
+        else showResult(false, '⛔ Échec : ' + res.error);
+      };
+
+      // Enregistrer + recharger
+      document.getElementById('bc-save').onclick = async () => {
+        const cfg = getFormConfig();
+        if (!cfg.apiKey || !cfg.databaseURL) {
+          showResult(false, '⚠️ API Key et Database URL sont obligatoires');
+          return;
+        }
+        // Test avant sauvegarde
+        showResult(true, '⏳ Vérification avant sauvegarde...');
+        const res = await this.testConfig(cfg);
+        if (!res.ok) {
+          showResult(false, '⛔ Connexion échouée — config non sauvegardée : ' + res.error);
+          return;
+        }
+        if (this.save(cfg)) {
+          showResult(true, '✅ Config sauvegardée ! Rechargement dans 2s...');
+          setTimeout(() => location.reload(), 2000);
+        }
+      };
+
+      // Reset
+      const resetBtn = document.getElementById('bc-reset');
+      if (resetBtn) {
+        resetBtn.onclick = () => {
+          if (confirm('Restaurer la configuration Firebase par défaut (LEONI Sertissage Labo) ?')) {
+            this.reset();
+            showResult(true, '✅ Config par défaut restaurée ! Rechargement dans 2s...');
+            setTimeout(() => location.reload(), 2000);
+          }
+        };
+      }
+    }
+  };
+  window.backendConfig = backendConfig;
 
   /* ==========================================================================
      12.7i  🌐 GESTION HORS-LIGNE (Offline-aware UX)
@@ -22071,6 +22388,247 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
 
     /* ==========================================================================
+       🚫 OUTILS BLOQUÉS — Statuts critiques importés depuis Komax/DocuLink
+       ========================================================================== */
+    blocked: {
+      _data: [],          // données importées en mémoire
+      _initialized: false,
+      _statusBadge(status) {
+        // status: OK | warning | overrun | null
+        if (!status || status === '—') return `<span style="color:var(--text-muted);font-size:.7rem">—</span>`;
+        const s = String(status).toLowerCase();
+        if (s === 'ok')      return `<span style="background:rgba(16,185,129,.15);color:#10b981;padding:.18rem .5rem;border-radius:4px;font-size:.65rem;font-weight:700;letter-spacing:.04em">✅ OK</span>`;
+        if (s === 'warning') return `<span style="background:rgba(245,158,11,.15);color:#f59e0b;padding:.18rem .5rem;border-radius:4px;font-size:.65rem;font-weight:700;letter-spacing:.04em">⚠️ WARNING</span>`;
+        if (s === 'overrun') return `<span style="background:rgba(239,68,68,.15);color:#ef4444;padding:.18rem .5rem;border-radius:4px;font-size:.65rem;font-weight:700;letter-spacing:.04em">🚫 OVERRUN</span>`;
+        return `<span style="font-size:.7rem">${ui.escape(String(status))}</span>`;
+      },
+      _globalBadge(toolStatus) {
+        // toolStatus: green | yellow | red
+        const s = String(toolStatus || '').toLowerCase();
+        if (s === 'green')  return `<span style="background:#10b981;color:white;padding:.18rem .55rem;border-radius:4px;font-size:.65rem;font-weight:700">🟢 OK</span>`;
+        if (s === 'yellow') return `<span style="background:#f59e0b;color:white;padding:.18rem .55rem;border-radius:4px;font-size:.65rem;font-weight:700">🟡 ALERTE</span>`;
+        if (s === 'red')    return `<span style="background:#ef4444;color:white;padding:.18rem .55rem;border-radius:4px;font-size:.65rem;font-weight:700">🔴 BLOQUÉ</span>`;
+        return `<span style="font-size:.7rem;color:var(--text-muted)">—</span>`;
+      },
+      /** Détermine si une ligne est "bloquée" : au moins un statut overrun */
+      _isBlocked(row) {
+        const fields = ['Requalification by Time Status', 'Requalification by Strokes Status', 'Maintenance Status', 'Days In Use Status'];
+        return fields.some(f => String(row[f] || '').toLowerCase() === 'overrun');
+      },
+      /** Détermine si une ligne a au moins un warning (sans overrun) */
+      _hasWarning(row) {
+        const fields = ['Requalification by Time Status', 'Requalification by Strokes Status', 'Maintenance Status', 'Days In Use Status'];
+        return fields.some(f => String(row[f] || '').toLowerCase() === 'warning');
+      },
+
+      init() {
+        if (this._initialized) return;
+        this._initialized = true;
+        // Wire UI events
+        document.getElementById('bl-search')?.addEventListener('input', () => this.render());
+        document.getElementById('bl-master-location')?.addEventListener('change', () => this.render());
+        document.getElementById('bl-status-filter')?.addEventListener('change', () => this.render());
+        document.getElementById('bl-import-btn')?.addEventListener('click', () => {
+          document.getElementById('bl-import-file').click();
+        });
+        document.getElementById('bl-import-file')?.addEventListener('change', (e) => {
+          const f = e.target.files?.[0];
+          if (f) this.importExcel(f);
+          e.target.value = ''; // reset
+        });
+        // Charge depuis Firebase si déjà importé
+        this._loadFromFirebase();
+      },
+
+      /** Charge depuis Firebase au démarrage */
+      async _loadFromFirebase() {
+        try {
+          const snap = await fbDb.ref('blockedTools/data').once('value');
+          const data = snap.val();
+          if (data && Array.isArray(data)) {
+            this._data = data;
+            console.info(`[blocked] ${data.length} outils chargés depuis Firebase`);
+            this.render();
+            this._updateNavBadge();
+          } else if (data && typeof data === 'object') {
+            // Si stocké comme objet (clé:valeur) → convertir en array
+            this._data = Object.values(data);
+            this.render();
+            this._updateNavBadge();
+          }
+        } catch (e) {
+          console.warn('[blocked] Chargement Firebase échoué :', e.message);
+        }
+      },
+
+      /** Import Excel via SheetJS (déjà chargé pour le magasin) */
+      async importExcel(file) {
+        try {
+          ui.toast('⏳ Lecture du fichier Excel...', 'info', 2000);
+          // Charger SheetJS si pas déjà fait
+          if (typeof XLSX === 'undefined') {
+            await new Promise((res, rej) => {
+              const s = document.createElement('script');
+              s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+              s.onload = res; s.onerror = rej;
+              document.head.appendChild(s);
+            });
+          }
+          const buf = await file.arrayBuffer();
+          const wb = XLSX.read(buf, { type: 'array' });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          if (!rows.length) {
+            ui.toast('⚠️ Fichier vide ou format inattendu', 'warn');
+            return;
+          }
+          // Validation : doit avoir "Inventory No." ou similaire
+          const firstRow = rows[0];
+          if (!firstRow['Inventory No.'] && !firstRow['Inventory No'] && !firstRow['inventory no.']) {
+            ui.toast('⛔ Colonne "Inventory No." introuvable — vérifiez le format Komax', 'danger');
+            return;
+          }
+          ui.showLoader?.(`Import de ${rows.length} outils...`);
+
+          // Garde uniquement les colonnes utiles pour économiser l'espace Firebase
+          const keepFields = [
+            'Inventory No.', 'Master Location', 'Location', 'Tool Status',
+            'Maintenance Status', 'Requalification by Strokes Status',
+            'Requalification by Time Status', 'Days In Use Status',
+            'Description', 'Manufacturer', 'Locked',
+            'Maintenance Counter', 'Requalification by Strokes Counter',
+            'Days In Use Counter', 'Requalification Last Maintenance'
+          ];
+          const cleaned = rows.map(r => {
+            const out = {};
+            keepFields.forEach(f => { if (r[f] !== undefined) out[f] = r[f]; });
+            return out;
+          });
+
+          this._data = cleaned;
+
+          // Sauvegarder sur Firebase (par chunks de 200 pour éviter timeout)
+          const ts = Date.now();
+          await fbDb.ref('blockedTools/data').set(cleaned);
+          await fbDb.ref('blockedTools/meta').set({
+            importedAt: ts,
+            importedBy: state.user?.name || state.user?.email || 'admin',
+            rowCount: cleaned.length,
+            sourceFile: file.name
+          });
+          ui.hideLoader?.();
+          ui.toast(`✅ ${cleaned.length} outils importés et sauvegardés`, 'success', 4000);
+          this.render();
+          this._updateNavBadge();
+        } catch (e) {
+          ui.hideLoader?.();
+          console.error('[blocked import]', e);
+          ui.toast('⛔ Erreur import : ' + e.message, 'danger');
+        }
+      },
+
+      /** Filtrage selon les sélecteurs UI */
+      _getFiltered() {
+        const search = (document.getElementById('bl-search')?.value || '').trim().toLowerCase();
+        const project = document.getElementById('bl-master-location')?.value || '';
+        const statusFilter = document.getElementById('bl-status-filter')?.value || '';
+        return this._data.filter(r => {
+          if (search) {
+            const inv = String(r['Inventory No.'] || '').toLowerCase();
+            if (!inv.includes(search)) return false;
+          }
+          if (project) {
+            if (String(r['Master Location'] || '') !== project) return false;
+          }
+          if (statusFilter === 'blocked' && !this._isBlocked(r)) return false;
+          if (statusFilter === 'warning' && (!this._hasWarning(r) || this._isBlocked(r))) return false;
+          if (statusFilter === 'ok' && (this._isBlocked(r) || this._hasWarning(r))) return false;
+          return true;
+        });
+      },
+
+      /** Met à jour le badge "bloqués" dans la sidebar */
+      _updateNavBadge() {
+        const badge = document.getElementById('nav-blocked-count');
+        if (!badge) return;
+        const blockedCount = this._data.filter(r => this._isBlocked(r)).length;
+        badge.textContent = blockedCount;
+        badge.style.display = blockedCount > 0 ? '' : 'none';
+      },
+
+      render() {
+        // Peuple le dropdown Master Location
+        const sel = document.getElementById('bl-master-location');
+        if (sel && sel.children.length <= 1 && this._data.length > 0) {
+          const locations = [...new Set(this._data.map(r => r['Master Location']).filter(Boolean))].sort();
+          locations.forEach(loc => {
+            const opt = document.createElement('option');
+            opt.value = loc;
+            opt.textContent = loc;
+            sel.appendChild(opt);
+          });
+        }
+
+        // KPIs globaux (sur l'ensemble, pas filtré)
+        const total = this._data.length;
+        const blocked = this._data.filter(r => this._isBlocked(r)).length;
+        const warning = this._data.filter(r => this._hasWarning(r) && !this._isBlocked(r)).length;
+        const ok = total - blocked - warning;
+        document.getElementById('bl-kpi-total').textContent = total;
+        document.getElementById('bl-kpi-ok').textContent = ok;
+        document.getElementById('bl-kpi-warning').textContent = warning;
+        document.getElementById('bl-kpi-overrun').textContent = blocked;
+
+        // Bandeau info si pas de données
+        const banner = document.getElementById('bl-info-banner');
+        const tbody = document.getElementById('bl-tbody');
+        if (!total) {
+          if (banner) banner.style.display = 'none';
+          if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>`;
+          return;
+        }
+
+        // Filtrage et rendu
+        const filtered = this._getFiltered();
+        if (banner) {
+          banner.style.display = 'block';
+          banner.style.background = 'rgba(0,212,255,.08)';
+          banner.style.borderLeft = '3px solid #00d4ff';
+          banner.style.color = '#00d4ff';
+          banner.innerHTML = `📊 <strong>${filtered.length}</strong> outils affichés sur ${total} · ${blocked > 0 ? `<strong style="color:#ef4444">${blocked} bloqués 🚫</strong> · ` : ''}${warning > 0 ? `<strong style="color:#f59e0b">${warning} en warning ⚠️</strong>` : ''}`;
+        }
+
+        if (!filtered.length) {
+          tbody.innerHTML = `<tr><td colspan="7" style="padding:2rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">🔍 Aucun outil ne correspond aux filtres</td></tr>`;
+          return;
+        }
+
+        // Limiter à 500 lignes pour les perfs (avec note si dépassé)
+        const MAX_DISPLAY = 500;
+        const slice = filtered.slice(0, MAX_DISPLAY);
+        tbody.innerHTML = slice.map(r => {
+          const isBlocked = this._isBlocked(r);
+          const rowStyle = isBlocked ? 'background:rgba(239,68,68,.04)' : '';
+          return `
+            <tr style="border-bottom:1px solid var(--border-soft);${rowStyle}">
+              <td style="padding:.55rem .75rem;font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.78rem">${ui.escape(r['Inventory No.'] || '?')}</td>
+              <td style="padding:.55rem .75rem;color:var(--text-secondary);font-size:.74rem">${ui.escape(r['Master Location'] || '—')}</td>
+              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r['Requalification by Time Status'])}</td>
+              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r['Requalification by Strokes Status'])}</td>
+              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r['Maintenance Status'])}</td>
+              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r['Days In Use Status'])}</td>
+              <td style="padding:.55rem .5rem;text-align:center">${this._globalBadge(r['Tool Status'])}</td>
+            </tr>
+          `;
+        }).join('');
+
+        if (filtered.length > MAX_DISPLAY) {
+          tbody.innerHTML += `<tr><td colspan="7" style="padding:1rem;text-align:center;color:var(--text-muted);font-style:italic;background:rgba(255,180,71,.05)">⚠️ ${filtered.length - MAX_DISPLAY} lignes supplémentaires non affichées — affinez les filtres pour les voir</td></tr>`;
+        }
+      }
+    },
+
+    /* ==========================================================================
        MAGASIN — Pièces & Stock (port from index.html)
        ========================================================================== */
     magasin: {
@@ -25173,6 +25731,7 @@ Erreur Firebase : ${e.message}`;
           if (action === 'logout')   auth.logout();
           if (action === 'profile')  userActions.openProfile();
           if (action === 'password') userActions.openPassword();
+          if (action === 'backend-config' && typeof backendConfig !== 'undefined') backendConfig.showModal();
         });
       });
 
@@ -27590,6 +28149,7 @@ Erreur Firebase : ${e.message}`;
     views.history.init();
     views.queue.init();
     views.catalog.init();
+    if (views.blocked && views.blocked.init) views.blocked.init();
     views.users.init();
     views.notifications.init();
     views.auditLog.init();

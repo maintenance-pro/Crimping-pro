@@ -22899,12 +22899,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
         // 2️⃣ Générer le HTML : sections par client
         let html = '';
-        Object.values(grouped).forEach(({ config, projects }) => {
+        Object.entries(grouped).forEach(([clientKey, { config, projects }]) => {
           html += `<div style="margin-bottom:.5rem;border-radius:6px;overflow:hidden;border:1px solid ${config.color}33;background:${config.color}08">
-            <div style="background:${config.color}1a;padding:.35rem .55rem;font-size:.7rem;font-weight:800;color:${config.color};letter-spacing:.05em;display:flex;align-items:center;gap:.35rem;border-bottom:1px solid ${config.color}22">
+            <div data-bl-client-toggle="${clientKey}" title="Cliquez pour (dé)sélectionner tous les projets ${config.name}" style="background:${config.color}1a;padding:.35rem .55rem;font-size:.7rem;font-weight:800;color:${config.color};letter-spacing:.05em;display:flex;align-items:center;gap:.35rem;border-bottom:1px solid ${config.color}22;cursor:pointer;user-select:none;transition:background .15s" onmouseover="this.style.background='${config.color}30'" onmouseout="this.style.background='${config.color}1a'">
               <span style="font-size:.9rem">${config.icon}</span>
               <span>${config.name.toUpperCase()}</span>
-              <span style="margin-left:auto;font-size:.6rem;opacity:.8;font-weight:600">${projects.length} projet${projects.length > 1 ? 's' : ''}</span>
+              <span style="margin-left:auto;font-size:.6rem;opacity:.8;font-weight:600">${projects.length} projet${projects.length > 1 ? 's' : ''} · ↕</span>
             </div>
             <div style="padding:.2rem">
               ${projects.map(loc => {
@@ -22953,6 +22953,33 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (checked.length === 0) {
               this._selectedProjects = new Set(['__NONE__']);
             } else if (checked.length === total) {
+              this._selectedProjects.clear();
+            } else {
+              this._selectedProjects = new Set(checked);
+            }
+            this._updateProjectLabel();
+            this.render();
+          });
+        });
+
+        // 🆕 Click sur bandeau client → toggle tous ses projets
+        container.querySelectorAll('[data-bl-client-toggle]').forEach(header => {
+          header.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Trouve la section parente puis les checkboxes de cette section
+            const section = header.parentElement;
+            if (!section) return;
+            const checkboxes = section.querySelectorAll('[data-bl-proj]');
+            if (!checkboxes.length) return;
+            // Si tous cochés → tout décocher ; sinon tout cocher
+            const allChecked = [...checkboxes].every(cb => cb.checked);
+            checkboxes.forEach(cb => { cb.checked = !allChecked; });
+            // Reconstruire le Set global
+            const allCbs = container.querySelectorAll('[data-bl-proj]');
+            const checked = [...allCbs].filter(cb => cb.checked).map(cb => cb.value);
+            if (checked.length === 0) {
+              this._selectedProjects = new Set(['__NONE__']);
+            } else if (checked.length === allCbs.length) {
               this._selectedProjects.clear();
             } else {
               this._selectedProjects = new Set(checked);
@@ -23392,7 +23419,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <tr style="border-bottom:1px solid var(--border-soft);${rowStyle}">
               <td style="padding:.55rem .75rem">
                 <div style="font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.78rem">${ui.escape(r.inventoryNo || '?')}</div>
-                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.15rem">${unlockBadge}${toggleBtn}</div>
+                ${r.description ? `<div style="font-size:.65rem;color:#ffb547;font-weight:600;margin-top:.1rem;letter-spacing:.03em" title="Description (indique le type d'outil — utile pour identifier les critiques)">${ui.escape(r.description)}</div>` : ''}
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.15rem;margin-top:.15rem">${unlockBadge}${toggleBtn}</div>
               </td>
               <td style="padding:.55rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.74rem">${this._fmtNum(r.maintenanceCounter)}</td>
               <td style="padding:.55rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.74rem;font-weight:700">${this._fmtNum(r.totalCounter)}</td>

@@ -9161,7 +9161,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         </div>
         <div class="intervention__grid intervention__grid--2">
           <div class="field"><label aria-label="Fournisseur">Fournisseur</label><input name="fournisseur" placeholder="Ex: THB" / autocomplete="off"></div>
-          <div class="field"><label aria-label="Projet">Projet</label><input name="projet" placeholder="Ex: C-NEO" / autocomplete="off"></div>
+          <div class="field">
+            <label aria-label="Projet">Projet <span style="color:#ff8b6b">*</span></label>
+            <input name="projet" id="tf-projet-input" placeholder="Ex: C-NEO" autocomplete="off" list="tf-projet-list">
+            <datalist id="tf-projet-list"></datalist>
+            <div id="tf-projet-client" style="margin-top:.35rem;font-size:.72rem"></div>
+          </div>
         </div>
         <!-- 🆕 STATUT OPÉRATIONNEL DE L'OUTIL -->
         <div class="intervention__grid intervention__grid--2">
@@ -20184,6 +20189,90 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return saved !== false;
       },
 
+      /** 🆕 Met à jour l'indicateur de client sous le champ Projet du formulaire */
+      _updateProjetClientIndicator() {
+        const input = document.getElementById('tf-projet-input');
+        const ind = document.getElementById('tf-projet-client');
+        if (!input || !ind) return;
+        const proj = (input.value || '').trim();
+        if (!proj) {
+          ind.innerHTML = `<span style="color:var(--text-muted);font-style:italic">↑ Renseignez le projet pour identifier le client</span>`;
+          return;
+        }
+        const client = this._getClientForProject(proj);
+        if (client) {
+          ind.innerHTML = `<span style="display:inline-flex;align-items:center;gap:.3rem;color:${client.color};font-weight:800;background:${client.color}15;padding:.15rem .5rem;border-radius:5px;border:1px solid ${client.color}40">${client.icon} Client : ${ui.escape(client.name)}</span>`;
+        } else {
+          ind.innerHTML = `<span style="color:#f59e0b;font-weight:700">❓ Projet non classé — on vous demandera le client à l'enregistrement</span>`;
+        }
+      },
+
+      /** 🆕 Demande à l'admin d'identifier le client d'un projet inconnu (modale).
+       *  Renvoie le clientKey choisi, '__new__' pour créer un client, ou null si ignoré. */
+      async _promptIdentifyClient(projectName) {
+        return new Promise(resolve => {
+          document.getElementById('identify-client-modal')?.remove();
+          const cfg = views.blocked.clientsConfig || views.blocked.DEFAULT_CLIENTS_CONFIG || {};
+          const clientBtns = Object.entries(cfg).map(([k, c]) => `
+            <button data-ic="${ui.escape(k)}" style="display:flex;align-items:center;gap:.6rem;background:${c.color}12;color:${c.color};border:2px solid ${c.color}55;padding:.7rem 1rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;text-align:left;transition:all .15s" onmouseover="this.style.background='${c.color}22';this.style.transform='translateX(4px)'" onmouseout="this.style.background='${c.color}12';this.style.transform=''">
+              <span style="font-size:1.4rem">${c.icon || '🏭'}</span>
+              <span>${ui.escape(c.name || k)}</span>
+            </button>`).join('');
+          const html = `
+            <div id="identify-client-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);z-index:10010;display:flex;align-items:center;justify-content:center;padding:1rem">
+              <div style="background:var(--bg-2);border:2px solid #00d4ff;border-radius:12px;padding:1.5rem;max-width:460px;width:100%;max-height:90vh;overflow-y:auto">
+                <header style="margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:.5rem">
+                  <span style="font-size:1.6rem">🏷</span>
+                  <h2 style="margin:0;color:#00d4ff;font-size:1.05rem">Identifier le client</h2>
+                </header>
+                <div style="font-size:.86rem;color:var(--text-primary);line-height:1.5;margin-bottom:1rem">
+                  Le projet <strong style="font-family:var(--font-mono);color:#ff8b6b">${ui.escape(projectName)}</strong> n'est rattaché à aucun client. À quel constructeur appartient-il ?
+                </div>
+                <div style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:1rem">
+                  ${clientBtns}
+                  <button data-ic="__new__" style="display:flex;align-items:center;gap:.6rem;background:rgba(0,229,160,.1);color:#00e5a0;border:2px dashed rgba(0,229,160,.5);padding:.7rem 1rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;text-align:left">
+                    <span style="font-size:1.4rem">➕</span><span>Créer un nouveau client…</span>
+                  </button>
+                </div>
+                <button data-ic="__skip__" style="width:100%;background:transparent;color:var(--text-muted);border:1px solid var(--border-soft);padding:.55rem;border-radius:8px;cursor:pointer;font-size:.78rem">⏭ Laisser non classé pour l'instant</button>
+              </div>
+            </div>`;
+          document.body.insertAdjacentHTML('beforeend', html);
+          const modal = document.getElementById('identify-client-modal');
+          modal.querySelectorAll('[data-ic]').forEach(b => {
+            b.addEventListener('click', () => {
+              const v = b.dataset.ic;
+              modal.remove();
+              resolve(v === '__skip__' ? null : v);
+            });
+          });
+        });
+      },
+
+      /** 🆕 Crée un nouveau client minimal et renvoie sa clé (ou null) */
+      async _createClientQuick() {
+        const name = (prompt('Nom du nouveau client / constructeur (ex: ATELIER, INTERNE) :') || '').trim();
+        if (!name) return null;
+        const key = name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+        if (!key) return null;
+        if (!views.blocked.clientsConfig) {
+          views.blocked.clientsConfig = JSON.parse(JSON.stringify(views.blocked.DEFAULT_CLIENTS_CONFIG));
+        }
+        const cfg = views.blocked.clientsConfig;
+        if (cfg[key]) { ui.toast('⚠️ Ce client existe déjà', 'warn'); return key; }
+        // Palette de couleurs pour nouveaux clients
+        const palette = ['#8b5cf6', '#14b8a6', '#f59e0b', '#ec4899', '#06b6d4', '#84cc16'];
+        const color = palette[Object.keys(cfg).length % palette.length];
+        cfg[key] = {
+          name, icon: '🏭', color, projects: [],
+          rules: { unlockPolicy: 'laboratoire', criticalToolPatterns: [], thresholds: { warningPct: 0.75, overrunPct: 1.0 } }
+        };
+        await views.blocked._saveClientsConfig();
+        views.blocked._clientCache = null;
+        ui.toast(`✓ Client « ${name} » créé`, 'success', 3000);
+        return key;
+      },
+
       /** Met à jour le libellé du bouton multi-projets */
       _updateProjectLabel() {
         const lbl = document.getElementById('cat-project-label');
@@ -21623,6 +21712,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         modal.querySelectorAll('[data-close]').forEach(el => {
           el.addEventListener('click', () => { modal.hidden = true; }, { once: true });
         });
+
+        // 🆕 Datalist des projets existants + indicateur client live
+        const projDatalist = document.getElementById('tf-projet-list');
+        if (projDatalist) {
+          const projs = [...new Set(Object.values(state.tools || {}).map(t => (t.projet || '').trim()).filter(Boolean))].sort();
+          projDatalist.innerHTML = projs.map(p => `<option value="${ui.escape(p)}">`).join('');
+        }
+        const projInput = document.getElementById('tf-projet-input');
+        if (projInput) {
+          projInput.oninput = () => this._updateProjetClientIndicator();
+          this._updateProjetClientIndicator();
+        }
+
         $('#btn-tool-save').onclick = async () => {
           const data = {};
           new FormData(form).forEach((v, k) => { data[k] = v; });
@@ -21797,6 +21899,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
           // Conserver l'ID original si on modifie
           if (tool && tool.id) data.id = tool.id;
+
+          // 🆕 IDENTIFICATION CLIENT : à la création, si le projet n'est rattaché à aucun client,
+          //    demander à l'admin de l'identifier (rattacher à un client existant ou en créer un).
+          if (!tool && ['admin','super_admin'].includes(state.role)) {
+            const proj = (data.projet || '').trim();
+            if (proj && !this._getClientForProject(proj)) {
+              let clientKey = await this._promptIdentifyClient(proj);
+              if (clientKey === '__new__') clientKey = await this._createClientQuick();
+              if (clientKey) await this._classifyProject(proj, clientKey);
+            }
+          }
 
           await db.saveTool(data);
           modal.hidden = true;

@@ -20273,6 +20273,52 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return key;
       },
 
+      /** 🆕 Demande quel STATUT appliquer aux outils d'une liste importée.
+       *  Renvoie la clé de statut choisie, ou false si l'utilisateur annule. */
+      async _promptImportStatus(count) {
+        return new Promise(resolve => {
+          document.getElementById('import-status-modal')?.remove();
+          // Ordre d'affichage : Nouveau recommandé en premier
+          const order = ['nouveau', 'production', 'maintenance', 'reserve', 'endommage', 'obsolete'];
+          const btns = order.filter(k => this.TOOL_STATUSES[k]).map(k => {
+            const s = this.TOOL_STATUSES[k];
+            const recommended = k === 'nouveau';
+            return `<button data-imp-status="${k}" style="display:flex;align-items:center;gap:.6rem;background:${s.bg};color:${s.color};border:2px solid ${s.color}${recommended ? '' : '55'};padding:.7rem 1rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.9rem;text-align:left;transition:all .15s;${recommended ? `box-shadow:0 0 0 1px ${s.color}` : ''}" onmouseover="this.style.transform='translateX(4px)'" onmouseout="this.style.transform=''">
+              <span style="font-size:1.4rem">${s.icon}</span>
+              <div style="flex:1">
+                <div>${ui.escape(s.label)}${recommended ? ' <span style="font-size:.65rem;background:'+s.color+';color:#001018;padding:.05rem .35rem;border-radius:3px;font-weight:800;margin-left:.3rem">RECOMMANDÉ</span>' : ''}</div>
+              </div>
+            </button>`;
+          }).join('');
+          const html = `
+            <div id="import-status-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);z-index:10010;display:flex;align-items:center;justify-content:center;padding:1rem">
+              <div style="background:var(--bg-2);border:2px solid #00d4ff;border-radius:12px;padding:1.5rem;max-width:460px;width:100%;max-height:90vh;overflow-y:auto">
+                <header style="margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:.5rem">
+                  <span style="font-size:1.6rem">🏷</span>
+                  <h2 style="margin:0;color:#00d4ff;font-size:1.05rem">Statut des outils importés</h2>
+                </header>
+                <div style="font-size:.86rem;color:var(--text-primary);line-height:1.5;margin-bottom:1rem">
+                  Vous importez <strong style="color:#00d4ff">${count}</strong> outil${count > 1 ? 's' : ''}. Quel <strong>statut opérationnel</strong> leur attribuer ?<br>
+                  <span style="font-size:.74rem;color:var(--text-muted)">Par défaut ils ne seront PAS mis "En production" automatiquement.</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:1rem">
+                  ${btns}
+                </div>
+                <button data-imp-status="__cancel__" style="width:100%;background:transparent;color:var(--text-muted);border:1px solid var(--border-soft);padding:.55rem;border-radius:8px;cursor:pointer;font-size:.78rem">✕ Annuler l'import</button>
+              </div>
+            </div>`;
+          document.body.insertAdjacentHTML('beforeend', html);
+          const modal = document.getElementById('import-status-modal');
+          modal.querySelectorAll('[data-imp-status]').forEach(b => {
+            b.addEventListener('click', () => {
+              const v = b.dataset.impStatus;
+              modal.remove();
+              resolve(v === '__cancel__' ? false : v);
+            });
+          });
+        });
+      },
+
       /** Met à jour le libellé du bouton multi-projets */
       _updateProjectLabel() {
         const lbl = document.getElementById('cat-project-label');
@@ -21359,6 +21405,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             }
             console.groupEnd();
 
+            // 🆕 Demander le STATUT à appliquer aux outils importés (pas "production" par défaut)
+            ui.hideLoader();
+            const importStatus = await this._promptImportStatus(rows.length);
+            if (!importStatus) { ui.toast('Import annulé', 'info', 2500); return; }
+            ui.showLoader(`Import de ${rows.length} outils…`);
+
             let imported = 0, skipped = 0;
             const errors = [];
 
@@ -21400,6 +21452,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               };
 
               tool.frequenceCycle = parseInt(tool.frequenceCycle) || 0;
+              tool.status = importStatus; // 🆕 statut choisi à l'import (au lieu de "production" par défaut)
               tool.createdAt = Date.now();
               tool.updatedAt = Date.now();
 

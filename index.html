@@ -22785,7 +22785,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return 'OK';
       },
 
-      /** 🆕 Exporte les résultats filtrés en Excel — structure multi-feuilles */
+      /** 🆕 Exporte les résultats filtrés en Excel — structure multi-feuilles + STYLES */
       async exportFiltered() {
         const filtered = this._getFiltered();
         if (!filtered.length) {
@@ -22793,22 +22793,134 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           return;
         }
         try {
-          if (typeof XLSX === 'undefined') {
-            ui.toast('⏳ Chargement de la librairie d\'export...', 'info', 2000);
+          // 🆕 Charger xlsx-js-style (drop-in remplaçant SheetJS avec styles)
+          //    Override window.XLSX avec une version qui préserve les styles à l'écriture
+          if (!window.__xlsxStyled) {
+            ui.toast('⏳ Chargement de la librairie d\'export stylisée...', 'info', 2500);
             await new Promise((res, rej) => {
               const s = document.createElement('script');
-              s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
-              s.onload = res; s.onerror = rej;
+              s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
+              s.onload = () => { window.__xlsxStyled = true; res(); };
+              s.onerror = rej;
               document.head.appendChild(s);
             });
           }
           ui.showLoader?.(`Export de ${filtered.length} outils...`);
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ HELPERS pour structurer les données proprement                  ║
+          // ║ HELPERS DE STYLE (xlsx-js-style)                                ║
           // ╚══════════════════════════════════════════════════════════════════╝
+          const BORDER_LIGHT = {
+            top:    { style: "thin", color: { rgb: "D1D5DB" } },
+            bottom: { style: "thin", color: { rgb: "D1D5DB" } },
+            left:   { style: "thin", color: { rgb: "D1D5DB" } },
+            right:  { style: "thin", color: { rgb: "D1D5DB" } }
+          };
+          const BORDER_THICK = {
+            top:    { style: "medium", color: { rgb: "1F2937" } },
+            bottom: { style: "medium", color: { rgb: "1F2937" } },
+            left:   { style: "medium", color: { rgb: "1F2937" } },
+            right:  { style: "medium", color: { rgb: "1F2937" } }
+          };
+          const styleHeader = (rgb) => ({
+            fill: { patternType: "solid", fgColor: { rgb } },
+            font: { color: { rgb: "FFFFFF" }, bold: true, sz: 11, name: "Calibri" },
+            border: BORDER_LIGHT,
+            alignment: { horizontal: "center", vertical: "center", wrapText: true }
+          });
+          const styleZebra = (rgb, bold = false) => ({
+            fill: { patternType: "solid", fgColor: { rgb } },
+            font: { sz: 10, name: "Calibri", bold },
+            border: BORDER_LIGHT,
+            alignment: { vertical: "center", wrapText: false }
+          });
+          const styleStatus = (status) => {
+            const s = String(status || '').toLowerCase();
+            if (s === 'ok')      return { fill: { patternType: "solid", fgColor: { rgb: "D1FAE5" } }, font: { color: { rgb: "065F46" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+            if (s === 'warning') return { fill: { patternType: "solid", fgColor: { rgb: "FEF3C7" } }, font: { color: { rgb: "92400E" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+            if (s === 'overrun') return { fill: { patternType: "solid", fgColor: { rgb: "FECACA" } }, font: { color: { rgb: "991B1B" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+            return styleZebra("FFFFFF");
+          };
+          const styleCause = (cause) => {
+            const c = String(cause || '');
+            if (c.startsWith('REQUALIF'))     return { fill: { patternType: "solid", fgColor: { rgb: "FECACA" } }, font: { color: { rgb: "991B1B" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+            if (c.startsWith('COUPE'))        return { fill: { patternType: "solid", fgColor: { rgb: "FED7AA" } }, font: { color: { rgb: "9A3412" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+            if (c.startsWith('BINDING'))      return { fill: { patternType: "solid", fgColor: { rgb: "FEF08A" } }, font: { color: { rgb: "854D0E" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+            if (c.startsWith('VÉRIFICATION')) return { fill: { patternType: "solid", fgColor: { rgb: "CFFAFE" } }, font: { color: { rgb: "155E75" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+            if (c === 'OK')                   return { fill: { patternType: "solid", fgColor: { rgb: "D1FAE5" } }, font: { color: { rgb: "065F46" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+            if (c === 'ALERTE')               return { fill: { patternType: "solid", fgColor: { rgb: "FEF3C7" } }, font: { color: { rgb: "92400E" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+            return styleZebra("FFFFFF");
+          };
+          const styleClient = (clientName) => {
+            const map = {
+              'Volvo':      { bg: "DBEAFE", fg: "1E3A8A" },
+              'Stellantis': { bg: "DBEAFE", fg: "1D4ED8" },
+              'Renault':    { bg: "FEF3C7", fg: "78350F" }
+            };
+            const c = map[clientName];
+            if (!c) return styleZebra("F9FAFB");
+            return { fill: { patternType: "solid", fgColor: { rgb: c.bg } }, font: { color: { rgb: c.fg }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+          };
 
-          /** Détermine l'ACTION RECOMMANDÉE pour chaque outil */
+          /** Applique le style standard sur une feuille de DONNÉES (tableau régulier) */
+          const applyDataStyles = (ws, opts = {}) => {
+            if (!ws['!ref']) return;
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            const headerColor = opts.headerColor || "1F2937";
+            const statusCols  = opts.statusCols  || [];
+            const causeCol    = opts.causeCol;
+            const clientCol   = opts.clientCol;
+            const invCol      = opts.invCol ?? 0;
+            const numCols     = opts.numCols     || [];
+            for (let row = range.s.r; row <= range.e.r; row++) {
+              for (let col = range.s.c; col <= range.e.c; col++) {
+                const addr = XLSX.utils.encode_cell({ r: row, c: col });
+                if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+
+                if (row === 0) {
+                  // En-tête
+                  ws[addr].s = styleHeader(headerColor);
+                } else if (statusCols.includes(col)) {
+                  ws[addr].s = styleStatus(ws[addr].v);
+                } else if (col === causeCol) {
+                  ws[addr].s = styleCause(ws[addr].v);
+                } else if (col === clientCol) {
+                  ws[addr].s = styleClient(ws[addr].v);
+                } else {
+                  const zebra = row % 2 === 0; // 1-indexed display, so even rows zebra
+                  const bg = zebra ? "F9FAFB" : "FFFFFF";
+                  if (col === invCol) {
+                    // Inventory No. : police monospace, gras, bleu marine
+                    ws[addr].s = {
+                      fill: { patternType: "solid", fgColor: { rgb: bg } },
+                      font: { sz: 10, bold: true, color: { rgb: "1E40AF" }, name: "Consolas" },
+                      border: BORDER_LIGHT,
+                      alignment: { vertical: "center", horizontal: "left" }
+                    };
+                  } else if (numCols.includes(col)) {
+                    // Colonnes numériques : police monospace, alignement droite
+                    ws[addr].s = {
+                      fill: { patternType: "solid", fgColor: { rgb: bg } },
+                      font: { sz: 10, name: "Consolas" },
+                      border: BORDER_LIGHT,
+                      alignment: { vertical: "center", horizontal: "right" }
+                    };
+                    // Format numérique avec milliers
+                    if (typeof ws[addr].v === 'number') ws[addr].z = '#,##0';
+                  } else {
+                    ws[addr].s = styleZebra(bg);
+                  }
+                }
+              }
+            }
+            // Hauteur d'en-tête
+            if (!ws['!rows']) ws['!rows'] = [];
+            ws['!rows'][0] = { hpt: 32 };
+          };
+
+          // ╔══════════════════════════════════════════════════════════════════╗
+          // ║ HELPERS POUR DONNÉES (recommandation + type)                    ║
+          // ╚══════════════════════════════════════════════════════════════════╝
           const getRecommendedAction = (r) => {
             if (!this._isBlocked(r)) return '—';
             const unlock = this._getUnlockHandler(r);
@@ -22816,9 +22928,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
             const m    = String(r.maintenanceStatus||'').toLowerCase();
             const d    = String(r.daysInUseStatus||'').toLowerCase();
-            if (unlock.handler === 'crimping-cell') {
-              return '⚙️ Effectuer vérification visuelle 5J en cellule';
-            }
+            if (unlock.handler === 'crimping-cell') return '⚙️ Effectuer vérification visuelle 5J en cellule';
             if (reqT === 'overrun' || reqS === 'overrun') {
               const t = []; if (reqT === 'overrun') t.push('TIME'); if (reqS === 'overrun') t.push('STROKES');
               return `🧪 Envoyer au labo pour REQUALIF (${t.join(' + ')})`;
@@ -22828,8 +22938,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (d === 'overrun')   return '🧪 Envoyer au labo pour BINDING (days in use)';
             return '—';
           };
-
-          /** Détermine le TYPE de marquage Stellantis */
           const getStellantisType = (r) => {
             const client = this._getClientForProject(r.masterLocation);
             if (!client || client.key !== 'stellantis') return '';
@@ -22841,7 +22949,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           };
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ FEUILLE 1 : 📊 SYNTHÈSE — Vue d'ensemble                        ║
+          // ║ STATS GÉNÉRALES                                                  ║
           // ╚══════════════════════════════════════════════════════════════════╝
           const now = new Date();
           const dateFr = now.toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' });
@@ -22870,8 +22978,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             return (reqT !== 'overrun' && reqS !== 'overrun') && !(m === 'overrun' || m === 'warning') && d === 'overrun';
           }).length;
           const totalCntSum = filtered.reduce((s, r) => s + (Number(r.totalCounter) || 0), 0);
-
-          // Stats par client
           const byClient = {};
           filtered.forEach(r => {
             const c = this._getClientForProject(r.masterLocation);
@@ -22886,12 +22992,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             }
           });
 
+          // ╔══════════════════════════════════════════════════════════════════╗
+          // ║ FEUILLE 1 : 📊 SYNTHÈSE (avec styling sur mesure)               ║
+          // ╚══════════════════════════════════════════════════════════════════╝
           const synthese = [
             ['LEONI Wiring System — Rapport Outils Bloqués'],
             [`Date export : ${dateFr}`],
             [`Exporté par : ${state.user?.name || state.user?.email || 'admin'}`],
             [],
-            ['═══ RÉSUMÉ GÉNÉRAL ═══'],
+            ['RÉSUMÉ GÉNÉRAL'],
             ['Indicateur', 'Valeur', 'Pourcentage'],
             ['Total outils', filtered.length, '100%'],
             ['Outils bloqués', blocked.length, Math.round(blocked.length / filtered.length * 100) + '%'],
@@ -22899,14 +23008,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             ['→ À traiter en Cellule Sertissage ⚙️', cellTools.length, Math.round(cellTools.length / (blocked.length||1) * 100) + '% des bloqués'],
             ['Total Compteur cumulé', totalCntSum, 'cycles'],
             [],
-            ['═══ RÉPARTITION PAR CAUSE (Bloqués Labo) ═══'],
-            ['Cause', 'Nombre', 'Action'],
+            ['RÉPARTITION PAR CAUSE'],
+            ['Cause', 'Nombre', 'Action recommandée'],
             ['🔴 REQUALIF (Time/Strokes)', causeReqCount, 'Envoyer au labo pour requalification'],
             ['🟠 COUPE (Maintenance)', causeCoupeCount, 'Envoyer au labo pour coupe métallographique'],
             ['🟡 BINDING (Days In Use)', causeBindingCount, 'Envoyer au labo pour contrôle binding'],
             ['⚙️ VÉRIFICATION 5J (Cellule)', cellTools.length, 'Effectuer vérification visuelle 5 jours en cellule'],
             [],
-            ['═══ RÉPARTITION PAR CLIENT ═══'],
+            ['RÉPARTITION PAR CLIENT'],
             ['Client', 'Total outils', 'Bloqués', 'À Labo', 'À Cellule']
           ];
           Object.entries(byClient).forEach(([name, s]) => {
@@ -22914,8 +23023,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           });
 
           const wsSynthese = XLSX.utils.aoa_to_sheet(synthese);
-          wsSynthese['!cols'] = [{ wch: 38 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 }];
-          // Merger les titres
+          wsSynthese['!cols'] = [{ wch: 42 }, { wch: 14 }, { wch: 38 }, { wch: 14 }, { wch: 14 }];
           wsSynthese['!merges'] = [
             { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
             { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
@@ -22924,48 +23032,82 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             { s: { r: 12, c: 0 }, e: { r: 12, c: 4 } },
             { s: { r: 19, c: 0 }, e: { r: 19, c: 4 } }
           ];
+          // Style spécifique synthèse
+          const STYLE_TITLE = {
+            fill: { patternType: "solid", fgColor: { rgb: "1E3A8A" } },
+            font: { color: { rgb: "FFFFFF" }, bold: true, sz: 16, name: "Calibri" },
+            border: BORDER_THICK,
+            alignment: { horizontal: "center", vertical: "center" }
+          };
+          const STYLE_META = {
+            fill: { patternType: "solid", fgColor: { rgb: "EFF6FF" } },
+            font: { color: { rgb: "1E40AF" }, italic: true, sz: 10, name: "Calibri" },
+            border: BORDER_LIGHT,
+            alignment: { horizontal: "center", vertical: "center" }
+          };
+          const STYLE_SECTION = {
+            fill: { patternType: "solid", fgColor: { rgb: "1F2937" } },
+            font: { color: { rgb: "FFFFFF" }, bold: true, sz: 12, name: "Calibri" },
+            border: BORDER_THICK,
+            alignment: { horizontal: "center", vertical: "center" }
+          };
+          const STYLE_SUBHEADER = {
+            fill: { patternType: "solid", fgColor: { rgb: "374151" } },
+            font: { color: { rgb: "FFFFFF" }, bold: true, sz: 11, name: "Calibri" },
+            border: BORDER_LIGHT,
+            alignment: { horizontal: "center", vertical: "center" }
+          };
+          const synRange = XLSX.utils.decode_range(wsSynthese['!ref']);
+          for (let row = synRange.s.r; row <= synRange.e.r; row++) {
+            for (let col = synRange.s.c; col <= synRange.e.c; col++) {
+              const addr = XLSX.utils.encode_cell({ r: row, c: col });
+              if (!wsSynthese[addr]) wsSynthese[addr] = { t: 's', v: '' };
+              if (row === 0) wsSynthese[addr].s = STYLE_TITLE;
+              else if (row === 1 || row === 2) wsSynthese[addr].s = STYLE_META;
+              else if (row === 4 || row === 12 || row === 19) wsSynthese[addr].s = STYLE_SECTION;
+              else if (row === 5 || row === 13 || row === 20) wsSynthese[addr].s = STYLE_SUBHEADER;
+              else {
+                const zebra = row % 2 === 0;
+                const bg = zebra ? "F9FAFB" : "FFFFFF";
+                if (col === 0) {
+                  wsSynthese[addr].s = styleZebra(bg, true);
+                } else if (col === 1 && typeof wsSynthese[addr].v === 'number') {
+                  wsSynthese[addr].s = {
+                    fill: { patternType: "solid", fgColor: { rgb: bg } },
+                    font: { sz: 11, bold: true, color: { rgb: "1E40AF" }, name: "Consolas" },
+                    border: BORDER_LIGHT,
+                    alignment: { horizontal: "right", vertical: "center" }
+                  };
+                  wsSynthese[addr].z = '#,##0';
+                } else {
+                  wsSynthese[addr].s = styleZebra(bg);
+                }
+              }
+            }
+          }
+          wsSynthese['!rows'] = [
+            { hpt: 38 }, { hpt: 22 }, { hpt: 22 }, { hpt: 14 },
+            { hpt: 30 }, { hpt: 24 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 },
+            { hpt: 14 }, { hpt: 30 }, { hpt: 24 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 },
+            { hpt: 14 }, { hpt: 30 }, { hpt: 24 }
+          ];
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ FEUILLE 2 : 🧪 LABORATOIRE — Outils à envoyer au labo          ║
+          // ║ FEUILLE 2 : 🧪 LABORATOIRE                                       ║
           // ╚══════════════════════════════════════════════════════════════════╝
-          const labHeaders = [
-            'Inventory No.',
-            'Description',
-            'Client',
-            'Projet',
-            'Groupe',
-            'Type marquage',
-            'Maintenance Counter',
-            'Total Counter',
-            'Cause',
-            'Action recommandée',
-            'Requalif Time',
-            'Requalif Strokes',
-            'Maintenance',
-            'Days In Use',
-            'Manufacturer',
-            'Last Maintenance'
-          ];
+          const labHeaders = ['Inventory No.','Description','Client','Projet','Groupe','Type marquage','Maintenance Counter','Total Counter','Cause','Action recommandée','Requalif Time','Requalif Strokes','Maintenance','Days In Use','Manufacturer','Last Maintenance'];
           const labAoa = [labHeaders];
           labTools.forEach(r => {
             const client = this._getClientForProject(r.masterLocation);
             labAoa.push([
-              r.inventoryNo || '',
-              r.description || '',
-              client ? client.name : '—',
-              r.masterLocation || '',
-              this._extractGroup(r.inventoryNo) || '—',
+              r.inventoryNo || '', r.description || '', client ? client.name : '—',
+              r.masterLocation || '', this._extractGroup(r.inventoryNo) || '—',
               getStellantisType(r),
-              Number(r.maintenanceCounter) || 0,
-              Number(r.totalCounter) || 0,
-              this._causeText(r),
-              getRecommendedAction(r),
-              r.requalifTimeStatus || '',
-              r.requalifStrokesStatus || '',
-              r.maintenanceStatus || '',
-              r.daysInUseStatus || '',
-              r.manufacturer || '',
-              r.lastMaintenance || ''
+              Number(r.maintenanceCounter) || 0, Number(r.totalCounter) || 0,
+              this._causeText(r), getRecommendedAction(r),
+              r.requalifTimeStatus || '', r.requalifStrokesStatus || '',
+              r.maintenanceStatus || '', r.daysInUseStatus || '',
+              r.manufacturer || '', r.lastMaintenance || ''
             ]);
           });
           const wsLab = XLSX.utils.aoa_to_sheet(labAoa);
@@ -22975,105 +23117,82 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }
           ];
           wsLab['!freeze'] = { xSplit: 1, ySplit: 1 };
-          // Auto-filter sur la première ligne
           wsLab['!autofilter'] = { ref: `A1:P${labAoa.length}` };
+          applyDataStyles(wsLab, {
+            headerColor: "7C3AED",  // Violet labo
+            statusCols: [10, 11, 12, 13],
+            causeCol: 8,
+            clientCol: 2,
+            invCol: 0,
+            numCols: [6, 7]
+          });
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ FEUILLE 3 : ⚙️ CELLULE SERTISSAGE — Vérif 5J                    ║
+          // ║ FEUILLE 3 : ⚙️ CELLULE SERTISSAGE                               ║
           // ╚══════════════════════════════════════════════════════════════════╝
-          const cellHeaders = [
-            'Inventory No.',
-            'Description',
-            'Projet',
-            'Groupe',
-            'Maintenance Counter',
-            'Total Counter',
-            'Action',
-            'Maintenance',
-            'Days In Use',
-            'Manufacturer'
-          ];
+          const cellHeaders = ['Inventory No.','Description','Projet','Groupe','Maintenance Counter','Total Counter','Action','Maintenance','Days In Use','Manufacturer'];
           const cellAoa = [cellHeaders];
           cellTools.forEach(r => {
             cellAoa.push([
-              r.inventoryNo || '',
-              r.description || '',
-              r.masterLocation || '',
+              r.inventoryNo || '', r.description || '', r.masterLocation || '',
               this._extractGroup(r.inventoryNo) || '—',
-              Number(r.maintenanceCounter) || 0,
-              Number(r.totalCounter) || 0,
+              Number(r.maintenanceCounter) || 0, Number(r.totalCounter) || 0,
               '⚙️ Vérification visuelle 5 jours',
-              r.maintenanceStatus || '',
-              r.daysInUseStatus || '',
-              r.manufacturer || ''
+              r.maintenanceStatus || '', r.daysInUseStatus || '', r.manufacturer || ''
             ]);
           });
           const wsCell = XLSX.utils.aoa_to_sheet(cellAoa);
-          wsCell['!cols'] = [
-            { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 10 },
-            { wch: 16 }, { wch: 16 }, { wch: 32 }, { wch: 14 }, { wch: 14 }, { wch: 16 }
-          ];
+          wsCell['!cols'] = [{ wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 10 }, { wch: 16 }, { wch: 16 }, { wch: 32 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
           wsCell['!freeze'] = { xSplit: 1, ySplit: 1 };
           wsCell['!autofilter'] = { ref: `A1:J${cellAoa.length}` };
+          applyDataStyles(wsCell, {
+            headerColor: "0E7490",  // Cyan/teal cellule
+            statusCols: [7, 8],
+            invCol: 0,
+            numCols: [4, 5]
+          });
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ FEUILLE 4 : 📋 TOUS LES OUTILS — Détail complet                 ║
+          // ║ FEUILLE 4 : 📋 TOUS LES OUTILS                                   ║
           // ╚══════════════════════════════════════════════════════════════════╝
-          const allHeaders = [
-            'Inventory No.',
-            'Description',
-            'Client',
-            'Projet',
-            'Groupe',
-            'Type marquage',
-            'Maintenance Counter',
-            'Total Counter',
-            'Statut Global',
-            'Cause / Action',
-            'Débloqué par',
-            'Requalif Time',
-            'Requalif Strokes',
-            'Maintenance',
-            'Days In Use',
-            'Manufacturer',
-            'Last Maintenance'
-          ];
+          const allHeaders = ['Inventory No.','Description','Client','Projet','Groupe','Type marquage','Maintenance Counter','Total Counter','Statut Global','Cause / Action','Débloqué par','Requalif Time','Requalif Strokes','Maintenance','Days In Use','Manufacturer','Last Maintenance'];
           const allAoa = [allHeaders];
           filtered.forEach(r => {
             const client = this._getClientForProject(r.masterLocation);
             const unlock = this._getUnlockHandler(r);
             const isB = this._isBlocked(r);
             allAoa.push([
-              r.inventoryNo || '',
-              r.description || '',
-              client ? client.name : '—',
-              r.masterLocation || '',
-              this._extractGroup(r.inventoryNo) || '—',
+              r.inventoryNo || '', r.description || '', client ? client.name : '—',
+              r.masterLocation || '', this._extractGroup(r.inventoryNo) || '—',
               getStellantisType(r),
-              Number(r.maintenanceCounter) || 0,
-              Number(r.totalCounter) || 0,
+              Number(r.maintenanceCounter) || 0, Number(r.totalCounter) || 0,
               isB ? '🚫 BLOQUÉ' : (this._hasWarning(r) ? '⚠️ ALERTE' : '✅ OK'),
               this._causeText(r),
               isB ? (unlock.handler === 'laboratoire' ? '🧪 LABO' : '⚙️ CELLULE') : '—',
-              r.requalifTimeStatus || '',
-              r.requalifStrokesStatus || '',
-              r.maintenanceStatus || '',
-              r.daysInUseStatus || '',
-              r.manufacturer || '',
-              r.lastMaintenance || ''
+              r.requalifTimeStatus || '', r.requalifStrokesStatus || '',
+              r.maintenanceStatus || '', r.daysInUseStatus || '',
+              r.manufacturer || '', r.lastMaintenance || ''
             ]);
           });
           const wsAll = XLSX.utils.aoa_to_sheet(allAoa);
           wsAll['!cols'] = [
             { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 10 },
-            { wch: 22 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 28 },
+            { wch: 22 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 28 },
             { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }
           ];
           wsAll['!freeze'] = { xSplit: 1, ySplit: 1 };
           wsAll['!autofilter'] = { ref: `A1:Q${allAoa.length}` };
+          applyDataStyles(wsAll, {
+            headerColor: "1F2937",  // Slate
+            statusCols: [11, 12, 13, 14],
+            causeCol: 9,
+            clientCol: 2,
+            invCol: 0,
+            numCols: [6, 7]
+          });
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ ASSEMBLAGE DU WORKBOOK                                          ║
+          // ║ ASSEMBLAGE + ÉCRITURE                                            ║
           // ╚══════════════════════════════════════════════════════════════════╝
           const wb = XLSX.utils.book_new();
           XLSX.utils.book_append_sheet(wb, wsSynthese, '📊 Synthèse');
@@ -23081,28 +23200,23 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (cellTools.length) XLSX.utils.book_append_sheet(wb, wsCell, '⚙️ Cellule 5J');
           XLSX.utils.book_append_sheet(wb, wsAll, '📋 Tous les outils');
 
-          // Nom de fichier basé sur les filtres actifs
           const dateStr = now.toISOString().slice(0, 10);
           const statusFilter = document.getElementById('bl-status-filter')?.value || '';
           const statusTag = {
-            'cause-requalif': '_REQUALIF',
-            'cause-coupe':    '_COUPE',
-            'cause-binding':  '_BINDING',
-            'cause-5j':       '_VERIF-5J',
-            'blocked':        '_BLOQUES',
-            'warning':        '_WARNING',
-            'ok':             '_OK'
+            'cause-requalif': '_REQUALIF', 'cause-coupe': '_COUPE',
+            'cause-binding':  '_BINDING',  'cause-5j':    '_VERIF-5J',
+            'blocked':        '_BLOQUES',  'warning':     '_WARNING', 'ok': '_OK'
           }[statusFilter] || '';
           const projTag = this._selectedProjects.size === 1 && !this._selectedProjects.has('__NONE__')
             ? '_' + [...this._selectedProjects][0]
             : (this._selectedProjects.size > 1 && !this._selectedProjects.has('__NONE__'))
-              ? `_${this._selectedProjects.size}projets`
-              : '';
+              ? `_${this._selectedProjects.size}projets` : '';
           const filename = `LEONI_OutilsBloques${projTag}${statusTag}_${dateStr}.xlsx`;
-          XLSX.writeFile(wb, filename);
+          XLSX.writeFile(wb, filename, { bookType: 'xlsx', cellStyles: true });
 
           ui.hideLoader?.();
-          ui.toast(`✅ ${filtered.length} outils exportés en ${labTools.length > 0 && cellTools.length > 0 ? '4' : '3'} feuilles → ${filename}`, 'success', 6000);
+          const sheetCount = 1 + (labTools.length ? 1 : 0) + (cellTools.length ? 1 : 0) + 1;
+          ui.toast(`✅ ${filtered.length} outils exportés en ${sheetCount} feuilles stylisées → ${filename}`, 'success', 6000);
         } catch (e) {
           ui.hideLoader?.();
           console.error('[blocked export]', e);

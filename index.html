@@ -20156,6 +20156,34 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return views.blocked._getClientForProject(projectName);
       },
 
+      /** 🆕 Rattache un projet (Master Location) à un client — réservé admin.
+       *  Délègue à la config partagée de views.blocked + sauvegarde Firebase. */
+      async _classifyProject(projectName, clientKey) {
+        if (!['admin','super_admin'].includes(state.role)) {
+          ui.toast('🔒 Seul un administrateur peut classer les projets', 'warn', 3500);
+          return false;
+        }
+        const proj = String(projectName || '').trim();
+        if (!proj || !clientKey) return false;
+        // S'assurer que la config est chargée côté blocked
+        if (!views.blocked.clientsConfig) {
+          views.blocked.clientsConfig = JSON.parse(JSON.stringify(views.blocked.DEFAULT_CLIENTS_CONFIG));
+        }
+        const cfg = views.blocked.clientsConfig;
+        const client = cfg[clientKey];
+        if (!client) { ui.toast('⛔ Client introuvable', 'danger'); return false; }
+        if (!Array.isArray(client.projects)) client.projects = [];
+        // Retirer le projet de tout autre client (évite les doublons inter-clients)
+        Object.values(cfg).forEach(c => {
+          if (Array.isArray(c.projects)) c.projects = c.projects.filter(p => String(p).toUpperCase() !== proj.toUpperCase());
+        });
+        client.projects.push(proj);
+        const saved = await views.blocked._saveClientsConfig();
+        views.blocked._clientCache = null; // invalider le cache de lookup
+        ui.toast(`✓ « ${proj} » rattaché à ${client.icon || ''} ${client.name}`, 'success', 3500);
+        return saved !== false;
+      },
+
       /** Met à jour le libellé du bouton multi-projets */
       _updateProjectLabel() {
         const lbl = document.getElementById('cat-project-label');
@@ -20206,15 +20234,29 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           </div>`;
         });
         if (orphans.length) {
+          // 🆕 Options de classement (admin) : liste des clients configurés
+          const isAdminUser = ['admin','super_admin'].includes(state.role);
+          const clientsCfg = (views.blocked.clientsConfig || views.blocked.DEFAULT_CLIENTS_CONFIG) || {};
+          const clientOpts = Object.entries(clientsCfg)
+            .map(([k, c]) => `<option value="${ui.escape(k)}">${c.icon || ''} ${ui.escape(c.name || k)}</option>`)
+            .join('');
           html += `<div style="margin-bottom:.5rem;border-radius:6px;overflow:hidden;border:1px solid rgba(107,114,128,.3);background:rgba(107,114,128,.05)">
             <div style="background:rgba(107,114,128,.15);padding:.35rem .55rem;font-size:.7rem;font-weight:800;color:#9ca3af;letter-spacing:.05em;display:flex;align-items:center;gap:.35rem"><span>❓</span><span>NON CLASSÉ</span><span style="margin-left:auto;font-size:.6rem;opacity:.8">${orphans.length}</span></div>
             <div style="padding:.2rem">
               ${orphans.map(loc => {
                 const checked = this._selectedProjects.size === 0 || (this._selectedProjects.has(loc) && !this._selectedProjects.has('__NONE__'));
-                return `<label style="display:flex;align-items:center;gap:.4rem;padding:.3rem .45rem;border-radius:4px;cursor:pointer;font-size:.76rem;color:var(--text-primary)" onmouseover="this.style.background='rgba(107,114,128,.08)'" onmouseout="this.style.background=''">
-                  <input type="checkbox" value="${ui.escape(loc)}" ${checked ? 'checked' : ''} data-cat-proj style="cursor:pointer;width:14px;height:14px;accent-color:#9ca3af">
-                  <span>${ui.escape(loc)}</span>
-                </label>`;
+                const picker = isAdminUser
+                  ? `<select data-cat-classify="${ui.escape(loc)}" title="Rattacher « ${ui.escape(loc)} » à un client" onclick="event.stopPropagation()" style="margin-left:auto;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-secondary);border-radius:5px;font-size:.68rem;padding:.15rem .3rem;cursor:pointer;max-width:130px">
+                      <option value="">📌 classer…</option>${clientOpts}
+                    </select>`
+                  : '';
+                return `<div style="display:flex;align-items:center;gap:.4rem;padding:.3rem .45rem;border-radius:4px;font-size:.76rem;color:var(--text-primary)" onmouseover="this.style.background='rgba(107,114,128,.08)'" onmouseout="this.style.background=''">
+                  <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;flex:0 1 auto">
+                    <input type="checkbox" value="${ui.escape(loc)}" ${checked ? 'checked' : ''} data-cat-proj style="cursor:pointer;width:14px;height:14px;accent-color:#9ca3af">
+                    <span>${ui.escape(loc)}</span>
+                  </label>
+                  ${picker}
+                </div>`;
               }).join('')}
             </div>
           </div>`;
@@ -20232,6 +20274,24 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           this.render();
         };
         container.querySelectorAll('[data-cat-proj]').forEach(cb => cb.addEventListener('change', recompute));
+
+        // 🆕 Wire les sélecteurs "classer" (rattacher un projet NON CLASSÉ à un client) — admin
+        container.querySelectorAll('[data-cat-classify]').forEach(sel => {
+          sel.addEventListener('change', async (e) => {
+            e.stopPropagation();
+            const loc = sel.dataset.catClassify;
+            const clientKey = sel.value;
+            if (!clientKey) return;
+            const ok = await this._classifyProject(loc, clientKey);
+            if (ok) {
+              this._renderProjectOptions();  // re-render avec le projet désormais classé
+              this._updateProjectLabel();
+              this.render();
+            } else {
+              sel.value = '';
+            }
+          });
+        });
         // Wire client header toggle
         container.querySelectorAll('[data-cat-client-toggle]').forEach(header => {
           header.addEventListener('click', (e) => {

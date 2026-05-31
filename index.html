@@ -8129,6 +8129,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <select id="cat-filter-fab" class="filter__input" style="font-size:.85rem;min-width:160px">
             <option value="">🏭 Tous fabricants</option>
           </select>
+          <!-- 🆕 Filtre multi-projets groupé par client -->
+          <div style="position:relative">
+            <button id="cat-project-toggle" type="button" class="filter__input" style="font-size:.85rem;min-width:180px;cursor:pointer;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+              <span id="cat-project-label">📍 Tous les projets</span>
+              <span style="font-size:.7rem;opacity:.6">▼</span>
+            </button>
+            <div id="cat-project-panel" hidden style="position:absolute;top:calc(100% + 4px);left:0;min-width:240px;background:var(--bg-2);border:1px solid var(--border-soft);border-radius:8px;padding:.4rem;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:50;max-height:320px;overflow-y:auto">
+              <div style="display:flex;gap:.3rem;padding:.3rem .4rem;border-bottom:1px solid var(--border-soft);margin-bottom:.3rem">
+                <button type="button" id="cat-project-all" style="flex:1;background:rgba(0,212,255,.1);color:#00d4ff;border:1px solid rgba(0,212,255,.3);padding:.3rem .55rem;border-radius:5px;cursor:pointer;font-size:.7rem;font-weight:700">✓ Tout</button>
+                <button type="button" id="cat-project-none" style="flex:1;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3);padding:.3rem .55rem;border-radius:5px;cursor:pointer;font-size:.7rem;font-weight:700">✕ Rien</button>
+              </div>
+              <div id="cat-project-options" style="display:flex;flex-direction:column;gap:.15rem"></div>
+            </div>
+          </div>
           <select id="cat-filter-status" class="filter__input" style="font-size:.85rem;min-width:160px">
             <option value="complete" selected>✅ Complets seulement</option>
             <option value="all">🔁 Tous</option>
@@ -20130,6 +20144,107 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
       DEFAULT_STATUS: 'production',
 
+      // 🆕 Multi-select projets (vide = tous ; '__NONE__' = aucun)
+      _selectedProjects: new Set(),
+
+      /** Raccourci vers la config clients de views.blocked (source unique de vérité) */
+      _clientsConfig() {
+        return views.blocked.clientsConfig || views.blocked.DEFAULT_CLIENTS_CONFIG;
+      },
+      /** Client propriétaire d'un projet (délègue à views.blocked) */
+      _getClientForProject(projectName) {
+        return views.blocked._getClientForProject(projectName);
+      },
+
+      /** Met à jour le libellé du bouton multi-projets */
+      _updateProjectLabel() {
+        const lbl = document.getElementById('cat-project-label');
+        if (!lbl) return;
+        if (this._selectedProjects.size === 0) lbl.textContent = '📍 Tous les projets';
+        else if (this._selectedProjects.has('__NONE__')) lbl.textContent = '📍 Aucun projet';
+        else {
+          const arr = [...this._selectedProjects];
+          lbl.textContent = '📍 ' + (arr.length > 2 ? `${arr.length} projets` : arr.join(', '));
+        }
+      },
+
+      /** Rend les checkboxes projets groupées par client */
+      _renderProjectOptions() {
+        const container = document.getElementById('cat-project-options');
+        if (!container) return;
+        // Tous les projets présents dans les outils
+        const allLocs = [...new Set(Object.values(state.tools || {}).map(t => (t.projet || '').trim()).filter(Boolean))].sort();
+        if (!allLocs.length) {
+          container.innerHTML = `<div style="padding:.8rem;text-align:center;color:var(--text-muted);font-size:.78rem;font-style:italic">Aucun projet renseigné sur les outils.</div>`;
+          return;
+        }
+        // Grouper par client
+        const grouped = {}; const orphans = [];
+        allLocs.forEach(loc => {
+          const client = this._getClientForProject(loc);
+          if (client) {
+            if (!grouped[client.key]) grouped[client.key] = { config: client, projects: [] };
+            grouped[client.key].projects.push(loc);
+          } else orphans.push(loc);
+        });
+        let html = '';
+        Object.entries(grouped).forEach(([clientKey, { config, projects }]) => {
+          html += `<div style="margin-bottom:.5rem;border-radius:6px;overflow:hidden;border:1px solid ${config.color}33;background:${config.color}08">
+            <div data-cat-client-toggle="${clientKey}" title="Cliquez pour (dé)sélectionner tous les projets ${config.name}" style="background:${config.color}1a;padding:.35rem .55rem;font-size:.7rem;font-weight:800;color:${config.color};letter-spacing:.05em;display:flex;align-items:center;gap:.35rem;border-bottom:1px solid ${config.color}22;cursor:pointer;user-select:none" onmouseover="this.style.background='${config.color}30'" onmouseout="this.style.background='${config.color}1a'">
+              <span style="font-size:.9rem">${config.icon}</span><span>${config.name.toUpperCase()}</span>
+              <span style="margin-left:auto;font-size:.6rem;opacity:.8;font-weight:600">${projects.length} · ↕</span>
+            </div>
+            <div style="padding:.2rem">
+              ${projects.map(loc => {
+                const checked = this._selectedProjects.size === 0 || (this._selectedProjects.has(loc) && !this._selectedProjects.has('__NONE__'));
+                return `<label style="display:flex;align-items:center;gap:.4rem;padding:.3rem .45rem;border-radius:4px;cursor:pointer;font-size:.76rem;color:var(--text-primary)" onmouseover="this.style.background='${config.color}15'" onmouseout="this.style.background=''">
+                  <input type="checkbox" value="${ui.escape(loc)}" ${checked ? 'checked' : ''} data-cat-proj style="cursor:pointer;width:14px;height:14px;accent-color:${config.color}">
+                  <span>${ui.escape(loc)}</span>
+                </label>`;
+              }).join('')}
+            </div>
+          </div>`;
+        });
+        if (orphans.length) {
+          html += `<div style="margin-bottom:.5rem;border-radius:6px;overflow:hidden;border:1px solid rgba(107,114,128,.3);background:rgba(107,114,128,.05)">
+            <div style="background:rgba(107,114,128,.15);padding:.35rem .55rem;font-size:.7rem;font-weight:800;color:#9ca3af;letter-spacing:.05em;display:flex;align-items:center;gap:.35rem"><span>❓</span><span>NON CLASSÉ</span><span style="margin-left:auto;font-size:.6rem;opacity:.8">${orphans.length}</span></div>
+            <div style="padding:.2rem">
+              ${orphans.map(loc => {
+                const checked = this._selectedProjects.size === 0 || (this._selectedProjects.has(loc) && !this._selectedProjects.has('__NONE__'));
+                return `<label style="display:flex;align-items:center;gap:.4rem;padding:.3rem .45rem;border-radius:4px;cursor:pointer;font-size:.76rem;color:var(--text-primary)" onmouseover="this.style.background='rgba(107,114,128,.08)'" onmouseout="this.style.background=''">
+                  <input type="checkbox" value="${ui.escape(loc)}" ${checked ? 'checked' : ''} data-cat-proj style="cursor:pointer;width:14px;height:14px;accent-color:#9ca3af">
+                  <span>${ui.escape(loc)}</span>
+                </label>`;
+              }).join('')}
+            </div>
+          </div>`;
+        }
+        container.innerHTML = html;
+        // Wire checkboxes
+        const recompute = () => {
+          const allCbs = container.querySelectorAll('[data-cat-proj]');
+          const checked = [...allCbs].filter(c => c.checked).map(c => c.value);
+          if (checked.length === 0) this._selectedProjects = new Set(['__NONE__']);
+          else if (checked.length === allCbs.length) this._selectedProjects.clear();
+          else this._selectedProjects = new Set(checked);
+          this._updateProjectLabel();
+          this._page = 1;
+          this.render();
+        };
+        container.querySelectorAll('[data-cat-proj]').forEach(cb => cb.addEventListener('change', recompute));
+        // Wire client header toggle
+        container.querySelectorAll('[data-cat-client-toggle]').forEach(header => {
+          header.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const section = header.parentElement;
+            const cbs = section.querySelectorAll('[data-cat-proj]');
+            const allChecked = [...cbs].every(c => c.checked);
+            cbs.forEach(c => { c.checked = !allChecked; });
+            recompute();
+          });
+        });
+      },
+
       /** Récupère le statut d'un outil (avec fallback) */
       _getToolStatus(tool) {
         const s = tool?.status;
@@ -20220,6 +20335,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         document.getElementById('cat-filter-fab')?.addEventListener('change', () => { this._page = 1; this.render(); });
         document.getElementById('cat-filter-status')?.addEventListener('change', () => { this._page = 1; this.render(); });
         document.getElementById('cat-filter-sort')?.addEventListener('change', () => { this._page = 1; this.render(); });
+
+        // 🆕 Multi-select projets (groupé par client)
+        const projToggle = document.getElementById('cat-project-toggle');
+        const projPanel = document.getElementById('cat-project-panel');
+        if (projToggle && projPanel) {
+          projToggle.addEventListener('click', (e) => { e.stopPropagation(); projPanel.hidden = !projPanel.hidden; });
+          document.addEventListener('click', (e) => {
+            if (!projPanel.hidden && !projPanel.contains(e.target) && e.target !== projToggle) projPanel.hidden = true;
+          });
+        }
+        document.getElementById('cat-project-all')?.addEventListener('click', () => {
+          this._selectedProjects.clear(); this._renderProjectOptions(); this._updateProjectLabel(); this._page = 1; this.render();
+        });
+        document.getElementById('cat-project-none')?.addEventListener('click', () => {
+          this._selectedProjects = new Set(['__NONE__']); this._renderProjectOptions(); this._updateProjectLabel(); this._page = 1; this.render();
+        });
 
         // ── Nettoyer outils incomplets ──
         document.getElementById('btn-catalog-clean')?.addEventListener('click', () => this.bulkCleanIncomplete());
@@ -21211,6 +21342,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             [...fabSet].sort().map(f => `<option value="${ui.escape(f)}" ${f === current ? 'selected' : ''}>${ui.escape(f)}</option>`).join('');
         }
 
+        // 🆕 Peupler le dropdown multi-projets (groupé par client) si pas encore rendu
+        const projOptsEl = document.getElementById('cat-project-options');
+        if (projOptsEl && !projOptsEl.children.length) {
+          this._renderProjectOptions();
+          this._updateProjectLabel();
+        }
+
         // ── Filtrage ──
         let list = allTools.slice();
         // Note : le filtre par rôle est déjà appliqué en amont (allTools = allToolsRaw filtré pour non-admin)
@@ -21220,6 +21358,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         // 'all' → pas de filtre
 
         if (filterFab) list = list.filter(t => (t.fabricant || '').trim() === filterFab);
+
+        // 🆕 Filtre multi-projets (vide = tous ; '__NONE__' = aucun ; sinon projets sélectionnés)
+        if (this._selectedProjects.size > 0) {
+          if (this._selectedProjects.has('__NONE__')) {
+            list = [];
+          } else {
+            list = list.filter(t => this._selectedProjects.has((t.projet || '').trim()));
+          }
+        }
 
         if (q) list = list.filter(t =>
           (t.designation || '').toLowerCase().includes(q) ||
@@ -21290,6 +21437,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             ? `<span style="background:rgba(255,139,107,.15);color:#ff8b6b;font-size:.62rem;padding:.12rem .45rem;border-radius:5px;font-weight:700;letter-spacing:.04em">📋 ${ui.escape(t.projet)}</span>`
             : '';
 
+          // 🆕 Badge CLIENT (constructeur) déduit du projet
+          const catClient = t.projet ? this._getClientForProject(t.projet) : null;
+          const clientBadge = catClient
+            ? `<span style="background:${catClient.color}1a;color:${catClient.color};font-size:.62rem;padding:.12rem .45rem;border-radius:5px;font-weight:800;letter-spacing:.04em;border:1px solid ${catClient.color}40">${catClient.icon} ${ui.escape(catClient.name.toUpperCase())}</span>`
+            : '';
+
           // Badge groupe (si disponible)
           const groupeBadge = t.groupe
             ? `<span style="background:rgba(0,229,160,.12);color:#00e5a0;font-size:.62rem;padding:.12rem .45rem;border-radius:5px;font-weight:700;letter-spacing:.04em">🏷 ${ui.escape(t.groupe)}</span>`
@@ -21328,7 +21481,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                   ${badge}
                 </div>
               </header>
-              ${groupeBadge || projetBadge || statusBadge ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">${statusBadge}${groupeBadge}${projetBadge}</div>` : ''}
+              ${clientBadge || groupeBadge || projetBadge || statusBadge ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">${statusBadge}${clientBadge}${groupeBadge}${projetBadge}</div>` : ''}
               <div style="color:var(--text-secondary);font-size:.74rem;font-family:var(--font-mono);line-height:1.5">
                 <div>Réf: ${ui.escape(t.refOutil || '—')}</div>
                 <div>Fab: ${ui.escape(t.refFabricant || '—')}</div>

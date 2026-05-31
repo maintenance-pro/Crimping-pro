@@ -8163,8 +8163,16 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       <!-- ================================================================= -->
       <section class="catalog" id="view-blocked" data-view="blocked" hidden>
         <header class="catalog__header" style="margin-bottom:1rem">
-          <h1 style="margin:0;font-size:1.4rem;color:#ef4444">🚫 Outils Bloqués · Statuts Critiques</h1>
-          <p style="margin:.3rem 0 0;color:var(--text-secondary);font-size:.85rem">Tableau de bord des outils en statut <strong style="color:#f59e0b">warning</strong> ou <strong style="color:#ef4444">overrun</strong> · Importé depuis Komax/DocuLink</p>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap">
+            <div>
+              <h1 style="margin:0;font-size:1.4rem;color:#ef4444">🚫 Outils Bloqués · Statuts Critiques</h1>
+              <p style="margin:.3rem 0 0;color:var(--text-secondary);font-size:.85rem">Tableau de bord des outils en statut <strong style="color:#f59e0b">warning</strong> ou <strong style="color:#ef4444">overrun</strong> · Importé depuis Komax/DocuLink</p>
+            </div>
+            <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+              <button id="bl-quick-groups-btn" style="background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.35);padding:.45rem .85rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.75rem;white-space:nowrap" title="Gérer les 14 groupes critiques Stellantis">🔬 Groupes critiques</button>
+              <button id="bl-quick-coupe-btn" style="background:rgba(234,88,12,.12);color:#ea580c;border:1px solid rgba(234,88,12,.35);padding:.45rem .85rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.75rem;white-space:nowrap" title="Gérer les outils COUPE→Labo (section 0.35² etc.)">✂️ Coupe 0.35²</button>
+            </div>
+          </div>
         </header>
 
         <!-- KPIs -->
@@ -22447,10 +22455,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           rules: {
             // ⚠️ POLITIQUE MIXTE : déblocage différencié
             unlockPolicy: 'mixed',
-            criticalUnlockBy: 'laboratoire',     // Outils critiques (patterns) → Labo
-            regularUnlockBy: 'crimping-cell',    // Autres outils non-marqués → Cellule sertissage
-            criticalToolPatterns: [],            // Patterns regex pour critiques
-            manualLabTools: [],                  // 🆕 Liste manuelle d'Inventory No. → Labo
+            criticalUnlockBy: 'laboratoire',     // Outils dans groupes critiques → Labo
+            regularUnlockBy: 'crimping-cell',    // Autres outils → Cellule sertissage
+            // 🆕 GROUPES CRITIQUES : extraits du numéro d'inventaire (ex: WZ2154C-12 → groupe 2154)
+            //    Pour TOUT outil dans ces groupes : déblocage Labo (toute cause)
+            //    Pour les autres groupes : Requalif → Labo, Maintenance/5J → Cellule
+            criticalGroups: ['2153', '2157', '2144', '2154', '2158', '2140', '333', '309', '346', '2059', '300', '304', '384', '696'],
+            criticalToolPatterns: [],            // Patterns regex (backup, peu utilisé)
+            manualLabTools: [],                  // Liste manuelle d'Inventory No. → TOUT au Labo
+            coupeToLabTools: [],                 // 🆕 Inventory No. (section 0.35² etc.) → COUPE (Maintenance) au Labo
             thresholds: { warningPct: 0.70, overrunPct: 1.00 }
           }
         },
@@ -22490,34 +22503,89 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return client ? client.rules : null;
       },
 
-      /** 🔑 Identifie QUI doit débloquer un outil donné selon les règles client.
-       *  Retourne { handler, label, icon, color, critical?, manualLab? }
+      /** 🆕 Extrait le numéro de GROUPE d'un Inventory No.
+       *  Ex: WZ2154C-12 → "2154" · wz2158M-3 → "2158" · WZ333D-1 → "333"
+       *  Pattern : WZ (insensible casse) suivi de chiffres.
        */
-      _getUnlockHandler(projectName, inventoryNo) {
+      _extractGroup(inventoryNo) {
+        if (!inventoryNo) return null;
+        const m = String(inventoryNo).match(/^[Ww][Zz]?(\d+)/);
+        return m ? m[1] : null;
+      },
+
+      /** 🆕 Vérifie si l'outil appartient à un groupe critique Stellantis */
+      _isStellantisCriticalGroup(rules, inventoryNo) {
+        const group = this._extractGroup(inventoryNo);
+        if (!group) return false;
+        return (rules.criticalGroups || []).map(String).includes(String(group));
+      },
+
+      /** 🔑 Identifie QUI doit débloquer un outil donné selon les règles client + l'issue.
+       *  Accepte soit un objet row (préféré, contient status fields), soit (projectName, inventoryNo) en legacy.
+       *  Retourne { handler, label, icon, color, critical?, manualLab?, reason?, group? }
+       */
+      _getUnlockHandler(rowOrProject, inventoryNoArg) {
+        let row, projectName, inventoryNo;
+        if (typeof rowOrProject === 'object' && rowOrProject !== null) {
+          row = rowOrProject;
+          projectName = row.masterLocation;
+          inventoryNo = row.inventoryNo;
+        } else {
+          row = null;
+          projectName = rowOrProject;
+          inventoryNo = inventoryNoArg;
+        }
         const client = this._getClientForProject(projectName);
         if (!client) return { handler: 'unknown', label: '—', icon: '❓', color: '#9ca3af' };
         const rules = client.rules || {};
-        // Politique mixte (Stellantis) : critique → labo, marqué manuellement → labo, autres → sertissage
+
+        // 🚛 Politique 'laboratoire' (Volvo, Renault) : TOUT débloqué par Labo
+        if (rules.unlockPolicy === 'laboratoire') {
+          return { handler: 'laboratoire', label: 'LABO', icon: '🧪', color: '#a855f7' };
+        }
+
+        // 🚗 Politique 'mixed' (Stellantis) : règles complexes
         if (rules.unlockPolicy === 'mixed') {
-          // Vérification 1 : pattern critique
-          const isCritical = (rules.criticalToolPatterns || []).some(pattern => {
+          // 1️⃣ GROUPE CRITIQUE (priorité absolue) → Labo, toute cause
+          if (this._isStellantisCriticalGroup(rules, inventoryNo)) {
+            const grp = this._extractGroup(inventoryNo);
+            return { handler: 'laboratoire', label: 'LABO', icon: '🧪', color: '#a855f7', critical: true, reason: 'group', group: grp };
+          }
+          // 2️⃣ Pattern critique (backward compat)
+          const isCriticalPattern = (rules.criticalToolPatterns || []).some(pattern => {
             try { return new RegExp(pattern, 'i').test(String(inventoryNo || '')); }
             catch(e) { return String(inventoryNo || '').toLowerCase().includes(String(pattern).toLowerCase()); }
           });
-          if (isCritical) {
+          if (isCriticalPattern) {
             return { handler: 'laboratoire', label: 'LABO', icon: '🧪', color: '#a855f7', critical: true };
           }
-          // Vérification 2 : liste manuelle "marqué pour Labo"
+          // 3️⃣ Marqué manuellement → Labo
           const isMarkedLab = (rules.manualLabTools || []).includes(String(inventoryNo || ''));
           if (isMarkedLab) {
             return { handler: 'laboratoire', label: 'LABO', icon: '🧪', color: '#a855f7', critical: false, manualLab: true };
           }
-          // Sinon → cellule sertissage
+          // 4️⃣ NON-CRITIQUE : selon le type d'issue
+          //    → Requalif overrun → Labo
+          //    → Maintenance (COUPE) si outil dans coupeToLabTools (section 0.35² etc.) → Labo
+          //    → Maintenance (autres) / 5J → Cellule Sertissage
+          if (row) {
+            const reqT = String(row.requalifTimeStatus || '').toLowerCase();
+            const reqS = String(row.requalifStrokesStatus || '').toLowerCase();
+            const maint = String(row.maintenanceStatus || '').toLowerCase();
+            if (reqT === 'overrun' || reqS === 'overrun') {
+              return { handler: 'laboratoire', label: 'LABO', icon: '🧪', color: '#a855f7', critical: false, reason: 'requalif' };
+            }
+            // 🆕 4.5️⃣ Outil dans liste COUPE→Labo (section 0.35² etc.) ET maintenance overrun/warning → Labo
+            if ((maint === 'overrun' || maint === 'warning') &&
+                (rules.coupeToLabTools || []).includes(String(inventoryNo || ''))) {
+              return { handler: 'laboratoire', label: 'LABO', icon: '🧪', color: '#a855f7', critical: false, reason: 'coupe-035', coupeToLab: true };
+            }
+          }
+          // 5️⃣ Sinon (Maintenance ou Days In Use seul) → Cellule
           return { handler: 'crimping-cell', label: 'SERTISSAGE', icon: '⚙️', color: '#00d4ff', critical: false };
         }
-        if (rules.unlockPolicy === 'laboratoire') {
-          return { handler: 'laboratoire', label: 'LABO', icon: '🧪', color: '#a855f7' };
-        }
+
+        // Default legacy
         return { handler: 'crimping-cell', label: 'SERTISSAGE', icon: '⚙️', color: '#00d4ff' };
       },
 
@@ -22534,6 +22602,25 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         } else {
           list.push(String(inventoryNo));
           ui.toast(`🧪 ${inventoryNo} → marqué pour Laboratoire`, 'success', 3000);
+        }
+        await this._saveClientsConfig();
+        this.render();
+      },
+
+      /** 🆕 Toggle "COUPE → Labo" pour outils Stellantis non-critiques (section 0.35² etc.)
+       *  Concerne uniquement la cause MAINTENANCE (COUPE) — les autres causes suivent les règles standards */
+      async _toggleCoupeToLab(inventoryNo) {
+        const cfg = this.clientsConfig || this.DEFAULT_CLIENTS_CONFIG;
+        if (!cfg.stellantis || !cfg.stellantis.rules) return;
+        if (!cfg.stellantis.rules.coupeToLabTools) cfg.stellantis.rules.coupeToLabTools = [];
+        const list = cfg.stellantis.rules.coupeToLabTools;
+        const idx = list.indexOf(String(inventoryNo));
+        if (idx >= 0) {
+          list.splice(idx, 1);
+          ui.toast(`✂️ ${inventoryNo} → COUPE retour à Cellule`, 'info', 3000);
+        } else {
+          list.push(String(inventoryNo));
+          ui.toast(`🧪 ${inventoryNo} → COUPE traitée au Laboratoire`, 'success', 3000);
         }
         await this._saveClientsConfig();
         this.render();
@@ -22634,7 +22721,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const reqStrokes = String(row.requalifStrokesStatus || '').toLowerCase();
         const maint      = String(row.maintenanceStatus || '').toLowerCase();
         const days       = String(row.daysInUseStatus || '').toLowerCase();
-        const unlock = this._getUnlockHandler(row.masterLocation, row.inventoryNo);
+        const unlock = this._getUnlockHandler(row);
         const blocked = this._isBlocked(row);
 
         // Pas bloqué → ok ou warning soft
@@ -22680,7 +22767,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const reqStrokes = String(row.requalifStrokesStatus || '').toLowerCase();
         const maint      = String(row.maintenanceStatus || '').toLowerCase();
         const days       = String(row.daysInUseStatus || '').toLowerCase();
-        const unlock = this._getUnlockHandler(row.masterLocation, row.inventoryNo);
+        const unlock = this._getUnlockHandler(row);
         const blocked = this._isBlocked(row);
         if (!blocked) return this._hasWarning(row) ? 'ALERTE' : 'OK';
         // Cellule sertissage → vérification visuelle 5J
@@ -22739,7 +22826,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const aoa = [headers];
           filtered.forEach(r => {
             const client = this._getClientForProject(r.masterLocation);
-            const unlock = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+            const unlock = this._getUnlockHandler(r);
             aoa.push([
               r.inventoryNo || '',
               client ? client.name : '—',
@@ -22818,6 +22905,23 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         });
         // 🆕 Bouton Exporter Excel
         document.getElementById('bl-export-btn')?.addEventListener('click', () => this.exportFiltered());
+
+        // 🔬 Bouton "Groupes critiques" — ouvre directement l'onglet Groupes
+        document.getElementById('bl-quick-groups-btn')?.addEventListener('click', () => {
+          this._showAddClientModal();
+          setTimeout(() => {
+            const groupsTab = document.querySelector('#bl-add-modal .bl-tab[data-tab="groups"]');
+            if (groupsTab) groupsTab.click();
+          }, 50);
+        });
+        // ✂️ Bouton "Coupe 0.35²" — ouvre directement l'onglet Coupe→Labo
+        document.getElementById('bl-quick-coupe-btn')?.addEventListener('click', () => {
+          this._showAddClientModal();
+          setTimeout(() => {
+            const coupeTab = document.querySelector('#bl-add-modal .bl-tab[data-tab="coupe"]');
+            if (coupeTab) coupeTab.click();
+          }, 50);
+        });
 
         // 🆕 Multi-select projets : toggle du panel
         const toggleBtn = document.getElementById('bl-project-toggle');
@@ -23006,9 +23110,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               </header>
 
               <!-- Tab switcher -->
-              <div style="display:flex;gap:.3rem;margin-bottom:1rem;background:var(--bg-3);padding:.25rem;border-radius:8px">
-                <button data-tab="project" class="bl-tab" style="flex:1;background:rgba(0,212,255,.15);color:#00d4ff;border:none;padding:.55rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.8rem">➕ Projet à client existant</button>
-                <button data-tab="client" class="bl-tab" style="flex:1;background:transparent;color:var(--text-secondary);border:none;padding:.55rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.8rem">🏭 Nouveau client</button>
+              <div style="display:flex;gap:.3rem;margin-bottom:1rem;background:var(--bg-3);padding:.25rem;border-radius:8px;flex-wrap:wrap">
+                <button data-tab="project" class="bl-tab" style="flex:1;min-width:120px;background:rgba(0,212,255,.15);color:#00d4ff;border:none;padding:.55rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.78rem">➕ Projet</button>
+                <button data-tab="client" class="bl-tab" style="flex:1;min-width:120px;background:transparent;color:var(--text-secondary);border:none;padding:.55rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.78rem">🏭 Client</button>
+                <button data-tab="groups" class="bl-tab" style="flex:1;min-width:120px;background:transparent;color:var(--text-secondary);border:none;padding:.55rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.78rem">🔬 Groupes Stellantis</button>
+                <button data-tab="coupe" class="bl-tab" style="flex:1;min-width:120px;background:transparent;color:var(--text-secondary);border:none;padding:.55rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.78rem">✂️ Coupe→Labo (0.35²)</button>
               </div>
 
               <!-- Tab 1 : Ajouter projet à client existant -->
@@ -23053,6 +23159,56 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                   </select>
                 </label>
                 <button id="bl-add-newclient-btn" style="width:100%;background:linear-gradient(135deg,#a855f7,#7c3aed);color:white;border:none;padding:.65rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.85rem">✓ Créer ce client</button>
+              </div>
+
+              <!-- Tab 3 : Groupes critiques Stellantis -->
+              <div id="bl-tab-groups" class="bl-tab-content" hidden>
+                <div style="font-size:.78rem;color:var(--text-secondary);margin-bottom:.5rem">Gérez la liste des <strong style="color:#a855f7">groupes critiques Stellantis</strong> — tous les outils dont l'Inventory No. commence par <code style="background:var(--bg-3);padding:.1rem .3rem;border-radius:3px">WZ<i>GROUPE</i></code> seront débloqués par le <strong style="color:#a855f7">🧪 Laboratoire</strong>, peu importe leur cause.</div>
+                <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:.8rem;background:rgba(168,85,247,.06);padding:.5rem;border-radius:5px;border-left:3px solid #a855f7">
+                  📌 <strong>Règle</strong> : Pour Stellantis, seuls les outils des groupes critiques (ex: <code>WZ<b>2154</b>C-12</code> = groupe 2154) sont traités en labo pour TOUTE cause. Les autres outils non-critiques : <strong>Requalif → Labo</strong>, <strong>Maintenance + 5J → Cellule sertissage</strong>.
+                </div>
+
+                <label style="display:block;margin-bottom:.5rem">
+                  <span style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:.2rem">AJOUTER UN GROUPE</span>
+                  <div style="display:flex;gap:.4rem">
+                    <input id="bl-new-group-input" placeholder="Ex: 2154, 333, 696" autocomplete="off" maxlength="10" style="flex:1;padding:.55rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-family:var(--font-mono)">
+                    <button id="bl-add-group-btn" style="background:linear-gradient(135deg,#a855f7,#7c3aed);color:white;border:none;padding:.55rem 1rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.8rem">✓ Ajouter</button>
+                  </div>
+                </label>
+
+                <div style="margin-top:1rem">
+                  <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:.4rem;font-weight:700">GROUPES CRITIQUES ACTUELS <span id="bl-groups-count" style="color:#a855f7"></span></div>
+                  <div id="bl-groups-list" style="display:flex;flex-wrap:wrap;gap:.3rem;background:var(--bg-3);padding:.5rem;border-radius:6px;min-height:60px;border:1px solid var(--border-soft)"></div>
+                </div>
+
+                <div style="margin-top:.8rem;text-align:center">
+                  <button id="bl-reset-groups-btn" style="background:transparent;color:var(--text-muted);border:1px solid var(--border-soft);padding:.4rem .8rem;border-radius:6px;cursor:pointer;font-size:.7rem">↺ Réinitialiser aux 14 groupes par défaut</button>
+                </div>
+              </div>
+
+              <!-- Tab 4 : Outils COUPE → Labo (section 0.35² etc.) -->
+              <div id="bl-tab-coupe" class="bl-tab-content" hidden>
+                <div style="font-size:.78rem;color:var(--text-secondary);margin-bottom:.5rem">Liste des outils Stellantis <strong style="color:#ea580c">non-critiques</strong> dont la <strong style="color:#ea580c">COUPE (Maintenance)</strong> doit être traitée au <strong style="color:#a855f7">🧪 Laboratoire</strong>.</div>
+                <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:.8rem;background:rgba(234,88,12,.06);padding:.5rem;border-radius:5px;border-left:3px solid #ea580c">
+                  📌 <strong>Cas d'usage</strong> : Les outils avec <strong>section 0.35 mm²</strong> nécessitent un contrôle au labo pour leur maintenance, même hors groupes critiques. Saisissez les Inventory No. concernés ci-dessous. ⚠️ Pour ces outils, seule la <strong>COUPE (Maintenance)</strong> va au labo — les autres causes suivent les règles normales.
+                </div>
+
+                <label style="display:block;margin-bottom:.5rem">
+                  <span style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:.2rem">AJOUTER UN OUTIL (Inventory No.)</span>
+                  <div style="display:flex;gap:.4rem">
+                    <input id="bl-new-coupe-input" placeholder="Ex: WZ112C-04, wz500-X" autocomplete="off" style="flex:1;padding:.55rem;background:var(--bg-3);border:1px solid var(--border-soft);color:var(--text-primary);border-radius:6px;font-family:var(--font-mono);font-size:.8rem">
+                    <button id="bl-add-coupe-btn" style="background:linear-gradient(135deg,#ea580c,#c2410c);color:white;border:none;padding:.55rem 1rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.8rem">✂️ Ajouter</button>
+                  </div>
+                </label>
+
+                <div style="margin-top:1rem">
+                  <div style="font-size:.7rem;color:var(--text-muted);margin-bottom:.4rem;font-weight:700">OUTILS COUPE→LABO ACTUELS <span id="bl-coupe-count" style="color:#ea580c"></span></div>
+                  <div id="bl-coupe-list" style="display:flex;flex-wrap:wrap;gap:.3rem;background:var(--bg-3);padding:.5rem;border-radius:6px;min-height:60px;border:1px solid var(--border-soft);max-height:200px;overflow-y:auto"></div>
+                </div>
+
+                <div style="margin-top:.8rem;text-align:center">
+                  <button id="bl-clear-coupe-btn" style="background:transparent;color:var(--text-muted);border:1px solid var(--border-soft);padding:.4rem .8rem;border-radius:6px;cursor:pointer;font-size:.7rem">🗑️ Vider toute la liste</button>
+                </div>
               </div>
 
               <div style="font-size:.68rem;color:var(--text-muted);margin-top:1rem;font-style:italic;border-top:1px solid var(--border-soft);padding-top:.6rem;text-align:center">
@@ -23135,6 +23291,160 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           } else {
             ui.toast('⛔ Erreur sauvegarde Firebase', 'danger');
           }
+        };
+
+        // 🔬 Onglet GROUPES CRITIQUES STELLANTIS — render initial + handlers
+        const renderGroupsList = () => {
+          const listEl = document.getElementById('bl-groups-list');
+          const countEl = document.getElementById('bl-groups-count');
+          if (!listEl) return;
+          const groups = (this.clientsConfig?.stellantis?.rules?.criticalGroups) || [];
+          countEl.textContent = `(${groups.length})`;
+          if (!groups.length) {
+            listEl.innerHTML = `<div style="font-size:.75rem;color:var(--text-muted);font-style:italic;padding:.5rem;text-align:center;width:100%">Aucun groupe critique défini</div>`;
+            return;
+          }
+          listEl.innerHTML = groups.map(g => `
+            <span style="display:inline-flex;align-items:center;gap:.3rem;background:rgba(168,85,247,.15);color:#a855f7;border:1px solid rgba(168,85,247,.4);padding:.25rem .5rem;border-radius:5px;font-family:var(--font-mono);font-size:.8rem;font-weight:700">
+              ${ui.escape(String(g))}
+              <button data-remove-group="${ui.escape(String(g))}" style="background:none;border:none;color:#a855f7;cursor:pointer;font-size:.85rem;padding:0;line-height:1;opacity:.7" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7" title="Retirer ce groupe">✕</button>
+            </span>
+          `).join('');
+          // Wire suppression
+          listEl.querySelectorAll('[data-remove-group]').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              const g = btn.dataset.removeGroup;
+              if (!confirm(`Retirer le groupe ${g} de la liste critique ?\n\nLes outils WZ${g}* seront alors traités comme non-critiques.`)) return;
+              const stel = this.clientsConfig.stellantis;
+              if (!stel || !stel.rules) return;
+              stel.rules.criticalGroups = (stel.rules.criticalGroups || []).filter(x => String(x) !== String(g));
+              await this._saveClientsConfig();
+              ui.toast(`✓ Groupe ${g} retiré`, 'info', 2500);
+              renderGroupsList();
+              this.render();
+            });
+          });
+        };
+        renderGroupsList();
+
+        // Bouton "Ajouter" groupe
+        document.getElementById('bl-add-group-btn').onclick = async () => {
+          const input = document.getElementById('bl-new-group-input');
+          const raw = (input.value || '').trim();
+          if (!raw) { ui.toast('⚠️ Saisissez un numéro de groupe', 'warn'); return; }
+          // Accepter "2154" OU "2154, 333, 696" (multi-saisie)
+          const groups = raw.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+          // Valider : que des chiffres
+          const invalid = groups.filter(g => !/^\d+$/.test(g));
+          if (invalid.length) { ui.toast(`⛔ Numéros invalides : ${invalid.join(', ')}`, 'danger'); return; }
+          const stel = this.clientsConfig.stellantis;
+          if (!stel || !stel.rules) { ui.toast('⛔ Client Stellantis introuvable', 'danger'); return; }
+          if (!stel.rules.criticalGroups) stel.rules.criticalGroups = [];
+          let added = 0, duplicates = 0;
+          groups.forEach(g => {
+            if (stel.rules.criticalGroups.map(String).includes(String(g))) duplicates++;
+            else { stel.rules.criticalGroups.push(String(g)); added++; }
+          });
+          if (added === 0) { ui.toast(`⚠️ Tous les groupes saisis existent déjà`, 'warn'); return; }
+          await this._saveClientsConfig();
+          input.value = '';
+          ui.toast(`✓ ${added} groupe${added > 1 ? 's' : ''} ajouté${added > 1 ? 's' : ''}${duplicates ? ` (${duplicates} doublon${duplicates > 1 ? 's' : ''} ignoré${duplicates > 1 ? 's' : ''})` : ''}`, 'success', 3500);
+          renderGroupsList();
+          this.render();
+        };
+
+        // Entrée = ajouter
+        document.getElementById('bl-new-group-input')?.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); document.getElementById('bl-add-group-btn').click(); }
+        });
+
+        // Réinitialiser aux 14 par défaut
+        document.getElementById('bl-reset-groups-btn').onclick = async () => {
+          if (!confirm('Réinitialiser la liste aux 14 groupes critiques par défaut ?\n\n(2153, 2157, 2144, 2154, 2158, 2140, 333, 309, 346, 2059, 300, 304, 384, 696)')) return;
+          this.clientsConfig.stellantis.rules.criticalGroups =
+            [...this.DEFAULT_CLIENTS_CONFIG.stellantis.rules.criticalGroups];
+          await this._saveClientsConfig();
+          ui.toast('↺ Liste réinitialisée aux 14 groupes par défaut', 'success', 3000);
+          renderGroupsList();
+          this.render();
+        };
+
+        // ✂️ Onglet COUPE → LABO (section 0.35² etc.)
+        const renderCoupeList = () => {
+          const listEl = document.getElementById('bl-coupe-list');
+          const countEl = document.getElementById('bl-coupe-count');
+          if (!listEl) return;
+          const tools = (this.clientsConfig?.stellantis?.rules?.coupeToLabTools) || [];
+          countEl.textContent = `(${tools.length})`;
+          if (!tools.length) {
+            listEl.innerHTML = `<div style="font-size:.75rem;color:var(--text-muted);font-style:italic;padding:.5rem;text-align:center;width:100%">Aucun outil COUPE→Labo défini. Ajoutez-en avec le champ ci-dessus, ou cliquez sur le bouton ✂️ d'une ligne du tableau.</div>`;
+            return;
+          }
+          // Tri alphabétique pour lisibilité
+          const sorted = [...tools].sort((a, b) => String(a).localeCompare(String(b)));
+          listEl.innerHTML = sorted.map(t => `
+            <span style="display:inline-flex;align-items:center;gap:.3rem;background:rgba(234,88,12,.15);color:#ea580c;border:1px solid rgba(234,88,12,.4);padding:.25rem .5rem;border-radius:5px;font-family:var(--font-mono);font-size:.75rem;font-weight:700">
+              ${ui.escape(String(t))}
+              <button data-remove-coupe="${ui.escape(String(t))}" style="background:none;border:none;color:#ea580c;cursor:pointer;font-size:.85rem;padding:0;line-height:1;opacity:.7" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7" title="Retirer cet outil">✕</button>
+            </span>
+          `).join('');
+          // Wire suppression
+          listEl.querySelectorAll('[data-remove-coupe]').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              const t = btn.dataset.removeCoupe;
+              const stel = this.clientsConfig.stellantis;
+              if (!stel || !stel.rules) return;
+              stel.rules.coupeToLabTools = (stel.rules.coupeToLabTools || []).filter(x => String(x) !== String(t));
+              await this._saveClientsConfig();
+              ui.toast(`✓ ${t} retiré`, 'info', 2000);
+              renderCoupeList();
+              this.render();
+            });
+          });
+        };
+        renderCoupeList();
+
+        // Bouton "Ajouter" outil COUPE→Labo
+        document.getElementById('bl-add-coupe-btn').onclick = async () => {
+          const input = document.getElementById('bl-new-coupe-input');
+          const raw = (input.value || '').trim();
+          if (!raw) { ui.toast('⚠️ Saisissez un ou plusieurs Inventory No.', 'warn'); return; }
+          // Accepter "WZ112C-04" OU "WZ112C-04, wz500-X, WZ099-B" (multi-saisie)
+          const tools = raw.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+          if (!tools.length) { ui.toast('⚠️ Saisie invalide', 'warn'); return; }
+          const stel = this.clientsConfig.stellantis;
+          if (!stel || !stel.rules) { ui.toast('⛔ Client Stellantis introuvable', 'danger'); return; }
+          if (!stel.rules.coupeToLabTools) stel.rules.coupeToLabTools = [];
+          let added = 0, duplicates = 0;
+          tools.forEach(t => {
+            if (stel.rules.coupeToLabTools.includes(t)) duplicates++;
+            else { stel.rules.coupeToLabTools.push(t); added++; }
+          });
+          if (added === 0) { ui.toast(`⚠️ Tous les outils saisis existent déjà`, 'warn'); return; }
+          await this._saveClientsConfig();
+          input.value = '';
+          ui.toast(`✓ ${added} outil${added > 1 ? 's' : ''} ajouté${added > 1 ? 's' : ''}${duplicates ? ` (${duplicates} doublon${duplicates > 1 ? 's' : ''} ignoré${duplicates > 1 ? 's' : ''})` : ''}`, 'success', 3500);
+          renderCoupeList();
+          this.render();
+        };
+
+        // Entrée = ajouter
+        document.getElementById('bl-new-coupe-input')?.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); document.getElementById('bl-add-coupe-btn').click(); }
+        });
+
+        // Vider toute la liste
+        document.getElementById('bl-clear-coupe-btn').onclick = async () => {
+          const count = (this.clientsConfig?.stellantis?.rules?.coupeToLabTools || []).length;
+          if (!count) { ui.toast('La liste est déjà vide', 'info', 2000); return; }
+          if (!confirm(`Vider toute la liste COUPE→Labo (${count} outils) ?\n\nLeurs maintenances repasseront en Cellule Sertissage.`)) return;
+          this.clientsConfig.stellantis.rules.coupeToLabTools = [];
+          await this._saveClientsConfig();
+          ui.toast(`🗑️ Liste vidée (${count} outils retirés)`, 'info', 3000);
+          renderCoupeList();
+          this.render();
         };
       },
 
@@ -23271,7 +23581,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             const m    = String(r.maintenanceStatus || '').toLowerCase();
             const d    = String(r.daysInUseStatus || '').toLowerCase();
             const blocked = this._isBlocked(r);
-            const unlock = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+            const unlock = this._getUnlockHandler(r);
             if (statusFilter === 'blocked' && !blocked) return false;
             if (statusFilter === 'cause-requalif') {
               if (!blocked) return false;
@@ -23352,7 +23662,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           // Détailler les 4 causes (Lab : REQUALIF / COUPE / BINDING + Cellule : 5J)
           const causeReq = filtered.filter(r => {
             if (!this._isBlocked(r)) return false;
-            const u = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+            const u = this._getUnlockHandler(r);
             if (u.handler !== 'laboratoire') return false;
             const reqT = String(r.requalifTimeStatus||'').toLowerCase();
             const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
@@ -23360,7 +23670,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           }).length;
           const causeCoupe = filtered.filter(r => {
             if (!this._isBlocked(r)) return false;
-            const u = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+            const u = this._getUnlockHandler(r);
             if (u.handler !== 'laboratoire') return false;
             const reqT = String(r.requalifTimeStatus||'').toLowerCase();
             const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
@@ -23369,7 +23679,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           }).length;
           const causeBinding = filtered.filter(r => {
             if (!this._isBlocked(r)) return false;
-            const u = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+            const u = this._getUnlockHandler(r);
             if (u.handler !== 'laboratoire') return false;
             const reqT = String(r.requalifTimeStatus||'').toLowerCase();
             const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
@@ -23379,7 +23689,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           }).length;
           const cause5j = filtered.filter(r => {
             if (!this._isBlocked(r)) return false;
-            const u = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+            const u = this._getUnlockHandler(r);
             return u.handler === 'crimping-cell';
           }).length;
           let causeHtml = '';
@@ -23402,15 +23712,29 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const isBlocked = this._isBlocked(r);
           const rowStyle = isBlocked ? 'background:rgba(239,68,68,.04)' : '';
           // 🆕 Détermine qui doit débloquer (selon règles client)
-          const unlock = this._getUnlockHandler(r.masterLocation, r.inventoryNo);
+          const unlock = this._getUnlockHandler(r);
           const client = this._getClientForProject(r.masterLocation);
-          const unlockBadge = isBlocked
-            ? `<div style="display:inline-flex;align-items:center;gap:.2rem;background:${unlock.color}22;color:${unlock.color};font-size:.55rem;padding:.05rem .3rem;border-radius:3px;font-weight:700;margin-top:.15rem">${unlock.icon} ${unlock.label}${unlock.critical ? ' ⚠️CRITIQUE' : ''}${unlock.manualLab ? ' 📌' : ''}</div>`
-            : '';
-          // 🔄 Bouton toggle Stellantis non-critique : permet de basculer Lab/Cellule
           const isStellantis = client && client.key === 'stellantis';
+          // 🆕 Affichage du GROUPE pour outils Stellantis (extrait du Inventory No.)
+          const group = isStellantis ? this._extractGroup(r.inventoryNo) : null;
+          const groupBadge = group
+            ? `<span style="background:${unlock.reason === 'group' ? '#a855f7' : 'rgba(168,85,247,.15)'};color:${unlock.reason === 'group' ? 'white' : '#a855f7'};font-size:.55rem;padding:.05rem .35rem;border-radius:3px;font-weight:800;letter-spacing:.04em" title="${unlock.reason === 'group' ? 'Groupe CRITIQUE Stellantis' : 'Groupe Stellantis non-critique'}">G:${group}${unlock.reason === 'group' ? ' 🎯' : ''}</span>`
+            : '';
+          const unlockBadge = isBlocked
+            ? `<div style="display:inline-flex;align-items:center;gap:.2rem;background:${unlock.color}22;color:${unlock.color};font-size:.55rem;padding:.05rem .3rem;border-radius:3px;font-weight:700">${unlock.icon} ${unlock.label}${unlock.critical ? ' ⚠️CRITIQUE' : ''}${unlock.manualLab ? ' 📌' : ''}${unlock.coupeToLab ? ' ✂️0.35²' : ''}</div>`
+            : '';
+          // 🔄 Bouton toggle Stellantis non-critique : permet de basculer Lab/Cellule (TOUTES causes)
           const toggleBtn = (isBlocked && isStellantis && !unlock.critical)
-            ? `<button data-bl-toggle="${ui.escape(r.inventoryNo||'')}" title="${unlock.manualLab ? 'Retirer du Labo (→ Cellule)' : 'Marquer pour Labo'}" style="background:none;border:1px solid ${unlock.manualLab ? '#a855f7' : 'rgba(255,255,255,.2)'};color:${unlock.manualLab ? '#a855f7' : 'var(--text-muted)'};font-size:.55rem;padding:.05rem .35rem;border-radius:3px;cursor:pointer;margin-left:.25rem;font-weight:700">🔄</button>`
+            ? `<button data-bl-toggle="${ui.escape(r.inventoryNo||'')}" title="${unlock.manualLab ? 'Retirer du Labo (→ Cellule)' : 'Marquer tout au Labo (manuel)'}" style="background:none;border:1px solid ${unlock.manualLab ? '#a855f7' : 'rgba(255,255,255,.2)'};color:${unlock.manualLab ? '#a855f7' : 'var(--text-muted)'};font-size:.55rem;padding:.05rem .35rem;border-radius:3px;cursor:pointer;font-weight:700">🔄</button>`
+            : '';
+          // ✂️ Bouton COUPE→Labo Stellantis non-critique (section 0.35²)
+          //    Seulement pour les outils Stellantis non critiques par groupe, et seulement si Maintenance en jeu
+          const maintStatus = String(r.maintenanceStatus || '').toLowerCase();
+          const hasMaintIssue = maintStatus === 'overrun' || maintStatus === 'warning';
+          const coupeMarked = unlock.coupeToLab === true;
+          const showCoupeBtn = isStellantis && !unlock.critical && !unlock.manualLab && (hasMaintIssue || coupeMarked);
+          const coupeBtn = showCoupeBtn
+            ? `<button data-bl-coupe="${ui.escape(r.inventoryNo||'')}" title="${coupeMarked ? 'Retirer de COUPE→Labo (section 0.35²)' : 'Marquer COUPE→Labo (section 0.35²)'}" style="background:none;border:1px solid ${coupeMarked ? '#ea580c' : 'rgba(255,255,255,.2)'};color:${coupeMarked ? '#ea580c' : 'var(--text-muted)'};font-size:.55rem;padding:.05rem .35rem;border-radius:3px;cursor:pointer;font-weight:700" >✂️</button>`
             : '';
           const clientBadge = client
             ? `<span style="font-size:.55rem;color:${client.color};font-weight:700;letter-spacing:.04em">${client.icon} ${client.name.toUpperCase()}</span>`
@@ -23420,7 +23744,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <td style="padding:.55rem .75rem">
                 <div style="font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.78rem">${ui.escape(r.inventoryNo || '?')}</div>
                 ${r.description ? `<div style="font-size:.65rem;color:#ffb547;font-weight:600;margin-top:.1rem;letter-spacing:.03em" title="Description (indique le type d'outil — utile pour identifier les critiques)">${ui.escape(r.description)}</div>` : ''}
-                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.15rem;margin-top:.15rem">${unlockBadge}${toggleBtn}</div>
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.2rem;margin-top:.2rem">${groupBadge}${unlockBadge}${toggleBtn}${coupeBtn}</div>
               </td>
               <td style="padding:.55rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.74rem">${this._fmtNum(r.maintenanceCounter)}</td>
               <td style="padding:.55rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.74rem;font-weight:700">${this._fmtNum(r.totalCounter)}</td>
@@ -23447,6 +23771,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             e.stopPropagation();
             const inv = btn.dataset.blToggle;
             this._toggleManualLab(inv);
+          });
+        });
+        // ✂️ Câbler les boutons COUPE→Labo (section 0.35² etc.)
+        tbody.querySelectorAll('[data-bl-coupe]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const inv = btn.dataset.blCoupe;
+            this._toggleCoupeToLab(inv);
           });
         });
       }

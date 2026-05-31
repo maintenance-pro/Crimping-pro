@@ -8235,15 +8235,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <table id="bl-table" style="width:100%;border-collapse:collapse;font-size:.78rem;min-width:920px">
               <thead style="position:sticky;top:0;background:linear-gradient(180deg,var(--bg-2) 0%,var(--bg-3) 100%);z-index:1;box-shadow:0 2px 4px rgba(0,0,0,.1)">
                 <tr style="border-bottom:2px solid var(--accent,#00d4ff)">
-                  <th style="text-align:left;padding:.75rem .75rem;font-weight:800;color:var(--text-primary);font-family:var(--font-mono);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase">📋 Inventory No.</th>
-                  <th style="text-align:right;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase">🔧 Maint. Cnt</th>
-                  <th style="text-align:right;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase">📊 Total Cnt</th>
-                  <th style="text-align:left;padding:.75rem .75rem;font-weight:800;color:var(--text-primary);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase">📍 Projet</th>
-                  <th style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase">⏰ Requalif Time</th>
-                  <th style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase">🔁 Requalif Strokes</th>
-                  <th style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase">🔧 Maintenance</th>
-                  <th style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase">📅 Days In Use</th>
-                  <th style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase">🚦 Cause</th>
+                  <th data-bl-sort="inventoryNo" style="text-align:left;padding:.75rem .75rem;font-weight:800;color:var(--text-primary);font-family:var(--font-mono);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none" title="Trier par Inventory No.">📋 Inventory No. <span id="bl-sort-inventoryNo"></span></th>
+                  <th data-bl-sort="maintenanceCounter" style="text-align:right;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none" title="Trier par Maintenance Counter">🔧 Maint. Cnt <span id="bl-sort-maintenanceCounter"></span></th>
+                  <th data-bl-sort="totalCounter" style="text-align:right;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none" title="Trier par Total Counter (priorité)">📊 Total Cnt <span id="bl-sort-totalCounter"></span></th>
+                  <th data-bl-sort="masterLocation" style="text-align:left;padding:.75rem .75rem;font-weight:800;color:var(--text-primary);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none" title="Trier par Projet">📍 Projet <span id="bl-sort-masterLocation"></span></th>
+                  <th data-bl-sort="requalifTimeStatus" style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none">⏰ Requalif Time <span id="bl-sort-requalifTimeStatus"></span></th>
+                  <th data-bl-sort="requalifStrokesStatus" style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none">🔁 Requalif Strokes <span id="bl-sort-requalifStrokesStatus"></span></th>
+                  <th data-bl-sort="maintenanceStatus" style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none">🔧 Maintenance <span id="bl-sort-maintenanceStatus"></span></th>
+                  <th data-bl-sort="daysInUseStatus" style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none">📅 Days In Use <span id="bl-sort-daysInUseStatus"></span></th>
+                  <th data-bl-sort="cause" style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none" title="Trier par cause">🚦 Cause <span id="bl-sort-cause"></span></th>
                 </tr>
               </thead>
               <tbody id="bl-tbody">
@@ -23227,6 +23227,70 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       // 🆕 État du multi-select projets (Set des projets sélectionnés ; vide = tous)
       _selectedProjects: new Set(),
 
+      // 🆕 État de tri (défaut : Total Counter décroissant = priorité aux plus sollicités)
+      _sortBy: 'totalCounter',
+      _sortDir: 'desc',
+
+      /** Priorité de cause pour le tri (REQUALIF=4 > COUPE=3 > BINDING=2 > VÉRIF=1 > OK=0) */
+      _causeRank(r) {
+        if (!this._isBlocked(r)) return this._hasWarning(r) ? 0.5 : 0;
+        const unlock = this._getUnlockHandler(r);
+        const reqT = String(r.requalifTimeStatus||'').toLowerCase();
+        const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
+        const m = String(r.maintenanceStatus||'').toLowerCase();
+        const d = String(r.daysInUseStatus||'').toLowerCase();
+        if (unlock.handler === 'crimping-cell') return 1; // VÉRIF 5J
+        if (reqT === 'overrun' || reqS === 'overrun') return 4; // REQUALIF
+        if (m === 'overrun' || m === 'warning') return 3; // COUPE
+        if (d === 'overrun') return 2; // BINDING
+        return 1;
+      },
+
+      /** Trie un tableau d'outils selon _sortBy / _sortDir */
+      _sortData(arr) {
+        const by = this._sortBy, dir = this._sortDir === 'asc' ? 1 : -1;
+        const getVal = (r) => {
+          switch (by) {
+            case 'inventoryNo':    return String(r.inventoryNo || '').toLowerCase();
+            case 'maintenanceCounter': return Number(r.maintenanceCounter) || 0;
+            case 'totalCounter':   return Number(r.totalCounter) || 0;
+            case 'masterLocation': return String(r.masterLocation || '').toLowerCase();
+            case 'requalifTimeStatus':    return String(r.requalifTimeStatus || '').toLowerCase();
+            case 'requalifStrokesStatus': return String(r.requalifStrokesStatus || '').toLowerCase();
+            case 'maintenanceStatus':     return String(r.maintenanceStatus || '').toLowerCase();
+            case 'daysInUseStatus':       return String(r.daysInUseStatus || '').toLowerCase();
+            case 'cause':          return this._causeRank(r);
+            default:               return 0;
+          }
+        };
+        return [...arr].sort((a, b) => {
+          const va = getVal(a), vb = getVal(b);
+          if (va < vb) return -1 * dir;
+          if (va > vb) return 1 * dir;
+          return 0;
+        });
+      },
+
+      /** Change le tri (toggle direction si même colonne) */
+      _setSort(col) {
+        if (this._sortBy === col) {
+          this._sortDir = this._sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this._sortBy = col;
+          // Numériques par défaut desc, textuels par défaut asc
+          this._sortDir = ['totalCounter', 'maintenanceCounter', 'cause'].includes(col) ? 'desc' : 'asc';
+        }
+        this.render();
+      },
+
+      /** Indicateur visuel de tri pour un en-tête */
+      _sortIndicator(col) {
+        if (this._sortBy !== col) return '<span style="opacity:.25;font-size:.7rem">⇅</span>';
+        return this._sortDir === 'asc'
+          ? '<span style="color:#00d4ff;font-size:.75rem">▲</span>'
+          : '<span style="color:#00d4ff;font-size:.75rem">▼</span>';
+      },
+
       init() {
         if (this._initialized) return;
         this._initialized = true;
@@ -23259,6 +23323,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             const coupeTab = document.querySelector('#bl-add-modal .bl-tab[data-tab="coupe"]');
             if (coupeTab) coupeTab.click();
           }, 50);
+        });
+
+        // 🆕 Tri par clic sur en-têtes (event delegation sur le thead)
+        document.querySelectorAll('#bl-table th[data-bl-sort]').forEach(th => {
+          th.addEventListener('click', () => this._setSort(th.dataset.blSort));
         });
 
         // 🆕 Multi-select projets : toggle du panel
@@ -23984,7 +24053,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
 
         // Filtrage et rendu
-        const filtered = this._getFiltered();
+        const filtered = this._sortData(this._getFiltered());
+
+        // 🆕 Mettre à jour les indicateurs de tri dans les en-têtes
+        ['inventoryNo','maintenanceCounter','totalCounter','masterLocation','requalifTimeStatus','requalifStrokesStatus','maintenanceStatus','daysInUseStatus','cause'].forEach(col => {
+          const el = document.getElementById('bl-sort-' + col);
+          if (el) el.innerHTML = this._sortIndicator(col);
+        });
 
         // 🆕 Total Compteur cumulé sur les résultats filtrés
         const totalCounterSum = filtered.reduce((sum, r) => {
@@ -24081,7 +24156,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             ? `<div style="display:inline-block;font-size:.58rem;color:${client.color};font-weight:800;letter-spacing:.05em;background:${client.color}15;padding:.1rem .35rem;border-radius:3px;border:1px solid ${client.color}40;margin-top:.2rem">${client.icon} ${client.name.toUpperCase()}</div>`
             : '';
           return `
-            <tr style="border-bottom:1px solid var(--border-soft);${rowStyle};transition:background .15s">
+            <tr data-bl-row="${ui.escape(r.inventoryNo||'')}" style="border-bottom:1px solid var(--border-soft);${rowStyle};transition:background .15s;cursor:pointer" onmouseover="this.style.filter='brightness(1.15)'" onmouseout="this.style.filter=''">
               <td style="padding:.6rem .75rem;vertical-align:top">
                 <div style="font-family:var(--font-mono);font-weight:800;color:#0084c7;font-size:.82rem;text-shadow:0 0 1px rgba(0,132,199,.1)">${ui.escape(r.inventoryNo || '?')}</div>
                 ${r.description ? `<div style="font-size:.65rem;color:#d97706;font-weight:700;margin-top:.15rem;letter-spacing:.03em;background:rgba(217,119,6,.08);display:inline-block;padding:.05rem .3rem;border-radius:3px" title="Description (indique le type d'outil — utile pour identifier les critiques)">${ui.escape(r.description)}</div>` : ''}
@@ -24122,7 +24197,106 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             this._toggleCoupeToLab(inv);
           });
         });
-      }
+        // 🆕 Clic sur ligne → fiche détaillée (sauf si clic sur un bouton)
+        tbody.querySelectorAll('[data-bl-row]').forEach(tr => {
+          tr.addEventListener('click', (e) => {
+            if (e.target.closest('button')) return; // ignore clics boutons
+            const inv = tr.dataset.blRow;
+            const row = this._data.find(r => String(r.inventoryNo) === String(inv));
+            if (row) this._showToolDetail(row);
+          });
+        });
+      },
+
+      /** 🆕 Fiche détaillée d'un outil (modal) */
+      _showToolDetail(r) {
+        document.getElementById('bl-detail-modal')?.remove();
+        const client = this._getClientForProject(r.masterLocation);
+        const unlock = this._getUnlockHandler(r);
+        const group = this._extractGroup(r.inventoryNo);
+        const isBlocked = this._isBlocked(r);
+        const cause = this._causeText(r);
+        // Action recommandée
+        let action = '—';
+        if (isBlocked) {
+          if (unlock.handler === 'crimping-cell') action = '⚙️ Effectuer une vérification visuelle 5 jours en cellule sertissage';
+          else if (cause.startsWith('REQUALIF')) action = '🧪 Envoyer au laboratoire pour requalification';
+          else if (cause.startsWith('COUPE')) action = '🧪 Envoyer au laboratoire pour coupe métallographique';
+          else if (cause.startsWith('BINDING')) action = '🧪 Envoyer au laboratoire pour contrôle binding';
+        }
+        const statusRow = (label, val) => {
+          const badge = this._statusBadge(val);
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;border-bottom:1px solid var(--border-soft)"><span style="font-size:.8rem;color:var(--text-secondary)">${label}</span>${badge}</div>`;
+        };
+        const infoRow = (label, val, mono) => {
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;border-bottom:1px solid var(--border-soft)"><span style="font-size:.8rem;color:var(--text-secondary)">${label}</span><span style="font-size:.82rem;color:var(--text-primary);font-weight:700${mono ? ';font-family:var(--font-mono)' : ''}">${ui.escape(String(val ?? '—'))}</span></div>`;
+        };
+        const html = `
+          <div id="bl-detail-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:10002;display:flex;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)this.remove()">
+            <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:14px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+              <header style="padding:1.2rem 1.5rem;border-bottom:2px solid ${isBlocked ? '#ef4444' : '#10b981'};display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;background:linear-gradient(135deg,${isBlocked ? 'rgba(239,68,68,.08)' : 'rgba(16,185,129,.08)'},transparent)">
+                <div>
+                  <div style="font-family:var(--font-mono);font-size:1.2rem;font-weight:800;color:#0084c7">${ui.escape(r.inventoryNo || '?')}</div>
+                  ${r.description ? `<div style="font-size:.8rem;color:#d97706;font-weight:700;margin-top:.2rem">${ui.escape(r.description)}</div>` : ''}
+                  ${client ? `<div style="display:inline-block;font-size:.65rem;color:${client.color};font-weight:800;background:${client.color}15;padding:.15rem .45rem;border-radius:4px;border:1px solid ${client.color}40;margin-top:.35rem">${client.icon} ${client.name.toUpperCase()}${group ? ` · Groupe ${group}` : ''}</div>` : ''}
+                </div>
+                <button onclick="this.closest('#bl-detail-modal').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.4rem;line-height:1">✕</button>
+              </header>
+
+              <div style="padding:1rem 1.5rem">
+                ${isBlocked ? `
+                <div style="background:${unlock.handler === 'laboratoire' ? 'rgba(168,85,247,.1)' : 'rgba(0,212,255,.1)'};border:1px solid ${unlock.handler === 'laboratoire' ? 'rgba(168,85,247,.3)' : 'rgba(0,212,255,.3)'};border-radius:10px;padding:1rem;margin-bottom:1rem">
+                  <div style="font-size:.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:.4rem">🎯 Action recommandée</div>
+                  <div style="font-size:.95rem;font-weight:700;color:var(--text-primary)">${action}</div>
+                  <div style="margin-top:.6rem;display:flex;gap:.5rem;flex-wrap:wrap">
+                    <span style="background:${unlock.color};color:white;padding:.25rem .6rem;border-radius:5px;font-size:.7rem;font-weight:800">${unlock.icon} ${unlock.label}</span>
+                    <span style="background:var(--bg-3);color:var(--text-primary);padding:.25rem .6rem;border-radius:5px;font-size:.7rem;font-weight:700;border:1px solid var(--border-soft)">Cause : ${ui.escape(cause)}</span>
+                    ${unlock.critical ? '<span style="background:#dc2626;color:white;padding:.25rem .6rem;border-radius:5px;font-size:.7rem;font-weight:800">⚠️ CRITIQUE</span>' : ''}
+                    ${unlock.manualLab ? '<span style="background:#a855f7;color:white;padding:.25rem .6rem;border-radius:5px;font-size:.7rem;font-weight:800">📌 MANUEL</span>' : ''}
+                    ${unlock.coupeToLab ? '<span style="background:#ea580c;color:white;padding:.25rem .6rem;border-radius:5px;font-size:.7rem;font-weight:800">✂️ 0.35²</span>' : ''}
+                  </div>
+                </div>` : `
+                <div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:10px;padding:1rem;margin-bottom:1rem;text-align:center">
+                  <div style="font-size:1rem;font-weight:700;color:#10b981">✅ Outil en bon état — aucune action requise</div>
+                </div>`}
+
+                <div style="background:var(--bg-3);border-radius:10px;overflow:hidden;margin-bottom:1rem">
+                  <div style="padding:.5rem .75rem;background:var(--bg-elevated);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:800">📊 Statuts</div>
+                  ${statusRow('⏰ Requalif Time', r.requalifTimeStatus)}
+                  ${statusRow('🔁 Requalif Strokes', r.requalifStrokesStatus)}
+                  ${statusRow('🔧 Maintenance', r.maintenanceStatus)}
+                  ${statusRow('📅 Days In Use', r.daysInUseStatus)}
+                </div>
+
+                <div style="background:var(--bg-3);border-radius:10px;overflow:hidden">
+                  <div style="padding:.5rem .75rem;background:var(--bg-elevated);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:800">🔢 Compteurs & Infos</div>
+                  ${infoRow('🔧 Maintenance Counter', this._fmtNum(r.maintenanceCounter), true)}
+                  ${infoRow('📊 Total Counter', this._fmtNum(r.totalCounter), true)}
+                  ${infoRow('📍 Projet', r.masterLocation)}
+                  ${infoRow('🏭 Manufacturer', r.manufacturer)}
+                  ${infoRow('🔧 Last Maintenance', r.lastMaintenance)}
+                </div>
+
+                ${isBlocked && client && client.key === 'stellantis' && !unlock.critical ? `
+                <div style="margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap">
+                  <button id="bl-detail-toggle-lab" style="flex:1;min-width:140px;background:${unlock.manualLab ? '#a855f7' : 'var(--bg-3)'};color:${unlock.manualLab ? 'white' : 'var(--text-primary)'};border:1px solid ${unlock.manualLab ? '#7c3aed' : 'var(--border-soft)'};padding:.55rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.78rem">${unlock.manualLab ? '📌 Retirer du Labo' : '📌 Tout → Labo'}</button>
+                  <button id="bl-detail-toggle-coupe" style="flex:1;min-width:140px;background:${unlock.coupeToLab ? '#ea580c' : 'var(--bg-3)'};color:${unlock.coupeToLab ? 'white' : 'var(--text-primary)'};border:1px solid ${unlock.coupeToLab ? '#c2410c' : 'var(--border-soft)'};padding:.55rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.78rem">${unlock.coupeToLab ? '✂️ Retirer 0.35²' : '✂️ COUPE → Labo'}</button>
+                </div>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+        // Wire les boutons d'action de la fiche
+        document.getElementById('bl-detail-toggle-lab')?.addEventListener('click', async () => {
+          await this._toggleManualLab(r.inventoryNo);
+          document.getElementById('bl-detail-modal')?.remove();
+        });
+        document.getElementById('bl-detail-toggle-coupe')?.addEventListener('click', async () => {
+          await this._toggleCoupeToLab(r.inventoryNo);
+          document.getElementById('bl-detail-modal')?.remove();
+        });
+      },
     },
 
     /* ==========================================================================

@@ -8233,17 +8233,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <div style="background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:9px;overflow:hidden">
           <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:65vh;overflow-y:auto">
             <table id="bl-table" style="width:100%;border-collapse:collapse;font-size:.78rem;min-width:920px">
-              <thead style="position:sticky;top:0;background:var(--bg-2);z-index:1">
-                <tr style="border-bottom:2px solid var(--border-soft)">
-                  <th style="text-align:left;padding:.6rem .75rem;font-weight:700;color:var(--text-primary);font-family:var(--font-mono);font-size:.72rem">📋 Inventory No.</th>
-                  <th style="text-align:right;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">🔧 Maint. Cnt</th>
-                  <th style="text-align:right;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">📊 Total Cnt</th>
-                  <th style="text-align:left;padding:.6rem .75rem;font-weight:700;color:var(--text-primary);font-size:.72rem">📍 Projet</th>
-                  <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">⏰ Requalif Time</th>
-                  <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">🔁 Requalif Strokes</th>
-                  <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">🔧 Maintenance</th>
-                  <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.7rem">📅 Days In Use</th>
-                  <th style="text-align:center;padding:.6rem .5rem;font-weight:700;color:var(--text-primary);font-size:.72rem">🚦 Cause</th>
+              <thead style="position:sticky;top:0;background:linear-gradient(180deg,var(--bg-2) 0%,var(--bg-3) 100%);z-index:1;box-shadow:0 2px 4px rgba(0,0,0,.1)">
+                <tr style="border-bottom:2px solid var(--accent,#00d4ff)">
+                  <th style="text-align:left;padding:.75rem .75rem;font-weight:800;color:var(--text-primary);font-family:var(--font-mono);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase">📋 Inventory No.</th>
+                  <th style="text-align:right;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase">🔧 Maint. Cnt</th>
+                  <th style="text-align:right;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase">📊 Total Cnt</th>
+                  <th style="text-align:left;padding:.75rem .75rem;font-weight:800;color:var(--text-primary);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase">📍 Projet</th>
+                  <th style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase">⏰ Requalif Time</th>
+                  <th style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase">🔁 Requalif Strokes</th>
+                  <th style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase">🔧 Maintenance</th>
+                  <th style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase">📅 Days In Use</th>
+                  <th style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase">🚦 Cause</th>
                 </tr>
               </thead>
               <tbody id="bl-tbody">
@@ -22699,12 +22699,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       _statusBadge(status) {
-        // status: OK | warning | overrun | null
+        // Badges solides à fort contraste (lisible en mode clair ET sombre)
         if (!status || status === '—') return `<span style="color:var(--text-muted);font-size:.7rem">—</span>`;
         const s = String(status).toLowerCase();
-        if (s === 'ok')      return `<span style="background:rgba(16,185,129,.15);color:#10b981;padding:.18rem .5rem;border-radius:4px;font-size:.65rem;font-weight:700;letter-spacing:.04em">✅ OK</span>`;
-        if (s === 'warning') return `<span style="background:rgba(245,158,11,.15);color:#f59e0b;padding:.18rem .5rem;border-radius:4px;font-size:.65rem;font-weight:700;letter-spacing:.04em">⚠️ WARNING</span>`;
-        if (s === 'overrun') return `<span style="background:rgba(239,68,68,.15);color:#ef4444;padding:.18rem .5rem;border-radius:4px;font-size:.65rem;font-weight:700;letter-spacing:.04em">🚫 OVERRUN</span>`;
+        if (s === 'ok')      return `<span style="background:#10b981;color:white;padding:.28rem .65rem;border-radius:5px;font-size:.65rem;font-weight:800;letter-spacing:.05em;display:inline-block;line-height:1;border:1px solid #047857;box-shadow:0 1px 3px rgba(16,185,129,.35)">✅ OK</span>`;
+        if (s === 'warning') return `<span style="background:#f59e0b;color:white;padding:.28rem .65rem;border-radius:5px;font-size:.65rem;font-weight:800;letter-spacing:.05em;display:inline-block;line-height:1;border:1px solid #b45309;box-shadow:0 1px 3px rgba(245,158,11,.35)">⚠️ WARNING</span>`;
+        if (s === 'overrun') return `<span style="background:#ef4444;color:white;padding:.28rem .65rem;border-radius:5px;font-size:.65rem;font-weight:800;letter-spacing:.05em;display:inline-block;line-height:1;border:1px solid #b91c1c;box-shadow:0 1px 3px rgba(239,68,68,.35)">🚫 OVERRUN</span>`;
         return `<span style="font-size:.7rem">${ui.escape(String(status))}</span>`;
       },
 
@@ -22785,7 +22785,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return 'OK';
       },
 
-      /** 🆕 Exporte les résultats filtrés en Excel */
+      /** 🆕 Exporte les résultats filtrés en Excel — structure multi-feuilles */
       async exportFiltered() {
         const filtered = this._getFiltered();
         if (!filtered.length) {
@@ -22793,7 +22793,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           return;
         }
         try {
-          // Charger SheetJS si nécessaire
           if (typeof XLSX === 'undefined') {
             ui.toast('⏳ Chargement de la librairie d\'export...', 'info', 2000);
             await new Promise((res, rej) => {
@@ -22805,80 +22804,305 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           }
           ui.showLoader?.(`Export de ${filtered.length} outils...`);
 
-          // En-têtes en français pour l'export
-          const headers = [
+          // ╔══════════════════════════════════════════════════════════════════╗
+          // ║ HELPERS pour structurer les données proprement                  ║
+          // ╚══════════════════════════════════════════════════════════════════╝
+
+          /** Détermine l'ACTION RECOMMANDÉE pour chaque outil */
+          const getRecommendedAction = (r) => {
+            if (!this._isBlocked(r)) return '—';
+            const unlock = this._getUnlockHandler(r);
+            const reqT = String(r.requalifTimeStatus||'').toLowerCase();
+            const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
+            const m    = String(r.maintenanceStatus||'').toLowerCase();
+            const d    = String(r.daysInUseStatus||'').toLowerCase();
+            if (unlock.handler === 'crimping-cell') {
+              return '⚙️ Effectuer vérification visuelle 5J en cellule';
+            }
+            if (reqT === 'overrun' || reqS === 'overrun') {
+              const t = []; if (reqT === 'overrun') t.push('TIME'); if (reqS === 'overrun') t.push('STROKES');
+              return `🧪 Envoyer au labo pour REQUALIF (${t.join(' + ')})`;
+            }
+            if (m === 'overrun')   return '🧪 Envoyer au labo pour COUPE (maintenance overrun)';
+            if (m === 'warning')   return '🧪 Envoyer au labo pour COUPE (maintenance warning)';
+            if (d === 'overrun')   return '🧪 Envoyer au labo pour BINDING (days in use)';
+            return '—';
+          };
+
+          /** Détermine le TYPE de marquage Stellantis */
+          const getStellantisType = (r) => {
+            const client = this._getClientForProject(r.masterLocation);
+            if (!client || client.key !== 'stellantis') return '';
+            const unlock = this._getUnlockHandler(r);
+            if (unlock.critical && unlock.reason === 'group') return `Critique (groupe ${unlock.group})`;
+            if (unlock.manualLab) return 'Marqué manuel (📌)';
+            if (unlock.coupeToLab) return 'Section 0.35² (✂️)';
+            return 'Standard';
+          };
+
+          // ╔══════════════════════════════════════════════════════════════════╗
+          // ║ FEUILLE 1 : 📊 SYNTHÈSE — Vue d'ensemble                        ║
+          // ╚══════════════════════════════════════════════════════════════════╝
+          const now = new Date();
+          const dateFr = now.toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' });
+          const blocked = filtered.filter(r => this._isBlocked(r));
+          const labTools = blocked.filter(r => this._getUnlockHandler(r).handler === 'laboratoire');
+          const cellTools = blocked.filter(r => this._getUnlockHandler(r).handler === 'crimping-cell');
+          const causeReqCount = blocked.filter(r => {
+            const u = this._getUnlockHandler(r);
+            return u.handler === 'laboratoire' && (String(r.requalifTimeStatus||'').toLowerCase() === 'overrun' || String(r.requalifStrokesStatus||'').toLowerCase() === 'overrun');
+          }).length;
+          const causeCoupeCount = blocked.filter(r => {
+            const u = this._getUnlockHandler(r);
+            if (u.handler !== 'laboratoire') return false;
+            const reqT = String(r.requalifTimeStatus||'').toLowerCase();
+            const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
+            const m = String(r.maintenanceStatus||'').toLowerCase();
+            return (reqT !== 'overrun' && reqS !== 'overrun') && (m === 'overrun' || m === 'warning');
+          }).length;
+          const causeBindingCount = blocked.filter(r => {
+            const u = this._getUnlockHandler(r);
+            if (u.handler !== 'laboratoire') return false;
+            const reqT = String(r.requalifTimeStatus||'').toLowerCase();
+            const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
+            const m = String(r.maintenanceStatus||'').toLowerCase();
+            const d = String(r.daysInUseStatus||'').toLowerCase();
+            return (reqT !== 'overrun' && reqS !== 'overrun') && !(m === 'overrun' || m === 'warning') && d === 'overrun';
+          }).length;
+          const totalCntSum = filtered.reduce((s, r) => s + (Number(r.totalCounter) || 0), 0);
+
+          // Stats par client
+          const byClient = {};
+          filtered.forEach(r => {
+            const c = this._getClientForProject(r.masterLocation);
+            const key = c ? c.name : 'Non classé';
+            if (!byClient[key]) byClient[key] = { total: 0, blocked: 0, lab: 0, cell: 0 };
+            byClient[key].total++;
+            if (this._isBlocked(r)) {
+              byClient[key].blocked++;
+              const u = this._getUnlockHandler(r);
+              if (u.handler === 'laboratoire') byClient[key].lab++;
+              else if (u.handler === 'crimping-cell') byClient[key].cell++;
+            }
+          });
+
+          const synthese = [
+            ['LEONI Wiring System — Rapport Outils Bloqués'],
+            [`Date export : ${dateFr}`],
+            [`Exporté par : ${state.user?.name || state.user?.email || 'admin'}`],
+            [],
+            ['═══ RÉSUMÉ GÉNÉRAL ═══'],
+            ['Indicateur', 'Valeur', 'Pourcentage'],
+            ['Total outils', filtered.length, '100%'],
+            ['Outils bloqués', blocked.length, Math.round(blocked.length / filtered.length * 100) + '%'],
+            ['→ À traiter au Laboratoire 🧪', labTools.length, Math.round(labTools.length / (blocked.length||1) * 100) + '% des bloqués'],
+            ['→ À traiter en Cellule Sertissage ⚙️', cellTools.length, Math.round(cellTools.length / (blocked.length||1) * 100) + '% des bloqués'],
+            ['Total Compteur cumulé', totalCntSum, 'cycles'],
+            [],
+            ['═══ RÉPARTITION PAR CAUSE (Bloqués Labo) ═══'],
+            ['Cause', 'Nombre', 'Action'],
+            ['🔴 REQUALIF (Time/Strokes)', causeReqCount, 'Envoyer au labo pour requalification'],
+            ['🟠 COUPE (Maintenance)', causeCoupeCount, 'Envoyer au labo pour coupe métallographique'],
+            ['🟡 BINDING (Days In Use)', causeBindingCount, 'Envoyer au labo pour contrôle binding'],
+            ['⚙️ VÉRIFICATION 5J (Cellule)', cellTools.length, 'Effectuer vérification visuelle 5 jours en cellule'],
+            [],
+            ['═══ RÉPARTITION PAR CLIENT ═══'],
+            ['Client', 'Total outils', 'Bloqués', 'À Labo', 'À Cellule']
+          ];
+          Object.entries(byClient).forEach(([name, s]) => {
+            synthese.push([name, s.total, s.blocked, s.lab, s.cell]);
+          });
+
+          const wsSynthese = XLSX.utils.aoa_to_sheet(synthese);
+          wsSynthese['!cols'] = [{ wch: 38 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 }];
+          // Merger les titres
+          wsSynthese['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+            { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+            { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+            { s: { r: 4, c: 0 }, e: { r: 4, c: 4 } },
+            { s: { r: 12, c: 0 }, e: { r: 12, c: 4 } },
+            { s: { r: 19, c: 0 }, e: { r: 19, c: 4 } }
+          ];
+
+          // ╔══════════════════════════════════════════════════════════════════╗
+          // ║ FEUILLE 2 : 🧪 LABORATOIRE — Outils à envoyer au labo          ║
+          // ╚══════════════════════════════════════════════════════════════════╝
+          const labHeaders = [
             'Inventory No.',
+            'Description',
             'Client',
-            'Master Location',
+            'Projet',
+            'Groupe',
+            'Type marquage',
             'Maintenance Counter',
             'Total Counter',
-            'Requalif Time Status',
-            'Requalif Strokes Status',
-            'Maintenance Status',
-            'Days In Use Status',
-            'Cause de Blocage',
-            'Débloqué par',
-            'Critique',
-            'Description',
+            'Cause',
+            'Action recommandée',
+            'Requalif Time',
+            'Requalif Strokes',
+            'Maintenance',
+            'Days In Use',
             'Manufacturer',
             'Last Maintenance'
           ];
-          const aoa = [headers];
-          filtered.forEach(r => {
+          const labAoa = [labHeaders];
+          labTools.forEach(r => {
             const client = this._getClientForProject(r.masterLocation);
-            const unlock = this._getUnlockHandler(r);
-            aoa.push([
+            labAoa.push([
               r.inventoryNo || '',
+              r.description || '',
               client ? client.name : '—',
               r.masterLocation || '',
+              this._extractGroup(r.inventoryNo) || '—',
+              getStellantisType(r),
               Number(r.maintenanceCounter) || 0,
               Number(r.totalCounter) || 0,
+              this._causeText(r),
+              getRecommendedAction(r),
               r.requalifTimeStatus || '',
               r.requalifStrokesStatus || '',
               r.maintenanceStatus || '',
               r.daysInUseStatus || '',
-              this._causeText(r),
-              unlock.label || '—',
-              unlock.critical ? 'OUI' : '',
-              r.description || '',
               r.manufacturer || '',
               r.lastMaintenance || ''
             ]);
           });
-
-          // Création du workbook
-          const ws = XLSX.utils.aoa_to_sheet(aoa);
-          // Largeurs de colonnes pour lisibilité
-          ws['!cols'] = [
-            { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
-            { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 14 },
-            { wch: 28 }, { wch: 14 }, { wch: 10 }, { wch: 30 }, { wch: 14 }, { wch: 14 }
+          const wsLab = XLSX.utils.aoa_to_sheet(labAoa);
+          wsLab['!cols'] = [
+            { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 10 },
+            { wch: 22 }, { wch: 16 }, { wch: 16 }, { wch: 28 }, { wch: 50 },
+            { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }
           ];
-          // Gel de la première ligne
-          ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+          wsLab['!freeze'] = { xSplit: 1, ySplit: 1 };
+          // Auto-filter sur la première ligne
+          wsLab['!autofilter'] = { ref: `A1:P${labAoa.length}` };
 
+          // ╔══════════════════════════════════════════════════════════════════╗
+          // ║ FEUILLE 3 : ⚙️ CELLULE SERTISSAGE — Vérif 5J                    ║
+          // ╚══════════════════════════════════════════════════════════════════╝
+          const cellHeaders = [
+            'Inventory No.',
+            'Description',
+            'Projet',
+            'Groupe',
+            'Maintenance Counter',
+            'Total Counter',
+            'Action',
+            'Maintenance',
+            'Days In Use',
+            'Manufacturer'
+          ];
+          const cellAoa = [cellHeaders];
+          cellTools.forEach(r => {
+            cellAoa.push([
+              r.inventoryNo || '',
+              r.description || '',
+              r.masterLocation || '',
+              this._extractGroup(r.inventoryNo) || '—',
+              Number(r.maintenanceCounter) || 0,
+              Number(r.totalCounter) || 0,
+              '⚙️ Vérification visuelle 5 jours',
+              r.maintenanceStatus || '',
+              r.daysInUseStatus || '',
+              r.manufacturer || ''
+            ]);
+          });
+          const wsCell = XLSX.utils.aoa_to_sheet(cellAoa);
+          wsCell['!cols'] = [
+            { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 10 },
+            { wch: 16 }, { wch: 16 }, { wch: 32 }, { wch: 14 }, { wch: 14 }, { wch: 16 }
+          ];
+          wsCell['!freeze'] = { xSplit: 1, ySplit: 1 };
+          wsCell['!autofilter'] = { ref: `A1:J${cellAoa.length}` };
+
+          // ╔══════════════════════════════════════════════════════════════════╗
+          // ║ FEUILLE 4 : 📋 TOUS LES OUTILS — Détail complet                 ║
+          // ╚══════════════════════════════════════════════════════════════════╝
+          const allHeaders = [
+            'Inventory No.',
+            'Description',
+            'Client',
+            'Projet',
+            'Groupe',
+            'Type marquage',
+            'Maintenance Counter',
+            'Total Counter',
+            'Statut Global',
+            'Cause / Action',
+            'Débloqué par',
+            'Requalif Time',
+            'Requalif Strokes',
+            'Maintenance',
+            'Days In Use',
+            'Manufacturer',
+            'Last Maintenance'
+          ];
+          const allAoa = [allHeaders];
+          filtered.forEach(r => {
+            const client = this._getClientForProject(r.masterLocation);
+            const unlock = this._getUnlockHandler(r);
+            const isB = this._isBlocked(r);
+            allAoa.push([
+              r.inventoryNo || '',
+              r.description || '',
+              client ? client.name : '—',
+              r.masterLocation || '',
+              this._extractGroup(r.inventoryNo) || '—',
+              getStellantisType(r),
+              Number(r.maintenanceCounter) || 0,
+              Number(r.totalCounter) || 0,
+              isB ? '🚫 BLOQUÉ' : (this._hasWarning(r) ? '⚠️ ALERTE' : '✅ OK'),
+              this._causeText(r),
+              isB ? (unlock.handler === 'laboratoire' ? '🧪 LABO' : '⚙️ CELLULE') : '—',
+              r.requalifTimeStatus || '',
+              r.requalifStrokesStatus || '',
+              r.maintenanceStatus || '',
+              r.daysInUseStatus || '',
+              r.manufacturer || '',
+              r.lastMaintenance || ''
+            ]);
+          });
+          const wsAll = XLSX.utils.aoa_to_sheet(allAoa);
+          wsAll['!cols'] = [
+            { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 10 },
+            { wch: 22 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 28 },
+            { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }
+          ];
+          wsAll['!freeze'] = { xSplit: 1, ySplit: 1 };
+          wsAll['!autofilter'] = { ref: `A1:Q${allAoa.length}` };
+
+          // ╔══════════════════════════════════════════════════════════════════╗
+          // ║ ASSEMBLAGE DU WORKBOOK                                          ║
+          // ╚══════════════════════════════════════════════════════════════════╝
           const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, 'Outils Bloqués');
+          XLSX.utils.book_append_sheet(wb, wsSynthese, '📊 Synthèse');
+          if (labTools.length)  XLSX.utils.book_append_sheet(wb, wsLab,  '🧪 Laboratoire');
+          if (cellTools.length) XLSX.utils.book_append_sheet(wb, wsCell, '⚙️ Cellule 5J');
+          XLSX.utils.book_append_sheet(wb, wsAll, '📋 Tous les outils');
 
           // Nom de fichier basé sur les filtres actifs
-          const dateStr = new Date().toISOString().slice(0, 10);
+          const dateStr = now.toISOString().slice(0, 10);
           const statusFilter = document.getElementById('bl-status-filter')?.value || '';
           const statusTag = {
-            'cause-requalif':    '_REQUALIF',
-            'cause-maintenance': '_MAINTENANCE',
-            'cause-5jours':      '_5JOURS',
-            'blocked':           '_BLOQUES',
-            'warning':           '_WARNING',
-            'ok':                '_OK'
+            'cause-requalif': '_REQUALIF',
+            'cause-coupe':    '_COUPE',
+            'cause-binding':  '_BINDING',
+            'cause-5j':       '_VERIF-5J',
+            'blocked':        '_BLOQUES',
+            'warning':        '_WARNING',
+            'ok':             '_OK'
           }[statusFilter] || '';
           const projTag = this._selectedProjects.size === 1 && !this._selectedProjects.has('__NONE__')
             ? '_' + [...this._selectedProjects][0]
-            : '';
+            : (this._selectedProjects.size > 1 && !this._selectedProjects.has('__NONE__'))
+              ? `_${this._selectedProjects.size}projets`
+              : '';
           const filename = `LEONI_OutilsBloques${projTag}${statusTag}_${dateStr}.xlsx`;
           XLSX.writeFile(wb, filename);
 
           ui.hideLoader?.();
-          ui.toast(`✅ ${filtered.length} outils exportés → ${filename}`, 'success', 5000);
+          ui.toast(`✅ ${filtered.length} outils exportés en ${labTools.length > 0 && cellTools.length > 0 ? '4' : '3'} feuilles → ${filename}`, 'success', 6000);
         } catch (e) {
           ui.hideLoader?.();
           console.error('[blocked export]', e);
@@ -23708,9 +23932,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         // Limiter à 500 lignes pour les perfs
         const MAX_DISPLAY = 500;
         const slice = filtered.slice(0, MAX_DISPLAY);
-        tbody.innerHTML = slice.map(r => {
+        tbody.innerHTML = slice.map((r, idx) => {
           const isBlocked = this._isBlocked(r);
-          const rowStyle = isBlocked ? 'background:rgba(239,68,68,.04)' : '';
+          // 🆕 Style ligne : zebra stripes + indicateur visuel fort pour les bloqués
+          const zebra = idx % 2 === 0 ? 'rgba(0,0,0,.015)' : 'transparent';
+          const rowStyle = isBlocked
+            ? `background:linear-gradient(90deg,rgba(239,68,68,.08) 0%,${zebra} 12%);border-left:4px solid #ef4444`
+            : `background:${zebra};border-left:4px solid transparent`;
           // 🆕 Détermine qui doit débloquer (selon règles client)
           const unlock = this._getUnlockHandler(r);
           const client = this._getClientForProject(r.masterLocation);
@@ -23718,45 +23946,44 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           // 🆕 Affichage du GROUPE pour outils Stellantis (extrait du Inventory No.)
           const group = isStellantis ? this._extractGroup(r.inventoryNo) : null;
           const groupBadge = group
-            ? `<span style="background:${unlock.reason === 'group' ? '#a855f7' : 'rgba(168,85,247,.15)'};color:${unlock.reason === 'group' ? 'white' : '#a855f7'};font-size:.55rem;padding:.05rem .35rem;border-radius:3px;font-weight:800;letter-spacing:.04em" title="${unlock.reason === 'group' ? 'Groupe CRITIQUE Stellantis' : 'Groupe Stellantis non-critique'}">G:${group}${unlock.reason === 'group' ? ' 🎯' : ''}</span>`
+            ? `<span style="background:${unlock.reason === 'group' ? '#a855f7' : '#e9d5ff'};color:${unlock.reason === 'group' ? 'white' : '#7c3aed'};font-size:.6rem;padding:.18rem .4rem;border-radius:4px;font-weight:800;letter-spacing:.04em;border:1px solid ${unlock.reason === 'group' ? '#7c3aed' : '#c4b5fd'};box-shadow:${unlock.reason === 'group' ? '0 1px 3px rgba(168,85,247,.4)' : 'none'}" title="${unlock.reason === 'group' ? 'Groupe CRITIQUE Stellantis (déblocage Labo toute cause)' : 'Groupe Stellantis non-critique'}">G:${group}${unlock.reason === 'group' ? ' 🎯' : ''}</span>`
             : '';
           const unlockBadge = isBlocked
-            ? `<div style="display:inline-flex;align-items:center;gap:.2rem;background:${unlock.color}22;color:${unlock.color};font-size:.55rem;padding:.05rem .3rem;border-radius:3px;font-weight:700">${unlock.icon} ${unlock.label}${unlock.critical ? ' ⚠️CRITIQUE' : ''}${unlock.manualLab ? ' 📌' : ''}${unlock.coupeToLab ? ' ✂️0.35²' : ''}</div>`
+            ? `<div style="display:inline-flex;align-items:center;gap:.25rem;background:${unlock.color};color:white;font-size:.6rem;padding:.18rem .42rem;border-radius:4px;font-weight:800;border:1px solid ${unlock.color};box-shadow:0 1px 3px ${unlock.color}55">${unlock.icon} ${unlock.label}${unlock.critical ? ' ⚠️CRITIQUE' : ''}${unlock.manualLab ? ' 📌' : ''}${unlock.coupeToLab ? ' ✂️0.35²' : ''}</div>`
             : '';
           // 🔄 Bouton toggle Stellantis non-critique : permet de basculer Lab/Cellule (TOUTES causes)
           const toggleBtn = (isBlocked && isStellantis && !unlock.critical)
-            ? `<button data-bl-toggle="${ui.escape(r.inventoryNo||'')}" title="${unlock.manualLab ? 'Retirer du Labo (→ Cellule)' : 'Marquer tout au Labo (manuel)'}" style="background:none;border:1px solid ${unlock.manualLab ? '#a855f7' : 'rgba(255,255,255,.2)'};color:${unlock.manualLab ? '#a855f7' : 'var(--text-muted)'};font-size:.55rem;padding:.05rem .35rem;border-radius:3px;cursor:pointer;font-weight:700">🔄</button>`
+            ? `<button data-bl-toggle="${ui.escape(r.inventoryNo||'')}" title="${unlock.manualLab ? 'Retirer du Labo (→ Cellule)' : 'Marquer tout au Labo (manuel)'}" style="background:${unlock.manualLab ? '#a855f7' : 'transparent'};border:1px solid ${unlock.manualLab ? '#7c3aed' : 'var(--border-soft)'};color:${unlock.manualLab ? 'white' : 'var(--text-secondary)'};font-size:.6rem;padding:.18rem .35rem;border-radius:4px;cursor:pointer;font-weight:700">🔄</button>`
             : '';
           // ✂️ Bouton COUPE→Labo Stellantis non-critique (section 0.35²)
-          //    Seulement pour les outils Stellantis non critiques par groupe, et seulement si Maintenance en jeu
           const maintStatus = String(r.maintenanceStatus || '').toLowerCase();
           const hasMaintIssue = maintStatus === 'overrun' || maintStatus === 'warning';
           const coupeMarked = unlock.coupeToLab === true;
           const showCoupeBtn = isStellantis && !unlock.critical && !unlock.manualLab && (hasMaintIssue || coupeMarked);
           const coupeBtn = showCoupeBtn
-            ? `<button data-bl-coupe="${ui.escape(r.inventoryNo||'')}" title="${coupeMarked ? 'Retirer de COUPE→Labo (section 0.35²)' : 'Marquer COUPE→Labo (section 0.35²)'}" style="background:none;border:1px solid ${coupeMarked ? '#ea580c' : 'rgba(255,255,255,.2)'};color:${coupeMarked ? '#ea580c' : 'var(--text-muted)'};font-size:.55rem;padding:.05rem .35rem;border-radius:3px;cursor:pointer;font-weight:700" >✂️</button>`
+            ? `<button data-bl-coupe="${ui.escape(r.inventoryNo||'')}" title="${coupeMarked ? 'Retirer de COUPE→Labo (section 0.35²)' : 'Marquer COUPE→Labo (section 0.35²)'}" style="background:${coupeMarked ? '#ea580c' : 'transparent'};border:1px solid ${coupeMarked ? '#c2410c' : 'var(--border-soft)'};color:${coupeMarked ? 'white' : 'var(--text-secondary)'};font-size:.6rem;padding:.18rem .35rem;border-radius:4px;cursor:pointer;font-weight:700" >✂️</button>`
             : '';
           const clientBadge = client
-            ? `<span style="font-size:.55rem;color:${client.color};font-weight:700;letter-spacing:.04em">${client.icon} ${client.name.toUpperCase()}</span>`
+            ? `<div style="display:inline-block;font-size:.58rem;color:${client.color};font-weight:800;letter-spacing:.05em;background:${client.color}15;padding:.1rem .35rem;border-radius:3px;border:1px solid ${client.color}40;margin-top:.2rem">${client.icon} ${client.name.toUpperCase()}</div>`
             : '';
           return `
-            <tr style="border-bottom:1px solid var(--border-soft);${rowStyle}">
-              <td style="padding:.55rem .75rem">
-                <div style="font-family:var(--font-mono);font-weight:700;color:#00d4ff;font-size:.78rem">${ui.escape(r.inventoryNo || '?')}</div>
-                ${r.description ? `<div style="font-size:.65rem;color:#ffb547;font-weight:600;margin-top:.1rem;letter-spacing:.03em" title="Description (indique le type d'outil — utile pour identifier les critiques)">${ui.escape(r.description)}</div>` : ''}
-                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.2rem;margin-top:.2rem">${groupBadge}${unlockBadge}${toggleBtn}${coupeBtn}</div>
+            <tr style="border-bottom:1px solid var(--border-soft);${rowStyle};transition:background .15s">
+              <td style="padding:.6rem .75rem;vertical-align:top">
+                <div style="font-family:var(--font-mono);font-weight:800;color:#0084c7;font-size:.82rem;text-shadow:0 0 1px rgba(0,132,199,.1)">${ui.escape(r.inventoryNo || '?')}</div>
+                ${r.description ? `<div style="font-size:.65rem;color:#d97706;font-weight:700;margin-top:.15rem;letter-spacing:.03em;background:rgba(217,119,6,.08);display:inline-block;padding:.05rem .3rem;border-radius:3px" title="Description (indique le type d'outil — utile pour identifier les critiques)">${ui.escape(r.description)}</div>` : ''}
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.25rem;margin-top:.25rem">${groupBadge}${unlockBadge}${toggleBtn}${coupeBtn}</div>
               </td>
-              <td style="padding:.55rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.74rem">${this._fmtNum(r.maintenanceCounter)}</td>
-              <td style="padding:.55rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.74rem;font-weight:700">${this._fmtNum(r.totalCounter)}</td>
-              <td style="padding:.55rem .75rem;color:var(--text-secondary);font-size:.74rem">
-                <div>${ui.escape(r.masterLocation || '—')}</div>
+              <td style="padding:.6rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.78rem;font-weight:600;vertical-align:top">${this._fmtNum(r.maintenanceCounter)}</td>
+              <td style="padding:.6rem .5rem;text-align:right;font-family:var(--font-mono);color:var(--text-primary);font-size:.8rem;font-weight:800;vertical-align:top">${this._fmtNum(r.totalCounter)}</td>
+              <td style="padding:.6rem .75rem;color:var(--text-secondary);font-size:.78rem;vertical-align:top">
+                <div style="font-weight:700;color:var(--text-primary)">${ui.escape(r.masterLocation || '—')}</div>
                 ${clientBadge}
               </td>
-              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.requalifTimeStatus)}</td>
-              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.requalifStrokesStatus)}</td>
-              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.maintenanceStatus)}</td>
-              <td style="padding:.55rem .5rem;text-align:center">${this._statusBadge(r.daysInUseStatus)}</td>
-              <td style="padding:.55rem .5rem;text-align:center">${this._causeBadge(r)}</td>
+              <td style="padding:.6rem .5rem;text-align:center;vertical-align:middle">${this._statusBadge(r.requalifTimeStatus)}</td>
+              <td style="padding:.6rem .5rem;text-align:center;vertical-align:middle">${this._statusBadge(r.requalifStrokesStatus)}</td>
+              <td style="padding:.6rem .5rem;text-align:center;vertical-align:middle">${this._statusBadge(r.maintenanceStatus)}</td>
+              <td style="padding:.6rem .5rem;text-align:center;vertical-align:middle">${this._statusBadge(r.daysInUseStatus)}</td>
+              <td style="padding:.6rem .5rem;text-align:center;vertical-align:middle">${this._causeBadge(r)}</td>
             </tr>
           `;
         }).join('');

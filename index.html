@@ -22485,16 +22485,30 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       clientsConfig: null,
 
       /** Renvoie le client (constructeur) propriétaire d'un projet — ou null si inconnu */
+      // 🆕 Cache de lookup client (clé = projet normalisé) — vidé quand la config change
+      _clientCache: null,
+
+      /** Renvoie le client (constructeur) propriétaire d'un projet — ou null si inconnu.
+       *  Mémoïsé via _clientCache pour éviter de réitérer la config à chaque appel
+       *  (appelé des milliers de fois lors du rendu de centaines de lignes). */
       _getClientForProject(projectName) {
         if (!projectName) return null;
-        const cfg = this.clientsConfig || this.DEFAULT_CLIENTS_CONFIG;
         const normalized = String(projectName).trim().toUpperCase();
+        // Cache hit
+        if (this._clientCache && this._clientCache.has(normalized)) {
+          return this._clientCache.get(normalized);
+        }
+        if (!this._clientCache) this._clientCache = new Map();
+        const cfg = this.clientsConfig || this.DEFAULT_CLIENTS_CONFIG;
+        let result = null;
         for (const [key, client] of Object.entries(cfg)) {
           if ((client.projects || []).some(p => String(p).toUpperCase() === normalized)) {
-            return { key, ...client };
+            result = { key, ...client };
+            break;
           }
         }
-        return null;
+        this._clientCache.set(normalized, result);
+        return result;
       },
 
       /** Renvoie les règles applicables à un projet */
@@ -22663,12 +22677,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           console.warn('[blocked] Chargement config clients échoué, fallback défaut');
           this.clientsConfig = JSON.parse(JSON.stringify(this.DEFAULT_CLIENTS_CONFIG));
         }
+        this._clientCache = null; // invalider le cache de lookup
       },
 
       /** Sauvegarde la config clients sur Firebase */
       async _saveClientsConfig() {
         try {
           await fbDb.ref('blockedTools/clientsConfig').set(this.clientsConfig);
+          this._clientCache = null; // invalider le cache de lookup
           return true;
         } catch (e) {
           console.error('[blocked] Save clientsConfig:', e);
@@ -23295,7 +23311,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (this._initialized) return;
         this._initialized = true;
         // Wire UI events
-        document.getElementById('bl-search')?.addEventListener('input', () => this.render());
+        // 🆕 Recherche avec debounce 150ms (évite le jank pendant la frappe)
+        let _searchTimer = null;
+        document.getElementById('bl-search')?.addEventListener('input', () => {
+          clearTimeout(_searchTimer);
+          _searchTimer = setTimeout(() => this.render(), 150);
+        });
         document.getElementById('bl-status-filter')?.addEventListener('change', () => this.render());
         document.getElementById('bl-import-btn')?.addEventListener('click', () => {
           document.getElementById('bl-import-file').click();

@@ -7818,9 +7818,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <div class="intervention__actions-right">
               <button type="button" class="btn btn--ghost" id="btn-int-print">🖨 Imprimer A4</button>
               <button type="button" class="btn btn--ghost" id="btn-int-export">📤 Export PDF</button>
-              <button type="button" class="btn btn--danger btn--ghost" id="btn-int-delete" data-requires-role="responsable,super_admin,admin" data-i18n="t.supprimer">🗑 Supprimer</button>
-              <button type="button" class="btn btn--secondary" id="btn-int-save" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo" data-i18n="t.enregistrer_brouillon">💾 Enregistrer brouillon</button>
-              <button type="submit" class="btn btn--primary" id="btn-int-submit" data-requires-role="admin,super_admin,responsable,crimp,crimping" data-i18n="t.soumettre_au_labo">📨 Soumettre au labo</button>
+              <button type="button" class="btn btn--danger btn--ghost" id="btn-int-delete" data-requires-role="responsable,super_admin,admin" data-edit-module="intervention" data-i18n="t.supprimer">🗑 Supprimer</button>
+              <button type="button" class="btn btn--secondary" id="btn-int-save" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo" data-edit-module="intervention" data-i18n="t.enregistrer_brouillon">💾 Enregistrer brouillon</button>
+              <button type="submit" class="btn btn--primary" id="btn-int-submit" data-requires-role="admin,super_admin,responsable,crimp,crimping" data-edit-module="intervention" data-i18n="t.soumettre_au_labo">📨 Soumettre au labo</button>
             </div>
           </footer>
         </form>
@@ -8094,11 +8094,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <h1 class="catalog__title" data-i18n="catalog.title">Catalogue outils</h1>
           <div class="catalog__actions">
             <input class="catalog__search" id="catalog-search" type="search" placeholder="Rechercher par serial, groupe, projet, fournisseur…" / autocomplete="off">
-            <button class="btn btn--secondary" id="btn-catalog-import">📥 Importer Excel</button>
+            <button class="btn btn--secondary" id="btn-catalog-import" data-edit-module="catalog">📥 Importer Excel</button>
             <button class="btn btn--secondary" id="btn-catalog-export"><span data-i18n="action.exportExcel">📤 Exporter Excel</span></button>
             <button class="btn btn--secondary" id="btn-catalog-print-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Imprimer les QR codes des outils filtrés">🖨 QR Codes</button>
-            <button class="btn btn--secondary" id="btn-catalog-bulk-docs" data-requires-role="responsable,super_admin,admin" style="background:rgba(124,58,237,.14);color:#a855f7;border:1px solid rgba(124,58,237,.35);font-weight:700" title="Joindre une liste de documents (Annexes) à plusieurs outils d'un coup">📎 Docs en masse</button>
-            <button class="btn btn--primary" id="btn-catalog-add" data-requires-role="responsable,super_admin,admin">＋ Nouvel outil</button>
+            <button class="btn btn--secondary" id="btn-catalog-bulk-docs" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog" style="background:rgba(124,58,237,.14);color:#a855f7;border:1px solid rgba(124,58,237,.35);font-weight:700" title="Joindre une liste de documents (Annexes) à plusieurs outils d'un coup">📎 Docs en masse</button>
+            <button class="btn btn--primary" id="btn-catalog-add" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog">＋ Nouvel outil</button>
           </div>
         </header>
 
@@ -8311,7 +8311,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <p class="history__subtitle">Registre des techniciens avec leur équipe de travail (A / B / C / N)</p>
           </div>
           <div style="display:flex;gap:.6rem;flex-wrap:wrap">
-            <button class="btn btn--primary" id="btn-tech-add" style="background:#ff8b6b;color:#0a1628;border:none;font-weight:700">
+            <button class="btn btn--secondary" id="btn-access-manage" data-requires-role="admin,super_admin" style="background:rgba(124,58,237,.14);color:#a855f7;border:1px solid rgba(124,58,237,.35);font-weight:700" title="Gérer les accès des rôles aux modules">🔐 Gestion des accès</button>
+            <button class="btn btn--primary" id="btn-tech-add" data-edit-module="equipe" style="background:#ff8b6b;color:#0a1628;border:none;font-weight:700">
               ➕ Ajouter technicien
             </button>
           </div>
@@ -9706,6 +9707,29 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     </div>
   </div>
 
+  <!-- Modal: 🔐 Gestion des accès par rôle -->
+  <div class="modal" id="modal-access" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:860px">
+      <header class="modal__header">
+        <h2 class="modal__title">🔐 Gestion des accès par rôle</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body">
+        <div style="font-size:.8rem;color:var(--text-secondary);line-height:1.5;margin-bottom:1rem;background:rgba(124,58,237,.08);padding:.7rem .9rem;border-radius:8px;border-left:3px solid #a855f7">
+          Définissez pour chaque rôle l'accès à chaque module : <strong>🚫 Aucun</strong> (masqué), <strong>👁 Lecture</strong> (consultation seule, sans modification), <strong>✏️ Édition</strong> (accès complet).<br>
+          <span style="font-size:.74rem;color:var(--text-muted)">🔴 Administrateur a toujours un accès total (non modifiable). Les changements sont synchronisés pour toute l'équipe.</span>
+        </div>
+        <div id="access-matrix" style="overflow-x:auto"></div>
+      </div>
+      <footer class="modal__footer">
+        <button class="btn btn--ghost" id="btn-access-reset" style="margin-right:auto">↺ Réinitialiser aux valeurs par défaut</button>
+        <button class="btn btn--ghost" data-close>Annuler</button>
+        <button class="btn btn--primary" id="btn-access-save" style="background:#a855f7;color:#fff;border:none;font-weight:700">💾 Enregistrer les accès</button>
+      </footer>
+    </div>
+  </div>
+
   <!-- Modal: nouvel utilisateur -->
   <div class="modal" id="modal-user" role="dialog" aria-modal="true" hidden>
     <div class="modal__backdrop" data-close></div>
@@ -10174,6 +10198,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     notifSeenKeys: new Set(),   // keys of notifs we've already alerted on
     notifInitDone: false,       // first listener fire = baseline (no alert)
     notifPermAsked: false,      // browser permission asked once per session
+    // 🆕 Gestion des accès : surcharge admin par rôle → module → 'none'|'view'|'edit'
+    accessConfig: {},
   };
 
   /* ==========================================================================
@@ -11281,6 +11307,31 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         el.hidden = !allowed.includes(state.role);
       });
 
+      // 🆕 GESTION DES ACCÈS (surcharge admin par rôle) — uniquement rôles gérables
+      //    admin/super_admin = toujours total (jamais restreints)
+      try {
+        const managed = ['responsable','crimp','crimping','labo','magasinier'].includes(state.role);
+        if (managed && typeof access !== 'undefined') {
+          access.MODULES.forEach(m => {
+            const lvl = access.level(m.key);                 // 'none' | 'view' | 'edit'
+            const nav = access._navSelector(m.key);
+            const li = nav ? document.querySelector(`[data-nav="${nav}"]`)?.closest('li') : null;
+            if (li) li.hidden = (lvl === 'none');             // masque/affiche l'entrée de menu
+          });
+          // Masquer les boutons d'écriture (data-edit-module) si pas le niveau 'edit'
+          //   Recalcul complet (idempotent) pour gérer les changements de config à chaud
+          $$('[data-edit-module]').forEach(el => {
+            const mod = el.dataset.editModule;
+            let visible = true;
+            if (el.dataset.requiresRole) {
+              visible = el.dataset.requiresRole.split(',').map(s => s.trim()).includes(state.role);
+            }
+            if (visible && !access.canEdit(mod)) visible = false;
+            el.hidden = !visible;
+          });
+        }
+      } catch(e) { console.warn('[access] applyRoleVisibility', e); }
+
       // Mode lecture seule pour Magasin (Crimping voit mais ne modifie pas)
       const role = state.role;
       const isCrimping = (role === 'crimp' || role === 'crimping');
@@ -11329,6 +11380,204 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       };
       return (PERMS[action] || []).includes(role);
     }
+  };
+
+  /* ==========================================================================
+     5.5 ACCESS CONTROL — Gestion des accès par rôle (configurable par l'admin)
+     Stockage Firebase : accessConfig/{role}/{moduleKey} = 'none'|'view'|'edit'
+     admin & super_admin = toujours accès total (non éditable, anti-verrouillage)
+     ========================================================================== */
+  const access = {
+    // Modules gérables (auditlog reste réservé admin, non listé ici)
+    MODULES: [
+      { key: 'intervention', label: "Bon d'intervention", icon: '📝' },
+      { key: 'preventive5j', label: 'Préventive 5 jours',  icon: '📸' },
+      { key: 'history',      label: 'Historique',          icon: '📋' },
+      { key: 'queue',        label: "File d'attente",       icon: '⏳' },
+      { key: 'catalog',      label: 'Catalogue outils',     icon: '🛠' },
+      { key: 'blocked',      label: 'Outils Bloqués',       icon: '🚫' },
+      { key: 'equipe',       label: 'Équipe',               icon: '👥' },
+      { key: 'analytics',    label: 'Analytics',            icon: '📊' },
+      { key: 'magasin',      label: 'Magasin Stock',        icon: '📦' },
+      { key: 'pdr',          label: 'PDR',                  icon: '🔧' },
+    ],
+    // Rôles gérables (admin/super_admin exclus = toujours total)
+    ROLES: [
+      { key: 'responsable', label: 'Responsable Maintenance', icon: '🟡' },
+      { key: 'crimp',       label: 'Technicien Crimping',     icon: '🟢' },
+      { key: 'labo',        label: 'Technicien Laboratoire',  icon: '🔵' },
+      { key: 'magasinier',  label: 'Magasinier',              icon: '📦' },
+    ],
+    LEVELS: { none: '🚫 Aucun', view: '👁 Lecture', edit: '✏️ Édition' },
+
+    // Mapping vue (route) → clé de module
+    _viewToModule(view) {
+      const map = {
+        intervention: 'intervention', preventive5j: 'preventive5j',
+        history: 'history', queue: 'queue', catalog: 'catalog', blocked: 'blocked',
+        technicians: 'equipe', users: 'equipe', equipe: 'equipe',
+        performance: 'analytics', stats: 'analytics', analytics: 'analytics',
+        magasin: 'magasin', pdr: 'pdr', 'demandes-pdr': 'pdr', 'pdr-hub': 'pdr'
+      };
+      return map[view] || null;
+    },
+
+    // Sélecteur du <li> de navigation d'un module
+    _navSelector(moduleKey) {
+      const navByModule = {
+        intervention: 'intervention', preventive5j: 'preventive5j', history: 'history',
+        queue: 'queue', catalog: 'catalog', blocked: 'blocked', equipe: 'equipe',
+        analytics: 'analytics', magasin: 'magasin', pdr: 'pdr-hub'
+      };
+      return navByModule[moduleKey];
+    },
+
+    /** Niveau par défaut (déduit du data-requires-role de la sidebar) : 'edit' si le rôle y a accès, sinon 'none'.
+     *  Exception : crimp sur magasin = 'view' (cohérent avec le comportement actuel lecture seule). */
+    _defaultLevel(role, moduleKey) {
+      if (moduleKey === 'magasin' && (role === 'crimp' || role === 'crimping')) return 'view';
+      const nav = this._navSelector(moduleKey);
+      if (!nav) return 'none';
+      const li = document.querySelector(`[data-nav="${nav}"]`)?.closest('li');
+      if (!li) return 'none';
+      const allowed = (li.dataset.requiresRole || '').split(',').map(s => s.trim());
+      // si pas de data-requires-role → visible par tous
+      if (!li.dataset.requiresRole) return 'edit';
+      return allowed.includes(role) ? 'edit' : 'none';
+    },
+
+    /** Niveau effectif pour un rôle donné sur un module (surcharge Firebase sinon défaut) */
+    levelFor(role, moduleKey) {
+      if (role === 'admin' || role === 'super_admin') return 'edit';
+      const override = state.accessConfig?.[role]?.[moduleKey];
+      if (override === 'none' || override === 'view' || override === 'edit') return override;
+      return this._defaultLevel(role, moduleKey);
+    },
+
+    /** Niveau effectif pour le rôle courant */
+    level(moduleKey) {
+      return this.levelFor(state.role, moduleKey);
+    },
+
+    /** L'utilisateur courant peut-il MODIFIER ce module ? */
+    canEdit(moduleKey) {
+      return this.level(moduleKey) === 'edit';
+    },
+
+    /** L'utilisateur courant peut-il VOIR ce module (lecture ou édition) ? */
+    canView(moduleKey) {
+      return this.level(moduleKey) !== 'none';
+    },
+
+    /** Listener Firebase de la config d'accès */
+    _listenerAttached: false,
+    init() {
+      if (this._listenerAttached) return;
+      if (!fbAuth.currentUser) { fbAuth.onAuthStateChanged(u => { if (u) this.init(); }); return; }
+      this._listenerAttached = true;
+      fbDb.ref('accessConfig').on('value', snap => {
+        state.accessConfig = snap.val() || {};
+        console.log('[access] config chargée', state.accessConfig);
+        try { ui.applyRoleVisibility(); } catch(e) {}
+        // Si la vue courante devient interdite, rediriger vers le hub
+        const mod = this._viewToModule(state.currentView);
+        if (mod && !this.canView(mod)) { window.location.hash = 'hub'; }
+      });
+    },
+
+    /** Sauvegarde toute la config sur Firebase */
+    async save() {
+      try {
+        await fbDb.ref('accessConfig').set(state.accessConfig || {});
+        try { db.audit('access.update', 'accessConfig', {}); } catch(e){}
+        return true;
+      } catch (e) {
+        console.error('[access] save', e);
+        return false;
+      }
+    },
+
+    /** Ouvre la modale de gestion (admin/super_admin uniquement) */
+    openManager() {
+      if (!['admin','super_admin'].includes(state.role)) {
+        ui.toast('🔒 Réservé aux administrateurs', 'warn');
+        return;
+      }
+      const modal = document.getElementById('modal-access');
+      if (!modal) return;
+      // Brouillon local édité dans la modale (appliqué seulement à l'enregistrement)
+      this._draft = JSON.parse(JSON.stringify(state.accessConfig || {}));
+      this._renderMatrix();
+
+      document.getElementById('btn-access-save').onclick = async () => {
+        state.accessConfig = JSON.parse(JSON.stringify(this._draft || {}));
+        const ok = await this.save();
+        if (ok) {
+          ui.toast('✅ Accès enregistrés et synchronisés', 'success', 4000);
+          ui.applyRoleVisibility();
+          modal.hidden = true;
+        } else {
+          ui.toast('⛔ Échec de l\'enregistrement', 'danger');
+        }
+      };
+      document.getElementById('btn-access-reset').onclick = () => {
+        if (!confirm('Réinitialiser tous les accès aux valeurs par défaut ?\n\nToutes les surcharges seront supprimées.')) return;
+        this._draft = {};
+        this._renderMatrix();
+        ui.toast('↺ Valeurs par défaut restaurées (pensez à Enregistrer)', 'info', 3500);
+      };
+      modal.querySelectorAll('[data-close]').forEach(el => {
+        el.addEventListener('click', () => { modal.hidden = true; }, { once: true });
+      });
+      modal.hidden = false;
+    },
+
+    /** Rend la matrice rôles × modules dans la modale */
+    _renderMatrix() {
+      const wrap = document.getElementById('access-matrix');
+      if (!wrap) return;
+      const levelColor = { none: '#ff3d5a', view: '#ffb547', edit: '#00e5a0' };
+      // En-tête : modules en colonnes
+      let html = `<table style="width:100%;border-collapse:collapse;font-size:.78rem;min-width:640px">
+        <thead><tr style="border-bottom:2px solid var(--accent,#00d4ff)">
+          <th style="text-align:left;padding:.6rem .5rem;position:sticky;left:0;background:var(--bg-2);color:var(--text-primary);font-weight:800">Rôle \\ Module</th>`;
+      this.MODULES.forEach(m => {
+        html += `<th style="text-align:center;padding:.6rem .35rem;color:var(--text-primary);font-weight:700;font-size:.68rem" title="${ui.escape(m.label)}">${m.icon}<br><span style="font-weight:600;font-size:.62rem;color:var(--text-muted)">${ui.escape(m.label)}</span></th>`;
+      });
+      html += `</tr></thead><tbody>`;
+      this.ROLES.forEach(r => {
+        html += `<tr style="border-bottom:1px solid var(--border-soft)">
+          <td style="padding:.5rem;position:sticky;left:0;background:var(--bg-2);font-weight:700;color:var(--text-primary);white-space:nowrap">${r.icon} ${ui.escape(r.label)}</td>`;
+        this.MODULES.forEach(m => {
+          const cur = (this._draft?.[r.key]?.[m.key]) || this._defaultLevel(r.key, m.key);
+          html += `<td style="padding:.3rem .25rem;text-align:center">
+            <select data-acc-role="${r.key}" data-acc-mod="${m.key}" style="background:var(--bg-3);border:1px solid ${levelColor[cur]}55;color:${levelColor[cur]};border-radius:5px;font-size:.7rem;padding:.2rem .15rem;cursor:pointer;font-weight:700;width:100%">
+              <option value="none" ${cur==='none'?'selected':''}>🚫</option>
+              <option value="view" ${cur==='view'?'selected':''}>👁</option>
+              <option value="edit" ${cur==='edit'?'selected':''}>✏️</option>
+            </select></td>`;
+        });
+        html += `</tr>`;
+      });
+      html += `</tbody></table>
+        <div style="margin-top:.8rem;display:flex;gap:1rem;flex-wrap:wrap;font-size:.72rem;color:var(--text-muted)">
+          <span><span style="color:#ff3d5a;font-weight:700">🚫 Aucun</span> = module masqué</span>
+          <span><span style="color:#ffb547;font-weight:700">👁 Lecture</span> = consultation seule</span>
+          <span><span style="color:#00e5a0;font-weight:700">✏️ Édition</span> = accès complet</span>
+        </div>`;
+      wrap.innerHTML = html;
+      // Wire les selects → mettre à jour le brouillon
+      wrap.querySelectorAll('select[data-acc-role]').forEach(sel => {
+        sel.addEventListener('change', () => {
+          const role = sel.dataset.accRole, mod = sel.dataset.accMod, val = sel.value;
+          if (!this._draft[role]) this._draft[role] = {};
+          this._draft[role][mod] = val;
+          // recolorer le select
+          const c = { none: '#ff3d5a', view: '#ffb547', edit: '#00e5a0' }[val];
+          sel.style.color = c; sel.style.borderColor = c + '55';
+        });
+      });
+    },
   };
 
   /* ==========================================================================
@@ -11638,6 +11887,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         $('#view-login').hidden = true;
         $('#shell').hidden = false;
         this.updateUserBadge();
+        try { access.init(); } catch(e) {}  // 🆕 charger la config d'accès
         ui.applyRoleVisibility();
         // 🔄 Charger le mode AVANT loadInitialData pour que les listeners
         // pointent vers le bon dataspace (test_data/ ou normal)
@@ -12557,6 +12807,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           return;
         }
       }
+
+      // 🆕 GESTION DES ACCÈS configurable : bloquer les modules en niveau 'Aucun'
+      try {
+        if (typeof access !== 'undefined' && view !== 'hub') {
+          const mod = access._viewToModule(view);
+          if (mod && !access.canView(mod)) {
+            if (ui && ui.toast) ui.toast('🚫 Accès non autorisé pour votre rôle', 'warn');
+            window.location.hash = 'hub';
+            return;
+          }
+        }
+      } catch(e) { console.warn('[access] route guard', e); }
 
       ui.showView(view);
       // Activer le bon hub virtuel dans la sidebar si on est dans une vue fusionnée
@@ -22193,6 +22455,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
         // Wire UI
         $('#btn-tech-add')?.addEventListener('click', () => this.openEditModal(null));
+        $('#btn-access-manage')?.addEventListener('click', () => { try { access.openManager(); } catch(e){ console.error(e); } });
         $('#tech-search')?.addEventListener('input', debounce(() => this.render(), 200));
         $('#tech-team-filter')?.addEventListener('change', () => this.render());
 

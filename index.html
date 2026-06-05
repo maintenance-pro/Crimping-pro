@@ -8103,18 +8103,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         </header>
 
         <!-- 📊 KPI Strip -->
-        <div id="catalog-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem;margin:1rem 0;font-family:var(--font-mono)">
-          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid var(--accent-500)">
+        <div id="catalog-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.75rem;margin:1rem 0;font-family:var(--font-mono)">
+          <div class="kpi" data-kpi-filter="all" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid var(--accent-500);cursor:pointer;transition:transform .12s,box-shadow .12s" title="Voir tous les outils">
             <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">📦 Total</div>
             <div id="cat-kpi-total" style="font-size:1.6rem;font-weight:700;color:var(--accent-500)">0</div>
           </div>
-          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #00e5a0">
+          <div class="kpi" data-kpi-filter="complete" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #00e5a0;cursor:pointer;transition:transform .12s,box-shadow .12s" title="Filtrer les outils complets">
             <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">✅ Complets</div>
             <div id="cat-kpi-complete" style="font-size:1.6rem;font-weight:700;color:#00e5a0">0</div>
           </div>
-          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #ff3d5a">
+          <div class="kpi" data-kpi-filter="incomplete" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #ff3d5a;cursor:pointer;transition:transform .12s,box-shadow .12s" title="Filtrer les outils incomplets">
             <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">⚠️ Incomplets</div>
             <div id="cat-kpi-incomplete" style="font-size:1.6rem;font-weight:700;color:#ff3d5a">0</div>
+          </div>
+          <div class="kpi" data-kpi-docs="with" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #a855f7;cursor:pointer;transition:transform .12s,box-shadow .12s" title="Filtrer les outils avec documents joints">
+            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">📎 Avec docs</div>
+            <div id="cat-kpi-docs" style="font-size:1.6rem;font-weight:700;color:#a855f7">0</div>
           </div>
           <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #ffb547">
             <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">🏭 Fabricants</div>
@@ -8124,6 +8128,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
         <!-- 🛡 Bandeau info rôle (Vague 5) — affiché dynamiquement selon le rôle -->
         <div id="catalog-role-banner" style="display:none;margin-bottom:.8rem;padding:.6rem .85rem;border-radius:8px;font-size:.78rem;font-weight:600"></div>
+
+        <!-- 🆕 Chips de filtre rapide par CLIENT -->
+        <div id="cat-client-chips" style="display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:.7rem"></div>
 
         <!-- 🔧 Filters bar -->
         <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;padding:.65rem .85rem;background:var(--bg-elevated);border-radius:9px;border:1px solid var(--border-soft)">
@@ -8148,6 +8155,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <option value="complete" selected>✅ Complets seulement</option>
             <option value="all">🔁 Tous</option>
             <option value="incomplete">⚠️ Incomplets seulement</option>
+          </select>
+          <!-- 🆕 Filtre documents -->
+          <select id="cat-filter-docs" class="filter__input" style="font-size:.85rem;min-width:150px">
+            <option value="">📎 Tous (docs)</option>
+            <option value="with">📎 Avec documents</option>
+            <option value="without">🚫 Sans documents</option>
           </select>
           <select id="cat-filter-sort" class="filter__input" style="font-size:.85rem;min-width:160px">
             <option value="name">📝 Trier par nom</option>
@@ -20676,6 +20689,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
       // 🆕 Multi-select projets (vide = tous ; '__NONE__' = aucun)
       _selectedProjects: new Set(),
+      _selectedClient: '',   // 🆕 chip client actif ('' = tous, clé client, ou '__none__')
 
       /** Raccourci vers la config clients de views.blocked (source unique de vérité) */
       _clientsConfig() {
@@ -20686,6 +20700,44 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return views.blocked._getClientForProject(projectName);
       },
 
+      /** 🆕 Rend les chips de filtre rapide par client (Volvo/Renault/Stellantis/… + Non classé) */
+      _renderClientChips() {
+        const wrap = document.getElementById('cat-client-chips');
+        if (!wrap) return;
+        const tools = Object.values(state.tools || {});
+        // Compter les outils par client
+        const counts = {}; let noneCount = 0;
+        tools.forEach(t => {
+          const c = t.projet ? this._getClientForProject(t.projet) : null;
+          if (c) counts[c.key] = (counts[c.key] || 0) + 1;
+          else noneCount++;
+        });
+        const cfg = views.blocked.clientsConfig || views.blocked.DEFAULT_CLIENTS_CONFIG || {};
+        const total = tools.length;
+        const chip = (key, label, icon, color, count, active) => `
+          <button type="button" data-client-chip="${ui.escape(key)}" style="display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .7rem;border-radius:999px;cursor:pointer;font-size:.76rem;font-weight:700;transition:all .12s;
+            background:${active ? color : color + '14'};color:${active ? '#0a1628' : color};border:1.5px solid ${active ? color : color + '55'}">
+            <span>${icon}</span><span>${ui.escape(label)}</span>
+            <span style="background:${active ? 'rgba(10,22,40,.2)' : color + '22'};padding:.05rem .4rem;border-radius:999px;font-size:.68rem">${count}</span>
+          </button>`;
+        let html = chip('', 'Tous', '🗂', '#00d4ff', total, this._selectedClient === '');
+        Object.entries(cfg).forEach(([key, c]) => {
+          const n = counts[key] || 0;
+          if (n === 0) return; // ne montrer que les clients présents dans le catalogue
+          html += chip(key, c.name, c.icon || '🏭', c.color || '#00d4ff', n, this._selectedClient === key);
+        });
+        if (noneCount > 0) html += chip('__none__', 'Non classé', '❓', '#9ca3af', noneCount, this._selectedClient === '__none__');
+        wrap.innerHTML = html;
+        // Wire
+        wrap.querySelectorAll('[data-client-chip]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            this._selectedClient = btn.dataset.clientChip;
+            this._page = 1;
+            this._renderClientChips();
+            this.render();
+          });
+        });
+      },
       /** 🆕 Rattache un projet (Master Location) à un client — réservé admin.
        *  Délègue à la config partagée de views.blocked + sauvegarde Firebase. */
       async _classifyProject(projectName, clientKey) {
@@ -21055,6 +21107,28 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         document.getElementById('cat-filter-fab')?.addEventListener('change', () => { this._page = 1; this.render(); });
         document.getElementById('cat-filter-status')?.addEventListener('change', () => { this._page = 1; this.render(); });
         document.getElementById('cat-filter-sort')?.addEventListener('change', () => { this._page = 1; this.render(); });
+        // 🆕 Filtre documents
+        document.getElementById('cat-filter-docs')?.addEventListener('change', () => { this._page = 1; this.render(); });
+        // 🆕 KPIs cliquables → filtrent le catalogue
+        document.querySelectorAll('#catalog-kpis [data-kpi-filter]').forEach(el => {
+          el.addEventListener('mouseenter', () => { el.style.transform = 'translateY(-2px)'; el.style.boxShadow = '0 6px 16px rgba(0,0,0,.18)'; });
+          el.addEventListener('mouseleave', () => { el.style.transform = ''; el.style.boxShadow = ''; });
+          el.addEventListener('click', () => {
+            const sel = document.getElementById('cat-filter-status');
+            if (sel) sel.value = el.dataset.kpiFilter;
+            this._page = 1; this.render();
+          });
+        });
+        document.querySelectorAll('#catalog-kpis [data-kpi-docs]').forEach(el => {
+          el.addEventListener('mouseenter', () => { el.style.transform = 'translateY(-2px)'; el.style.boxShadow = '0 6px 16px rgba(0,0,0,.18)'; });
+          el.addEventListener('mouseleave', () => { el.style.transform = ''; el.style.boxShadow = ''; });
+          el.addEventListener('click', () => {
+            const sel = document.getElementById('cat-filter-docs');
+            // toggle : si déjà "with", on remet à tous
+            if (sel) sel.value = (sel.value === 'with') ? '' : 'with';
+            this._page = 1; this.render();
+          });
+        });
 
         // 🆕 Multi-select projets (groupé par client)
         const projToggle = document.getElementById('cat-project-toggle');
@@ -21188,6 +21262,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           (t.refFabricant&& String(t.refFabricant).trim()) ||
           (t.serial      && String(t.serial).trim())
         );
+      },
+
+      /** 🆕 Pourcentage de complétion d'un outil (sur les champs clés) pour la mini-barre */
+      _completionPct(t) {
+        const fields = [
+          (t.designation || t.doutils),  // nom
+          t.refOutil, t.refFabricant, t.fabricant || t.fournisseur,
+          t.connection, t.projet, t.groupe,
+          (t.totalCounter || t.frequenceCycle)
+        ];
+        const filled = fields.filter(v => v !== undefined && v !== null && String(v).trim() !== '' && String(v) !== '0').length;
+        return Math.round(filled / fields.length * 100);
       },
 
       /**
@@ -22018,6 +22104,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const q = ($('#catalog-search')?.value || '').trim().toLowerCase();
         const filterFab    = document.getElementById('cat-filter-fab')?.value || '';
         const filterStatus = document.getElementById('cat-filter-status')?.value || 'complete';
+        const filterDocs   = document.getElementById('cat-filter-docs')?.value || '';  // 🆕 '', 'with', 'without'
         const sortBy       = document.getElementById('cat-filter-sort')?.value || 'name';
         const allToolsRaw = Object.values(state.tools);
 
@@ -22029,18 +22116,25 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           ? allToolsRaw
           : allToolsRaw.filter(t => this._getToolStatus(t) === 'production');
 
+        // 🆕 Chips de filtre rapide par client
+        this._renderClientChips();
+
         // ── KPIs (sur l'ensemble VISIBLE selon le rôle) ──
         const completeAll   = allTools.filter(t => this._isComplete(t));
         const incompleteAll = allTools.length - completeAll.length;
         const fabSet = new Set(completeAll.map(t => (t.fabricant || '').trim()).filter(Boolean));
+        // 🆕 Nombre d'outils avec documents joints
+        const docsCount = allTools.filter(t => !!toolAttachments.summaryFor(t.id || t.outilId || '')).length;
 
         const kpiTotal      = document.getElementById('cat-kpi-total');
         const kpiComplete   = document.getElementById('cat-kpi-complete');
         const kpiIncomplete = document.getElementById('cat-kpi-incomplete');
+        const kpiDocs       = document.getElementById('cat-kpi-docs');
         const kpiFabs       = document.getElementById('cat-kpi-fabricants');
         if (kpiTotal)      kpiTotal.textContent = allTools.length;
         if (kpiComplete)   kpiComplete.textContent = completeAll.length;
         if (kpiIncomplete) kpiIncomplete.textContent = incompleteAll;
+        if (kpiDocs)       kpiDocs.textContent = docsCount;
         if (kpiFabs)       kpiFabs.textContent = fabSet.size;
 
         // 🆕 Comptage des outils non-production (UNIQUEMENT pour info admin)
@@ -22100,6 +22194,25 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           } else {
             list = list.filter(t => this._selectedProjects.has((t.projet || '').trim()));
           }
+        }
+
+        // 🆕 Filtre par CLIENT (chip) : '' = tous, '__none__' = non classé, sinon clé client
+        if (this._selectedClient) {
+          if (this._selectedClient === '__none__') {
+            list = list.filter(t => !this._getClientForProject(t.projet));
+          } else {
+            list = list.filter(t => {
+              const c = this._getClientForProject(t.projet);
+              return c && c.key === this._selectedClient;
+            });
+          }
+        }
+
+        // 🆕 Filtre par présence de DOCUMENTS joints
+        if (filterDocs === 'with') {
+          list = list.filter(t => !!toolAttachments.summaryFor(t.id || t.outilId || ''));
+        } else if (filterDocs === 'without') {
+          list = list.filter(t => !toolAttachments.summaryFor(t.id || t.outilId || ''));
         }
 
         if (q) list = list.filter(t =>
@@ -22241,6 +22354,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 <div>Cycles: ${fmt.number(t.totalCounter || t.frequenceCycle || 0)}${t.totalCounter ? '' : ''}</div>
                 ${attSummary ? `<div style="color:#a855f7;margin-top:.15rem">📎 ${ui.escape(Object.keys(attSummary.cats).join(', '))}</div>` : ''}
               </div>
+              ${(() => {
+                const pct = this._completionPct(t);
+                const c = pct >= 80 ? '#00e5a0' : pct >= 50 ? '#ffb547' : '#ff3d5a';
+                return `<div style="margin-top:.15rem" title="Complétion de la fiche : ${pct}%">
+                  <div style="display:flex;justify-content:space-between;font-size:.6rem;color:var(--text-muted);margin-bottom:.15rem">
+                    <span>Complétion</span><span style="color:${c};font-weight:700">${pct}%</span>
+                  </div>
+                  <div style="height:4px;background:var(--bg-3);border-radius:2px;overflow:hidden">
+                    <div style="height:100%;width:${pct}%;background:${c};transition:width .3s"></div>
+                  </div>
+                </div>`;
+              })()}
               ${actionsHtml}
             </article>`;
         }).join('');

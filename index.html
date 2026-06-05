@@ -8097,6 +8097,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <button class="btn btn--secondary" id="btn-catalog-import">📥 Importer Excel</button>
             <button class="btn btn--secondary" id="btn-catalog-export"><span data-i18n="action.exportExcel">📤 Exporter Excel</span></button>
             <button class="btn btn--secondary" id="btn-catalog-print-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Imprimer les QR codes des outils filtrés">🖨 QR Codes</button>
+            <button class="btn btn--secondary" id="btn-catalog-bulk-docs" data-requires-role="responsable,super_admin,admin" style="background:rgba(124,58,237,.14);color:#a855f7;border:1px solid rgba(124,58,237,.35);font-weight:700" title="Joindre une liste de documents (Annexes) à plusieurs outils d'un coup">📎 Docs en masse</button>
             <button class="btn btn--primary" id="btn-catalog-add" data-requires-role="responsable,super_admin,admin">＋ Nouvel outil</button>
           </div>
         </header>
@@ -9647,6 +9648,64 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     </div>
   </div>
 
+  <!-- Modal: 📦 Import de documents EN MASSE (auto-rattachement par nom de fichier) -->
+  <div class="modal" id="modal-bulk-attach" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:720px">
+      <header class="modal__header">
+        <h2 class="modal__title">📎 Joindre des documents en masse</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body">
+        <div style="font-size:.8rem;color:var(--text-secondary);line-height:1.5;margin-bottom:1rem;background:rgba(124,58,237,.08);padding:.7rem .9rem;border-radius:8px;border-left:3px solid #a855f7">
+          📌 Sélectionnez plusieurs fichiers d'un coup. Chaque fichier est <strong>rattaché automatiquement à son outil</strong> d'après son nom.<br>
+          <span style="font-size:.74rem;color:var(--text-muted)">Exemple : <code style="color:#a855f7">P00134118-WZ1070-01-xxx.pdf</code> → rattaché à l'outil <strong>WZ1070-01</strong> (le nom de l'outil doit apparaître dans le nom du fichier).</span>
+        </div>
+
+        <div class="intervention__grid intervention__grid--2" style="margin-bottom:.85rem">
+          <div class="field">
+            <label class="field__label" for="bulk-attach-category">📁 Catégorie (appliquée à tous) *</label>
+            <select class="field__input" id="bulk-attach-category">
+              <option value="Annex 4">Annex 4</option>
+              <option value="Annex 5">Annex 5</option>
+              <option value="Annex 6">Annex 6</option>
+              <option value="DOSSIER MASTER">DOSSIER MASTER</option>
+              <option value="Fiche technique">Fiche technique</option>
+              <option value="Plan / Dessin">Plan / Dessin</option>
+              <option value="Manuel">Manuel</option>
+              <option value="Autre">Autre…</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="bulk-attach-custom-cat">Catégorie personnalisée (si "Autre")</label>
+            <input class="field__input" id="bulk-attach-custom-cat" placeholder="Ex: Procédure qualité">
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom:.85rem">
+          <label class="field__label" for="bulk-attach-files">📎 Fichiers (PDF, XLSX, XLS) — sélection multiple *</label>
+          <input class="field__input" id="bulk-attach-files" type="file" multiple accept=".pdf,.xlsx,.xls,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
+          <small style="font-size:.72rem;color:var(--text-muted);margin-top:.25rem;display:block">Astuce : Ctrl+A dans le sélecteur pour tout choisir. Max ~5 MB par fichier.</small>
+        </div>
+
+        <!-- Zone d'aperçu du rattachement -->
+        <div id="bulk-attach-preview" style="display:none;margin-top:.5rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+            <span style="font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:#a855f7;font-weight:700">🔗 Aperçu du rattachement</span>
+            <span id="bulk-attach-stats" style="font-size:.74rem;color:var(--text-muted)"></span>
+          </div>
+          <div id="bulk-attach-list" style="max-height:300px;overflow-y:auto;background:var(--bg-3);border:1px solid var(--border-soft);border-radius:8px;padding:.4rem"></div>
+        </div>
+      </div>
+      <footer class="modal__footer">
+        <button class="btn btn--ghost" data-close>Annuler</button>
+        <button class="btn btn--primary" id="btn-bulk-attach-submit" style="background:#a855f7;color:#fff;border:none;font-weight:700" disabled>
+          📎 Téléverser <span id="bulk-attach-count"></span>
+        </button>
+      </footer>
+    </div>
+  </div>
+
   <!-- Modal: nouvel utilisateur -->
   <div class="modal" id="modal-user" role="dialog" aria-modal="true" hidden>
     <div class="modal__backdrop" data-close></div>
@@ -10674,6 +10733,137 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+    },
+
+    /** 🆕 Tente de rattacher un nom de fichier à un outil de state.tools.
+     *  Cherche l'identifiant outil (designation/serial/doutils/outilId/refOutil) le PLUS LONG
+     *  présent dans le nom de fichier. Renvoie l'outil ou null. */
+    _matchToolByFilename(filename) {
+      const base = String(filename || '').replace(/\.[^.]+$/, ''); // sans extension
+      const fnStrict = base.toUpperCase().replace(/\s+/g, '');       // espaces retirés (garde tirets)
+      const fnLoose  = base.toUpperCase().replace(/[^A-Z0-9]/g, ''); // alphanumérique seul
+      let best = null, bestLen = 0, bestId = '';
+      for (const t of Object.values(state.tools || {})) {
+        if (!t) continue;
+        const candidates = [t.designation, t.serial, t.doutils, t.outilId, t.refOutil].filter(Boolean);
+        for (const c of candidates) {
+          const cStrict = String(c).toUpperCase().replace(/\s+/g, '');
+          const cLoose  = String(c).toUpperCase().replace(/[^A-Z0-9]/g, '');
+          // Match strict (avec tirets) : identifiant ≥ 4 caractères
+          if (cStrict.length >= 4 && fnStrict.includes(cStrict)) {
+            if (cStrict.length > bestLen) { best = t; bestLen = cStrict.length; bestId = c; }
+          }
+          // Match large (sans séparateurs) : identifiant ≥ 5 caractères (évite faux positifs)
+          else if (cLoose.length >= 5 && fnLoose.includes(cLoose)) {
+            if (cLoose.length > bestLen) { best = t; bestLen = cLoose.length; bestId = c; }
+          }
+        }
+      }
+      return best ? { tool: best, matchedOn: bestId } : null;
+    },
+
+    /** 🆕 Ouvre la modale d'import EN MASSE (auto-rattachement par nom) */
+    openBulkForm() {
+      if (!['admin','super_admin','responsable'].includes(state.role)) {
+        ui.toast('🚫 Action réservée aux admins/responsables', 'danger');
+        return;
+      }
+      this.init();
+      const modal = document.getElementById('modal-bulk-attach');
+      if (!modal) return;
+      const filesInput  = document.getElementById('bulk-attach-files');
+      const previewWrap = document.getElementById('bulk-attach-preview');
+      const listEl      = document.getElementById('bulk-attach-list');
+      const statsEl     = document.getElementById('bulk-attach-stats');
+      const submitBtn   = document.getElementById('btn-bulk-attach-submit');
+      const countEl     = document.getElementById('bulk-attach-count');
+
+      // Reset
+      filesInput.value = '';
+      document.getElementById('bulk-attach-custom-cat').value = '';
+      previewWrap.style.display = 'none';
+      listEl.innerHTML = '';
+      submitBtn.disabled = true;
+      countEl.textContent = '';
+      let analyzed = []; // [{file, match}]
+
+      const fmtSize = (kb) => kb >= 1024 ? (kb/1024).toFixed(1) + ' MB' : kb + ' KB';
+
+      // Analyse à la sélection des fichiers
+      filesInput.onchange = () => {
+        const files = [...filesInput.files];
+        if (!files.length) { previewWrap.style.display = 'none'; submitBtn.disabled = true; return; }
+        analyzed = files.map(f => ({ file: f, match: this._matchToolByFilename(f.name) }));
+        const matched = analyzed.filter(a => a.match);
+        const unmatched = analyzed.filter(a => !a.match);
+
+        statsEl.innerHTML = `<span style="color:#00e5a0;font-weight:700">${matched.length} rattaché${matched.length>1?'s':''}</span> · <span style="color:#ff3d5a;font-weight:700">${unmatched.length} sans correspondance</span>`;
+        listEl.innerHTML = analyzed.map((a, i) => {
+          const ok = !!a.match;
+          const sizeMB = a.file.size / (1024*1024);
+          const tooBig = sizeMB > 5;
+          return `<div style="display:flex;align-items:center;gap:.6rem;padding:.4rem .55rem;border-bottom:1px solid var(--border-soft);${ok ? '' : 'opacity:.7'}">
+            <span style="font-size:1.1rem">${ok ? '✅' : '❌'}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:.78rem;color:var(--text-primary);word-break:break-word;font-weight:600">${ui.escape(a.file.name)}</div>
+              <div style="font-size:.7rem;margin-top:.1rem">
+                ${ok
+                  ? `<span style="color:#00e5a0">→ Outil : <strong>${ui.escape(a.match.tool.designation || a.match.tool.serial || a.match.tool.doutils || a.match.tool.outilId || a.match.matchedOn)}</strong></span> <span style="color:var(--text-muted)">(détecté : ${ui.escape(a.match.matchedOn)})</span>`
+                  : `<span style="color:#ff3d5a">Aucun outil correspondant — sera ignoré</span>`}
+                ${tooBig ? `<span style="color:#ffb547;margin-left:.4rem">⚠️ ${sizeMB.toFixed(1)} MB (trop gros, ignoré)</span>` : `<span style="color:var(--text-muted);margin-left:.4rem">${fmtSize(Math.round(a.file.size/1024))}</span>`}
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+        previewWrap.style.display = 'block';
+
+        const uploadable = analyzed.filter(a => a.match && (a.file.size/(1024*1024)) <= 5);
+        submitBtn.disabled = uploadable.length === 0;
+        countEl.textContent = uploadable.length ? `(${uploadable.length})` : '';
+      };
+
+      // Téléversement groupé
+      submitBtn.onclick = async () => {
+        const cat = document.getElementById('bulk-attach-category').value;
+        const customCat = document.getElementById('bulk-attach-custom-cat').value.trim();
+        const finalCat = (cat === 'Autre' && customCat) ? customCat : cat;
+        const uploadable = analyzed.filter(a => a.match && (a.file.size/(1024*1024)) <= 5);
+        if (!uploadable.length) { ui.toast('Aucun fichier rattachable', 'warn'); return; }
+
+        let done = 0, failed = 0;
+        for (const a of uploadable) {
+          try {
+            ui.showLoader(`Téléversement ${done+1}/${uploadable.length} : ${a.file.name}`);
+            const b64 = await this._fileToB64(a.file);
+            const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+            const payload = {
+              name: a.file.name,
+              category: finalCat,
+              description: '',
+              mime: a.file.type,
+              sizeKB: Math.round(a.file.size / 1024),
+              b64,
+              uploadedAt: Date.now(),
+              uploadedBy: state.user?.uid || '',
+              uploadedByName: state.profile?.displayName || '?'
+            };
+            await fbDb.ref(`toolAttachments/${a.match.tool.id}/${fid}`).set(payload);
+            try { db.audit('toolAttachment.bulkAdd', a.match.tool.id, { name: a.file.name, category: finalCat }); } catch(e){}
+            done++;
+          } catch(e) {
+            console.error('[bulkAttach]', a.file.name, e);
+            failed++;
+          }
+        }
+        ui.hideLoader();
+        modal.hidden = true;
+        ui.toast(`📎 ${done} document${done>1?'s':''} rattaché${done>1?'s':''} (${finalCat})${failed ? ` — ${failed} échec(s)` : ''} ✅`, failed ? 'warn' : 'success', 6000);
+      };
+
+      modal.querySelectorAll('[data-close]').forEach(el => {
+        el.addEventListener('click', () => { modal.hidden = true; }, { once: true });
+      });
+      modal.hidden = false;
     },
 
     /** Rend la section "Documents associés" dans la modal détails d'un outil */
@@ -20557,6 +20747,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const btnImport = $('#btn-catalog-import');
         if (btnImport) {
           btnImport.addEventListener('click', () => this.importExcel());
+        }
+
+        // 🆕 ── Documents en masse (auto-rattachement par nom) ──
+        const btnBulkDocs = $('#btn-catalog-bulk-docs');
+        if (btnBulkDocs) {
+          btnBulkDocs.addEventListener('click', () => toolAttachments.openBulkForm());
         }
 
         // ── Export Excel ──

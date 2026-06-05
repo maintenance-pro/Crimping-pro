@@ -10200,6 +10200,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     notifPermAsked: false,      // browser permission asked once per session
     // 🆕 Gestion des accès : surcharge admin par rôle → module → 'none'|'view'|'edit'
     accessConfig: {},
+    // 🆕 Drapeaux de chargement (évitent l'affichage "vide" avant l'arrivée des données Firebase)
+    toolsLoaded: false,
   };
 
   /* ==========================================================================
@@ -12025,6 +12027,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const ref = fbDb.ref('tools');
       const handler = (snap) => {
         state.tools = snap.val() || {};
+        state.toolsLoaded = true; // 🆕 données reçues → le catalogue peut quitter l'état "Chargement"
         views.intervention.refreshToolDatalist();
         if (state.currentView === 'catalog') views.catalog.render();
       };
@@ -22120,10 +22123,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const canDelete = ['admin','super_admin'].includes(state.role);
 
         if (slice.length === 0) {
-          grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--text-muted);background:var(--bg-elevated);border-radius:10px">
-            <div style="font-size:2.5rem;opacity:.5">🔧</div>
-            <div style="margin-top:.5rem">Aucun outil correspondant aux filtres</div>
-          </div>`;
+          // 🆕 Distinguer "en cours de chargement" de "réellement vide"
+          const stillLoading = !state.toolsLoaded && Object.keys(state.tools || {}).length === 0;
+          if (stillLoading) {
+            grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--text-muted);background:var(--bg-elevated);border-radius:10px">
+              <div style="font-size:2rem;animation:spin 1s linear infinite;display:inline-block">⏳</div>
+              <div style="margin-top:.6rem;font-weight:600;color:var(--text-secondary)">Chargement du catalogue…</div>
+              <div style="margin-top:.3rem;font-size:.75rem;opacity:.7">Récupération des outils depuis la base de données</div>
+            </div>`;
+          } else {
+            grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--text-muted);background:var(--bg-elevated);border-radius:10px">
+              <div style="font-size:2.5rem;opacity:.5">🔧</div>
+              <div style="margin-top:.5rem">Aucun outil correspondant aux filtres</div>
+            </div>`;
+          }
           const lm = document.getElementById('catalog-loadmore');
           if (lm) lm.innerHTML = '';
           return;

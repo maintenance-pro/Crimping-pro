@@ -18991,11 +18991,37 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         $('#tc-pav').textContent = (tool.pieces && tool.pieces.pAv) || '—';
         $('#tc-ear').textContent = (tool.pieces && tool.pieces.eAr) || '—';
         $('#tc-eav').textContent = (tool.pieces && tool.pieces.eAv) || '—';
-        $('#tool-cycle').textContent = `${fmt.number(tool.frequenceCycle || 0)} cycles`;
+        const counter = Number(tool.totalCounter) || Number(tool.frequenceCycle) || 0;
+        $('#tool-cycle').textContent = `${fmt.number(counter)} cycles`;
+        // 🆕 Fixer le minimum du champ cycles = compteur actuel (un compteur ne descend pas)
+        const cyc = document.getElementById('int-cycles');
+        if (cyc) {
+          const cur = Number(tool.totalCounter) || 0;
+          cyc.min = cur > 0 ? String(cur) : '0';
+          if (cur > 0) {
+            cyc.title = `Compteur actuel : ${fmt.number(cur)} — la valeur saisie doit être ≥ ${fmt.number(cur)}`;
+            cyc.placeholder = `≥ ${fmt.number(cur)}`;
+          }
+          // Indicateur sous le champ
+          let hint = document.getElementById('int-cycles-hint');
+          if (!hint) {
+            hint = document.createElement('div');
+            hint.id = 'int-cycles-hint';
+            hint.style.cssText = 'font-size:.7rem;margin-top:.2rem';
+            cyc.closest('.field')?.appendChild(hint);
+          }
+          hint.innerHTML = cur > 0
+            ? `<span style="color:#00d4ff">📊 Compteur actuel de l'outil : <strong>${fmt.number(cur)}</strong> cycles${tool.cyclesUpdatedAt ? ` · maj ${new Date(tool.cyclesUpdatedAt).toLocaleDateString('fr-FR')}` : ''}. Saisissez une valeur ≥ ce nombre.</span>`
+            : '';
+        }
       },
       clearToolCard() {
         ['tc-ref-fab','tc-par','tc-pav','tc-ear','tc-eav'].forEach(id => $('#'+id).textContent = '—');
         $('#tool-cycle').textContent = '— cycles';
+        const cyc = document.getElementById('int-cycles');
+        if (cyc) { cyc.min = '0'; cyc.placeholder = ''; cyc.title = ''; }
+        const hint = document.getElementById('int-cycles-hint');
+        if (hint) hint.innerHTML = '';
       },
 
       onToolSelected() {
@@ -19324,6 +19350,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             ui.hideLoader();
             return ui.toast('Référence outil obligatoire', 'warn');
           }
+
+          // 🆕 VALIDATION CYCLES : le compteur ne peut pas être inférieur au compteur actuel de l'outil
+          //    (un compteur de cycles ne fait que MONTER). Référence = tool.totalCounter (issu de l'import Outils Bloqués).
+          {
+            const refTool = (data.tool.toolId && state.tools) ? state.tools[data.tool.toolId] : null;
+            const currentCycles = Number(refTool?.totalCounter) || 0;
+            if (refTool && currentCycles > 0 && Number(data.cycles) < currentCycles) {
+              ui.hideLoader();
+              $('#int-cycles')?.focus();
+              const inp = document.getElementById('int-cycles');
+              if (inp) { inp.style.borderColor = '#ef4444'; inp.style.boxShadow = '0 0 0 2px rgba(239,68,68,.3)'; setTimeout(() => { inp.style.borderColor = ''; inp.style.boxShadow = ''; }, 2500); }
+              return ui.toast(`⛔ Cycles saisis (${fmt.number(Number(data.cycles) || 0)}) inférieurs au compteur actuel de l'outil (${fmt.number(currentCycles)}). Un compteur ne peut que monter — corrigez la valeur.`, 'danger', 8000);
+            }
+          }
           // ⚠️ Validation : nom du technicien crimping obligatoire à la SOUMISSION
           if (mode === 'submit' && !data.technicienNom) {
             ui.hideLoader();
@@ -19387,6 +19427,21 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             try { await db.notifyMagasinier(reg); } catch(e) { console.warn('notifyMagasinier (draft):', e); }
             ui.toast(`Brouillon N°${reg} enregistré`, 'success');
           }
+          // 🆕 Mettre à jour le compteur de l'outil (un cycle ne fait que MONTER)
+          //    Garde le catalogue synchronisé : les prochains bons se valideront sur cette valeur.
+          try {
+            const tid = data.tool.toolId;
+            const newCyc = Number(data.cycles) || 0;
+            if (tid && state.tools && state.tools[tid] && newCyc > 0) {
+              const cur = Number(state.tools[tid].totalCounter) || 0;
+              if (newCyc > cur) {
+                await fbDb.ref(`tools/${tid}/totalCounter`).set(newCyc);
+                await fbDb.ref(`tools/${tid}/cyclesUpdatedAt`).set(Date.now());
+                state.tools[tid].totalCounter = newCyc;
+                state.tools[tid].cyclesUpdatedAt = Date.now();
+              }
+            }
+          } catch(e) { console.warn('[bon] maj compteur outil', e); }
           $('#int-num').textContent = reg;
         } catch (err) {
           console.error(err);
@@ -22146,7 +22201,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 <div>Réf: ${ui.escape(t.refOutil || '—')}</div>
                 <div>Fab: ${ui.escape(t.refFabricant || '—')}</div>
                 ${extraDetails.join('')}
-                <div>Cycles: ${fmt.number(t.frequenceCycle || 0)}</div>
+                <div>Cycles: ${fmt.number(t.totalCounter || t.frequenceCycle || 0)}${t.totalCounter ? '' : ''}</div>
               </div>
               ${actionsHtml}
             </article>`;
@@ -24784,7 +24839,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             sourceFile: file.name
           });
           ui.hideLoader?.();
-          ui.toast(`✅ ${cleaned.length} outils importés et sauvegardés`, 'success', 4000);
+          // 🆕 Synchroniser les cycles (Total Counter) vers le catalogue
+          let syncMsg = '';
+          try {
+            const sync = await this._syncCatalogCycles(cleaned);
+            if (sync.matched) syncMsg = ` · 🔄 ${sync.updated} cycle(s) catalogue mis à jour (${sync.matched} outil(s) reconnu(s))`;
+          } catch (e) { console.warn('[blocked] sync cycles', e); }
+          ui.toast(`✅ ${cleaned.length} outils importés et sauvegardés${syncMsg}`, 'success', 6000);
           this._renderProjectOptions();
           this._updateProjectLabel();
           this.render();
@@ -24794,6 +24855,55 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           console.error('[blocked import]', e);
           ui.toast('⛔ Erreur import : ' + e.message, 'danger');
         }
+      },
+
+      /** 🆕 Synchronise le Total Counter des outils bloqués vers le champ `totalCounter`
+       *  des outils du catalogue (state.tools). Le compteur ne fait que MONTER :
+       *  on n'écrase une valeur que si la nouvelle est supérieure. */
+      async _syncCatalogCycles(rows) {
+        if (!state.tools || !Object.keys(state.tools).length) return { matched: 0, updated: 0 };
+        const norm  = s => String(s || '').toUpperCase().replace(/\s+/g, '');
+        const loose = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        // Index identifiants outils → id (strict + large)
+        const index = new Map();
+        for (const t of Object.values(state.tools)) {
+          if (!t || !t.id) continue;
+          [t.designation, t.serial, t.doutils, t.outilId, t.refOutil].filter(Boolean).forEach(c => {
+            const n = norm(c);  if (n.length  >= 4 && !index.has(n))       index.set(n, t.id);
+            const l = loose(c); if (l.length >= 5 && !index.has('L:' + l)) index.set('L:' + l, t.id);
+          });
+        }
+        const updates = {};
+        let matched = 0, updated = 0;
+        const bestPerTool = {}; // id → max totalCounter vu
+        for (const r of rows) {
+          const inv = r.inventoryNo;
+          if (!inv) continue;
+          const tc = Number(r.totalCounter) || 0;
+          const ni = norm(inv), nli = loose(inv);
+          let tid = index.get(ni) || index.get('L:' + nli);
+          if (!tid) { // fallback : l'identifiant outil est contenu dans l'inventoryNo
+            for (const [k, id] of index) {
+              if (k.startsWith('L:')) continue;
+              if (k.length >= 4 && ni.includes(k)) { tid = id; break; }
+            }
+          }
+          if (!tid) continue;
+          matched++;
+          bestPerTool[tid] = Math.max(bestPerTool[tid] || 0, tc);
+        }
+        Object.entries(bestPerTool).forEach(([tid, tc]) => {
+          const current = Number(state.tools[tid]?.totalCounter) || 0;
+          if (tc > current) {
+            updates[`tools/${tid}/totalCounter`] = tc;
+            updates[`tools/${tid}/cyclesUpdatedAt`] = Date.now();
+            if (state.tools[tid]) { state.tools[tid].totalCounter = tc; state.tools[tid].cyclesUpdatedAt = Date.now(); }
+            updated++;
+          }
+        });
+        if (Object.keys(updates).length) await fbDb.ref().update(updates);
+        console.log(`[blocked] sync cycles : ${matched} reconnus, ${updated} mis à jour`);
+        return { matched, updated };
       },
 
       /** Filtrage selon les sélecteurs UI (avec multi-projets) */

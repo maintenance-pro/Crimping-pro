@@ -7378,8 +7378,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <div class="intervention__grid intervention__grid--3">
               <div class="field">
                 <label class="field__label" for="int-tool-search" data-i18n="t.reference_outil">Référence outil</label>
-                <input class="field__input" id="int-tool-search" name="toolSearch" type="text" list="datalist-tools" placeholder="Ex: 2158S" required / autocomplete="off">
+                <input class="field__input" id="int-tool-search" name="toolSearch" type="text" list="datalist-tools" placeholder="Nom, réf, serial, ID…" required / autocomplete="off">
                 <datalist id="datalist-tools"></datalist>
+                <div id="int-tool-status" style="margin-top:.3rem;font-size:.74rem;min-height:1.1em"></div>
               </div>
 
               <div class="field">
@@ -19017,11 +19018,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       fillToolCard(tool) {
-        $('#tc-ref-fab').textContent = tool.refFabricant || '—';
-        $('#tc-par').textContent = (tool.pieces && tool.pieces.pAr) || '—';
-        $('#tc-pav').textContent = (tool.pieces && tool.pieces.pAv) || '—';
-        $('#tc-ear').textContent = (tool.pieces && tool.pieces.eAr) || '—';
-        $('#tc-eav').textContent = (tool.pieces && tool.pieces.eAv) || '—';
+        // 🆕 Met en valeur les valeurs remplies (vert) vs vides (gris)
+        const setPiece = (id, value) => {
+          const elp = document.getElementById(id);
+          if (!elp) return;
+          const v = value && String(value).trim();
+          elp.textContent = v || '—';
+          elp.style.color = v ? '#00e5a0' : '';
+          elp.style.fontWeight = v ? '700' : '';
+        };
+        setPiece('tc-ref-fab', tool.refFabricant);
+        setPiece('tc-par', tool.pieces && tool.pieces.pAr);
+        setPiece('tc-pav', tool.pieces && tool.pieces.pAv);
+        setPiece('tc-ear', tool.pieces && tool.pieces.eAr);
+        setPiece('tc-eav', tool.pieces && tool.pieces.eAv);
         const counter = Number(tool.totalCounter) || Number(tool.frequenceCycle) || 0;
         $('#tool-cycle').textContent = `${fmt.number(counter)} cycles`;
         // 🆕 Fixer le minimum du champ cycles = compteur actuel (un compteur ne descend pas)
@@ -19053,29 +19063,86 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (cyc) { cyc.min = '0'; cyc.placeholder = ''; cyc.title = ''; }
         const hint = document.getElementById('int-cycles-hint');
         if (hint) hint.innerHTML = '';
+        const card = document.getElementById('int-tool-card');
+        if (card) { card.style.borderColor = ''; card.style.boxShadow = ''; card.style.opacity = ''; }
       },
 
       onToolSelected() {
-        const val = $('#int-tool-search').value.trim().toLowerCase();
-        if (!val) return this.clearToolCard();
-        const found = Object.values(state.tools).find(t =>
-          (t.refOutil || '').toLowerCase() === val ||
-          (t.outilId || '').toLowerCase() === val
-        );
+        const raw = $('#int-tool-search')?.value.trim() || '';
+        const val = raw.toLowerCase();
+        if (!val) { this.clearToolCard(); this._setToolStatus(null); return; }
+        const tools = Object.values(state.tools || {});
+        const norm = s => String(s || '').toLowerCase().trim();
+        const ids = t => [t.refOutil, t.outilId, t.designation, t.doutils, t.serial, t.refFabricant];
+
+        // 1) Correspondance EXACTE sur n'importe quel identifiant
+        let found = tools.find(t => ids(t).some(x => x && norm(x) === val));
+
+        // 2) Sinon, correspondance "contient" (nom, réf, serial…)
+        if (!found) {
+          const matches = tools.filter(t => ids(t).some(x => x && norm(x).length >= 3 && norm(x).includes(val)));
+          if (matches.length === 1) {
+            found = matches[0];
+          } else if (matches.length > 1) {
+            // Plusieurs candidats → ne pas choisir au hasard, guider l'utilisateur
+            this._setToolStatus('multi', matches.length);
+            return;
+          }
+        }
+
         if (found) {
-          $('#int-outil-id').value = found.outilId || '';
-          $('#int-fabricant').value = found.fabricant || '';
+          $('#int-outil-id').value  = found.outilId || '';
+          $('#int-fabricant').value = found.fabricant || found.fournisseur || '';
           this.fillToolCard(found);
           this.currentToolKey = found.id;
+          this._setToolStatus('found', found);
+        } else {
+          this._setToolStatus('notfound');
+        }
+      },
+
+      /** 🆕 Affiche l'état de reconnaissance de l'outil sous le champ + illumine la fiche technique */
+      _setToolStatus(state_, extra) {
+        const el = document.getElementById('int-tool-status');
+        const card = document.getElementById('int-tool-card');
+        if (card) {
+          card.style.transition = 'all .25s';
+          if (state_ === 'found') {
+            card.style.borderColor = 'rgba(0,229,160,.6)';
+            card.style.boxShadow = '0 0 0 1px rgba(0,229,160,.4), 0 6px 20px rgba(0,229,160,.12)';
+            card.style.opacity = '1';
+          } else {
+            card.style.borderColor = '';
+            card.style.boxShadow = '';
+            card.style.opacity = (state_ === 'notfound' || state_ === 'multi') ? '.6' : '';
+          }
+        }
+        if (!el) return;
+        if (!state_) { el.innerHTML = ''; return; }
+        if (state_ === 'found') {
+          const t = extra || {};
+          const name = t.designation || t.doutils || t.serial || t.refOutil || t.outilId || 'Outil';
+          el.innerHTML = `<span style="color:#00e5a0;font-weight:700">✅ Outil reconnu : ${ui.escape(name)}</span>`;
+        } else if (state_ === 'multi') {
+          el.innerHTML = `<span style="color:#00d4ff;font-weight:700">🔍 ${extra} outils correspondent — précisez (ou choisissez dans la liste ▾)</span>`;
+        } else if (state_ === 'notfound') {
+          el.innerHTML = `<span style="color:#ffb547;font-weight:700">❓ Aucun outil trouvé — vérifiez la référence ou créez l'outil au catalogue</span>`;
         }
       },
 
       refreshToolDatalist() {
         const dl = $('#datalist-tools');
         if (!dl) return;
-        dl.innerHTML = Object.values(state.tools).map(t =>
-          `<option value="${ui.escape(t.refOutil || '')}">${ui.escape(t.outilId || '')}</option>`
-        ).join('');
+        const seen = new Set();
+        dl.innerHTML = Object.values(state.tools || {}).map(t => {
+          // Valeur = identifiant le plus reconnaissable (nom en priorité)
+          const name = t.designation || t.doutils || t.serial || t.refOutil || t.outilId || '';
+          if (!name || seen.has(name)) return '';
+          seen.add(name);
+          // Indice affiché : autres identifiants pour aider à choisir
+          const hint = [t.refOutil, t.outilId, t.fabricant || t.fournisseur].filter(Boolean).join(' · ');
+          return `<option value="${ui.escape(name)}">${ui.escape(hint)}</option>`;
+        }).join('');
       },
 
       recalcCapa() {

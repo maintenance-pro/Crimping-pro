@@ -9231,6 +9231,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           📝 Choisir Annex 5
         </button>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="btn btn--secondary" id="btn-tool-details-inherit" style="background:rgba(34,211,238,.12);color:#22d3ee;border:1px solid rgba(34,211,238,.35);font-weight:700" title="Copier les pièces (même fournisseur) et l'Annex 4 depuis les outils de la même famille">🧬 Hériter famille</button>
           <button class="btn btn--secondary" id="btn-tool-details-timeline" style="background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.3);font-weight:700" title="Voir l'historique chronologique complet de cet outil">📈 Timeline</button>
           <button class="btn btn--secondary" id="btn-tool-details-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Générer un QR code pour cet outil">📱 QR Code</button>
           <button class="btn btn--ghost" data-close>Fermer</button>
@@ -21697,6 +21698,99 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return String(s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
       },
 
+      /** 🧬 Hérite des pièces (même fournisseur) + documents (Annex 4) depuis les outils
+       *  de la même famille. Conserve l'identité de l'outil cible. Applicable à tout moment. */
+      async inheritFromFamily(tool) {
+        if (!['admin','super_admin','responsable'].includes(state.role)) {
+          return ui.toast('🔒 Réservé aux responsables/admins', 'warn');
+        }
+        const nameOf = t => t.doutils || t.designation || t.serial || t.refOutil || t.outilId || '?';
+        const name = nameOf(tool);
+        const base = this._extractFamily(name);
+        if (!base) return ui.toast("Impossible de déterminer la famille de cet outil", 'warn');
+        const siblings = this._findFamilySiblings(name, tool.id);
+        if (!siblings.length) return ui.toast(`Aucun autre outil de la famille « ${base} » trouvé`, 'info');
+
+        const supplierOf = t => String(t.fournisseur || t.fabricant || '').trim().toUpperCase();
+        const PK = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
+        const countPieces = t => PK.filter(k => {
+          const v = t.pieces && t.pieces[k];
+          return v && String(v).trim() && !['NA','#','-','—'].includes(String(v).trim().toUpperCase());
+        }).length;
+        const docCount = t => { const d = toolAttachments._all?.[t.id]; return d ? Object.keys(d).length : 0; };
+
+        // Source PIÈCES : frère du MÊME fournisseur avec le plus de pièces
+        const mySupplier = supplierOf(tool);
+        const sameSup = siblings.filter(s => mySupplier && supplierOf(s) === mySupplier);
+        let pieceSource = null;
+        if (sameSup.length) {
+          pieceSource = sameSup.reduce((b, s) => countPieces(s) > countPieces(b) ? s : b, sameSup[0]);
+          if (countPieces(pieceSource) === 0) pieceSource = null;
+        }
+        // Source DOCUMENTS : frère avec le plus de pièces jointes (Annex 4…)
+        const docSource = siblings.reduce((b, s) => docCount(s) > docCount(b) ? s : b, siblings[0]);
+        const hasDocs = docCount(docSource) > 0;
+        // Source CHAMPS PARTAGÉS : le plus complet (pièces) ou pieceSource
+        const refSource = pieceSource || this._pickTemplate(siblings) || siblings[0];
+
+        if (!pieceSource && !hasDocs) {
+          return ui.toast(`Famille « ${base} » : aucune pièce (même fournisseur « ${mySupplier || '?'} ») ni document à hériter`, 'info', 5000);
+        }
+
+        // Confirmation détaillée
+        const lines = [];
+        if (pieceSource) lines.push(`• Pièces de rechange depuis ${nameOf(pieceSource)} (${supplierOf(pieceSource)})`);
+        else if (mySupplier) lines.push(`• Pièces : aucune (pas de frère même fournisseur « ${mySupplier} »)`);
+        if (hasDocs) lines.push(`• ${docCount(docSource)} document(s) (Annex 4…) depuis ${nameOf(docSource)}`);
+        if (!confirm(`Famille « ${base} » — hériter pour ${name} :\n\n${lines.join('\n')}\n\nL'identité de cet outil (nom, réf, serial, inventaire) est conservée.\n\nContinuer ?`)) return;
+
+        ui.showLoader('Héritage de famille en cours…');
+        try {
+          const updated = { ...tool };
+          // Champs partagés (remplit uniquement ceux qui sont vides)
+          ['groupe','connection','terminal','numContact','frequenceCycle','refFabricant'].forEach(f => {
+            if (refSource[f] && (!updated[f] || !String(updated[f]).trim())) updated[f] = refSource[f];
+          });
+          // Pièces : copie depuis pieceSource (remplit les positions vides)
+          let piecesCopied = 0;
+          if (pieceSource && pieceSource.pieces) {
+            updated.pieces = { ...(updated.pieces || {}) };
+            PK.forEach(k => {
+              const cur = updated.pieces[k];
+              const isEmpty = !cur || !String(cur).trim() || ['NA','#','-','—'].includes(String(cur).trim().toUpperCase());
+              if (isEmpty && pieceSource.pieces[k]) { updated.pieces[k] = pieceSource.pieces[k]; piecesCopied++; }
+            });
+          }
+          await db.saveTool(updated);
+
+          // Documents (Annex 4…) — copie ceux du docSource absents chez la cible
+          let docsCopied = 0;
+          if (hasDocs) {
+            const srcDocs = toolAttachments._all[docSource.id] || {};
+            const existing = Object.values(toolAttachments._all?.[tool.id] || {}).map(d => (d.name || '') + '|' + (d.category || ''));
+            const upd = {};
+            Object.values(srcDocs).forEach(doc => {
+              const sig = (doc.name || '') + '|' + (doc.category || '');
+              if (existing.includes(sig)) return; // déjà présent
+              const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + docsCopied;
+              upd[`toolAttachments/${tool.id}/${fid}`] = { ...doc, inheritedFrom: docSource.id, uploadedAt: Date.now() };
+              docsCopied++;
+            });
+            if (Object.keys(upd).length) await fbDb.ref().update(upd);
+          }
+
+          ui.hideLoader();
+          ui.toast(`✅ Héritage : ${piecesCopied} pièce(s) + ${docsCopied} document(s) copié(s) pour ${name}`, 'success', 5000);
+          try { db.audit('tool.inheritFamily', tool.id, { base, piecesCopied, docsCopied }); } catch(e){}
+          // Rafraîchir la fiche
+          setTimeout(() => this.showDetails({ ...updated }), 300);
+        } catch (e) {
+          ui.hideLoader();
+          console.error('[inheritFromFamily]', e);
+          ui.toast('⛔ Erreur héritage : ' + e.message, 'danger');
+        }
+      },
+
       showDetails(tool) {
         if (!tool) return;
         // 📱 Mémoriser pour le bouton QR Code
@@ -21903,6 +21997,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             modal.hidden = true;
             formTemplates.openChooser(tool);
           };
+        }
+
+        // 🧬 Bouton "Hériter famille" → copie pièces (même fournisseur) + Annex 4 depuis les frères
+        const inheritBtn = document.getElementById('btn-tool-details-inherit');
+        if (inheritBtn) {
+          const canEdit = ['admin','super_admin','responsable'].includes(state.role);
+          inheritBtn.style.display = canEdit ? '' : 'none';
+          inheritBtn.onclick = () => this.inheritFromFamily(tool);
         }
 
         // Wire close buttons (once)

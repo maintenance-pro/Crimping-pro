@@ -26236,91 +26236,77 @@ Erreur Firebase : ${e.message}`;
         panel.style.background = 'rgba(255,61,90,.06)';
 
         const totalTools = missing.reduce((s, m) => s + m.tools.length, 0);
-        const rows = missing.map(m => {
-          // Récupérer la VRAIE référence (non normalisée) depuis le 1er outil
-          const realRef = (() => {
-            const t = m.tools[0];
-            const pk = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
-            for (const k of pk) { const v = (t.pieces && t.pieces[k]) || t[k]; if (v && this._refKey(v, t.fournisseur || t.fabricant) === m.ref) return String(v).trim(); }
-            return m.ref;
-          })();
-          // Grouper par client → GROUPES uniques (pas chaque outil)
-          const byClient = {};
-          m.tools.forEach(t => {
-            const cl = views.blocked._getClientForProject(t.projet);
-            const ck = cl ? cl.key : '__none__';
-            if (!byClient[ck]) byClient[ck] = { client: cl, groups: new Set() };
-            byClient[ck].groups.add(this._toolGroup(t));
-          });
-          const clientBlocks = Object.values(byClient).map(grp => {
-            const cl = grp.client;
-            const icon = cl ? (cl.icon || '🏭') : '❓';
-            const color = cl ? (cl.color || '#00d4ff') : '#9ca3af';
-            const label = cl ? cl.name : 'Non classé';
-            const chips = [...grp.groups].sort().map(g => `<span style="display:inline-block;background:${color}26;color:${color};border:1.5px solid ${color}66;border-radius:6px;padding:.14rem .5rem;font-size:.78rem;font-weight:800;margin:.1rem .15rem 0 0;font-family:var(--font-mono)">${ui.escape(g)}</span>`).join('');
-            return `<span style="display:inline-flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-right:1rem"><span style="font-size:.68rem;font-weight:800;color:${color};text-transform:uppercase;white-space:nowrap">${icon} ${ui.escape(label)}</span> ${chips}</span>`;
-          }).join('');
-          const typeChips = [...(m.types || [])].map(tp => `<span style="display:inline-block;background:rgba(0,212,255,.16);color:#22d3ee;border:1px solid rgba(0,212,255,.4);border-radius:5px;padding:.08rem .4rem;font-size:.66rem;font-weight:800;margin:.05rem .1rem 0 0;font-family:var(--font-mono)">${ui.escape(this.PIECE_LABELS[tp] || tp)}</span>`).join('') || '<span style="color:var(--text-muted)">—</span>';
-          return `<tr style="border-top:1px solid rgba(255,61,90,.15)">
-            <td style="padding:.5rem .7rem;font-family:var(--font-mono);font-weight:700;color:#ff8b6b;white-space:nowrap">${ui.escape(realRef)}</td>
-            <td style="padding:.5rem .7rem">${typeChips}</td>
-            <td style="padding:.5rem .7rem;text-align:center"><span style="background:rgba(255,61,90,.15);color:#ff3d5a;font-weight:800;padding:.1rem .5rem;border-radius:999px;font-family:var(--font-mono);font-size:.78rem">${m.tools.length}</span></td>
-            <td style="padding:.5rem .7rem;line-height:1.5">${clientBlocks}</td>
-            <td style="padding:.5rem .7rem;text-align:center"><span style="display:inline-block;background:#ffb547;color:#0a1628;font-weight:800;font-size:.64rem;padding:.18rem .5rem;border-radius:5px;white-space:nowrap">📋 À COMMANDER</span></td>
-          </tr>`;
-        }).join('');
 
+        // Données exploitables (copie + export Excel) — non affichées à l'écran
+        const orderRows = missing.map(m => {
+          const t = m.tools[0];
+          const pk = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
+          let realRef = m.ref;
+          for (const k of pk) { const v = (t.pieces && t.pieces[k]) || t[k]; if (v && this._refKey(v, t.fournisseur || t.fabricant) === m.ref) { realRef = String(v).trim(); break; } }
+          const types  = [...(m.types || [])].map(tp => this.PIECE_LABELS[tp] || tp).join(', ');
+          const groups = [...new Set(m.tools.map(x => this._toolGroup(x)))].sort().join(', ');
+          const clients = [...new Set(m.tools.map(x => { const c = views.blocked._getClientForProject(x.projet); return c ? c.name : 'Non classé'; }))].join(', ');
+          return { ref: realRef, type: types, count: m.tools.length, groups, clients };
+        });
+        this._toOrderRows = orderRows;  // mémorisé pour l'export
+
+        // Panneau COMPACT : résumé + actions (la liste n'est PAS affichée — uniquement téléchargeable)
         panel.style.display = 'block';
         panel.innerHTML = `
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.7rem .9rem;background:rgba(255,61,90,.12);cursor:pointer" id="pc-to-order-head">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.7rem .9rem;background:rgba(255,61,90,.12);flex-wrap:wrap">
             <div style="font-size:.85rem;font-weight:800;color:#ff8b6b">
-              🆕 ${missing.length} nouvelle(s) référence(s) à commander
-              <span style="font-weight:500;color:var(--text-secondary);font-size:.74rem">— utilisées par ${totalTools} outil(s) mais absentes du stock</span>
+              📦 ${missing.length} référence(s) à commander
+              <span style="font-weight:500;color:var(--text-secondary);font-size:.74rem">— utilisées par ${totalTools} outil(s), absentes du stock (périmètre analysé)</span>
             </div>
             <div style="display:flex;gap:.5rem;align-items:center">
-              <button id="pc-to-order-copy" style="background:rgba(0,212,255,.14);color:#00d4ff;border:1px solid rgba(0,212,255,.35);border-radius:6px;padding:.3rem .65rem;font-size:.72rem;font-weight:700;cursor:pointer">📋 Copier la liste</button>
-              <span id="pc-to-order-caret" style="font-size:.8rem;color:var(--text-muted)">▼</span>
+              <button id="pc-to-order-xlsx" style="background:#00e5a0;color:#0a1628;border:none;border-radius:6px;padding:.4rem .85rem;font-size:.75rem;font-weight:800;cursor:pointer">⬇️ Télécharger Excel</button>
+              <button id="pc-to-order-copy" style="background:rgba(0,212,255,.14);color:#00d4ff;border:1px solid rgba(0,212,255,.35);border-radius:6px;padding:.4rem .75rem;font-size:.75rem;font-weight:700;cursor:pointer">📋 Copier</button>
             </div>
-          </div>
-          <div id="pc-to-order-body" style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse;font-size:.74rem">
-              <thead><tr style="background:rgba(255,61,90,.08)">
-                <th style="padding:.5rem .7rem;text-align:left;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Référence</th>
-                <th style="padding:.5rem .7rem;text-align:left;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Type Pièce</th>
-                <th style="padding:.5rem .7rem;text-align:center;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Nb Outils</th>
-                <th style="padding:.5rem .7rem;text-align:left;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Groupes (par client)</th>
-                <th style="padding:.5rem .7rem;text-align:center;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Statut</th>
-              </tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
           </div>`;
-        // Repli/dépli
-        const head = panel.querySelector('#pc-to-order-head');
-        const body = panel.querySelector('#pc-to-order-body');
-        const caret = panel.querySelector('#pc-to-order-caret');
-        head?.addEventListener('click', (e) => {
-          if (e.target.id === 'pc-to-order-copy') return;
-          const hidden = body.style.display === 'none';
-          body.style.display = hidden ? 'block' : 'none';
-          caret.textContent = hidden ? '▼' : '▶';
-        });
-        // Copier la liste (référence + nb outils + clients)
+
+        // Copier (TSV) — pour collage direct dans Excel/email
         panel.querySelector('#pc-to-order-copy')?.addEventListener('click', () => {
-          const lines = missing.map(m => {
-            const t = m.tools[0];
-            const pk = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
-            let realRef = m.ref;
-            for (const k of pk) { const v = (t.pieces && t.pieces[k]) || t[k]; if (v && this._refKey(v, t.fournisseur || t.fabricant) === m.ref) { realRef = String(v).trim(); break; } }
-            const clients = [...new Set(m.tools.map(x => { const c = views.blocked._getClientForProject(x.projet); return c ? c.name : 'Non classé'; }))].join(', ');
-            const groups = [...new Set(m.tools.map(x => this._toolGroup(x)))].sort().join(', ');
-            return `${realRef}\t${m.tools.length}\t${groups}\t${clients}`;
-          });
-          const txt = 'Référence\tNb Outils\tGroupes\tClients\n' + lines.join('\n');
+          const txt = 'Référence\tType Pièce\tNb Outils\tGroupes\tClients\n' +
+            orderRows.map(r => `${r.ref}\t${r.type}\t${r.count}\t${r.groups}\t${r.clients}`).join('\n');
           navigator.clipboard?.writeText(txt).then(
-            () => ui.toast('📋 Liste copiée — collez-la dans Excel/email', 'success', 3500),
+            () => ui.toast('📋 Liste copiée', 'success', 3000),
             () => ui.toast('⛔ Copie impossible', 'danger')
           );
         });
+        // Télécharger en fichier Excel
+        panel.querySelector('#pc-to-order-xlsx')?.addEventListener('click', () => this._downloadToOrder());
+      },
+
+      /** 🆕 Télécharge la liste "à commander" en fichier Excel (.xlsx) */
+      async _downloadToOrder() {
+        const rows = this._toOrderRows || [];
+        if (!rows.length) return ui.toast('Rien à commander', 'info');
+        const loadXLSX = () => new Promise((resolve, reject) => {
+          if (window.XLSX) return resolve();
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          s.onload = resolve; s.onerror = () => reject(new Error('Chargement SheetJS impossible'));
+          document.head.appendChild(s);
+        });
+        ui.showLoader('Génération du fichier Excel…');
+        try {
+          await loadXLSX();
+          const data = rows.map(r => ({
+            'Référence': r.ref, 'Type Pièce': r.type, 'Nb Outils': r.count,
+            'Groupes': r.groups, 'Clients': r.clients, 'Statut': 'À COMMANDER'
+          }));
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.json_to_sheet(data);
+          ws['!cols'] = [{wch:22},{wch:16},{wch:9},{wch:42},{wch:30},{wch:14}];
+          XLSX.utils.book_append_sheet(wb, ws, 'A commander');
+          const date = new Date().toISOString().slice(0, 10);
+          XLSX.writeFile(wb, 'LEONI_References_a_commander_' + date + '.xlsx');
+          ui.hideLoader();
+          ui.toast(`⬇️ ${rows.length} référence(s) exportée(s) en Excel`, 'success', 4000);
+        } catch (e) {
+          ui.hideLoader();
+          ui.toast('⛔ Export impossible : ' + e.message, 'danger');
+        }
       },
 
       buildTable(data) {

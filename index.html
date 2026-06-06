@@ -26028,6 +26028,37 @@ Erreur Firebase : ${e.message}`;
         `).join('');
       },
 
+      /** 🆕 Clé de correspondance d'une référence pièce, INDÉPENDANTE de l'écriture ET de l'index.
+       *  - Ignore tous les séparateurs (espaces, tirets, points…)
+       *  - Retire l'INDEX = dernier caractère (révision : 0, A, 1, 2…)
+       *  Ex : "35 2 0244 21 0", "35-2-0244-21-A", "35 2 0244 210" → tous "352024421" (valeur constante). */
+      /** 🆕 Une référence est-elle SIROCO ? (fournisseur explicite OU format SIROCO "352…")
+       *  Côté outil le fournisseur est fiable ; côté stock on retombe sur le format. */
+      _isSiroco(ref, supplier) {
+        if (String(supplier || '').toUpperCase().includes('SIROCO')) return true;
+        const full = this._refFull(ref);
+        // Format SIROCO : commence par "352", longueur 9–11 (ex : 3520244210)
+        return full.startsWith('352') && full.length >= 9 && full.length <= 11;
+      },
+
+      /** 🆕 Clé de correspondance d'une référence pièce.
+       *  - Ignore tous les séparateurs (espaces, tirets, points…) — TOUJOURS
+       *  - Retire l'INDEX (dernier caractère) — UNIQUEMENT pour SIROCO
+       *  Ex SIROCO : "35 2 0244 21 0", "35-2-0244-21-A", "35 2 0244 210" → "352024421".
+       *  Ex TYCO   : "1-562108-5" → "15621085" (index conservé, référence complète). */
+      _refKey(ref, supplier) {
+        const full = this._refFull(ref);
+        if (this._isSiroco(ref, supplier)) {
+          return full.length >= 5 ? full.slice(0, -1) : full;  // SIROCO : retire l'index
+        }
+        return full;  // autres fournisseurs : référence complète (index conservé)
+      },
+
+      /** Référence normalisée COMPLÈTE (séparateurs retirés, index conservé) */
+      _refFull(ref) {
+        return String(ref || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      },
+
       /** 🆕 Renvoie le GROUPE d'un outil : champ `groupe` si présent, sinon extrait le nombre du nom.
        *  Ex : "WZ2170-01" → "2170", "WZ1070-03" → "1070". */
       _toolGroup(t) {
@@ -26040,7 +26071,6 @@ Erreur Firebase : ${e.message}`;
       /** 🆕 Construit l'index : référence pièce (normalisée) → liste des outils qui l'utilisent.
        *  Les outils référencent leurs pièces dans pieces.{pAr,pAv,eAr,eAv,cAr,cAv,presseur,matriceAvant,matriceArriere}. */
       _buildPartUsage() {
-        const norm = s => String(s || '').trim().toUpperCase().replace(/\s+/g, '');
         const pieceKeys = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
         const idx = new Map();
         Object.values(state.tools || {}).forEach(t => {
@@ -26049,8 +26079,10 @@ Erreur Firebase : ${e.message}`;
           pieceKeys.forEach(pk => {
             const ref = (t.pieces && t.pieces[pk]) || t[pk];
             if (!ref) return;
-            const key = norm(ref);
-            if (!key || key === 'NA' || key === '#' || key === '-' || key === '—') return;
+            const full = this._refFull(ref);
+            if (!full || full === 'NA' || full === 'NA0' || full === '#') return;
+            const key = this._refKey(ref, t.fournisseur || t.fabricant);  // clé (SIROCO → sans index)
+            if (!key) return;
             // éviter de compter 2× le même outil pour la même référence (s'il l'utilise sur 2 positions)
             if (seenForTool.has(key)) return;
             seenForTool.add(key);
@@ -26067,14 +26099,13 @@ Erreur Firebase : ${e.message}`;
       _renderToOrder(data) {
         const panel = document.getElementById('pc-to-order');
         if (!panel) return;
-        const norm = s => String(s || '').trim().toUpperCase().replace(/\s+/g, '');
-        // 1) Références présentes dans le stock
+        // 1) Références présentes dans le stock (clé = SIROCO sans index, autres complètes)
         const inStock = new Set();
         (data || []).forEach(r => {
-          if (r.nom) inStock.add(norm(r.nom));
-          if (r.nstock) inStock.add(norm(r.nstock)); // certains stocks référencés par N° Stock
+          if (r.nom)    inStock.add(this._refKey(r.nom, r.nomFour || r.codeFour));
+          if (r.nstock) inStock.add(this._refKey(r.nstock, r.nomFour || r.codeFour));
         });
-        // 2) Références utilisées par les outils (index pièce → outils)
+        // 2) Références utilisées par les outils (index pièce → outils, clé sans index)
         const usage = this._buildPartUsage();
         // 3) Manquantes = utilisées mais pas en stock
         const missing = [];
@@ -26090,7 +26121,7 @@ Erreur Firebase : ${e.message}`;
           const realRef = (() => {
             const t = m.tools[0];
             const pk = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
-            for (const k of pk) { const v = (t.pieces && t.pieces[k]) || t[k]; if (v && norm(v) === m.ref) return String(v).trim(); }
+            for (const k of pk) { const v = (t.pieces && t.pieces[k]) || t[k]; if (v && this._refKey(v, t.fournisseur || t.fabricant) === m.ref) return String(v).trim(); }
             return m.ref;
           })();
           // Grouper par client → GROUPES uniques (pas chaque outil)
@@ -26156,7 +26187,7 @@ Erreur Firebase : ${e.message}`;
             const t = m.tools[0];
             const pk = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
             let realRef = m.ref;
-            for (const k of pk) { const v = (t.pieces && t.pieces[k]) || t[k]; if (v && norm(v) === m.ref) { realRef = String(v).trim(); break; } }
+            for (const k of pk) { const v = (t.pieces && t.pieces[k]) || t[k]; if (v && this._refKey(v, t.fournisseur || t.fabricant) === m.ref) { realRef = String(v).trim(); break; } }
             const clients = [...new Set(m.tools.map(x => { const c = views.blocked._getClientForProject(x.projet); return c ? c.name : 'Non classé'; }))].join(', ');
             const groups = [...new Set(m.tools.map(x => this._toolGroup(x)))].sort().join(', ');
             return `${realRef}\t${m.tools.length}\t${groups}\t${clients}`;
@@ -26260,7 +26291,6 @@ Erreur Firebase : ${e.message}`;
 
         // 🆕 Index d'utilisation des pièces par les outils (construit une seule fois)
         const partUsage = this._buildPartUsage();
-        const normRef = s => String(s || '').trim().toUpperCase().replace(/\s+/g, '');
         const clientCfg = views.blocked.clientsConfig || views.blocked.DEFAULT_CLIENTS_CONFIG || {};
 
         let prevNom = null;
@@ -26292,7 +26322,7 @@ Erreur Firebase : ${e.message}`;
           return '<tr style="' + rowStyle + '">' + cols.map(c => {
             // 🆕 Colonnes calculées : utilisation par les outils
             if (c.source === 'usage') {
-              const tools = partUsage.get(normRef(currentNom)) || [];
+              const tools = partUsage.get(this._refKey(currentNom, r.nomFour || r.codeFour)) || [];
               if (c.k === 'usageCount') {
                 const n = tools.length;
                 const color = n === 0 ? 'var(--text-muted)' : n >= 5 ? '#00e5a0' : '#00d4ff';

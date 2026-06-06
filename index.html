@@ -8884,7 +8884,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <div><span id="pc-sct">—</span></div>
 
           <!-- Emplacements quick cards -->
-          <div id="pc-empl-cards" style="display:flex;flex-wrap:wrap;gap:.45rem"></div>
+          <div id="pc-empl-cards" style="display:none"></div>
 
           <!-- 🆕 Sélecteur des entrepôts (N° Stock) inclus dans l'analyse "à commander" -->
           <div id="pc-analysis-scope" style="margin:.7rem 0;display:none"></div>
@@ -25991,7 +25991,7 @@ Erreur Firebase : ${e.message}`;
 
         // Build filter dropdowns
         this.buildFilters(data);
-        this.buildEmplCards(data);
+        // (cartes d'emplacement retirées — remplacées par les panneaux d'analyse)
         this.buildTable(data);
         this._lastData = data;
         this._renderScopeControl(data);  // 🆕 sélecteur d'entrepôts pour l'analyse
@@ -26126,6 +26126,8 @@ Erreur Firebase : ${e.message}`;
       _renderScopeControl(data) {
         const wrap = document.getElementById('pc-analysis-scope');
         if (!wrap) return;
+        // 🆕 Analyse réservée au MAGASINIER (et admin) — masquée pour les autres rôles
+        if (!['magasinier','admin','super_admin'].includes(state.role)) { wrap.style.display = 'none'; return; }
         const warehouses = this._allWarehouses(data);
         if (warehouses.length <= 1) { wrap.style.display = 'none'; return; } // 1 seul entrepôt → pas de choix utile
         wrap.style.display = 'block';
@@ -26204,6 +26206,8 @@ Erreur Firebase : ${e.message}`;
       _renderToOrder(data) {
         const panel = document.getElementById('pc-to-order');
         if (!panel) return;
+        // 🆕 Analyse réservée au MAGASINIER (et admin) — masquée pour les autres rôles
+        if (!['magasinier','admin','super_admin'].includes(state.role)) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
         this._lastData = data;  // mémoriser pour les re-render du sélecteur de périmètre
         // 1) Références présentes dans le stock (DANS LE PÉRIMÈTRE D'ANALYSE choisi)
         const inStock = new Set();
@@ -26220,7 +26224,16 @@ Erreur Firebase : ${e.message}`;
         // Trier par nombre d'outils impactés (les plus critiques d'abord)
         missing.sort((a, b) => b.tools.length - a.tools.length);
 
-        if (!missing.length) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+        if (!missing.length) {
+          panel.style.display = 'block';
+          panel.style.borderColor = 'rgba(0,229,160,.35)';
+          panel.style.background = 'rgba(0,229,160,.06)';
+          panel.innerHTML = `<div style="padding:.8rem .95rem;font-size:.85rem;font-weight:700;color:#00e5a0">✅ Toutes les références utilisées par les outils sont en stock <span style="font-weight:500;color:var(--text-secondary);font-size:.76rem">(dans le périmètre d'entrepôts analysé)</span></div>`;
+          return;
+        }
+        // Style rouge (alerte) quand il y a des références à commander
+        panel.style.borderColor = 'rgba(255,61,90,.35)';
+        panel.style.background = 'rgba(255,61,90,.06)';
 
         const totalTools = missing.reduce((s, m) => s + m.tools.length, 0);
         const rows = missing.map(m => {

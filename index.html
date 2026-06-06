@@ -10768,6 +10768,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._listenerAttached = true;
       fbDb.ref('toolAttachments').on('value', snap => {
         this._all = snap.val() || {};
+        this._loaded = true;  // 🆕 cache global prêt → plus besoin de fetch à la demande
         console.log(`[toolAttachments] 📥 ${Object.keys(this._all).length} outil(s) avec fichiers`);
         // Si la modal détails est ouverte, re-render
         if (this._currentTool && !document.getElementById('modal-tool-details')?.hidden) {
@@ -10940,6 +10941,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if (!container) return;
 
       const toolId = tool.id;
+      // 🆕 Si le cache global n'est pas encore chargé pour cet outil, le récupérer DIRECTEMENT (rapide, 1 seul outil)
+      if (!this._loaded && !this._all[toolId] && !this._fetching) {
+        this._fetching = true;
+        fbDb.ref('toolAttachments/' + toolId).once('value').then(snap => {
+          this._fetching = false;
+          const docs = snap.val();
+          if (docs) {
+            this._all[toolId] = docs;
+            if (this._currentTool && this._currentTool.id === toolId && !document.getElementById('modal-tool-details')?.hidden) {
+              this.renderForTool(this._currentTool);
+            }
+          }
+        }).catch(() => { this._fetching = false; });
+      }
       const files = this._all[toolId] || {};
       const list = Object.entries(files).sort((a, b) => (b[1].uploadedAt || 0) - (a[1].uploadedAt || 0));
 
@@ -11055,10 +11070,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           };
           await fbDb.ref(`toolAttachments/${tool.id}/${fid}`).set(payload);
           try { db.audit('toolAttachment.add', tool.id, { name: file.name, sizeKB: payload.sizeKB, category: finalCat }); } catch(e){}
+          // 🆕 Mise à jour OPTIMISTE du cache local → affichage immédiat (sans attendre le listener global lourd)
+          if (!this._all[tool.id]) this._all[tool.id] = {};
+          this._all[tool.id][fid] = payload;
           ui.hideLoader();
           ui.toast(`📎 "${file.name}" téléversé (${this._fmtSize(payload.sizeKB)}) ✅`, 'success');
           modal.hidden = true;
-          // Le listener va re-render automatiquement
+          if (this._currentTool && this._currentTool.id === tool.id) this.renderForTool(this._currentTool);
+          if (state.currentView === 'catalog' && views.catalog?.render) { try { views.catalog.render(); } catch(e){} }
         } catch(e) {
           ui.hideLoader();
           console.error('[toolAttachments.add]', e);
@@ -12191,6 +12210,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       };
       await fbDb.ref(`interventions/${reg}`).set(intervention);
       this.audit('intervention.create', reg);
+      // 🆕 Mise à jour OPTIMISTE → le bon est dispo immédiatement (sans attendre le listener global)
+      if (!state.interventions) state.interventions = {};
+      state.interventions[reg] = intervention;
       return reg;
     },
 
@@ -12198,6 +12220,30 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       partial.updatedAt = Date.now();
       await fbDb.ref(`interventions/${reg}`).update(partial);
       this.audit('intervention.update', reg);
+      // 🆕 Mise à jour OPTIMISTE → modification visible immédiatement
+      if (state.interventions && state.interventions[reg]) {
+        state.interventions[reg] = { ...state.interventions[reg], ...partial };
+      }
+    },
+
+    /** 🆕 Rafraîchit les vues qui dépendent des bons (sans attendre le listener global lourd) */
+    _refreshBonViews() {
+      try { views.hub.render(); } catch(e){}
+      try { if (state.currentView === 'history') views.history.render(); } catch(e){}
+      try { if (state.currentView === 'queue') views.queue.render(); } catch(e){}
+      try { if (state.currentView === 'performance') views.performance.render(); } catch(e){}
+      try { if (state.currentView === 'preventive5j') views.preventive5j.render(); } catch(e){}
+      try { if (views.preventive5j && views.preventive5j._updateBadge) views.preventive5j._updateBadge(); } catch(e){}
+    },
+
+    /** 🆕 Re-synchronise UN seul bon (lecture ciblée rapide) + rafraîchit les vues */
+    async _syncOneBon(reg) {
+      try {
+        const snap = await fbDb.ref('interventions/' + reg).once('value');
+        const v = snap.val();
+        if (v) { if (!state.interventions) state.interventions = {}; state.interventions[reg] = v; }
+      } catch(e) {}
+      this._refreshBonViews();
     },
 
     async submitToLab(reg) {
@@ -12216,6 +12262,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         updatedAt: now
       });
       this.audit('intervention.submit', reg);
+      await this._syncOneBon(reg);  // 🆕 affichage immédiat de l'état du bon
       this.notifyLab(reg);
       // 📦 Si le bon a des PDR cochées → notifier les magasiniers
       this.notifyMagasinier(reg);
@@ -12253,6 +12300,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         updatedAt: now
       });
       this.audit('intervention.validate', reg);
+      await this._syncOneBon(reg);  // 🆕 affichage immédiat de l'état du bon
       this.notifyCrimping(reg, 'validated');
 
       // 🔧 AUTO-RESET COMPTEUR PDR — si le bon contient des pièces changées,
@@ -12317,6 +12365,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         updatedAt: now
       });
       this.audit('intervention.deliverDossier', reg, { type, tech2Name });
+      await this._syncOneBon(reg);  // 🆕 affichage immédiat de l'état du bon
       this.notifyCrimping(reg, 'delivered');
     },
 
@@ -12340,6 +12389,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         updatedAt: now
       });
       this.audit('intervention.reject', reg);
+      await this._syncOneBon(reg);  // 🆕 affichage immédiat de l'état du bon
       this.notifyCrimping(reg, 'rejected', reason);
     },
 
@@ -21796,6 +21846,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               docsCopied++;
             });
             if (Object.keys(upd).length) await fbDb.ref().update(upd);
+            // 🆕 Mise à jour OPTIMISTE du cache → documents hérités visibles immédiatement
+            if (Object.keys(upd).length) {
+              if (!toolAttachments._all[tool.id]) toolAttachments._all[tool.id] = {};
+              Object.keys(upd).forEach(path => {
+                const fid = path.split('/').pop();
+                toolAttachments._all[tool.id][fid] = upd[path];
+              });
+            }
           }
 
           ui.hideLoader();

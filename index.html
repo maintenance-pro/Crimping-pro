@@ -8886,6 +8886,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <!-- Emplacements quick cards -->
           <div id="pc-empl-cards" style="display:flex;flex-wrap:wrap;gap:.45rem"></div>
 
+          <!-- 🆕 Panneau : nouvelles références à commander (utilisées par des outils mais absentes du stock) -->
+          <div id="pc-to-order" style="display:none;margin:.8rem 0;border-radius:10px;border:1px solid rgba(255,61,90,.35);background:rgba(255,61,90,.06);overflow:hidden"></div>
+
           <!-- Data table -->
           <div class="history__tablewrap">
             <table class="data-table" id="pc-table">
@@ -25984,6 +25987,7 @@ Erreur Firebase : ${e.message}`;
         this.buildFilters(data);
         this.buildEmplCards(data);
         this.buildTable(data);
+        this._renderToOrder(data);  // 🆕 références utilisées par les outils mais absentes du stock
 
         this.applyFilters();
       },
@@ -26046,6 +26050,114 @@ Erreur Firebase : ${e.message}`;
           });
         });
         return idx;
+      },
+
+      /** 🆕 Détecte les références utilisées par des outils mais ABSENTES du stock,
+       *  et les affiche dans le panneau "Nouvelles références à commander".
+       *  @param data : lignes de stock actuellement chargées (pour connaître les références existantes) */
+      _renderToOrder(data) {
+        const panel = document.getElementById('pc-to-order');
+        if (!panel) return;
+        const norm = s => String(s || '').trim().toUpperCase().replace(/\s+/g, '');
+        // 1) Références présentes dans le stock
+        const inStock = new Set();
+        (data || []).forEach(r => {
+          if (r.nom) inStock.add(norm(r.nom));
+          if (r.nstock) inStock.add(norm(r.nstock)); // certains stocks référencés par N° Stock
+        });
+        // 2) Références utilisées par les outils (index pièce → outils)
+        const usage = this._buildPartUsage();
+        // 3) Manquantes = utilisées mais pas en stock
+        const missing = [];
+        usage.forEach((tools, ref) => { if (!inStock.has(ref)) missing.push({ ref, tools }); });
+        // Trier par nombre d'outils impactés (les plus critiques d'abord)
+        missing.sort((a, b) => b.tools.length - a.tools.length);
+
+        if (!missing.length) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+
+        const totalTools = missing.reduce((s, m) => s + m.tools.length, 0);
+        const rows = missing.map(m => {
+          // Récupérer la VRAIE référence (non normalisée) depuis le 1er outil
+          const realRef = (() => {
+            const t = m.tools[0];
+            const pk = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
+            for (const k of pk) { const v = (t.pieces && t.pieces[k]) || t[k]; if (v && norm(v) === m.ref) return String(v).trim(); }
+            return m.ref;
+          })();
+          // Grouper les outils par client
+          const byClient = {};
+          m.tools.forEach(t => {
+            const cl = views.blocked._getClientForProject(t.projet);
+            const ck = cl ? cl.key : '__none__';
+            if (!byClient[ck]) byClient[ck] = { client: cl, names: [] };
+            const nm = t.doutils || t.designation || t.serial || t.outilId || t.refOutil || '?';
+            if (!byClient[ck].names.includes(nm)) byClient[ck].names.push(nm);
+          });
+          const clientBlocks = Object.values(byClient).map(grp => {
+            const cl = grp.client;
+            const icon = cl ? (cl.icon || '🏭') : '❓';
+            const color = cl ? (cl.color || '#00d4ff') : '#9ca3af';
+            const label = cl ? cl.name : 'Non classé';
+            const chips = grp.names.map(n => `<span style="display:inline-block;background:${color}1a;color:${color};border:1px solid ${color}44;border-radius:4px;padding:.04rem .35rem;font-size:.62rem;font-weight:600;margin:.05rem .1rem 0 0;font-family:var(--font-mono)">${ui.escape(n)}</span>`).join('');
+            return `<span style="font-size:.62rem;font-weight:800;color:${color};text-transform:uppercase">${icon} ${ui.escape(label)}</span> ${chips}`;
+          }).join(' &nbsp; ');
+          return `<tr style="border-top:1px solid rgba(255,61,90,.15)">
+            <td style="padding:.5rem .7rem;font-family:var(--font-mono);font-weight:700;color:#ff8b6b;white-space:nowrap">${ui.escape(realRef)}</td>
+            <td style="padding:.5rem .7rem;text-align:center"><span style="background:rgba(255,61,90,.15);color:#ff3d5a;font-weight:800;padding:.1rem .5rem;border-radius:999px;font-family:var(--font-mono);font-size:.78rem">${m.tools.length}</span></td>
+            <td style="padding:.5rem .7rem;line-height:1.5">${clientBlocks}</td>
+            <td style="padding:.5rem .7rem;text-align:center"><span style="display:inline-block;background:#ffb547;color:#0a1628;font-weight:800;font-size:.64rem;padding:.18rem .5rem;border-radius:5px;white-space:nowrap">📋 À COMMANDER</span></td>
+          </tr>`;
+        }).join('');
+
+        panel.style.display = 'block';
+        panel.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.7rem .9rem;background:rgba(255,61,90,.12);cursor:pointer" id="pc-to-order-head">
+            <div style="font-size:.85rem;font-weight:800;color:#ff8b6b">
+              🆕 ${missing.length} nouvelle(s) référence(s) à commander
+              <span style="font-weight:500;color:var(--text-secondary);font-size:.74rem">— utilisées par ${totalTools} outil(s) mais absentes du stock</span>
+            </div>
+            <div style="display:flex;gap:.5rem;align-items:center">
+              <button id="pc-to-order-copy" style="background:rgba(0,212,255,.14);color:#00d4ff;border:1px solid rgba(0,212,255,.35);border-radius:6px;padding:.3rem .65rem;font-size:.72rem;font-weight:700;cursor:pointer">📋 Copier la liste</button>
+              <span id="pc-to-order-caret" style="font-size:.8rem;color:var(--text-muted)">▼</span>
+            </div>
+          </div>
+          <div id="pc-to-order-body" style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:.74rem">
+              <thead><tr style="background:rgba(255,61,90,.08)">
+                <th style="padding:.5rem .7rem;text-align:left;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Référence</th>
+                <th style="padding:.5rem .7rem;text-align:center;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Nb Outils</th>
+                <th style="padding:.5rem .7rem;text-align:left;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Outils (par client)</th>
+                <th style="padding:.5rem .7rem;text-align:center;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Statut</th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`;
+        // Repli/dépli
+        const head = panel.querySelector('#pc-to-order-head');
+        const body = panel.querySelector('#pc-to-order-body');
+        const caret = panel.querySelector('#pc-to-order-caret');
+        head?.addEventListener('click', (e) => {
+          if (e.target.id === 'pc-to-order-copy') return;
+          const hidden = body.style.display === 'none';
+          body.style.display = hidden ? 'block' : 'none';
+          caret.textContent = hidden ? '▼' : '▶';
+        });
+        // Copier la liste (référence + nb outils + clients)
+        panel.querySelector('#pc-to-order-copy')?.addEventListener('click', () => {
+          const lines = missing.map(m => {
+            const t = m.tools[0];
+            const pk = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
+            let realRef = m.ref;
+            for (const k of pk) { const v = (t.pieces && t.pieces[k]) || t[k]; if (v && norm(v) === m.ref) { realRef = String(v).trim(); break; } }
+            const clients = [...new Set(m.tools.map(x => { const c = views.blocked._getClientForProject(x.projet); return c ? c.name : 'Non classé'; }))].join(', ');
+            return `${realRef}\t${m.tools.length} outil(s)\t${clients}`;
+          });
+          const txt = 'Référence\tNb Outils\tClients\n' + lines.join('\n');
+          navigator.clipboard?.writeText(txt).then(
+            () => ui.toast('📋 Liste copiée — collez-la dans Excel/email', 'success', 3500),
+            () => ui.toast('⛔ Copie impossible', 'danger')
+          );
+        });
       },
 
       buildTable(data) {

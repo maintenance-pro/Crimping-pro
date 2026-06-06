@@ -22558,9 +22558,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         let list = allTools.slice();
         // Note : le filtre par rôle est déjà appliqué en amont (allTools = allToolsRaw filtré pour non-admin)
 
-        if (filterStatus === 'complete')        list = list.filter(t => this._isComplete(t));
-        else if (filterStatus === 'incomplete') list = list.filter(t => !this._isComplete(t));
-        // 'all' → pas de filtre
+        // ⚠️ Filtre complétude — IGNORÉ si un filtre DOCUMENTS est actif,
+        //    sinon "Avec documents" masquerait les outils à documents qui sont incomplets (bug 0 résultat)
+        if (!filterDocs) {
+          if (filterStatus === 'complete')        list = list.filter(t => this._isComplete(t));
+          else if (filterStatus === 'incomplete') list = list.filter(t => !this._isComplete(t));
+          // 'all' → pas de filtre
+        }
 
         if (filterFab) list = list.filter(t => (t.fabricant || '').trim() === filterFab);
 
@@ -22585,11 +22589,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           }
         }
 
-        // 🆕 Filtre par présence de DOCUMENTS joints
+        // 🆕 Filtre par présence de DOCUMENTS joints (seulement si le cache est prêt)
+        const docsReady = toolAttachments._loaded || Object.keys(toolAttachments._all || {}).length > 0;
         if (filterDocs === 'with') {
-          list = list.filter(t => !!toolAttachments.summaryFor(t.id || t.outilId || ''));
+          if (docsReady) list = list.filter(t => !!toolAttachments.summaryFor(t.id || t.outilId || ''));
         } else if (filterDocs === 'without') {
-          list = list.filter(t => !toolAttachments.summaryFor(t.id || t.outilId || ''));
+          if (docsReady) list = list.filter(t => !toolAttachments.summaryFor(t.id || t.outilId || ''));
         }
 
         if (q) list = list.filter(t =>

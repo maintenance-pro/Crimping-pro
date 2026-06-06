@@ -9121,6 +9121,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <button class="modal__close" data-close aria-label="Fermer">×</button>
       </header>
       <form class="modal__body" id="form-tool">
+        <!-- 🆕 Bandeau héritage de famille (s'affiche si des outils de la même famille existent) -->
+        <div id="tool-family-banner" style="display:none;margin-bottom:1rem;padding:.75rem .9rem;border-radius:9px;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.3)"></div>
         <!-- ── Section 1 : Identification ── -->
         <div style="margin-bottom:.5rem;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-500);font-weight:700">
           🆔 Identification
@@ -20767,6 +20769,129 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return views.blocked._getClientForProject(projectName);
       },
 
+      // ════════════════════════════════════════════════════════════════════
+      // 🆕 HÉRITAGE DE FAMILLE — quand on ajoute un outil d'une famille existante
+      //    (ex: WZ1070-03 hérite de WZ1070-01 / WZ1070-02)
+      // ════════════════════════════════════════════════════════════════════
+
+      /** Extrait la base de famille d'un nom : "WZ1070-03" → "WZ1070", "wz2144c-07" → "WZ2144C"
+       *  (retire le suffixe de variante "-NN" / "-VNN" ; nécessite un séparateur pour ne pas sur-couper) */
+      _extractFamily(name) {
+        const n = String(name || '').trim();
+        if (!n) return '';
+        const base = n.replace(/[-_]\s*[A-Za-z]{0,2}\d{1,3}\s*$/i, '').trim();
+        return base.length >= 4 ? base.toUpperCase() : '';
+      },
+
+      /** Trouve les outils de la même famille (même base), en excluant un id donné */
+      _findFamilySiblings(name, excludeId) {
+        const base = this._extractFamily(name);
+        if (!base) return [];
+        return Object.values(state.tools || {}).filter(t => {
+          if (!t || t.id === excludeId) return false;
+          return [t.doutils, t.designation, t.serial, t.refOutil, t.outilId]
+            .some(x => x && this._extractFamily(x) === base);
+        });
+      },
+
+      /** Choisit le meilleur modèle parmi les frères : priorité à celui qui a des pièces + des documents */
+      _pickTemplate(siblings) {
+        if (!siblings.length) return null;
+        const score = t => {
+          let s = 0;
+          const pieces = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
+          if (pieces.some(k => (t.pieces && t.pieces[k]) || t[k])) s += 3;
+          if (toolAttachments.summaryFor(t.id || t.outilId || '')) s += 2;
+          ['connection','groupe','refFabricant','projet','fabricant'].forEach(k => { if (t[k]) s += 0.2; });
+          return s;
+        };
+        return siblings.slice().sort((a, b) => score(b) - score(a))[0];
+      },
+
+      /** Vérifie la famille à partir des champs du formulaire et affiche/masque le bandeau d'héritage */
+      _checkFamily() {
+        const form = document.getElementById('form-tool');
+        const banner = document.getElementById('tool-family-banner');
+        if (!form || !banner) return;
+        const gv = n => (form.querySelector(`[name="${n}"]`)?.value || '').trim();
+        // Nom candidat = premier champ identitaire rempli
+        const candidate = gv('doutils') || gv('refOutil') || gv('serial') || gv('outilId');
+        const base = this._extractFamily(candidate);
+        const siblings = base ? this._findFamilySiblings(candidate, this._editingId) : [];
+        if (!base || siblings.length === 0) {
+          banner.style.display = 'none';
+          banner.innerHTML = '';
+          return;
+        }
+        const tpl = this._pickTemplate(siblings);
+        const tplFournisseur = tpl.fournisseur || tpl.fabricant || '—';
+        const hasPieces = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere']
+          .some(k => (tpl.pieces && tpl.pieces[k]) || tpl[k]);
+        const docSummary = toolAttachments.summaryFor(tpl.id || tpl.outilId || '');
+        const tplName = tpl.designation || tpl.doutils || tpl.serial || tpl.refOutil || tpl.outilId || 'modèle';
+        banner.style.display = 'block';
+        banner.innerHTML = `
+          <div style="font-size:.82rem;color:var(--text-primary);font-weight:700;margin-bottom:.45rem">
+            🧬 Famille <span style="color:#00d4ff">${ui.escape(base)}</span> détectée — ${siblings.length} outil(s) similaire(s)
+          </div>
+          <div style="font-size:.74rem;color:var(--text-secondary);line-height:1.5;margin-bottom:.6rem">
+            Modèle : <strong>${ui.escape(tplName)}</strong> · Fournisseur : <strong>${ui.escape(tplFournisseur)}</strong>
+            ${hasPieces ? ' · 🔧 pièces dispo' : ''}${docSummary ? ` · 📎 ${docSummary.count} doc(s)` : ''}.
+            Hériter ses données ? (le nom, serial et N° inventaire de ce nouvel outil sont conservés)
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button type="button" id="btn-inherit-same" style="background:#00e5a0;color:#0a1628;border:none;border-radius:7px;padding:.45rem .8rem;font-size:.76rem;font-weight:700;cursor:pointer">
+              📋 Même fournisseur (avec pièces${docSummary ? ' + docs' : ''})
+            </button>
+            <button type="button" id="btn-inherit-other" style="background:rgba(255,180,71,.18);color:#ffb547;border:1px solid rgba(255,180,71,.4);border-radius:7px;padding:.45rem .8rem;font-size:.76rem;font-weight:700;cursor:pointer">
+              🔀 Autre fournisseur (sans pièces)
+            </button>
+            <button type="button" id="btn-inherit-cancel" style="background:transparent;color:var(--text-muted);border:1px solid var(--border-soft);border-radius:7px;padding:.45rem .8rem;font-size:.76rem;cursor:pointer">
+              Ignorer
+            </button>
+          </div>`;
+        banner.querySelector('#btn-inherit-same').onclick   = () => this._applyInheritance(tpl, true);
+        banner.querySelector('#btn-inherit-other').onclick  = () => this._applyInheritance(tpl, false);
+        banner.querySelector('#btn-inherit-cancel').onclick = () => { banner.style.display = 'none'; this._inheritDocsFrom = null; };
+      },
+
+      /** Applique l'héritage depuis le modèle. sameFournisseur=true → copie aussi les pièces + fournisseur. */
+      _applyInheritance(tpl, sameFournisseur) {
+        const form = document.getElementById('form-tool');
+        if (!form || !tpl) return;
+        const setV = (n, v) => { const el = form.querySelector(`[name="${n}"]`); if (el && v != null && String(v).trim() !== '') el.value = v; };
+
+        // Champs PARTAGÉS (toujours hérités) — PAS l'identité (doutils/serial/numInventaire/refOutil/outilId/designation)
+        ['groupe','connection','terminal','numContact','frequenceCycle','refFabricant','fabricant','projet']
+          .forEach(k => setV(k, tpl[k]));
+
+        // Pièces (PDR) — héritées UNIQUEMENT si même fournisseur
+        const pieceKeys = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
+        if (sameFournisseur) {
+          pieceKeys.forEach(k => setV(k, (tpl.pieces && tpl.pieces[k]) || tpl[k]));
+          setV('fournisseur', tpl.fournisseur || tpl.fabricant);  // même fournisseur
+        } else {
+          // Autre fournisseur : on VIDE les pièces (différent fournisseur = pièces différentes)
+          pieceKeys.forEach(k => { const el = form.querySelector(`[name="${k}"]`); if (el) el.value = ''; });
+        }
+
+        // Documents (Annex 4…) — copiés à l'enregistrement dans les deux cas ("tous sauf pièces")
+        this._inheritDocsFrom = (toolAttachments.summaryFor(tpl.id || tpl.outilId || '')) ? tpl.id : null;
+
+        // Mettre à jour le bandeau pour confirmer
+        const banner = document.getElementById('tool-family-banner');
+        if (banner) {
+          banner.style.background = 'rgba(0,229,160,.1)';
+          banner.style.borderColor = 'rgba(0,229,160,.4)';
+          banner.innerHTML = `<div style="font-size:.8rem;color:#00e5a0;font-weight:700">
+            ✅ Données héritées de ${ui.escape(tpl.designation || tpl.doutils || tpl.refOutil || 'modèle')}
+            ${sameFournisseur ? '(avec pièces de rechange)' : '(sans pièces — fournisseur différent)'}${this._inheritDocsFrom ? ' + documents joints' : ''}.
+            <br><span style="color:var(--text-secondary);font-weight:400;font-size:.74rem">Vérifiez/complétez le nom, le serial et le N° inventaire de ce nouvel outil avant d'enregistrer.</span>
+          </div>`;
+        }
+        ui.toast('🧬 Données de famille héritées', 'success', 3500);
+      },
+
       /** 🆕 Rend les chips de filtre rapide par client (Volvo/Renault/Stellantis/… + Non classé) */
       _renderClientChips() {
         const wrap = document.getElementById('cat-client-chips');
@@ -22499,6 +22624,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           el.addEventListener('click', () => { modal.hidden = true; }, { once: true });
         });
 
+        // 🆕 HÉRITAGE DE FAMILLE : mémoriser l'id édité, réinitialiser le flag docs, brancher la détection
+        this._editingId = tool ? (tool.id || null) : null;
+        this._inheritDocsFrom = null;
+        const familyBanner = document.getElementById('tool-family-banner');
+        if (familyBanner) { familyBanner.style.display = 'none'; familyBanner.innerHTML = ''; familyBanner.style.background = 'rgba(0,212,255,.08)'; familyBanner.style.borderColor = 'rgba(0,212,255,.3)'; }
+        if (!tool) { // détection seulement à la CRÉATION d'un nouvel outil
+          ['doutils','refOutil','serial','outilId'].forEach(n => {
+            const el = form.querySelector(`[name="${n}"]`);
+            if (el) el.addEventListener('input', debounce(() => this._checkFamily(), 350));
+          });
+        }
+
         // 🆕 Datalist des projets existants + indicateur client live
         const projDatalist = document.getElementById('tf-projet-list');
         if (projDatalist) {
@@ -22697,7 +22834,32 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             }
           }
 
-          await db.saveTool(data);
+          const savedId = await db.saveTool(data);
+          const newToolId = data.id || savedId;
+
+          // 🆕 HÉRITAGE DE FAMILLE — copier les documents (Annex 4…) du modèle vers le nouvel outil
+          if (this._inheritDocsFrom && newToolId && this._inheritDocsFrom !== newToolId) {
+            try {
+              const srcDocs = toolAttachments._all?.[this._inheritDocsFrom];
+              if (srcDocs && Object.keys(srcDocs).length) {
+                const updates = {};
+                Object.values(srcDocs).forEach(doc => {
+                  const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+                  updates[`toolAttachments/${newToolId}/${fid}`] = {
+                    ...doc,
+                    inheritedFrom: this._inheritDocsFrom,
+                    uploadedAt: Date.now()
+                  };
+                });
+                if (Object.keys(updates).length) {
+                  await fbDb.ref().update(updates);
+                  ui.toast(`📎 ${Object.keys(updates).length} document(s) hérité(s) de la famille`, 'success', 4000);
+                }
+              }
+            } catch(e) { console.warn('[inherit docs]', e); }
+          }
+          this._inheritDocsFrom = null;
+
           modal.hidden = true;
           ui.toast('Outil enregistré ✅', 'success');
         };

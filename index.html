@@ -25630,6 +25630,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         { k:'qty',     label:'Qté Physique',             w:110, num:true },
         { k:'qmin',    label:'Qté Min',                  w:90,  num:true },
         { k:'qmax',    label:'Qté Max',                  w:90,  num:true },
+        // 🆕 Colonnes calculées : utilisation par les outils (depuis le catalogue)
+        { k:'usageCount',  label:'Nb Outils',            w:95,  num:true, source:'usage' },
+        { k:'usageGroups', label:"Outils (par client)",  w:300,           source:'usage' },
         // ── Colonnes commande (éditables magasinier) ──
         { k:'qcom',     label:'Qté Commandée',           w:120, num:true, editable:true, source:'orders' },
         { k:'statutCom',label:'Statut Commande',         w:170,            editable:true, source:'orders' }
@@ -26021,9 +26024,33 @@ Erreur Firebase : ${e.message}`;
         `).join('');
       },
 
+      /** 🆕 Construit l'index : référence pièce (normalisée) → liste des outils qui l'utilisent.
+       *  Les outils référencent leurs pièces dans pieces.{pAr,pAv,eAr,eAv,cAr,cAv,presseur,matriceAvant,matriceArriere}. */
+      _buildPartUsage() {
+        const norm = s => String(s || '').trim().toUpperCase().replace(/\s+/g, '');
+        const pieceKeys = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
+        const idx = new Map();
+        Object.values(state.tools || {}).forEach(t => {
+          if (!t) return;
+          const seenForTool = new Set();
+          pieceKeys.forEach(pk => {
+            const ref = (t.pieces && t.pieces[pk]) || t[pk];
+            if (!ref) return;
+            const key = norm(ref);
+            if (!key || key === 'NA' || key === '#' || key === '-' || key === '—') return;
+            // éviter de compter 2× le même outil pour la même référence (s'il l'utilise sur 2 positions)
+            if (seenForTool.has(key)) return;
+            seenForTool.add(key);
+            if (!idx.has(key)) idx.set(key, []);
+            idx.get(key).push(t);
+          });
+        });
+        return idx;
+      },
+
       buildTable(data) {
-        // Show columns that have data OR are editable (qcom/statutCom always visible for magasinier)
-        const cols = this._COLS.filter(c => c.editable || data.some(r => r[c.k] && String(r[c.k]).trim() !== ''));
+        // Show columns that have data OR are editable OR are computed-usage columns
+        const cols = this._COLS.filter(c => c.editable || c.source === 'usage' || data.some(r => r[c.k] && String(r[c.k]).trim() !== ''));
         const thead = document.getElementById('pc-thead');
         if (thead) {
           // En-tête VISIBLE avec fond cyan
@@ -26110,6 +26137,11 @@ Erreur Firebase : ${e.message}`;
         const nomCounts = {};
         data.forEach(r => { const n = (r.nom||'').trim(); if (n) nomCounts[n] = (nomCounts[n]||0) + 1; });
 
+        // 🆕 Index d'utilisation des pièces par les outils (construit une seule fois)
+        const partUsage = this._buildPartUsage();
+        const normRef = s => String(s || '').trim().toUpperCase().replace(/\s+/g, '');
+        const clientCfg = views.blocked.clientsConfig || views.blocked.DEFAULT_CLIENTS_CONFIG || {};
+
         let prevNom = null;
         tbody.innerHTML = data.slice(0, 500).map(r => {
           const qty = parseInt(r.qty);
@@ -26137,6 +26169,36 @@ Erreur Firebase : ${e.message}`;
             : 'background:rgba(0,212,255,.025);') : '';
 
           return '<tr style="' + rowStyle + '">' + cols.map(c => {
+            // 🆕 Colonnes calculées : utilisation par les outils
+            if (c.source === 'usage') {
+              const tools = partUsage.get(normRef(currentNom)) || [];
+              if (c.k === 'usageCount') {
+                const n = tools.length;
+                const color = n === 0 ? 'var(--text-muted)' : n >= 5 ? '#00e5a0' : '#00d4ff';
+                return `<td style="text-align:center"><span style="display:inline-block;min-width:26px;padding:.12rem .5rem;border-radius:999px;background:${n===0?'rgba(148,163,184,.12)':'rgba(0,212,255,.14)'};color:${color};font-weight:800;font-family:var(--font-mono);font-size:.8rem" title="${n} outil(s) utilisent cette pièce">${n}</span></td>`;
+              }
+              if (c.k === 'usageGroups') {
+                if (!tools.length) return `<td style="color:var(--text-muted);font-size:.72rem;font-style:italic">—</td>`;
+                // Grouper les D'Outils par client
+                const byClient = {};
+                tools.forEach(t => {
+                  const cl = views.blocked._getClientForProject(t.projet);
+                  const ck = cl ? cl.key : '__none__';
+                  if (!byClient[ck]) byClient[ck] = { client: cl, names: [] };
+                  const nm = t.doutils || t.designation || t.serial || t.outilId || t.refOutil || '?';
+                  if (!byClient[ck].names.includes(nm)) byClient[ck].names.push(nm);
+                });
+                const blocks = Object.entries(byClient).map(([ck, grp]) => {
+                  const cl = grp.client;
+                  const icon = cl ? (cl.icon || '🏭') : '❓';
+                  const color = cl ? (cl.color || '#00d4ff') : '#9ca3af';
+                  const label = cl ? cl.name : 'Non classé';
+                  const chips = grp.names.map(n => `<span style="display:inline-block;background:${color}1a;color:${color};border:1px solid ${color}44;border-radius:4px;padding:.04rem .35rem;font-size:.64rem;font-weight:600;margin:.05rem .1rem .05rem 0;font-family:var(--font-mono)">${ui.escape(n)}</span>`).join('');
+                  return `<div style="margin-bottom:.2rem"><span style="font-size:.64rem;font-weight:800;color:${color};text-transform:uppercase;letter-spacing:.03em">${icon} ${ui.escape(label)} (${grp.names.length})</span><br>${chips}</div>`;
+                }).join('');
+                return `<td style="font-size:.7rem;line-height:1.35;max-width:300px">${blocks}</td>`;
+              }
+            }
             // ── Colonnes éditables (qcom, statutCom) ── lookup dans state.stockOrders
             if (c.editable && c.source === 'orders') {
               const orderKey = this._orderKey(currentNom);

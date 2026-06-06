@@ -25634,6 +25634,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         { k:'qmin',    label:'Qté Min',                  w:90,  num:true },
         { k:'qmax',    label:'Qté Max',                  w:90,  num:true },
         // 🆕 Colonnes calculées : utilisation par les outils (depuis le catalogue)
+        { k:'pieceType',   label:'Type Pièce',           w:130,           source:'usage' },
         { k:'usageCount',  label:'Nb Outils',            w:95,  num:true, source:'usage' },
         { k:'usageGroups', label:"Groupes (par client)", w:300,           source:'usage' },
         // ── Colonnes commande (éditables magasinier) ──
@@ -26070,6 +26071,13 @@ Erreur Firebase : ${e.message}`;
 
       /** 🆕 Construit l'index : référence pièce (normalisée) → liste des outils qui l'utilisent.
        *  Les outils référencent leurs pièces dans pieces.{pAr,pAv,eAr,eAv,cAr,cAv,presseur,matriceAvant,matriceArriere}. */
+      // 🆕 Libellés courts des positions de pièce (pour la colonne "Type Pièce")
+      PIECE_LABELS: {
+        pAr: 'P-AR', pAv: 'P-AV', eAr: 'E-AR', eAv: 'E-AV',
+        cAr: 'C-AR', cAv: 'C-AV', presseur: 'PRESSEUR',
+        matriceAvant: 'MATRICE AV', matriceArriere: 'MATRICE AR'
+      },
+
       _buildPartUsage() {
         const pieceKeys = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
         const idx = new Map();
@@ -26083,11 +26091,10 @@ Erreur Firebase : ${e.message}`;
             if (!full || full === 'NA' || full === 'NA0' || full === '#') return;
             const key = this._refKey(ref, t.fournisseur || t.fabricant);  // clé (SIROCO → sans index)
             if (!key) return;
-            // éviter de compter 2× le même outil pour la même référence (s'il l'utilise sur 2 positions)
-            if (seenForTool.has(key)) return;
-            seenForTool.add(key);
-            if (!idx.has(key)) idx.set(key, []);
-            idx.get(key).push(t);
+            if (!idx.has(key)) idx.set(key, { tools: [], types: new Set() });
+            const entry = idx.get(key);
+            entry.types.add(pk);  // type(s) de pièce, toutes positions confondues
+            if (!seenForTool.has(key)) { seenForTool.add(key); entry.tools.push(t); }
           });
         });
         return idx;
@@ -26109,7 +26116,7 @@ Erreur Firebase : ${e.message}`;
         const usage = this._buildPartUsage();
         // 3) Manquantes = utilisées mais pas en stock
         const missing = [];
-        usage.forEach((tools, ref) => { if (!inStock.has(ref)) missing.push({ ref, tools }); });
+        usage.forEach((entry, ref) => { if (!inStock.has(ref)) missing.push({ ref, tools: entry.tools, types: entry.types }); });
         // Trier par nombre d'outils impactés (les plus critiques d'abord)
         missing.sort((a, b) => b.tools.length - a.tools.length);
 
@@ -26140,8 +26147,10 @@ Erreur Firebase : ${e.message}`;
             const chips = [...grp.groups].sort().map(g => `<span style="display:inline-block;background:${color}26;color:${color};border:1.5px solid ${color}66;border-radius:6px;padding:.14rem .5rem;font-size:.78rem;font-weight:800;margin:.1rem .15rem 0 0;font-family:var(--font-mono)">${ui.escape(g)}</span>`).join('');
             return `<span style="display:inline-flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-right:1rem"><span style="font-size:.68rem;font-weight:800;color:${color};text-transform:uppercase;white-space:nowrap">${icon} ${ui.escape(label)}</span> ${chips}</span>`;
           }).join('');
+          const typeChips = [...(m.types || [])].map(tp => `<span style="display:inline-block;background:rgba(0,212,255,.16);color:#22d3ee;border:1px solid rgba(0,212,255,.4);border-radius:5px;padding:.08rem .4rem;font-size:.66rem;font-weight:800;margin:.05rem .1rem 0 0;font-family:var(--font-mono)">${ui.escape(this.PIECE_LABELS[tp] || tp)}</span>`).join('') || '<span style="color:var(--text-muted)">—</span>';
           return `<tr style="border-top:1px solid rgba(255,61,90,.15)">
             <td style="padding:.5rem .7rem;font-family:var(--font-mono);font-weight:700;color:#ff8b6b;white-space:nowrap">${ui.escape(realRef)}</td>
+            <td style="padding:.5rem .7rem">${typeChips}</td>
             <td style="padding:.5rem .7rem;text-align:center"><span style="background:rgba(255,61,90,.15);color:#ff3d5a;font-weight:800;padding:.1rem .5rem;border-radius:999px;font-family:var(--font-mono);font-size:.78rem">${m.tools.length}</span></td>
             <td style="padding:.5rem .7rem;line-height:1.5">${clientBlocks}</td>
             <td style="padding:.5rem .7rem;text-align:center"><span style="display:inline-block;background:#ffb547;color:#0a1628;font-weight:800;font-size:.64rem;padding:.18rem .5rem;border-radius:5px;white-space:nowrap">📋 À COMMANDER</span></td>
@@ -26164,8 +26173,9 @@ Erreur Firebase : ${e.message}`;
             <table style="width:100%;border-collapse:collapse;font-size:.74rem">
               <thead><tr style="background:rgba(255,61,90,.08)">
                 <th style="padding:.5rem .7rem;text-align:left;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Référence</th>
+                <th style="padding:.5rem .7rem;text-align:left;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Type Pièce</th>
                 <th style="padding:.5rem .7rem;text-align:center;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Nb Outils</th>
-                <th style="padding:.5rem .7rem;text-align:left;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Outils (par client)</th>
+                <th style="padding:.5rem .7rem;text-align:left;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Groupes (par client)</th>
                 <th style="padding:.5rem .7rem;text-align:center;color:#ff8b6b;font-size:.66rem;text-transform:uppercase;letter-spacing:.04em">Statut</th>
               </tr></thead>
               <tbody>${rows}</tbody>
@@ -26322,7 +26332,17 @@ Erreur Firebase : ${e.message}`;
           return '<tr style="' + rowStyle + '">' + cols.map(c => {
             // 🆕 Colonnes calculées : utilisation par les outils
             if (c.source === 'usage') {
-              const tools = partUsage.get(this._refKey(currentNom, r.nomFour || r.codeFour)) || [];
+              const entry = partUsage.get(this._refKey(currentNom, r.nomFour || r.codeFour));
+              const tools = entry ? entry.tools : [];
+              if (c.k === 'pieceType') {
+                const types = entry ? [...entry.types] : [];
+                if (!types.length) return `<td style="color:var(--text-muted);font-size:.72rem;font-style:italic">—</td>`;
+                const chips = types.map(tp => {
+                  const label = this.PIECE_LABELS[tp] || tp;
+                  return `<span style="display:inline-block;background:rgba(0,212,255,.16);color:#22d3ee;border:1.5px solid rgba(0,212,255,.4);border-radius:5px;padding:.12rem .5rem;font-size:.72rem;font-weight:800;margin:.08rem .12rem 0 0;font-family:var(--font-mono);letter-spacing:.02em">${ui.escape(label)}</span>`;
+                }).join('');
+                return `<td style="padding:.4rem .6rem">${chips}</td>`;
+              }
               if (c.k === 'usageCount') {
                 const n = tools.length;
                 const color = n === 0 ? 'var(--text-muted)' : n >= 5 ? '#00e5a0' : '#00d4ff';

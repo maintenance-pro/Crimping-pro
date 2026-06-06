@@ -8886,6 +8886,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <!-- Emplacements quick cards -->
           <div id="pc-empl-cards" style="display:flex;flex-wrap:wrap;gap:.45rem"></div>
 
+          <!-- 🆕 Sélecteur des entrepôts (N° Stock) inclus dans l'analyse "à commander" -->
+          <div id="pc-analysis-scope" style="margin:.7rem 0;display:none"></div>
+
           <!-- 🆕 Panneau : nouvelles références à commander (utilisées par des outils mais absentes du stock) -->
           <div id="pc-to-order" style="display:none;margin:.8rem 0;border-radius:10px;border:1px solid rgba(255,61,90,.35);background:rgba(255,61,90,.06);overflow:hidden"></div>
 
@@ -25588,6 +25591,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       piecesFile: null,
       piecesXL: false,
       filtered: [],
+      // 🆕 Entrepôts (N° Stock) inclus dans l'analyse "à commander" (vide = tous)
+      _analysisStocks: new Set(),
 
       // Mapping des colonnes Excel reconnues
       _COLMAP: {
@@ -25988,6 +25993,8 @@ Erreur Firebase : ${e.message}`;
         this.buildFilters(data);
         this.buildEmplCards(data);
         this.buildTable(data);
+        this._lastData = data;
+        this._renderScopeControl(data);  // 🆕 sélecteur d'entrepôts pour l'analyse
         this._renderToOrder(data);  // 🆕 références utilisées par les outils mais absentes du stock
 
         this.applyFilters();
@@ -26100,15 +26107,108 @@ Erreur Firebase : ${e.message}`;
         return idx;
       },
 
+      /** 🆕 Liste des entrepôts INDIVIDUELS (un N° Stock combiné "A / B" est éclaté en A et B) */
+      _allWarehouses(data) {
+        const set = new Set();
+        (data || []).forEach(r => {
+          String(r.nstock || '').split('/').forEach(w => { const t = w.trim(); if (t) set.add(t); });
+        });
+        return [...set].sort();
+      },
+
+      /** 🆕 Une ligne stock est-elle dans le périmètre d'analyse ? (vide = tous les entrepôts) */
+      _inScope(nstock) {
+        if (!this._analysisStocks || this._analysisStocks.size === 0) return true;
+        return String(nstock || '').split('/').some(w => this._analysisStocks.has(w.trim()));
+      },
+
+      /** 🆕 Rend le sélecteur multi-entrepôts pour le périmètre d'analyse */
+      _renderScopeControl(data) {
+        const wrap = document.getElementById('pc-analysis-scope');
+        if (!wrap) return;
+        const warehouses = this._allWarehouses(data);
+        if (warehouses.length <= 1) { wrap.style.display = 'none'; return; } // 1 seul entrepôt → pas de choix utile
+        wrap.style.display = 'block';
+        const sel = this._analysisStocks;
+        const allActive = sel.size === 0;
+        const countLabel = allActive ? 'Tous les entrepôts' : `${sel.size} entrepôt(s) sélectionné(s)`;
+        wrap.innerHTML = `
+          <div style="border:1px solid rgba(0,212,255,.3);border-radius:9px;background:rgba(0,212,255,.05);overflow:hidden">
+            <div id="pc-scope-head" style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.6rem .85rem;cursor:pointer">
+              <span style="font-size:.82rem;font-weight:800;color:#00d4ff">📊 Entrepôts analysés (pour "à commander")
+                <span id="pc-scope-count" style="font-weight:500;color:var(--text-secondary);font-size:.74rem">— ${countLabel}</span>
+              </span>
+              <span id="pc-scope-caret" style="font-size:.8rem;color:var(--text-muted)">▼</span>
+            </div>
+            <div id="pc-scope-body" style="padding:.3rem .85rem .75rem">
+              <div style="display:flex;gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap">
+                <button type="button" id="pc-scope-all" style="background:rgba(0,212,255,.14);color:#00d4ff;border:1px solid rgba(0,212,255,.35);border-radius:6px;padding:.3rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer">✓ Tout sélectionner</button>
+                <button type="button" id="pc-scope-none" style="background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:.3rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer">✕ Tout désélectionner</button>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:.3rem">
+                ${warehouses.map(w => {
+                  const checked = allActive || sel.has(w);
+                  return `<label style="display:flex;align-items:center;gap:.5rem;font-size:.8rem;color:var(--text-primary);cursor:pointer;padding:.2rem .3rem;border-radius:5px">
+                    <input type="checkbox" data-scope-wh="${ui.escape(w)}" ${checked ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:#00d4ff">
+                    <span>${ui.escape(w)}</span>
+                  </label>`;
+                }).join('')}
+              </div>
+              <div style="font-size:.7rem;color:var(--text-muted);margin-top:.5rem;font-style:italic">
+                Seuls les entrepôts cochés comptent comme "en stock". Une référence présente uniquement dans un entrepôt décoché apparaîtra "à commander".
+              </div>
+            </div>
+          </div>`;
+        // Repli/dépli (état mémorisé pour ne pas se refermer à chaque changement)
+        const head = wrap.querySelector('#pc-scope-head');
+        const body = wrap.querySelector('#pc-scope-body');
+        const caret = wrap.querySelector('#pc-scope-caret');
+        const expanded = !!this._scopeExpanded;
+        body.style.display = expanded ? 'block' : 'none';
+        caret.textContent = expanded ? '▼' : '▶';
+        head.addEventListener('click', () => {
+          this._scopeExpanded = body.style.display === 'none';
+          body.style.display = this._scopeExpanded ? 'block' : 'none';
+          caret.textContent = this._scopeExpanded ? '▼' : '▶';
+        });
+        // Met à jour le libellé du compteur sans re-render complet
+        const updateLabel = () => {
+          const lbl = wrap.querySelector('#pc-scope-count');
+          if (lbl) lbl.textContent = (this._analysisStocks.size === 0)
+            ? '— Tous les entrepôts'
+            : `— ${[...this._analysisStocks].filter(x => x !== '__none__').length} entrepôt(s) sélectionné(s)`;
+        };
+        // Cases à cocher : mettre à jour le périmètre + le panneau "à commander" (sans refermer)
+        const applyScope = () => {
+          const boxes = [...wrap.querySelectorAll('[data-scope-wh]')];
+          const checkedW = boxes.filter(b => b.checked).map(b => b.dataset.scopeWh);
+          this._analysisStocks = (checkedW.length === boxes.length) ? new Set()
+                               : (checkedW.length === 0 ? new Set(['__none__']) : new Set(checkedW));
+          updateLabel();
+          this._renderToOrder(this._lastData);
+        };
+        wrap.querySelectorAll('[data-scope-wh]').forEach(b => b.addEventListener('change', applyScope));
+        wrap.querySelector('#pc-scope-all')?.addEventListener('click', () => {
+          wrap.querySelectorAll('[data-scope-wh]').forEach(b => b.checked = true);
+          applyScope();
+        });
+        wrap.querySelector('#pc-scope-none')?.addEventListener('click', () => {
+          wrap.querySelectorAll('[data-scope-wh]').forEach(b => b.checked = false);
+          applyScope();
+        });
+      },
+
       /** 🆕 Détecte les références utilisées par des outils mais ABSENTES du stock,
        *  et les affiche dans le panneau "Nouvelles références à commander".
        *  @param data : lignes de stock actuellement chargées (pour connaître les références existantes) */
       _renderToOrder(data) {
         const panel = document.getElementById('pc-to-order');
         if (!panel) return;
-        // 1) Références présentes dans le stock (clé = SIROCO sans index, autres complètes)
+        this._lastData = data;  // mémoriser pour les re-render du sélecteur de périmètre
+        // 1) Références présentes dans le stock (DANS LE PÉRIMÈTRE D'ANALYSE choisi)
         const inStock = new Set();
         (data || []).forEach(r => {
+          if (!this._inScope(r.nstock)) return;  // entrepôt hors périmètre → ne compte pas comme "en stock"
           if (r.nom)    inStock.add(this._refKey(r.nom, r.nomFour || r.codeFour));
           if (r.nstock) inStock.add(this._refKey(r.nstock, r.nomFour || r.codeFour));
         });

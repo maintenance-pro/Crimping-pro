@@ -8886,11 +8886,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <!-- Emplacements quick cards -->
           <div id="pc-empl-cards" style="display:none"></div>
 
-          <!-- 🆕 Sélecteur des entrepôts (N° Stock) inclus dans l'analyse "à commander" -->
-          <div id="pc-analysis-scope" style="margin:.7rem 0;display:none"></div>
-
-          <!-- 🆕 Panneau : nouvelles références à commander (utilisées par des outils mais absentes du stock) -->
-          <div id="pc-to-order" style="display:none;margin:.8rem 0;border-radius:10px;border:1px solid rgba(255,61,90,.35);background:rgba(255,61,90,.06);overflow:hidden"></div>
+          <!-- 🆕 Bloc d'analyse FUSIONNÉ : sélecteur d'entrepôts + à commander/obsolètes (magasinier) -->
+          <div id="pc-analysis-box" style="display:none;margin:.8rem 0;border:1px solid var(--border-soft);border-radius:10px;overflow:hidden">
+            <div id="pc-analysis-scope"></div>
+            <div id="pc-to-order"></div>
+          </div>
 
           <!-- Data table -->
           <div class="history__tablewrap">
@@ -25994,8 +25994,15 @@ Erreur Firebase : ${e.message}`;
         // (cartes d'emplacement retirées — remplacées par les panneaux d'analyse)
         this.buildTable(data);
         this._lastData = data;
-        this._renderScopeControl(data);  // 🆕 sélecteur d'entrepôts pour l'analyse
-        this._renderToOrder(data);  // 🆕 références utilisées par les outils mais absentes du stock
+        this._renderScopeControl(data);  // 🆕 sélecteur d'entrepôts (haut du bloc fusionné)
+        this._renderToOrder(data);       // 🆕 à commander + obsolètes (bas du bloc fusionné)
+        // Afficher le conteneur fusionné si l'un des deux a du contenu
+        const abox = document.getElementById('pc-analysis-box');
+        if (abox) {
+          const hasContent = (document.getElementById('pc-analysis-scope')?.innerHTML.trim() ||
+                              document.getElementById('pc-to-order')?.innerHTML.trim());
+          abox.style.display = hasContent ? 'block' : 'none';
+        }
 
         this.applyFilters();
       },
@@ -26088,8 +26095,10 @@ Erreur Firebase : ${e.message}`;
       _buildPartUsage() {
         const pieceKeys = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
         const idx = new Map();
+        const statusOf = (t) => { try { return views.catalog._getToolStatus(t); } catch(e) { return t.status || 'production'; } };
         Object.values(state.tools || {}).forEach(t => {
           if (!t) return;
+          if (statusOf(t) !== 'production') return;  // 🆕 analyse réservée aux outils EN PRODUCTION
           const seenForTool = new Set();
           pieceKeys.forEach(pk => {
             const ref = (t.pieces && t.pieces[pk]) || t[pk];
@@ -26127,15 +26136,15 @@ Erreur Firebase : ${e.message}`;
         const wrap = document.getElementById('pc-analysis-scope');
         if (!wrap) return;
         // 🆕 Analyse réservée au MAGASINIER (et admin) — masquée pour les autres rôles
-        if (!['magasinier','admin','super_admin'].includes(state.role)) { wrap.style.display = 'none'; return; }
+        if (!['magasinier','admin','super_admin'].includes(state.role)) { wrap.innerHTML = ''; return; }
         const warehouses = this._allWarehouses(data);
-        if (warehouses.length <= 1) { wrap.style.display = 'none'; return; } // 1 seul entrepôt → pas de choix utile
+        if (warehouses.length <= 1) { wrap.innerHTML = ''; return; } // 1 seul entrepôt → pas de choix utile
         wrap.style.display = 'block';
         const sel = this._analysisStocks;
         const allActive = sel.size === 0;
         const countLabel = allActive ? 'Tous les entrepôts' : `${sel.size} entrepôt(s) sélectionné(s)`;
         wrap.innerHTML = `
-          <div style="border:1px solid rgba(0,212,255,.3);border-radius:9px;background:rgba(0,212,255,.05);overflow:hidden">
+          <div style="background:rgba(0,212,255,.05);border-bottom:1px solid rgba(0,212,255,.2)">
             <div id="pc-scope-head" style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.6rem .85rem;cursor:pointer">
               <span style="font-size:.82rem;font-weight:800;color:#00d4ff">📊 Entrepôts analysés (pour "à commander")
                 <span id="pc-scope-count" style="font-weight:500;color:var(--text-secondary);font-size:.74rem">— ${countLabel}</span>
@@ -26207,7 +26216,7 @@ Erreur Firebase : ${e.message}`;
         const panel = document.getElementById('pc-to-order');
         if (!panel) return;
         // 🆕 Analyse réservée au MAGASINIER (et admin) — masquée pour les autres rôles
-        if (!['magasinier','admin','super_admin'].includes(state.role)) { panel.style.display = 'none'; panel.innerHTML = ''; return; }
+        if (!['magasinier','admin','super_admin'].includes(state.role)) { panel.innerHTML = ''; return; }
         this._lastData = data;  // mémoriser pour les re-render du sélecteur de périmètre
         // 1) Références présentes dans le stock (DANS LE PÉRIMÈTRE D'ANALYSE choisi)
         const inStock = new Set();
@@ -26216,28 +26225,38 @@ Erreur Firebase : ${e.message}`;
           if (r.nom)    inStock.add(this._refKey(r.nom, r.nomFour || r.codeFour));
           if (r.nstock) inStock.add(this._refKey(r.nstock, r.nomFour || r.codeFour));
         });
-        // 2) Références utilisées par les outils (index pièce → outils, clé sans index)
+        // 2) Références utilisées par les outils EN PRODUCTION (index pièce → outils, clé sans index)
         const usage = this._buildPartUsage();
         // 3) Manquantes = utilisées mais pas en stock
         const missing = [];
         usage.forEach((entry, ref) => { if (!inStock.has(ref)) missing.push({ ref, tools: entry.tools, types: entry.types }); });
-        // Trier par nombre d'outils impactés (les plus critiques d'abord)
         missing.sort((a, b) => b.tools.length - a.tools.length);
 
-        if (!missing.length) {
-          panel.style.display = 'block';
-          panel.style.borderColor = 'rgba(0,229,160,.35)';
+        // 4) 🆕 OBSOLÈTES = présentes en stock (périmètre) mais utilisées par AUCUN outil en production
+        const usageKeys = new Set(usage.keys());
+        const obsoleteMap = new Map();
+        (data || []).forEach(r => {
+          if (!this._inScope(r.nstock)) return;
+          const ref = r.nom; if (!ref) return;
+          const key = this._refKey(ref, r.nomFour || r.codeFour);
+          if (!key || usageKeys.has(key)) return;  // utilisée par un outil en production → pas obsolète
+          if (!obsoleteMap.has(key)) {
+            obsoleteMap.set(key, { ref: String(ref).trim(), nstock: r.nstock || '', empl: r.empl || '', qty: r.qty || 0 });
+          }
+        });
+        const obsolete = [...obsoleteMap.values()].sort((a, b) => String(a.ref).localeCompare(String(b.ref), 'fr', { numeric: true }));
+
+        if (!missing.length && !obsolete.length) {
           panel.style.background = 'rgba(0,229,160,.06)';
-          panel.innerHTML = `<div style="padding:.8rem .95rem;font-size:.85rem;font-weight:700;color:#00e5a0">✅ Toutes les références utilisées par les outils sont en stock <span style="font-weight:500;color:var(--text-secondary);font-size:.76rem">(dans le périmètre d'entrepôts analysé)</span></div>`;
+          panel.innerHTML = `<div style="padding:.8rem .95rem;font-size:.85rem;font-weight:700;color:#00e5a0">✅ Stock cohérent : toutes les références des outils en production sont disponibles, aucune référence obsolète <span style="font-weight:500;color:var(--text-secondary);font-size:.76rem">(périmètre analysé)</span></div>`;
           return;
         }
-        // Style rouge (alerte) quand il y a des références à commander
-        panel.style.borderColor = 'rgba(255,61,90,.35)';
+        // Fond alerte
         panel.style.background = 'rgba(255,61,90,.06)';
 
         const totalTools = missing.reduce((s, m) => s + m.tools.length, 0);
 
-        // Données exploitables (copie + export Excel) — non affichées à l'écran
+        // Données exploitables — À COMMANDER (copie + export)
         const orderRows = missing.map(m => {
           const t = m.tools[0];
           const pk = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
@@ -26248,39 +26267,49 @@ Erreur Firebase : ${e.message}`;
           const clients = [...new Set(m.tools.map(x => { const c = views.blocked._getClientForProject(x.projet); return c ? c.name : 'Non classé'; }))].join(', ');
           return { ref: realRef, type: types, count: m.tools.length, groups, clients };
         });
-        this._toOrderRows = orderRows;  // mémorisé pour l'export
+        this._toOrderRows = orderRows;
+        this._obsoleteRows = obsolete;  // mémorisés pour l'export
 
-        // Panneau COMPACT : résumé + actions (la liste n'est PAS affichée — uniquement téléchargeable)
-        panel.style.display = 'block';
+        // Panneau COMPACT : 2 résumés (à commander + obsolètes) + actions
+        const lineOrder = missing.length
+          ? `<div style="font-size:.85rem;font-weight:800;color:#ff8b6b">📦 ${missing.length} référence(s) à commander <span style="font-weight:500;color:var(--text-secondary);font-size:.74rem">— utilisées par ${totalTools} outil(s) en production, absentes du stock</span></div>`
+          : '';
+        const lineObsolete = obsolete.length
+          ? `<div style="font-size:.85rem;font-weight:800;color:#ffb547;margin-top:${missing.length ? '.3rem' : '0'}">🗑️ ${obsolete.length} référence(s) obsolète(s) <span style="font-weight:500;color:var(--text-secondary);font-size:.74rem">— en stock mais utilisées par aucun outil en production</span></div>`
+          : '';
         panel.innerHTML = `
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.7rem .9rem;background:rgba(255,61,90,.12);flex-wrap:wrap">
-            <div style="font-size:.85rem;font-weight:800;color:#ff8b6b">
-              📦 ${missing.length} référence(s) à commander
-              <span style="font-weight:500;color:var(--text-secondary);font-size:.74rem">— utilisées par ${totalTools} outil(s), absentes du stock (périmètre analysé)</span>
-            </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.7rem .9rem;background:rgba(255,61,90,.10);flex-wrap:wrap">
+            <div>${lineOrder}${lineObsolete}</div>
             <div style="display:flex;gap:.5rem;align-items:center">
               <button id="pc-to-order-xlsx" style="background:#00e5a0;color:#0a1628;border:none;border-radius:6px;padding:.4rem .85rem;font-size:.75rem;font-weight:800;cursor:pointer">⬇️ Télécharger Excel</button>
               <button id="pc-to-order-copy" style="background:rgba(0,212,255,.14);color:#00d4ff;border:1px solid rgba(0,212,255,.35);border-radius:6px;padding:.4rem .75rem;font-size:.75rem;font-weight:700;cursor:pointer">📋 Copier</button>
             </div>
           </div>`;
 
-        // Copier (TSV) — pour collage direct dans Excel/email
+        // Copier (TSV) — à commander + obsolètes
         panel.querySelector('#pc-to-order-copy')?.addEventListener('click', () => {
-          const txt = 'Référence\tType Pièce\tNb Outils\tGroupes\tClients\n' +
-            orderRows.map(r => `${r.ref}\t${r.type}\t${r.count}\t${r.groups}\t${r.clients}`).join('\n');
-          navigator.clipboard?.writeText(txt).then(
+          let txt = '';
+          if (orderRows.length) {
+            txt += '=== À COMMANDER ===\nRéférence\tType Pièce\tNb Outils\tGroupes\tClients\n' +
+              orderRows.map(r => `${r.ref}\t${r.type}\t${r.count}\t${r.groups}\t${r.clients}`).join('\n') + '\n\n';
+          }
+          if (obsolete.length) {
+            txt += '=== OBSOLÈTES (en stock, aucun outil en production) ===\nRéférence\tN° Stock\tEmplacement\tQté\n' +
+              obsolete.map(o => `${o.ref}\t${o.nstock}\t${o.empl}\t${o.qty}`).join('\n');
+          }
+          navigator.clipboard?.writeText(txt.trim()).then(
             () => ui.toast('📋 Liste copiée', 'success', 3000),
             () => ui.toast('⛔ Copie impossible', 'danger')
           );
         });
-        // Télécharger en fichier Excel
         panel.querySelector('#pc-to-order-xlsx')?.addEventListener('click', () => this._downloadToOrder());
       },
 
-      /** 🆕 Télécharge la liste "à commander" en fichier Excel (.xlsx) */
+      /** 🆕 Télécharge l'analyse en Excel : feuille "À commander" + feuille "Obsolètes" */
       async _downloadToOrder() {
-        const rows = this._toOrderRows || [];
-        if (!rows.length) return ui.toast('Rien à commander', 'info');
+        const order = this._toOrderRows || [];
+        const obs = this._obsoleteRows || [];
+        if (!order.length && !obs.length) return ui.toast('Rien à exporter', 'info');
         const loadXLSX = () => new Promise((resolve, reject) => {
           if (window.XLSX) return resolve();
           const s = document.createElement('script');
@@ -26291,18 +26320,23 @@ Erreur Firebase : ${e.message}`;
         ui.showLoader('Génération du fichier Excel…');
         try {
           await loadXLSX();
-          const data = rows.map(r => ({
-            'Référence': r.ref, 'Type Pièce': r.type, 'Nb Outils': r.count,
-            'Groupes': r.groups, 'Clients': r.clients, 'Statut': 'À COMMANDER'
-          }));
           const wb = XLSX.utils.book_new();
-          const ws = XLSX.utils.json_to_sheet(data);
-          ws['!cols'] = [{wch:22},{wch:16},{wch:9},{wch:42},{wch:30},{wch:14}];
-          XLSX.utils.book_append_sheet(wb, ws, 'A commander');
+          if (order.length) {
+            const d1 = order.map(r => ({ 'Référence': r.ref, 'Type Pièce': r.type, 'Nb Outils': r.count, 'Groupes': r.groups, 'Clients': r.clients, 'Statut': 'À COMMANDER' }));
+            const ws1 = XLSX.utils.json_to_sheet(d1);
+            ws1['!cols'] = [{wch:22},{wch:16},{wch:9},{wch:42},{wch:30},{wch:14}];
+            XLSX.utils.book_append_sheet(wb, ws1, 'A commander');
+          }
+          if (obs.length) {
+            const d2 = obs.map(o => ({ 'Référence': o.ref, 'N° Stock': o.nstock, 'Emplacement': o.empl, 'Qté Physique': o.qty, 'Statut': 'OBSOLÈTE' }));
+            const ws2 = XLSX.utils.json_to_sheet(d2);
+            ws2['!cols'] = [{wch:22},{wch:32},{wch:18},{wch:12},{wch:12}];
+            XLSX.utils.book_append_sheet(wb, ws2, 'Obsoletes');
+          }
           const date = new Date().toISOString().slice(0, 10);
-          XLSX.writeFile(wb, 'LEONI_References_a_commander_' + date + '.xlsx');
+          XLSX.writeFile(wb, 'LEONI_Analyse_Stock_' + date + '.xlsx');
           ui.hideLoader();
-          ui.toast(`⬇️ ${rows.length} référence(s) exportée(s) en Excel`, 'success', 4000);
+          ui.toast(`⬇️ Export : ${order.length} à commander · ${obs.length} obsolète(s)`, 'success', 4500);
         } catch (e) {
           ui.hideLoader();
           ui.toast('⛔ Export impossible : ' + e.message, 'danger');

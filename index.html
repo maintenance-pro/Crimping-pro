@@ -10923,6 +10923,45 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       }
     },
 
+    /** 🆕 DIAGNOSTIC : interroge Firebase directement et affiche l'état réel des documents. */
+    async _diagnose() {
+      const dbBase = (FIREBASE_CONFIG.databaseURL || '').replace(/\/+$/, '');
+      const token = fbAuth.currentUser ? await fbAuth.currentUser.getIdToken() : '';
+      const R = [];
+      let metaIds = [];
+      try {
+        const r = await fetch(`${dbBase}/toolAttachments.json?shallow=true&auth=${encodeURIComponent(token)}`);
+        const j = await r.json();
+        metaIds = (j && typeof j === 'object') ? Object.keys(j) : [];
+        R.push(`📁 Index "toolAttachments" : ${metaIds.length} outil(s)`);
+      } catch (e) { R.push(`📁 toolAttachments : ⛔ ${e.message}`); }
+      try {
+        const r = await fetch(`${dbBase}/toolAttachmentsB64.json?shallow=true&auth=${encodeURIComponent(token)}`);
+        const j = await r.json();
+        const ids = (j && typeof j === 'object') ? Object.keys(j) : [];
+        R.push(`📦 Fichiers "toolAttachmentsB64" : ${ids.length} outil(s)`);
+      } catch (e) { R.push(`📦 toolAttachmentsB64 : ⛔ ${e.message}`); }
+      if (metaIds.length) {
+        const tid0 = metaIds[0];
+        try {
+          const s = await fbDb.ref('toolAttachments/' + tid0).once('value');
+          const d = s.val() || {};
+          const fids = Object.keys(d);
+          R.push(`🔎 Ex "${tid0}" : ${fids.length} doc(s)`);
+          if (fids.length) R.push(`   champs : ${Object.keys(d[fids[0]]).join(', ')}`);
+          const matchTool = !!(state.tools && state.tools[tid0]);
+          R.push(`   clé ↔ outil de l'app ? ${matchTool ? '✅ OUI' : '⚠️ NON (incohérence)'}`);
+        } catch (e) { R.push(`🔎 lecture ${tid0} : ⛔ ${e.message}`); }
+      }
+      R.push(`🧠 Mémoire : ${Object.keys(this._all || {}).length} outil(s), chargé=${this._loaded}, migration=${!!this._autoMigrated}`);
+      const tools = Object.values(state.tools || {});
+      const withDocs = tools.filter(t => !!this.summaryFor(t.id || t.outilId || '')).length;
+      R.push(`📊 KPI calcul "avec docs" : ${withDocs} / ${tools.length}`);
+      console.log('[diagnose]\n' + R.join('\n'));
+      alert('🔍 DIAGNOSTIC DOCUMENTS\n\n' + R.join('\n') + '\n\n(Aussi dans la console F12)');
+      return { metaIds };
+    },
+
 
     /** 🆕 Tente de rattacher un nom de fichier à un outil de state.tools.
      *  Cherche l'identifiant outil (designation/serial/doutils/outilId/refOutil) le PLUS LONG
@@ -21546,8 +21585,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const btnOptDocs = $('#btn-catalog-optimize-docs');
         if (btnOptDocs) {
           btnOptDocs.addEventListener('click', async () => {
-            if (!confirm("Optimiser l'index des documents ?\n\nLes fichiers volumineux seront déplacés hors de l'index pour accélérer et fiabiliser l'affichage. Aucun document n'est supprimé.\n\nContinuer ?")) return;
-            await toolAttachments._migrateHeavyDocs({ silent: false });  // détache + migre + rebranche le listener
+            const diag = await toolAttachments._diagnose();  // 🆕 affiche l'état réel d'abord
+            if (diag && diag.metaIds && diag.metaIds.length) {
+              if (confirm("Optimiser maintenant ?\n\nLes fichiers volumineux seront déplacés hors de l'index pour fiabiliser l'affichage. Aucun document supprimé.")) {
+                await toolAttachments._migrateHeavyDocs({ silent: false });
+              }
+            } else {
+              alert("⚠️ Aucun document trouvé dans Firebase (index vide).\n\nSi des documents devraient exister, ils n'ont pas été enregistrés (échec d'écriture précédent). Il faudra les re-téléverser / relancer l'héritage — désormais l'enregistrement est fiable (métadonnée + fichier séparés).");
+            }
           });
         }
 

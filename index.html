@@ -22164,13 +22164,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const s = v => String(v == null ? '' : v).trim();
         const dout = s(t.doutils);
         const ser  = s(t.serial);
-        const inv  = s(t.numInventaire);
-        const rid  = s(t.refOutil) || s(t.outilId);
-        if (dout && ser) return dout + '/' + ser;   // ✅ N° d'inventaire D'Outils = "D'Outils/Serial" (construit, jamais périmé)
-        if (inv)         return inv;                 // sinon le champ N° Inventaire déjà renseigné
-        if (ser)         return ser;                 // au moins le serial (1005)
-        if (dout && rid) return dout + '/' + rid;    // repli : D'Outils/réf
-        return rid || dout || '';                    // dernier recours
+        if (!dout && !ser) return '';     // les deux vides → on laisse vide (pas de "/" seul)
+        return dout + '/' + ser;          // ✅ STRICT "D'Outils/Serial" — Serial vide → "D'Outils/" (AUCUNE valeur de repli)
       },
 
       /** 🆕 Remplace le DERNIER segment « - XXXX » d'un nom de fichier (le serial) par le serial cible.
@@ -22359,14 +22354,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         try {
           const updated = { ...tool };
           ['groupe','connection','terminal','numContact','frequenceCycle','refFabricant'].forEach(f => { if (refSource[f] && (!updated[f] || !String(updated[f]).trim())) updated[f] = refSource[f]; });
-          // 🆕 N° d'inventaire = "D'Outils/Serial" (valeur canonique). On le (re)met à jour s'il est vide OU périmé,
-          //    puis on l'écrit dans l'Annexe et on l'enregistre sur l'outil.
+          // 🆕 N° d'inventaire = "D'Outils/Serial". On (re)calcule s'il est VIDE ou AUTO-DÉRIVÉ (commence par "D'Outils/"),
+          //    sinon on conserve une valeur personnalisée. Puis on l'écrit dans l'Annexe et on l'enregistre sur l'outil.
           let invAutoFilled = '';
-          const canonInv = this._invValue(updated);
-          if (canonInv && String(updated.numInventaire || '').trim() !== canonInv) {
-            const wasEmpty = !String(updated.numInventaire || '').trim();
-            updated.numInventaire = canonInv; tool.numInventaire = canonInv;
-            if (wasEmpty) invAutoFilled = canonInv;
+          {
+            const doutI = String(updated.doutils || '').trim();
+            const curI  = String(updated.numInventaire || '').trim();
+            const canonInv = this._invValue(updated);
+            const looksDerivedI = !curI || (doutI && curI.toUpperCase().startsWith((doutI + '/').toUpperCase()));
+            if (canonInv && looksDerivedI && curI !== canonInv) {
+              updated.numInventaire = canonInv; tool.numInventaire = canonInv;
+              if (!curI) invAutoFilled = canonInv;
+            }
           }
           let piecesCopied = 0;
           if (pieceSource && pieceSource.pieces) {
@@ -23604,10 +23603,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             }
           }
 
-          // 🆕 N° d'inventaire laissé vide → le remplir (D'Outils/Serial) pour rester cohérent avec l'Annexe
-          if (!String(data.numInventaire || '').trim()) {
-            const filledInv = this._invValue(data);
-            if (filledInv) data.numInventaire = filledInv;
+          // 🆕 N° d'inventaire = "D'Outils/Serial". On (re)calcule s'il est VIDE ou AUTO-DÉRIVÉ (commence par "D'Outils/").
+          //    → corrige immédiatement un ancien "WZ7190-R02/WZ7190-R02" en "WZ7190-R02/" (Serial vide), ou ajoute le Serial saisi après.
+          //    Une valeur 100 % personnalisée (qui ne commence pas par "D'Outils/") est CONSERVÉE telle quelle.
+          {
+            const dout  = String(data.doutils || '').trim();
+            const cur   = String(data.numInventaire || '').trim();
+            const canon = this._invValue(data);
+            const looksDerived = !cur || (dout && cur.toUpperCase().startsWith((dout + '/').toUpperCase()));
+            if (canon && looksDerived && cur !== canon) data.numInventaire = canon;
           }
 
           const savedId = await db.saveTool(data);

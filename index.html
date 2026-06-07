@@ -22098,11 +22098,32 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             const newCell = newVal
               ? `<c r="${valueCell.ref}"${styleAttr} t="inlineStr"><is><t xml:space="preserve">${enc(newVal)}</t></is></c>`
               : `<c r="${valueCell.ref}"${styleAttr}/>`;
-            xml = xml.replace(valueCell.full, newCell);
+            xml = xml.split(valueCell.full).join(newCell);  // split/join : pas d'interprétation des $ du remplacement
             zip.file(sf, xml);
             done = true; changedB64 = true;
           }
           if (!changedB64) return b64;
+          // 🆕 CRUCIAL : après conversion de cellules s→inlineStr, on RECALCULE le compteur de sharedStrings.
+          //    Sans ça, count(sst) > nombre réel de réf t="s" → Excel affiche « problème dans le contenu » (corruption).
+          try {
+            const ssFile2 = zip.file('xl/sharedStrings.xml');
+            if (ssFile2) {
+              let ssXml = await ssFile2.async('string');
+              let refs = 0;
+              for (const sf of sheetFiles) {
+                const sx = await zip.file(sf).async('string');
+                refs += (sx.match(/\st="s"/g) || []).length;
+              }
+              const uniq = (ssXml.match(/<si\b/g) || []).length;
+              ssXml = ssXml.replace(/<sst\b([^>]*)>/, (full, attrs) => {
+                let a = attrs;
+                a = /\buniqueCount="/.test(a) ? a.replace(/\buniqueCount="\d*"/, `uniqueCount="${uniq}"`) : (a + ` uniqueCount="${uniq}"`);
+                a = /\bcount="/.test(a)       ? a.replace(/\bcount="\d*"/,       `count="${refs}"`)      : (a + ` count="${refs}"`);
+                return `<sst${a}>`;
+              });
+              zip.file('xl/sharedStrings.xml', ssXml);
+            }
+          } catch (e) { console.warn('[setOfficeField] recompte sst:', e.message); }
           return await zip.generateAsync({ type: 'base64' });
         } catch (e) { console.warn('[setOfficeField]', e.message); return b64; }
       },

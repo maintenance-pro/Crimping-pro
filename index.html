@@ -22014,15 +22014,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return null;
       },
 
-      /** 🆕 Paires de remplacement Fournisseur + Serial (lues par libellé dans le doc → valeurs du tool cible) */
-      async _officeIdentityPairs(b64, isOffice, tgtFournisseur) {
+      /** 🆕 Paires de remplacement Fournisseur + N° d'inventaire (lues par libellé dans le doc → valeurs du tool cible) */
+      async _officeIdentityPairs(b64, isOffice, tgtFournisseur, tgtInv) {
         const pairs = [];
         if (!isOffice || !b64) return pairs;
         if (tgtFournisseur) {
           const oldF = await this._officeFieldValue(b64, /fournisseur|supplier/i);
           if (oldF && oldF.toUpperCase() !== tgtFournisseur.toUpperCase()) pairs.push([oldF, tgtFournisseur]);
         }
-        return pairs;  // l'inventaire est géré séparément au niveau cellule (vider/remplir)
+        if (tgtInv) {
+          const oldI = await this._officeFieldValue(b64, /inventaire|inventory/i);
+          if (oldI && oldI !== tgtInv) pairs.push([oldI, tgtInv]);
+        }
+        return pairs;  // doublé par une écriture au niveau cellule (forçage) dans _adaptDocForTarget
       },
 
       /** 🆕 Écrit DIRECTEMENT la valeur d'un champ (cellule à droite d'un libellé) dans un xlsx.
@@ -22140,11 +22144,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const replName = (s) => { let o = String(s || ''); for (const [f, t] of namePairs) o = o.split(f).join(t); return o; };
         const newName = replName(doc.name);
         const isOffice = /\.(xlsx|xlsm|docx|pptx)$/i.test(doc.name || '') || (doc.mime || '').includes('openxmlformats');
-        // Contenu : nom/numéro + Fournisseur + Serial (du tool cible)
+        // Contenu : nom/numéro + Fournisseur (= FABRICANT de l'outil) + N° d'inventaire (du tool cible)
+        const tgtFour = String(tgtTool.fabricant || tgtTool.fournisseur || '').trim();  // 🆕 FABRICANT en priorité (ex: SIROCO)
+        const tgtInv  = this._invValue(tgtTool);                                        // 🆕 N° d'inventaire D'Outils (jamais vide)
         const contentPairs = [...namePairs];
         if (isOffice && doc.b64) {
-          const tgtFour = String(tgtTool.fournisseur || tgtTool.fabricant || '').trim();
-          try { contentPairs.push(...await this._officeIdentityPairs(doc.b64, true, tgtFour)); } catch (e) {}
+          try { contentPairs.push(...await this._officeIdentityPairs(doc.b64, true, tgtFour, tgtInv)); } catch (e) {}
         }
         let newB64 = doc.b64;
         if (isOffice && doc.b64 && contentPairs.length) {
@@ -22152,13 +22157,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           catch (e) { console.warn('[adaptDoc] contenu inchangé:', e.message); newB64 = doc.b64; }
         }
         if (isOffice && newB64) {
-          const tgtFour = String(tgtTool.fournisseur || tgtTool.fabricant || '').trim();
-          const tgtInv = this._invValue(tgtTool);  // 🆕 N° d'inventaire — rempli automatiquement si vide (jamais blanc)
           const baseFam = this._extractFamily(tgtNameR) || this._extractFamily(srcNameR);
-          // 🆕 Forcer le Fournisseur (cellule à droite du libellé) — fiable même si THB introuvable par texte
+          // 🆕 Forcer la cellule Fournisseur/Supplier = FABRICANT (fiable même si l'ancienne valeur diffère, ex: THB)
           if (tgtFour) { try { newB64 = await this._setOfficeFieldByLabel(newB64, /fournisseur|supplier/i, tgtFour); } catch (e) {} }
-          // 🆕 N° d'inventaire (Inventory-No) = celui du tool cible — VIDE s'il n'est pas renseigné
-          try { newB64 = await this._setOfficeFieldByLabel(newB64, /inventaire|inventory/i, tgtInv); } catch (e) {}
+          // 🆕 Forcer la cellule N° d'inventaire/Inventory-No = numInventaire de l'outil (ex: WZ7190-R09/1005)
+          if (tgtInv)  { try { newB64 = await this._setOfficeFieldByLabel(newB64, /inventaire|inventory/i, tgtInv); } catch (e) {} }
           // 🆕 Renommer l'onglet de feuille de la famille → numéro de l'outil cible
           if (baseFam) { try { newB64 = await this._renameFamilySheets(newB64, baseFam, tgtNum); } catch (e) {} }
         }
@@ -22179,7 +22182,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const tgtNameR = toolName;                          // ex "WZ7190-R01"
         const docs = toolAttachments._all?.[tool.id] || {};
         if (!Object.keys(docs).length) return 0;
-        console.log(`[adaptDocs] outil="${toolName}" famille="${baseFam}" serial="${tool.serial || ''}" fournisseur="${tool.fournisseur || tool.fabricant || ''}" — ${Object.keys(docs).length} doc(s)`);
+        console.log(`[adaptDocs] outil="${toolName}" famille="${baseFam}" inventaire="${this._invValue(tool)}" fabricant="${tool.fabricant || tool.fournisseur || ''}" — ${Object.keys(docs).length} doc(s)`);
         const reSrc = baseFam.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const re = new RegExp(reSrc + '-R?\\d+', 'ig');
         let adapted = 0;
@@ -22194,15 +22197,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (isOffice && !srcB64) console.warn(`[adaptDocs] ⚠️ base64 introuvable pour "${docMeta.name}" → contenu NON adapté (seul le nom le sera)`);
           let newB64 = srcB64;
           if (isOffice && srcB64) {
-            const tgtFour = String(tool.fournisseur || tool.fabricant || '').trim();
+            const tgtFour = String(tool.fabricant || tool.fournisseur || '').trim();  // 🆕 FABRICANT prioritaire (ex: SIROCO)
+            const tgtInv  = this._invValue(tool);                                      // 🆕 N° d'inventaire D'Outils (jamais vide)
             const contentPairs = [...namePairs];
-            try { contentPairs.push(...await this._officeIdentityPairs(srcB64, true, tgtFour)); } catch (e) {}
+            try { contentPairs.push(...await this._officeIdentityPairs(srcB64, true, tgtFour, tgtInv)); } catch (e) {}
             if (contentPairs.length) { try { newB64 = await this._replaceInOfficeB64(srcB64, contentPairs); } catch (e) { newB64 = srcB64; } }
-            // 🆕 Forcer le Fournisseur (cellule)
+            // 🆕 Forcer la cellule Fournisseur/Supplier = FABRICANT
             if (tgtFour) { try { newB64 = await this._setOfficeFieldByLabel(newB64, /fournisseur|supplier/i, tgtFour); } catch (e) {} }
-            // 🆕 N° d'inventaire = celui du tool (VIDE si non renseigné, rempli sinon)
-            const tgtInv = this._invValue(tool);  // 🆕 N° d'inventaire — rempli automatiquement si vide (jamais blanc)
-            try { newB64 = await this._setOfficeFieldByLabel(newB64, /inventaire|inventory/i, tgtInv); } catch (e) {}
+            // 🆕 Forcer la cellule N° d'inventaire/Inventory-No = numInventaire
+            if (tgtInv)  { try { newB64 = await this._setOfficeFieldByLabel(newB64, /inventaire|inventory/i, tgtInv); } catch (e) {} }
             // 🆕 Renommer l'onglet de feuille de la famille → numéro de l'outil
             try { newB64 = await this._renameFamilySheets(newB64, baseFam, tgtNum); } catch (e) {}
           }

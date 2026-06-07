@@ -20998,7 +20998,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       _extractFamily(name) {
         const n = String(name || '').trim();
         if (!n) return '';
-        const base = n.replace(/[-_]\s*[A-Za-z]{0,2}\d{1,3}\s*$/i, '').trim();
+        let base = n.replace(/[-_]\s*[A-Za-z]{0,2}\d{1,3}\s*$/i, '').trim();  // retire -04, -R04, -01…
+        base = base.replace(/[-_]\s*[A-Za-z]{1,2}\s*$/i, '').trim();          // 🆕 retire un suffixe révision seul (-R, -RA…)
         return base.length >= 4 ? base.toUpperCase() : '';
       },
 
@@ -22107,6 +22108,23 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         } catch (e) { console.warn('[renameSheets]', e.message); return b64; }
       },
 
+      /** 🆕 N° d'inventaire d'un outil — JAMAIS vide si l'outil a une identité.
+       *  Priorité : numInventaire déjà saisi → sinon CONSTRUIT « D'Outils/Serial » → replis.
+       *  C'est cette valeur qu'on écrit dans l'Annexe (Inventory-No) et qu'on enregistre sur l'outil. */
+      _invValue(t) {
+        if (!t) return '';
+        const s = v => String(v == null ? '' : v).trim();
+        const inv  = s(t.numInventaire);
+        if (inv) return inv;                                   // déjà renseigné → on le garde tel quel
+        const dout = s(t.doutils);
+        const ser  = s(t.serial);
+        const rid  = s(t.refOutil) || s(t.outilId);
+        if (dout && ser) return dout + '/' + ser;              // format standard : WZ7190-R09/1005
+        if (ser)         return ser;                           // au moins le serial (1005)
+        if (dout && rid) return dout + '/' + rid;              // repli : D'Outils/réf
+        return rid || dout || '';                              // dernier recours
+      },
+
       /** 🆕 Adapte un document hérité au tool cible : renomme le fichier + remplace le n° d'outil
        *  dans les données internes (ex: WZ7190-04 → WZ7190-01, WZ7190-04/N1029 → WZ7190-01/N1029). */
       async _adaptDocForTarget(doc, srcTool, tgtTool) {
@@ -22135,7 +22153,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
         if (isOffice && newB64) {
           const tgtFour = String(tgtTool.fournisseur || tgtTool.fabricant || '').trim();
-          const tgtInv = String(tgtTool.numInventaire || '').trim();
+          const tgtInv = this._invValue(tgtTool);  // 🆕 N° d'inventaire — rempli automatiquement si vide (jamais blanc)
           const baseFam = this._extractFamily(tgtNameR) || this._extractFamily(srcNameR);
           // 🆕 Forcer le Fournisseur (cellule à droite du libellé) — fiable même si THB introuvable par texte
           if (tgtFour) { try { newB64 = await this._setOfficeFieldByLabel(newB64, /fournisseur|supplier/i, tgtFour); } catch (e) {} }
@@ -22161,6 +22179,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const tgtNameR = toolName;                          // ex "WZ7190-R01"
         const docs = toolAttachments._all?.[tool.id] || {};
         if (!Object.keys(docs).length) return 0;
+        console.log(`[adaptDocs] outil="${toolName}" famille="${baseFam}" serial="${tool.serial || ''}" fournisseur="${tool.fournisseur || tool.fabricant || ''}" — ${Object.keys(docs).length} doc(s)`);
         const reSrc = baseFam.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const re = new RegExp(reSrc + '-R?\\d+', 'ig');
         let adapted = 0;
@@ -22172,6 +22191,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const newName = (s => { let o = String(s || ''); for (const [f, t] of namePairs) o = o.split(f).join(t); return o; })(docMeta.name);
           // Récupérer le base64 À LA DEMANDE (l'index ne le contient plus)
           const srcB64 = isOffice ? await toolAttachments._getB64(tool.id, fid, docMeta) : null;
+          if (isOffice && !srcB64) console.warn(`[adaptDocs] ⚠️ base64 introuvable pour "${docMeta.name}" → contenu NON adapté (seul le nom le sera)`);
           let newB64 = srcB64;
           if (isOffice && srcB64) {
             const tgtFour = String(tool.fournisseur || tool.fabricant || '').trim();
@@ -22181,7 +22201,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             // 🆕 Forcer le Fournisseur (cellule)
             if (tgtFour) { try { newB64 = await this._setOfficeFieldByLabel(newB64, /fournisseur|supplier/i, tgtFour); } catch (e) {} }
             // 🆕 N° d'inventaire = celui du tool (VIDE si non renseigné, rempli sinon)
-            const tgtInv = String(tool.numInventaire || '').trim();
+            const tgtInv = this._invValue(tool);  // 🆕 N° d'inventaire — rempli automatiquement si vide (jamais blanc)
             try { newB64 = await this._setOfficeFieldByLabel(newB64, /inventaire|inventory/i, tgtInv); } catch (e) {}
             // 🆕 Renommer l'onglet de feuille de la famille → numéro de l'outil
             try { newB64 = await this._renameFamilySheets(newB64, baseFam, tgtNum); } catch (e) {}
@@ -22247,6 +22267,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         try {
           const updated = { ...tool };
           ['groupe','connection','terminal','numContact','frequenceCycle','refFabricant'].forEach(f => { if (refSource[f] && (!updated[f] || !String(updated[f]).trim())) updated[f] = refSource[f]; });
+          // 🆕 N° d'inventaire VIDE → on le REMPLIT automatiquement (D'Outils/Serial) puis on l'écrit dans l'Annexe + on l'enregistre sur l'outil
+          let invAutoFilled = '';
+          if (!String(updated.numInventaire || '').trim()) {
+            const filled = this._invValue(updated);
+            if (filled) { updated.numInventaire = filled; tool.numInventaire = filled; invAutoFilled = filled; }
+          }
           let piecesCopied = 0;
           if (pieceSource && pieceSource.pieces) {
             updated.pieces = { ...(updated.pieces || {}) };
@@ -22255,16 +22281,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           await db.saveTool(updated);
           // Adapter les documents DÉJÀ présents au n° de l'outil (corrige les héritages antérieurs)
           let adaptedExisting = 0;
-          try { adaptedExisting = await this._adaptExistingDocs(tool); } catch (e) { console.warn('[adaptExistingDocs]', e); }
+          try { adaptedExisting = await this._adaptExistingDocs(updated); } catch (e) { console.warn('[adaptExistingDocs]', e); }
           let docsCopied = 0;
-          let docsSkippedNoInv = 0;
           if (hasDocs) {
             const srcDocs = toolAttachments._all[docSource.id] || {};
             const existing = Object.values(toolAttachments._all?.[tool.id] || {}).map(d => (d.name || '') + '|' + (d.category || ''));
             for (const [srcFid, docMeta] of Object.entries(srcDocs)) {
               const srcB64 = await toolAttachments._getB64(docSource.id, srcFid, docMeta);  // 🆕 b64 source à la demande
               const doc = { ...docMeta, b64: srcB64 };
-              let adapted; try { adapted = await this._adaptDocForTarget(doc, docSource, tool); } catch (e) { adapted = { ...doc }; }
+              let adapted; try { adapted = await this._adaptDocForTarget(doc, docSource, updated); } catch (e) { adapted = { ...doc }; }
               const sig = (adapted.name || '') + '|' + (adapted.category || '');
               if (existing.includes(sig)) continue;
               const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + docsCopied;
@@ -22278,13 +22303,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (!silent) {
             ui.hideLoader();
             ui.toast(`✅ Héritage : ${piecesCopied} pièce(s) · ${docsCopied} doc(s) hérité(s) · ${adaptedExisting} doc(s) existant(s) adapté(s) pour ${name}`, 'success', 6000);
-            const hasInv = !!(tool.numInventaire && String(tool.numInventaire).trim());
-            if ((docsCopied > 0 || adaptedExisting > 0) && !hasInv) {
-              ui.toast(`ℹ️ N° d'inventaire vide : l'Annexe est copiée, le champ inventaire reste VIDE. Renseignez le N° d'inventaire de l'outil puis enregistrez → il sera ajouté automatiquement dans l'Annexe.`, 'info', 8000);
+            if (invAutoFilled) {
+              ui.toast(`🧬 N° d'inventaire vide → rempli automatiquement : « ${invAutoFilled} » — écrit dans l'Annexe et enregistré sur l'outil.`, 'info', 8000);
             }
             setTimeout(() => this.showDetails({ ...updated }), 300);
           }
-          return { pieces: piecesCopied, docs: docsCopied + adaptedExisting };
+          return { pieces: piecesCopied, docs: docsCopied + adaptedExisting, invFilled: invAutoFilled ? 1 : 0 };
         } catch (e) {
           if (!silent) { ui.hideLoader(); ui.toast('⛔ Erreur héritage : ' + e.message, 'danger'); }
           console.error('[inheritOne]', name, e);
@@ -22305,19 +22329,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!tools.length) return ui.toast('Aucun outil en production', 'info');
         if (!confirm(`Héritage AUTOMATIQUE de famille sur ${tools.length} outil(s) en production ?\n\nChaque outil héritera, depuis sa famille (même connexion + groupe + client) :\n• les pièces (même fournisseur)\n• les documents ADAPTÉS à son n° (nom de fichier + données internes)\n\nLes champs déjà remplis ne sont pas écrasés. Continuer ?`)) return;
         ui.showLoader('Héritage automatique en cours… (cela peut prendre un moment)');
-        let okTools = 0, totPieces = 0, totDocs = 0, skipped = 0, noInvTools = 0;
+        let okTools = 0, totPieces = 0, totDocs = 0, skipped = 0, invFilledTools = 0;
         for (const t of tools) {
           try {
             const r = await this._inheritOne(t, true);
             if (r && (r.pieces || r.docs)) { okTools++; totPieces += r.pieces || 0; totDocs += r.docs || 0; }
             else skipped++;
-            if (r && r.docsSkippedNoInv > 0) noInvTools++;
+            if (r && r.invFilled > 0) invFilledTools++;
           } catch (e) { skipped++; }
         }
         ui.hideLoader();
         let msg = `✅ Héritage automatique terminé : ${okTools} outil(s) enrichi(s) — ${totPieces} pièce(s), ${totDocs} document(s) adapté(s). ${skipped} sans changement.`;
-        if (noInvTools > 0) msg += ` ⚠️ ${noInvTools} outil(s) sans N° d'inventaire : Annexe non copiée (renseignez l'inventaire puis relancez).`;
-        ui.toast(msg, noInvTools > 0 ? 'warn' : 'success', 9000);
+        if (invFilledTools > 0) msg += ` 🧬 ${invFilledTools} outil(s) : N° d'inventaire rempli automatiquement (D'Outils/Serial) et inscrit dans l'Annexe.`;
+        ui.toast(msg, 'success', 9000);
         try { this.render(); } catch (e) {}
       },
 
@@ -23475,6 +23499,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               if (clientKey === '__new__') clientKey = await this._createClientQuick();
               if (clientKey) await this._classifyProject(proj, clientKey);
             }
+          }
+
+          // 🆕 N° d'inventaire laissé vide → le remplir (D'Outils/Serial) pour rester cohérent avec l'Annexe
+          if (!String(data.numInventaire || '').trim()) {
+            const filledInv = this._invValue(data);
+            if (filledInv) data.numInventaire = filledInv;
           }
 
           const savedId = await db.saveTool(data);

@@ -8099,6 +8099,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <button class="btn btn--secondary" id="btn-catalog-export"><span data-i18n="action.exportExcel">📤 Exporter Excel</span></button>
             <button class="btn btn--secondary" id="btn-catalog-print-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Imprimer les QR codes des outils filtrés">🖨 QR Codes</button>
             <button class="btn btn--secondary" id="btn-catalog-bulk-docs" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog" style="background:rgba(124,58,237,.14);color:#a855f7;border:1px solid rgba(124,58,237,.35);font-weight:700" title="Joindre une liste de documents (Annexes) à plusieurs outils d'un coup">📎 Docs en masse</button>
+            <button class="btn btn--secondary" id="btn-catalog-inherit-all" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog" style="background:rgba(34,211,238,.14);color:#22d3ee;border:1px solid rgba(34,211,238,.35);font-weight:700" title="Héritage AUTOMATIQUE : chaque outil hérite pièces (même fournisseur) + documents adaptés de sa famille (connexion+groupe+client)">🧬 Hériter TOUT</button>
             <button class="btn btn--primary" id="btn-catalog-add" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog">＋ Nouvel outil</button>
           </div>
         </header>
@@ -21413,6 +21414,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           btnBulkDocs.addEventListener('click', () => toolAttachments.openBulkForm());
         }
 
+        // 🆕 Héritage automatique en masse
+        const btnInheritAll = $('#btn-catalog-inherit-all');
+        if (btnInheritAll) {
+          btnInheritAll.addEventListener('click', () => this.inheritAllFamilies());
+        }
+
         // ── Export Excel ──
         const btnExport = $('#btn-catalog-export');
         if (btnExport) {
@@ -21750,13 +21757,180 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
       /** 🧬 Hérite des pièces (même fournisseur) + documents (Annex 4) depuis les outils
        *  de la même famille. Conserve l'identité de l'outil cible. Applicable à tout moment. */
-      async inheritFromFamily(tool) {
-        if (!['admin','super_admin','responsable'].includes(state.role)) {
-          return ui.toast('🔒 Réservé aux responsables/admins', 'warn');
+      /** 🆕 Numéro "document" d'un outil = nom sans le "R" de variante (WZ7190-R01 → WZ7190-01) */
+      _docNumberFromName(name) {
+        return String(name || '').trim().replace(/-\s*R\s*(\d+)/ig, '-$1');
+      },
+
+      /** 🆕 Charge JSZip (pour adapter le contenu des fichiers Office) */
+      _loadJSZip() {
+        return new Promise((res, rej) => {
+          if (window.JSZip) return res();
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+          s.onload = () => res();
+          s.onerror = () => rej(new Error('JSZip indisponible'));
+          document.head.appendChild(s);
+        });
+      },
+
+      /** 🆕 Remplace des chaînes dans le TEXTE d'un fichier Office (xlsx/docx/pptx) en préservant la mise en forme.
+       *  Modifie uniquement les parties XML de texte (sharedStrings, worksheets, document.xml, slides). */
+      async _replaceInOfficeB64(b64, pairs) {
+        await this._loadJSZip();
+        // Remplacer les chaînes les PLUS LONGUES d'abord (ex: "WZ7190-04/N1029" avant "WZ7190-04")
+        pairs = (pairs || []).filter(p => p && p[0] && p[1] && p[0] !== p[1])
+                             .sort((a, b) => String(b[0]).length - String(a[0]).length);
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const zip = await JSZip.loadAsync(bytes);
+        const names = Object.keys(zip.files).filter(p =>
+          /\.xml$/i.test(p) && (p.includes('sharedStrings') || p.includes('/worksheets/') || p.endsWith('document.xml') || p.includes('/slides/slide'))
+        );
+        for (const p of names) {
+          let xml = await zip.files[p].async('string');
+          let changed = false;
+          for (const [from, to] of pairs) {
+            if (from && to && from !== to && xml.indexOf(from) !== -1) { xml = xml.split(from).join(to); changed = true; }
+          }
+          if (changed) zip.file(p, xml);
         }
+        return await zip.generateAsync({ type: 'base64' });
+      },
+
+      /** 🆕 Charge SheetJS (lecture seule des cellules pour repérer un champ par son libellé) */
+      _ensureXLSXLib() {
+        return new Promise((res, rej) => {
+          if (window.XLSX) return res();
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          s.onload = () => res(); s.onerror = () => rej(new Error('SheetJS indisponible'));
+          document.head.appendChild(s);
+        });
+      },
+
+      /** 🆕 Lit la valeur saisie À DROITE d'un libellé dans un fichier xlsx (ex: "Fournisseur:" → "THB") */
+      async _officeFieldValue(b64, labelRe) {
+        try {
+          await this._ensureXLSXLib();
+          const wb = XLSX.read(b64, { type: 'base64' });
+          for (const sn of wb.SheetNames) {
+            const ws = wb.Sheets[sn];
+            if (!ws || !ws['!ref']) continue;
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let R = range.s.r; R <= range.e.r; R++) {
+              for (let C = range.s.c; C <= range.e.c; C++) {
+                const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+                const txt = cell && cell.v != null ? String(cell.v) : '';
+                if (txt && labelRe.test(txt)) {
+                  for (let CC = C + 1; CC <= range.e.c + 4; CC++) {
+                    const vc = ws[XLSX.utils.encode_cell({ r: R, c: CC })];
+                    const v = vc && vc.v != null ? String(vc.v).trim() : '';
+                    if (v && !labelRe.test(v)) return v;
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) { console.warn('[officeFieldValue]', e.message); }
+        return null;
+      },
+
+      /** 🆕 Paires de remplacement Fournisseur + Serial (lues par libellé dans le doc → valeurs du tool cible) */
+      async _officeIdentityPairs(b64, isOffice, tgtFournisseur, tgtSerial) {
+        const pairs = [];
+        if (!isOffice || !b64) return pairs;
+        if (tgtFournisseur) {
+          const oldF = await this._officeFieldValue(b64, /fournisseur|supplier/i);
+          if (oldF && oldF.toUpperCase() !== tgtFournisseur.toUpperCase()) pairs.push([oldF, tgtFournisseur]);
+        }
+        if (tgtSerial) {
+          const oldS = await this._officeFieldValue(b64, /inventaire|inventory|serial/i);
+          if (oldS && oldS !== tgtSerial) pairs.push([oldS, tgtSerial]);
+        }
+        return pairs;
+      },
+
+      /** 🆕 Adapte un document hérité au tool cible : renomme le fichier + remplace le n° d'outil
+       *  dans les données internes (ex: WZ7190-04 → WZ7190-01, WZ7190-04/N1029 → WZ7190-01/N1029). */
+      async _adaptDocForTarget(doc, srcTool, tgtTool) {
+        const nameOf = t => t.doutils || t.designation || t.serial || t.refOutil || t.outilId || '';
+        const srcNameR = String(nameOf(srcTool)).trim();
+        const tgtNameR = String(nameOf(tgtTool)).trim();
+        const srcNum = this._docNumberFromName(srcNameR);
+        const tgtNum = this._docNumberFromName(tgtNameR);
+        // Paires nom/numéro (pour le NOM de fichier ET le contenu)
+        const namePairs = [];
+        if (srcNameR && tgtNameR && srcNameR !== tgtNameR) namePairs.push([srcNameR, tgtNameR]);
+        if (srcNum && tgtNum && srcNum !== tgtNum && srcNum !== srcNameR) namePairs.push([srcNum, tgtNum]);
+        const replName = (s) => { let o = String(s || ''); for (const [f, t] of namePairs) o = o.split(f).join(t); return o; };
+        const newName = replName(doc.name);
+        const isOffice = /\.(xlsx|xlsm|docx|pptx)$/i.test(doc.name || '') || (doc.mime || '').includes('openxmlformats');
+        // Contenu : nom/numéro + Fournisseur + Serial (du tool cible)
+        const contentPairs = [...namePairs];
+        if (isOffice && doc.b64) {
+          const tgtFour = String(tgtTool.fournisseur || tgtTool.fabricant || '').trim();
+          const tgtSerial = String(tgtTool.serial || '').trim();
+          try { contentPairs.push(...await this._officeIdentityPairs(doc.b64, true, tgtFour, tgtSerial)); } catch (e) {}
+        }
+        let newB64 = doc.b64;
+        if (isOffice && doc.b64 && contentPairs.length) {
+          try { newB64 = await this._replaceInOfficeB64(doc.b64, contentPairs); }
+          catch (e) { console.warn('[adaptDoc] contenu inchangé:', e.message); newB64 = doc.b64; }
+        }
+        return { ...doc, name: newName, b64: newB64 };
+      },
+
+      /** 🧬 CŒUR de l'héritage de famille. silent=true → sans confirmation ni toast (pour le mode automatique).
+       *  Famille = MÊME connexion + MÊME groupe + MÊME client. Retourne {pieces, docs} ou {skipped/error}. */
+      /** 🆕 Adapte les documents DÉJÀ présents sur un outil pour qu'ils portent SON numéro.
+       *  Ex : un doc "…WZ7190-04…" sur l'outil WZ7190-R01 → renommé/adapté en "…WZ7190-01…".
+       *  Ne touche que les tokens du type <base groupe>-<variante> différents du n° de l'outil. */
+      async _adaptExistingDocs(tool) {
+        const nameOf = t => t.doutils || t.designation || t.serial || t.refOutil || t.outilId || '';
+        const toolName = nameOf(tool);
+        const baseFam = this._extractFamily(toolName); // ex "WZ7190"
+        if (!baseFam) return 0;
+        const tgtNum = this._docNumberFromName(toolName);   // ex "WZ7190-01"
+        const tgtNameR = toolName;                          // ex "WZ7190-R01"
+        const docs = toolAttachments._all?.[tool.id] || {};
+        if (!Object.keys(docs).length) return 0;
+        const reSrc = baseFam.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(reSrc + '-R?\\d+', 'ig');
+        const upd = {};
+        let adapted = 0;
+        for (const [fid, doc] of Object.entries(docs)) {
+          const isOffice = /\.(xlsx|xlsm|docx|pptx)$/i.test(doc.name || '') || (doc.mime || '').includes('openxmlformats');
+          const found = [...new Set((String(doc.name || '').match(re) || []))]
+            .filter(tok => tok.toUpperCase() !== tgtNum.toUpperCase() && tok.toUpperCase() !== tgtNameR.toUpperCase());
+          const namePairs = found.map(tok => [tok, tgtNum]);
+          // Contenu : numéro + Fournisseur + Serial du tool (lus par libellé)
+          const contentPairs = [...namePairs];
+          if (isOffice && doc.b64) {
+            const tgtFour = String(tool.fournisseur || tool.fabricant || '').trim();
+            const tgtSerial = String(tool.serial || '').trim();
+            try { contentPairs.push(...await this._officeIdentityPairs(doc.b64, true, tgtFour, tgtSerial)); } catch (e) {}
+          }
+          if (!contentPairs.length) continue;  // rien à adapter pour ce document
+          const replStr = s => { let o = String(s || ''); for (const [f, t] of namePairs) o = o.split(f).join(t); return o; };
+          const newName = replStr(doc.name);
+          let newB64 = doc.b64;
+          if (isOffice && doc.b64) { try { newB64 = await this._replaceInOfficeB64(doc.b64, contentPairs); } catch (e) { newB64 = doc.b64; } }
+          if (newName === doc.name && newB64 === doc.b64) continue;  // aucun changement réel
+          upd[`toolAttachments/${tool.id}/${fid}`] = { ...doc, name: newName, b64: newB64, adaptedTo: tgtNum, adaptedAt: Date.now() };
+          adapted++;
+        }
+        if (Object.keys(upd).length) {
+          await fbDb.ref().update(upd);
+          Object.keys(upd).forEach(path => { const fid = path.split('/').pop(); toolAttachments._all[tool.id][fid] = upd[path]; });
+        }
+        return adapted;
+      },
+
+      async _inheritOne(tool, silent) {
         const nameOf = t => t.doutils || t.designation || t.serial || t.refOutil || t.outilId || '?';
         const name = nameOf(tool);
-        // 🆕 FAMILLE définie par : MÊME connexion + MÊME groupe + MÊME client (critères techniques, pas le nom)
         const norm = s => String(s ?? '').trim().toUpperCase().replace(/[\s\-_.]/g, '');
         const groupOf = t => {
           if (t.groupe && String(t.groupe).trim()) return norm(t.groupe);
@@ -21766,106 +21940,126 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const connOf = t => norm(t.connection);
         const clientKeyOf = t => { const c = views.blocked._getClientForProject(t.projet); return c ? c.key : (norm(t.projet) || '__none__'); };
         const clientNameOf = t => { const c = views.blocked._getClientForProject(t.projet); return c ? c.name : (t.projet || '—'); };
-        const tConn = connOf(tool), tGroup = groupOf(tool), tClient = clientKeyOf(tool);
-        // Connexion + groupe obligatoires pour identifier la famille
+        const tConn = connOf(tool), tGroup = groupOf(tool);
         if (!tConn || !tGroup) {
-          return ui.toast(`Connexion et groupe requis pour identifier la famille (connexion: « ${tool.connection || '—'} », groupe: « ${tGroup || '—'} »). Complétez-les d'abord.`, 'warn', 7000);
+          if (!silent) ui.toast(`Connexion et groupe requis pour identifier la famille (connexion: « ${tool.connection || '—'} », groupe: « ${tGroup || '—'} »).`, 'warn', 7000);
+          return { skipped: true, reason: 'no-conn-group' };
         }
-        // Frères = MÊME connexion + MÊME groupe + MÊME client
+        const tClient = clientKeyOf(tool);
         const compatible = Object.values(state.tools || {}).filter(s =>
           s && s.id !== tool.id && connOf(s) === tConn && groupOf(s) === tGroup && clientKeyOf(s) === tClient
         );
-        const base = `groupe ${tGroup} · ${tool.connection} · ${clientNameOf(tool)}`;  // libellé de la famille
+        const base = `groupe ${tGroup} · ${tool.connection} · ${clientNameOf(tool)}`;
         if (!compatible.length) {
-          return ui.toast(`Aucun autre outil avec la même connexion (« ${tool.connection} ») + groupe (« ${tGroup} ») + client (« ${clientNameOf(tool)} »). Rien à hériter.`, 'info', 7000);
+          if (!silent) ui.toast(`Aucun autre outil avec la même connexion (« ${tool.connection} ») + groupe (« ${tGroup} ») + client (« ${clientNameOf(tool)} »). Rien à hériter.`, 'info', 7000);
+          return { skipped: true, reason: 'no-family' };
         }
-
         const supplierOf = t => String(t.fournisseur || t.fabricant || '').trim().toUpperCase();
         const PK = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
-        const countPieces = t => PK.filter(k => {
-          const v = t.pieces && t.pieces[k];
-          return v && String(v).trim() && !['NA','#','-','—'].includes(String(v).trim().toUpperCase());
-        }).length;
+        const countPieces = t => PK.filter(k => { const v = t.pieces && t.pieces[k]; return v && String(v).trim() && !['NA','#','-','—'].includes(String(v).trim().toUpperCase()); }).length;
         const docCount = t => { const d = toolAttachments._all?.[t.id]; return d ? Object.keys(d).length : 0; };
-
-        // Source PIÈCES : frère COMPATIBLE du MÊME fournisseur avec le plus de pièces
         const mySupplier = supplierOf(tool);
         const sameSup = compatible.filter(s => mySupplier && supplierOf(s) === mySupplier);
         let pieceSource = null;
-        if (sameSup.length) {
-          pieceSource = sameSup.reduce((b, s) => countPieces(s) > countPieces(b) ? s : b, sameSup[0]);
-          if (countPieces(pieceSource) === 0) pieceSource = null;
-        }
-        // Source DOCUMENTS : frère COMPATIBLE avec le plus de pièces jointes (Annex 4…)
+        if (sameSup.length) { pieceSource = sameSup.reduce((b, s) => countPieces(s) > countPieces(b) ? s : b, sameSup[0]); if (countPieces(pieceSource) === 0) pieceSource = null; }
         const docSource = compatible.reduce((b, s) => docCount(s) > docCount(b) ? s : b, compatible[0]);
         const hasDocs = docCount(docSource) > 0;
-        // Source CHAMPS PARTAGÉS : le plus complet (pièces) ou pieceSource
         const refSource = pieceSource || this._pickTemplate(compatible) || compatible[0];
-
         if (!pieceSource && !hasDocs) {
-          return ui.toast(`Famille « ${base} » : aucune pièce (même fournisseur « ${mySupplier || '?'} ») ni document à hériter`, 'info', 5000);
+          if (!silent) ui.toast(`Famille « ${base} » : aucune pièce (même fournisseur « ${mySupplier || '?'} ») ni document à hériter`, 'info', 5000);
+          return { skipped: true, reason: 'nothing' };
         }
-
-        // Confirmation détaillée
-        const lines = [];
-        if (pieceSource) lines.push(`• Pièces de rechange depuis ${nameOf(pieceSource)} (${supplierOf(pieceSource)})`);
-        else if (mySupplier) lines.push(`• Pièces : aucune (pas de frère même fournisseur « ${mySupplier} »)`);
-        if (hasDocs) lines.push(`• ${docCount(docSource)} document(s) (Annex 4…) depuis ${nameOf(docSource)}`);
-        if (!confirm(`Famille « ${base} » — hériter pour ${name} :\n\n${lines.join('\n')}\n\nL'identité de cet outil (nom, réf, serial, inventaire) est conservée.\n\nContinuer ?`)) return;
-
-        ui.showLoader('Héritage de famille en cours…');
+        if (!silent) {
+          const lines = [];
+          if (pieceSource) lines.push(`• Pièces depuis ${nameOf(pieceSource)} (${supplierOf(pieceSource)})`);
+          else if (mySupplier) lines.push(`• Pièces : aucune (pas de frère même fournisseur « ${mySupplier} »)`);
+          if (hasDocs) lines.push(`• ${docCount(docSource)} document(s) depuis ${nameOf(docSource)} — ADAPTÉS au n° de ${name}`);
+          if (!confirm(`Famille « ${base} » — hériter pour ${name} :\n\n${lines.join('\n')}\n\nLes documents seront ADAPTÉS (nom de fichier + données internes : n° d'outil et n° d'inventaire) au n° de cet outil.\nL'identité de l'outil est conservée.\n\nContinuer ?`)) return { cancelled: true };
+          ui.showLoader('Héritage de famille en cours…');
+        }
         try {
           const updated = { ...tool };
-          // Champs partagés (remplit uniquement ceux qui sont vides)
-          ['groupe','connection','terminal','numContact','frequenceCycle','refFabricant'].forEach(f => {
-            if (refSource[f] && (!updated[f] || !String(updated[f]).trim())) updated[f] = refSource[f];
-          });
-          // Pièces : copie depuis pieceSource (remplit les positions vides)
+          ['groupe','connection','terminal','numContact','frequenceCycle','refFabricant'].forEach(f => { if (refSource[f] && (!updated[f] || !String(updated[f]).trim())) updated[f] = refSource[f]; });
           let piecesCopied = 0;
           if (pieceSource && pieceSource.pieces) {
             updated.pieces = { ...(updated.pieces || {}) };
-            PK.forEach(k => {
-              const cur = updated.pieces[k];
-              const isEmpty = !cur || !String(cur).trim() || ['NA','#','-','—'].includes(String(cur).trim().toUpperCase());
-              if (isEmpty && pieceSource.pieces[k]) { updated.pieces[k] = pieceSource.pieces[k]; piecesCopied++; }
-            });
+            PK.forEach(k => { const cur = updated.pieces[k]; const isEmpty = !cur || !String(cur).trim() || ['NA','#','-','—'].includes(String(cur).trim().toUpperCase()); if (isEmpty && pieceSource.pieces[k]) { updated.pieces[k] = pieceSource.pieces[k]; piecesCopied++; } });
           }
           await db.saveTool(updated);
-
-          // Documents (Annex 4…) — copie ceux du docSource absents chez la cible
+          // 🆕 Règle : tant que le N° d'inventaire de l'outil cible est VIDE, on ne touche pas aux Annexes
+          //    (ni copie de nouveaux documents, ni adaptation des existants) — on attend son remplissage.
+          const hasInventory = !!(tool.numInventaire && String(tool.numInventaire).trim());
+          let adaptedExisting = 0;
+          if (hasInventory) {
+            try { adaptedExisting = await this._adaptExistingDocs(tool); } catch (e) { console.warn('[adaptExistingDocs]', e); }
+          }
           let docsCopied = 0;
-          if (hasDocs) {
+          let docsSkippedNoInv = 0;
+          if (hasDocs && !hasInventory) {
+            docsSkippedNoInv = docCount(docSource);
+          }
+          if (hasDocs && hasInventory) {
             const srcDocs = toolAttachments._all[docSource.id] || {};
             const existing = Object.values(toolAttachments._all?.[tool.id] || {}).map(d => (d.name || '') + '|' + (d.category || ''));
             const upd = {};
-            Object.values(srcDocs).forEach(doc => {
-              const sig = (doc.name || '') + '|' + (doc.category || '');
-              if (existing.includes(sig)) return; // déjà présent
+            for (const doc of Object.values(srcDocs)) {
+              let adapted; try { adapted = await this._adaptDocForTarget(doc, docSource, tool); } catch (e) { adapted = { ...doc }; }
+              const sig = (adapted.name || '') + '|' + (adapted.category || '');
+              if (existing.includes(sig)) continue;
               const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + docsCopied;
-              upd[`toolAttachments/${tool.id}/${fid}`] = { ...doc, inheritedFrom: docSource.id, uploadedAt: Date.now() };
+              upd[`toolAttachments/${tool.id}/${fid}`] = { ...adapted, inheritedFrom: docSource.id, adaptedTo: name, uploadedAt: Date.now() };
               docsCopied++;
-            });
-            if (Object.keys(upd).length) await fbDb.ref().update(upd);
-            // 🆕 Mise à jour OPTIMISTE du cache → documents hérités visibles immédiatement
+            }
             if (Object.keys(upd).length) {
+              await fbDb.ref().update(upd);
               if (!toolAttachments._all[tool.id]) toolAttachments._all[tool.id] = {};
-              Object.keys(upd).forEach(path => {
-                const fid = path.split('/').pop();
-                toolAttachments._all[tool.id][fid] = upd[path];
-              });
+              Object.keys(upd).forEach(path => { const fid = path.split('/').pop(); toolAttachments._all[tool.id][fid] = upd[path]; });
             }
           }
-
-          ui.hideLoader();
-          ui.toast(`✅ Héritage : ${piecesCopied} pièce(s) + ${docsCopied} document(s) copié(s) pour ${name}`, 'success', 5000);
-          try { db.audit('tool.inheritFamily', tool.id, { base, piecesCopied, docsCopied }); } catch(e){}
-          // Rafraîchir la fiche
-          setTimeout(() => this.showDetails({ ...updated }), 300);
+          try { db.audit('tool.inheritFamily', tool.id, { base, piecesCopied, docsCopied, adaptedExisting, docsSkippedNoInv, silent }); } catch (e) {}
+          if (!silent) {
+            ui.hideLoader();
+            ui.toast(`✅ Héritage : ${piecesCopied} pièce(s) · ${docsCopied} doc(s) hérité(s) · ${adaptedExisting} doc(s) existant(s) adapté(s) pour ${name}`, 'success', 6000);
+            if (docsSkippedNoInv > 0) {
+              ui.toast(`⚠️ ${docsSkippedNoInv} document(s) NON copié(s) : renseignez d'abord le N° d'inventaire de ${name}, puis relancez l'héritage.`, 'warn', 8000);
+            }
+            setTimeout(() => this.showDetails({ ...updated }), 300);
+          }
+          return { pieces: piecesCopied, docs: docsCopied + adaptedExisting, docsSkippedNoInv };
         } catch (e) {
-          ui.hideLoader();
-          console.error('[inheritFromFamily]', e);
-          ui.toast('⛔ Erreur héritage : ' + e.message, 'danger');
+          if (!silent) { ui.hideLoader(); ui.toast('⛔ Erreur héritage : ' + e.message, 'danger'); }
+          console.error('[inheritOne]', name, e);
+          return { error: e.message };
         }
+      },
+
+      /** Héritage manuel d'un outil (avec confirmation) */
+      async inheritFromFamily(tool) {
+        if (!['admin','super_admin','responsable'].includes(state.role)) return ui.toast('🔒 Réservé aux responsables/admins', 'warn');
+        return this._inheritOne(tool, false);
+      },
+
+      /** 🆕 Héritage AUTOMATIQUE en masse sur tous les outils EN PRODUCTION (un seul clic) */
+      async inheritAllFamilies() {
+        if (!['admin','super_admin','responsable'].includes(state.role)) return ui.toast('🔒 Réservé aux responsables/admins', 'warn');
+        const tools = Object.values(state.tools || {}).filter(t => t && this._getToolStatus(t) === 'production');
+        if (!tools.length) return ui.toast('Aucun outil en production', 'info');
+        if (!confirm(`Héritage AUTOMATIQUE de famille sur ${tools.length} outil(s) en production ?\n\nChaque outil héritera, depuis sa famille (même connexion + groupe + client) :\n• les pièces (même fournisseur)\n• les documents ADAPTÉS à son n° (nom de fichier + données internes)\n\nLes champs déjà remplis ne sont pas écrasés. Continuer ?`)) return;
+        ui.showLoader('Héritage automatique en cours… (cela peut prendre un moment)');
+        let okTools = 0, totPieces = 0, totDocs = 0, skipped = 0, noInvTools = 0;
+        for (const t of tools) {
+          try {
+            const r = await this._inheritOne(t, true);
+            if (r && (r.pieces || r.docs)) { okTools++; totPieces += r.pieces || 0; totDocs += r.docs || 0; }
+            else skipped++;
+            if (r && r.docsSkippedNoInv > 0) noInvTools++;
+          } catch (e) { skipped++; }
+        }
+        ui.hideLoader();
+        let msg = `✅ Héritage automatique terminé : ${okTools} outil(s) enrichi(s) — ${totPieces} pièce(s), ${totDocs} document(s) adapté(s). ${skipped} sans changement.`;
+        if (noInvTools > 0) msg += ` ⚠️ ${noInvTools} outil(s) sans N° d'inventaire : Annexe non copiée (renseignez l'inventaire puis relancez).`;
+        ui.toast(msg, noInvTools > 0 ? 'warn' : 'success', 9000);
+        try { this.render(); } catch (e) {}
       },
 
       showDetails(tool) {

@@ -21838,18 +21838,69 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       /** 🆕 Paires de remplacement Fournisseur + Serial (lues par libellé dans le doc → valeurs du tool cible) */
-      async _officeIdentityPairs(b64, isOffice, tgtFournisseur, tgtSerial) {
+      async _officeIdentityPairs(b64, isOffice, tgtFournisseur) {
         const pairs = [];
         if (!isOffice || !b64) return pairs;
         if (tgtFournisseur) {
           const oldF = await this._officeFieldValue(b64, /fournisseur|supplier/i);
           if (oldF && oldF.toUpperCase() !== tgtFournisseur.toUpperCase()) pairs.push([oldF, tgtFournisseur]);
         }
-        if (tgtSerial) {
-          const oldS = await this._officeFieldValue(b64, /inventaire|inventory|serial/i);
-          if (oldS && oldS !== tgtSerial) pairs.push([oldS, tgtSerial]);
-        }
-        return pairs;
+        return pairs;  // l'inventaire est géré séparément au niveau cellule (vider/remplir)
+      },
+
+      /** 🆕 Écrit DIRECTEMENT la valeur d'un champ (cellule à droite d'un libellé) dans un xlsx.
+       *  newValue vide → vide la cellule. Préserve le style. Idempotent (pas de réécriture si déjà à jour). */
+      async _setOfficeFieldByLabel(b64, labelRe, newValue) {
+        try {
+          await this._loadJSZip();
+          const zip = await JSZip.loadAsync(b64, { base64: true });
+          let shared = [];
+          const ssF = zip.file('xl/sharedStrings.xml');
+          if (ssF) {
+            const ss = await ssF.async('string');
+            shared = [...ss.matchAll(/<si>([\s\S]*?)<\/si>/g)].map(m =>
+              [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(t => t[1]).join(''));
+          }
+          const dec = s => String(s).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+          const enc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const colLetters = ref => (ref.match(/^[A-Z]+/) || [''])[0];
+          const rowNum = ref => parseInt((ref.match(/\d+$/) || ['0'])[0], 10);
+          const colToNum = L => { let n = 0; for (const c of L) n = n * 26 + (c.charCodeAt(0) - 64); return n; };
+          const newVal = String(newValue || '').trim();
+          let done = false, changedB64 = false;
+          const sheetFiles = Object.keys(zip.files).filter(f => /^xl\/worksheets\/sheet\d+\.xml$/.test(f));
+          for (const sf of sheetFiles) {
+            if (done) break;
+            let xml = await zip.file(sf).async('string');
+            const cells = [];
+            const re = /<c\s+r="([A-Z]+\d+)"([^>]*?)(\/>|>([\s\S]*?)<\/c>)/g;
+            let m;
+            while ((m = re.exec(xml)) !== null) {
+              const ref = m[1], attrs = m[2], inner = m[4] || '';
+              const tM = attrs.match(/t="([^"]+)"/); const type = tM ? tM[1] : 'n';
+              const vM = inner.match(/<v>([\s\S]*?)<\/v>/);
+              let text = '';
+              if (type === 's' && vM) text = shared[parseInt(vM[1], 10)] || '';
+              else if (type === 'inlineStr') { const isM = inner.match(/<t[^>]*>([\s\S]*?)<\/t>/); text = isM ? isM[1] : ''; }
+              else if (vM) text = vM[1];
+              cells.push({ ref, col: colToNum(colLetters(ref)), row: rowNum(ref), text: dec(text), full: m[0], attrs });
+            }
+            const label = cells.find(c => c.text && labelRe.test(c.text));
+            if (!label) continue;
+            const valueCell = cells.filter(c => c.row === label.row && c.col > label.col).sort((a, b) => a.col - b.col)[0];
+            if (!valueCell) continue;
+            if ((valueCell.text || '') === newVal) { done = true; break; }  // déjà à jour
+            const sM = valueCell.attrs.match(/\ss="(\d+)"/); const styleAttr = sM ? ` s="${sM[1]}"` : '';
+            const newCell = newVal
+              ? `<c r="${valueCell.ref}"${styleAttr} t="inlineStr"><is><t xml:space="preserve">${enc(newVal)}</t></is></c>`
+              : `<c r="${valueCell.ref}"${styleAttr}/>`;
+            xml = xml.replace(valueCell.full, newCell);
+            zip.file(sf, xml);
+            done = true; changedB64 = true;
+          }
+          if (!changedB64) return b64;
+          return await zip.generateAsync({ type: 'base64' });
+        } catch (e) { console.warn('[setOfficeField]', e.message); return b64; }
       },
 
       /** 🆕 Adapte un document hérité au tool cible : renomme le fichier + remplace le n° d'outil
@@ -21871,13 +21922,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const contentPairs = [...namePairs];
         if (isOffice && doc.b64) {
           const tgtFour = String(tgtTool.fournisseur || tgtTool.fabricant || '').trim();
-          const tgtSerial = String(tgtTool.serial || '').trim();
-          try { contentPairs.push(...await this._officeIdentityPairs(doc.b64, true, tgtFour, tgtSerial)); } catch (e) {}
+          try { contentPairs.push(...await this._officeIdentityPairs(doc.b64, true, tgtFour)); } catch (e) {}
         }
         let newB64 = doc.b64;
         if (isOffice && doc.b64 && contentPairs.length) {
           try { newB64 = await this._replaceInOfficeB64(doc.b64, contentPairs); }
           catch (e) { console.warn('[adaptDoc] contenu inchangé:', e.message); newB64 = doc.b64; }
+        }
+        // 🆕 Champ N° d'inventaire (Inventory-No) = celui du tool cible — VIDE s'il n'est pas renseigné
+        if (isOffice && newB64) {
+          const tgtInv = String(tgtTool.numInventaire || '').trim();
+          try { newB64 = await this._setOfficeFieldByLabel(newB64, /inventaire|inventory/i, tgtInv); } catch (e) {}
         }
         return { ...doc, name: newName, b64: newB64 };
       },
@@ -21905,18 +21960,21 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const found = [...new Set((String(doc.name || '').match(re) || []))]
             .filter(tok => tok.toUpperCase() !== tgtNum.toUpperCase() && tok.toUpperCase() !== tgtNameR.toUpperCase());
           const namePairs = found.map(tok => [tok, tgtNum]);
-          // Contenu : numéro + Fournisseur + Serial du tool (lus par libellé)
+          // Contenu : numéro + Fournisseur
           const contentPairs = [...namePairs];
           if (isOffice && doc.b64) {
             const tgtFour = String(tool.fournisseur || tool.fabricant || '').trim();
-            const tgtSerial = String(tool.serial || '').trim();
-            try { contentPairs.push(...await this._officeIdentityPairs(doc.b64, true, tgtFour, tgtSerial)); } catch (e) {}
+            try { contentPairs.push(...await this._officeIdentityPairs(doc.b64, true, tgtFour)); } catch (e) {}
           }
-          if (!contentPairs.length) continue;  // rien à adapter pour ce document
           const replStr = s => { let o = String(s || ''); for (const [f, t] of namePairs) o = o.split(f).join(t); return o; };
           const newName = replStr(doc.name);
           let newB64 = doc.b64;
-          if (isOffice && doc.b64) { try { newB64 = await this._replaceInOfficeB64(doc.b64, contentPairs); } catch (e) { newB64 = doc.b64; } }
+          if (isOffice && doc.b64 && contentPairs.length) { try { newB64 = await this._replaceInOfficeB64(doc.b64, contentPairs); } catch (e) { newB64 = doc.b64; } }
+          // 🆕 Champ N° d'inventaire = celui du tool (VIDE s'il n'est pas renseigné, rempli sinon)
+          if (isOffice && newB64) {
+            const tgtInv = String(tool.numInventaire || '').trim();
+            try { newB64 = await this._setOfficeFieldByLabel(newB64, /inventaire|inventory/i, tgtInv); } catch (e) {}
+          }
           if (newName === doc.name && newB64 === doc.b64) continue;  // aucun changement réel
           upd[`toolAttachments/${tool.id}/${fid}`] = { ...doc, name: newName, b64: newB64, adaptedTo: tgtNum, adaptedAt: Date.now() };
           adapted++;
@@ -21986,19 +22044,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             PK.forEach(k => { const cur = updated.pieces[k]; const isEmpty = !cur || !String(cur).trim() || ['NA','#','-','—'].includes(String(cur).trim().toUpperCase()); if (isEmpty && pieceSource.pieces[k]) { updated.pieces[k] = pieceSource.pieces[k]; piecesCopied++; } });
           }
           await db.saveTool(updated);
-          // 🆕 Règle : tant que le N° d'inventaire de l'outil cible est VIDE, on ne touche pas aux Annexes
-          //    (ni copie de nouveaux documents, ni adaptation des existants) — on attend son remplissage.
-          const hasInventory = !!(tool.numInventaire && String(tool.numInventaire).trim());
+          // Adapter les documents DÉJÀ présents au n° de l'outil (corrige les héritages antérieurs)
           let adaptedExisting = 0;
-          if (hasInventory) {
-            try { adaptedExisting = await this._adaptExistingDocs(tool); } catch (e) { console.warn('[adaptExistingDocs]', e); }
-          }
+          try { adaptedExisting = await this._adaptExistingDocs(tool); } catch (e) { console.warn('[adaptExistingDocs]', e); }
           let docsCopied = 0;
           let docsSkippedNoInv = 0;
-          if (hasDocs && !hasInventory) {
-            docsSkippedNoInv = docCount(docSource);
-          }
-          if (hasDocs && hasInventory) {
+          if (hasDocs) {
             const srcDocs = toolAttachments._all[docSource.id] || {};
             const existing = Object.values(toolAttachments._all?.[tool.id] || {}).map(d => (d.name || '') + '|' + (d.category || ''));
             const upd = {};
@@ -22016,16 +22067,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               Object.keys(upd).forEach(path => { const fid = path.split('/').pop(); toolAttachments._all[tool.id][fid] = upd[path]; });
             }
           }
-          try { db.audit('tool.inheritFamily', tool.id, { base, piecesCopied, docsCopied, adaptedExisting, docsSkippedNoInv, silent }); } catch (e) {}
+          try { db.audit('tool.inheritFamily', tool.id, { base, piecesCopied, docsCopied, adaptedExisting, silent }); } catch (e) {}
           if (!silent) {
             ui.hideLoader();
             ui.toast(`✅ Héritage : ${piecesCopied} pièce(s) · ${docsCopied} doc(s) hérité(s) · ${adaptedExisting} doc(s) existant(s) adapté(s) pour ${name}`, 'success', 6000);
-            if (docsSkippedNoInv > 0) {
-              ui.toast(`⚠️ ${docsSkippedNoInv} document(s) NON copié(s) : renseignez d'abord le N° d'inventaire de ${name}, puis relancez l'héritage.`, 'warn', 8000);
+            const hasInv = !!(tool.numInventaire && String(tool.numInventaire).trim());
+            if ((docsCopied > 0 || adaptedExisting > 0) && !hasInv) {
+              ui.toast(`ℹ️ N° d'inventaire vide : l'Annexe est copiée, le champ inventaire reste VIDE. Renseignez le N° d'inventaire de l'outil puis enregistrez → il sera ajouté automatiquement dans l'Annexe.`, 'info', 8000);
             }
             setTimeout(() => this.showDetails({ ...updated }), 300);
           }
-          return { pieces: piecesCopied, docs: docsCopied + adaptedExisting, docsSkippedNoInv };
+          return { pieces: piecesCopied, docs: docsCopied + adaptedExisting };
         } catch (e) {
           if (!silent) { ui.hideLoader(); ui.toast('⛔ Erreur héritage : ' + e.message, 'danger'); }
           console.error('[inheritOne]', name, e);
@@ -23243,6 +23295,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             } catch(e) { console.warn('[inherit docs]', e); }
           }
           this._inheritDocsFrom = null;
+
+          // 🆕 Re-synchroniser les Annexes déjà présentes avec les données de l'outil
+          //    (n° d'outil, fournisseur, N° d'inventaire) — ex: après avoir renseigné l'inventaire
+          try {
+            if (newToolId && toolAttachments._all?.[newToolId] && Object.keys(toolAttachments._all[newToolId]).length) {
+              const n = await this._adaptExistingDocs({ ...data, id: newToolId });
+              if (n > 0) ui.toast(`🔄 ${n} Annexe(s) mise(s) à jour avec les données de l'outil`, 'info', 4000);
+            }
+          } catch (e) { console.warn('[adapt annexes on save]', e); }
 
           modal.hidden = true;
           ui.toast('Outil enregistré ✅', 'success');

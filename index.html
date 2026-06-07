@@ -21962,7 +21962,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         const zip = await JSZip.loadAsync(bytes);
         const names = Object.keys(zip.files).filter(p =>
-          /\.xml$/i.test(p) && (p.includes('sharedStrings') || p.includes('/worksheets/') || p.endsWith('document.xml') || p.includes('/slides/slide'))
+          /\.xml$/i.test(p) && (p.includes('sharedStrings') || p.includes('/worksheets/') || p.endsWith('document.xml') || p.includes('/slides/slide') || p.endsWith('xl/workbook.xml'))
         );
         for (const p of names) {
           let xml = await zip.files[p].async('string');
@@ -22079,6 +22079,34 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         } catch (e) { console.warn('[setOfficeField]', e.message); return b64; }
       },
 
+      /** 🆕 Renomme les ONGLETS de feuille appartenant à la famille (ex "WZ7190-04", "WZ7190-R04")
+       *  vers le numéro de l'outil cible (ex "WZ7190-01"). L'onglet est dans xl/workbook.xml. */
+      async _renameFamilySheets(b64, baseFam, newSheetName) {
+        if (!baseFam || !newSheetName) return b64;
+        try {
+          await this._loadJSZip();
+          const zip = await JSZip.loadAsync(b64, { base64: true });
+          const wbFile = zip.file('xl/workbook.xml');
+          if (!wbFile) return b64;
+          let xml = await wbFile.async('string');
+          const esc = String(baseFam).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const famRe = new RegExp('^' + esc + '[-_\\s]*R?\\d+', 'i');  // WZ7190-04 / WZ7190-R04 / WZ7190 04 …
+          const safe = String(newSheetName).replace(/[\\\/\?\*\[\]:]/g, '').slice(0, 31);  // contraintes Excel
+          let changed = false;
+          xml = xml.replace(/(<sheet\b[^>]*\bname=")([^"]*)(")/g, (m, p1, nm, p3) => {
+            const dec = nm.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+            if (famRe.test(dec) && dec.toUpperCase() !== safe.toUpperCase()) {
+              changed = true;
+              return p1 + safe.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') + p3;
+            }
+            return m;
+          });
+          if (!changed) return b64;
+          zip.file('xl/workbook.xml', xml);
+          return await zip.generateAsync({ type: 'base64' });
+        } catch (e) { console.warn('[renameSheets]', e.message); return b64; }
+      },
+
       /** 🆕 Adapte un document hérité au tool cible : renomme le fichier + remplace le n° d'outil
        *  dans les données internes (ex: WZ7190-04 → WZ7190-01, WZ7190-04/N1029 → WZ7190-01/N1029). */
       async _adaptDocForTarget(doc, srcTool, tgtTool) {
@@ -22105,10 +22133,16 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           try { newB64 = await this._replaceInOfficeB64(doc.b64, contentPairs); }
           catch (e) { console.warn('[adaptDoc] contenu inchangé:', e.message); newB64 = doc.b64; }
         }
-        // 🆕 Champ N° d'inventaire (Inventory-No) = celui du tool cible — VIDE s'il n'est pas renseigné
         if (isOffice && newB64) {
+          const tgtFour = String(tgtTool.fournisseur || tgtTool.fabricant || '').trim();
           const tgtInv = String(tgtTool.numInventaire || '').trim();
+          const baseFam = this._extractFamily(tgtNameR) || this._extractFamily(srcNameR);
+          // 🆕 Forcer le Fournisseur (cellule à droite du libellé) — fiable même si THB introuvable par texte
+          if (tgtFour) { try { newB64 = await this._setOfficeFieldByLabel(newB64, /fournisseur|supplier/i, tgtFour); } catch (e) {} }
+          // 🆕 N° d'inventaire (Inventory-No) = celui du tool cible — VIDE s'il n'est pas renseigné
           try { newB64 = await this._setOfficeFieldByLabel(newB64, /inventaire|inventory/i, tgtInv); } catch (e) {}
+          // 🆕 Renommer l'onglet de feuille de la famille → numéro de l'outil cible
+          if (baseFam) { try { newB64 = await this._renameFamilySheets(newB64, baseFam, tgtNum); } catch (e) {} }
         }
         return { ...doc, name: newName, b64: newB64 };
       },
@@ -22144,9 +22178,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             const contentPairs = [...namePairs];
             try { contentPairs.push(...await this._officeIdentityPairs(srcB64, true, tgtFour)); } catch (e) {}
             if (contentPairs.length) { try { newB64 = await this._replaceInOfficeB64(srcB64, contentPairs); } catch (e) { newB64 = srcB64; } }
-            // 🆕 Champ N° d'inventaire = celui du tool (VIDE s'il n'est pas renseigné, rempli sinon)
+            // 🆕 Forcer le Fournisseur (cellule)
+            if (tgtFour) { try { newB64 = await this._setOfficeFieldByLabel(newB64, /fournisseur|supplier/i, tgtFour); } catch (e) {} }
+            // 🆕 N° d'inventaire = celui du tool (VIDE si non renseigné, rempli sinon)
             const tgtInv = String(tool.numInventaire || '').trim();
             try { newB64 = await this._setOfficeFieldByLabel(newB64, /inventaire|inventory/i, tgtInv); } catch (e) {}
+            // 🆕 Renommer l'onglet de feuille de la famille → numéro de l'outil
+            try { newB64 = await this._renameFamilySheets(newB64, baseFam, tgtNum); } catch (e) {}
           }
           const b64Changed = isOffice && srcB64 && newB64 !== srcB64;
           if (newName === docMeta.name && !b64Changed) continue;  // aucun changement réel

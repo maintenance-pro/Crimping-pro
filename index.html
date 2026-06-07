@@ -22162,15 +22162,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       _invValue(t) {
         if (!t) return '';
         const s = v => String(v == null ? '' : v).trim();
-        const inv  = s(t.numInventaire);
-        if (inv) return inv;                                   // déjà renseigné → on le garde tel quel
         const dout = s(t.doutils);
         const ser  = s(t.serial);
+        const inv  = s(t.numInventaire);
         const rid  = s(t.refOutil) || s(t.outilId);
-        if (dout && ser) return dout + '/' + ser;              // format standard : WZ7190-R09/1005
-        if (ser)         return ser;                           // au moins le serial (1005)
-        if (dout && rid) return dout + '/' + rid;              // repli : D'Outils/réf
-        return rid || dout || '';                              // dernier recours
+        if (dout && ser) return dout + '/' + ser;   // ✅ N° d'inventaire D'Outils = "D'Outils/Serial" (construit, jamais périmé)
+        if (inv)         return inv;                 // sinon le champ N° Inventaire déjà renseigné
+        if (ser)         return ser;                 // au moins le serial (1005)
+        if (dout && rid) return dout + '/' + rid;    // repli : D'Outils/réf
+        return rid || dout || '';                    // dernier recours
       },
 
       /** 🆕 Remplace le DERNIER segment « - XXXX » d'un nom de fichier (le serial) par le serial cible.
@@ -22359,11 +22359,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         try {
           const updated = { ...tool };
           ['groupe','connection','terminal','numContact','frequenceCycle','refFabricant'].forEach(f => { if (refSource[f] && (!updated[f] || !String(updated[f]).trim())) updated[f] = refSource[f]; });
-          // 🆕 N° d'inventaire VIDE → on le REMPLIT automatiquement (D'Outils/Serial) puis on l'écrit dans l'Annexe + on l'enregistre sur l'outil
+          // 🆕 N° d'inventaire = "D'Outils/Serial" (valeur canonique). On le (re)met à jour s'il est vide OU périmé,
+          //    puis on l'écrit dans l'Annexe et on l'enregistre sur l'outil.
           let invAutoFilled = '';
-          if (!String(updated.numInventaire || '').trim()) {
-            const filled = this._invValue(updated);
-            if (filled) { updated.numInventaire = filled; tool.numInventaire = filled; invAutoFilled = filled; }
+          const canonInv = this._invValue(updated);
+          if (canonInv && String(updated.numInventaire || '').trim() !== canonInv) {
+            const wasEmpty = !String(updated.numInventaire || '').trim();
+            updated.numInventaire = canonInv; tool.numInventaire = canonInv;
+            if (wasEmpty) invAutoFilled = canonInv;
           }
           let piecesCopied = 0;
           if (pieceSource && pieceSource.pieces) {
@@ -22377,8 +22380,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           let docsCopied = 0;
           if (hasDocs) {
             const srcDocs = toolAttachments._all[docSource.id] || {};
+            const srcEntries = Object.entries(srcDocs);
             const existing = Object.values(toolAttachments._all?.[tool.id] || {}).map(d => (d.name || '') + '|' + (d.category || ''));
-            for (const [srcFid, docMeta] of Object.entries(srcDocs)) {
+            let di = 0;
+            for (const [srcFid, docMeta] of srcEntries) {
+              di++;
+              if (!silent) { ui.showLoader(`Adaptation des documents… ${di}/${srcEntries.length}`); await new Promise(r => setTimeout(r, 0)); }  // 🆕 fluidité : l'UI respire entre chaque doc
               const srcB64 = await toolAttachments._getB64(docSource.id, srcFid, docMeta);  // 🆕 b64 source à la demande
               const doc = { ...docMeta, b64: srcB64 };
               let adapted; try { adapted = await this._adaptDocForTarget(doc, docSource, updated); } catch (e) { adapted = { ...doc }; }
@@ -22398,7 +22405,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (invAutoFilled) {
               ui.toast(`🧬 N° d'inventaire vide → rempli automatiquement : « ${invAutoFilled} » — écrit dans l'Annexe et enregistré sur l'outil.`, 'info', 8000);
             }
-            setTimeout(() => this.showDetails({ ...updated }), 300);
+            this.showDetails({ ...updated });  // 🆕 rafraîchissement IMMÉDIAT (le cache local des docs est déjà à jour)
           }
           return { pieces: piecesCopied, docs: docsCopied + adaptedExisting, invFilled: invAutoFilled ? 1 : 0 };
         } catch (e) {
@@ -22420,9 +22427,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const tools = Object.values(state.tools || {}).filter(t => t && this._getToolStatus(t) === 'production');
         if (!tools.length) return ui.toast('Aucun outil en production', 'info');
         if (!confirm(`Héritage AUTOMATIQUE de famille sur ${tools.length} outil(s) en production ?\n\nChaque outil héritera, depuis sa famille (même connexion + groupe + client) :\n• les pièces (même fournisseur)\n• les documents ADAPTÉS à son n° (nom de fichier + données internes)\n\nLes champs déjà remplis ne sont pas écrasés. Continuer ?`)) return;
-        ui.showLoader('Héritage automatique en cours… (cela peut prendre un moment)');
-        let okTools = 0, totPieces = 0, totDocs = 0, skipped = 0, invFilledTools = 0;
+        ui.showLoader(`Héritage automatique… 0/${tools.length}`);
+        let okTools = 0, totPieces = 0, totDocs = 0, skipped = 0, invFilledTools = 0, i = 0;
         for (const t of tools) {
+          i++;
+          const nm = t.doutils || t.designation || t.serial || t.refOutil || t.outilId || '?';
+          ui.showLoader(`Héritage automatique… ${i}/${tools.length} — ${nm}`);
+          await new Promise(r => setTimeout(r, 0));  // 🆕 fluidité : repeindre l'UI entre les outils (pas de gel)
           try {
             const r = await this._inheritOne(t, true);
             if (r && (r.pieces || r.docs)) { okTools++; totPieces += r.pieces || 0; totDocs += r.docs || 0; }

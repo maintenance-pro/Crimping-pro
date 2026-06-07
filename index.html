@@ -8100,6 +8100,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <button class="btn btn--secondary" id="btn-catalog-print-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Imprimer les QR codes des outils filtrés">🖨 QR Codes</button>
             <button class="btn btn--secondary" id="btn-catalog-bulk-docs" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog" style="background:rgba(124,58,237,.14);color:#a855f7;border:1px solid rgba(124,58,237,.35);font-weight:700" title="Joindre une liste de documents (Annexes) à plusieurs outils d'un coup">📎 Docs en masse</button>
             <button class="btn btn--secondary" id="btn-catalog-inherit-all" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog" style="background:rgba(34,211,238,.14);color:#22d3ee;border:1px solid rgba(34,211,238,.35);font-weight:700" title="Héritage AUTOMATIQUE : chaque outil hérite pièces (même fournisseur) + documents adaptés de sa famille (connexion+groupe+client)">🧬 Hériter TOUT</button>
+            <button class="btn btn--secondary" id="btn-catalog-optimize-docs" data-requires-role="super_admin,admin" data-edit-module="catalog" style="background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.3);font-weight:700" title="Allège l'index des documents (déplace les fichiers volumineux hors de l'index) — corrige l'affichage si les documents ne se chargent pas">⚙️ Optimiser docs</button>
             <button class="btn btn--primary" id="btn-catalog-add" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog">＋ Nouvel outil</button>
           </div>
         </header>
@@ -10767,17 +10768,46 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return;
       }
       this._listenerAttached = true;
-      fbDb.ref('toolAttachments').on('value', snap => {
-        this._all = snap.val() || {};
-        this._loaded = true;  // 🆕 cache global prêt → plus besoin de fetch à la demande
-        console.log(`[toolAttachments] 📥 ${Object.keys(this._all).length} outil(s) avec fichiers`);
-        // Si la modal détails est ouverte, re-render
-        if (this._currentTool && !document.getElementById('modal-tool-details')?.hidden) {
-          this.renderForTool(this._currentTool);
+      // 🆕 Watchdog : si l'index n'a pas chargé en 8s (trop lourd / connexion qui pend) → optimisation auto
+      this._loaded = false;
+      clearTimeout(this._loadWatchdog);
+      this._loadWatchdog = setTimeout(() => {
+        if (!this._loaded && !this._autoMigrated && !this._migrating) {
+          console.warn('[toolAttachments] index non chargé après 8s → optimisation automatique');
+          this._autoMigrated = true;
+          this._migrateHeavyDocs({ silent: true });
         }
-        // 🆕 Rafraîchir le catalogue pour afficher/mettre à jour les badges 📎
-        if (state.currentView === 'catalog' && views.catalog?.render) {
-          try { views.catalog.render(); } catch(e) {}
+      }, 8000);
+      fbDb.ref('toolAttachments').on('value', snap => {
+        clearTimeout(this._loadWatchdog);
+        const raw = snap.val() || {};
+        // 🆕 Construire l'index EN MÉMOIRE sans garder les b64 (libère la RAM) + détecter l'ancien format lourd
+        let inlineB64 = false, n = 0;
+        this._all = {};
+        for (const [tid, docs] of Object.entries(raw)) {
+          if (!docs || typeof docs !== 'object') continue;
+          this._all[tid] = {};
+          for (const [fid, d] of Object.entries(docs)) {
+            if (d && d.b64) { inlineB64 = true; this._b64cache[tid + '/' + fid] = d.b64; const { b64, ...m } = d; this._all[tid][fid] = m; }
+            else this._all[tid][fid] = d;
+            n++;
+          }
+        }
+        this._loaded = true;
+        console.log(`[toolAttachments] 📥 ${Object.keys(this._all).length} outil(s), ${n} doc(s)${inlineB64 ? ' (ancien format détecté)' : ''}`);
+        if (this._currentTool && !document.getElementById('modal-tool-details')?.hidden) this.renderForTool(this._currentTool);
+        if (state.currentView === 'catalog' && views.catalog?.render) { try { views.catalog.render(); } catch (e) {} }
+        // 🆕 Migration auto (une seule fois) si des b64 inline subsistent → l'index sera léger au prochain chargement
+        if (inlineB64 && !this._autoMigrated) { this._autoMigrated = true; setTimeout(() => this._migrateHeavyDocs({ silent: true }), 1500); }
+      }, err => {
+        clearTimeout(this._loadWatchdog);
+        // 🆕 Échec de chargement (index trop lourd / timeout sur mobile) → migration via shallow (ne charge PAS les b64) puis re-tentative
+        console.error('[toolAttachments] ⛔ chargement échoué:', err.code, err.message);
+        this._loaded = false;
+        ui.toast('⚠️ Index documents lourd — optimisation en cours, patientez…', 'warn', 8000);
+        if (!this._autoMigrated) {
+          this._autoMigrated = true;
+          this._migrateHeavyDocs({ silent: true });  // détache + migre + rebranche automatiquement
         }
       });
     },
@@ -10802,6 +10832,97 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         reader.readAsDataURL(file);
       });
     },
+
+    // 🆕 Cache de session des base64 : "toolId/fid" → b64 (évite de re-télécharger)
+    _b64cache: {},
+
+    /** 🆕 Récupère le base64 d'un document À LA DEMANDE (jamais chargé en masse).
+     *  Ordre : cache session → b64 déjà en mémoire (ancien inline) → noeud séparé toolAttachmentsB64 → inline Firebase (non migré). */
+    async _getB64(toolId, fid, meta) {
+      if (!toolId || !fid) return null;
+      const ck = toolId + '/' + fid;
+      if (this._b64cache[ck]) return this._b64cache[ck];
+      const inMem = meta || this._all?.[toolId]?.[fid];
+      if (inMem && inMem.b64) { this._b64cache[ck] = inMem.b64; return inMem.b64; }
+      try {
+        const s = await fbDb.ref('toolAttachmentsB64/' + toolId + '/' + fid).once('value');
+        const v = s.val();
+        const b = (v && typeof v === 'object') ? v.b64 : v;
+        if (b) { this._b64cache[ck] = b; return b; }
+      } catch (e) {}
+      try {
+        const s2 = await fbDb.ref('toolAttachments/' + toolId + '/' + fid + '/b64').once('value');
+        const v2 = s2.val();
+        if (v2) { this._b64cache[ck] = v2; return v2; }
+      } catch (e) {}
+      return null;
+    },
+
+    /** 🆕 Écrit un doc en 2 parties : métadonnée LÉGÈRE (toolAttachments, SANS b64) + base64 SÉPARÉ (toolAttachmentsB64).
+     *  → l'index reste léger (badges/liste fiables) ; le base64 n'est lu qu'au téléchargement. */
+    async _writeDoc(toolId, fid, meta, b64) {
+      const m = { ...meta }; delete m.b64;
+      if (b64) await fbDb.ref('toolAttachmentsB64/' + toolId + '/' + fid).set(b64);
+      await fbDb.ref('toolAttachments/' + toolId + '/' + fid).set(m);
+      if (!this._all[toolId]) this._all[toolId] = {};
+      this._all[toolId][fid] = m;
+      if (b64) this._b64cache[toolId + '/' + fid] = b64;
+    },
+
+    /** 🆕 MIGRATION : déplace les base64 INLINE (ancien format toolAttachments/{id}/{fid}/b64)
+     *  vers le noeud séparé toolAttachmentsB64, et les retire de l'index.
+     *  → l'index toolAttachments redevient LÉGER → chargement fiable même sur mobile.
+     *  Utilise une requête "shallow" (REST) pour lister les outils SANS charger les b64 (anti-timeout). */
+    async _migrateHeavyDocs(opts) {
+      opts = opts || {};
+      if (this._migrating) return { busy: true };
+      this._migrating = true;
+      // 🆕 Détacher le listener pendant la migration (évite des milliers de re-rendus à chaque retrait de b64)
+      try { fbDb.ref('toolAttachments').off('value'); } catch (e) {}
+      this._listenerAttached = false;
+      try {
+        const dbBase = (FIREBASE_CONFIG.databaseURL || '').replace(/\/+$/, '');
+        const token = fbAuth.currentUser ? await fbAuth.currentUser.getIdToken() : '';
+        const idxRes = await fetch(`${dbBase}/toolAttachments.json?shallow=true&auth=${encodeURIComponent(token)}`);
+        const idx = await idxRes.json();
+        const toolIds = (idx && typeof idx === 'object') ? Object.keys(idx) : [];
+        if (!toolIds.length) { if (!opts.silent) ui.toast('Aucun document à optimiser', 'info'); this._migrating = false; setTimeout(() => { try { this.init(); } catch (e) {} }, 200); return { moved: 0 }; }
+        let moved = 0, done = 0;
+        const BATCH = 12;
+        for (let i = 0; i < toolIds.length; i += BATCH) {
+          const slice = toolIds.slice(i, i + BATCH);
+          if (!opts.silent) ui.showLoader(`Optimisation des documents… ${Math.min(i + BATCH, toolIds.length)}/${toolIds.length}`);
+          await Promise.all(slice.map(async tid => {
+            let docs; try { const s = await fbDb.ref('toolAttachments/' + tid).once('value'); docs = s.val(); } catch (e) { return; }
+            if (!docs || typeof docs !== 'object') return;
+            for (const [fid, doc] of Object.entries(docs)) {
+              if (doc && doc.b64) {
+                try {
+                  await fbDb.ref('toolAttachmentsB64/' + tid + '/' + fid).set(doc.b64);   // 1) copier
+                  await fbDb.ref('toolAttachments/' + tid + '/' + fid + '/b64').remove();  // 2) puis retirer de l'index
+                  this._b64cache[tid + '/' + fid] = doc.b64;
+                  moved++;
+                } catch (e) { console.warn('[migrate] échec', tid + '/' + fid, e.message); }
+              }
+            }
+          }));
+          done += slice.length;
+        }
+        try { await fbDb.ref('toolDocsMigratedAt').set(Date.now()); } catch (e) {}
+        if (!opts.silent) { ui.hideLoader(); ui.toast(`✅ ${moved} document(s) optimisé(s) sur ${toolIds.length} outil(s). L'index est allégé.`, 'success', 7000); }
+        console.log(`[migrate] terminé : ${moved} b64 déplacés / ${toolIds.length} outils`);
+        this._migrating = false;
+        setTimeout(() => { try { this.init(); } catch (e) {} }, 300);  // 🆕 rebrancher le listener (index allégé)
+        return { moved, tools: toolIds.length };
+      } catch (e) {
+        if (!opts.silent) { ui.hideLoader(); ui.toast('⛔ Optimisation : ' + e.message, 'danger'); }
+        console.error('[migrateHeavyDocs]', e);
+        this._migrating = false;
+        setTimeout(() => { try { this.init(); } catch (e2) {} }, 300);  // 🆕 rebrancher même en cas d'échec
+        return { error: e.message };
+      }
+    },
+
 
     /** 🆕 Tente de rattacher un nom de fichier à un outil de state.tools.
      *  Cherche l'identifiant outil (designation/serial/doutils/outilId/refOutil) le PLUS LONG
@@ -10910,12 +11031,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               description: '',
               mime: a.file.type,
               sizeKB: Math.round(a.file.size / 1024),
-              b64,
               uploadedAt: Date.now(),
               uploadedBy: state.user?.uid || '',
               uploadedByName: state.profile?.displayName || '?'
             };
-            await fbDb.ref(`toolAttachments/${a.match.tool.id}/${fid}`).set(payload);
+            await this._writeDoc(a.match.tool.id, fid, payload, b64);  // 🆕 métadonnée légère + b64 séparé
             try { db.audit('toolAttachment.bulkAdd', a.match.tool.id, { name: a.file.name, category: finalCat }); } catch(e){}
             done++;
           } catch(e) {
@@ -11064,16 +11184,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             description,
             mime: file.type,
             sizeKB: Math.round(file.size / 1024),
-            b64,
             uploadedAt: Date.now(),
             uploadedBy: state.user?.uid || '',
             uploadedByName: state.profile?.displayName || '?'
           };
-          await fbDb.ref(`toolAttachments/${tool.id}/${fid}`).set(payload);
+          await this._writeDoc(tool.id, fid, payload, b64);  // 🆕 métadonnée légère + b64 séparé
           try { db.audit('toolAttachment.add', tool.id, { name: file.name, sizeKB: payload.sizeKB, category: finalCat }); } catch(e){}
-          // 🆕 Mise à jour OPTIMISTE du cache local → affichage immédiat (sans attendre le listener global lourd)
-          if (!this._all[tool.id]) this._all[tool.id] = {};
-          this._all[tool.id][fid] = payload;
           ui.hideLoader();
           ui.toast(`📎 "${file.name}" téléversé (${this._fmtSize(payload.sizeKB)}) ✅`, 'success');
           modal.hidden = true;
@@ -11092,12 +11208,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       modal.hidden = false;
     },
 
-    /** Télécharge un fichier (n'importe quel rôle) */
-    download(toolId, fileId) {
-      const f = this._all?.[toolId]?.[fileId];
-      if (!f || !f.b64) return ui.toast('Fichier introuvable', 'danger');
+    /** Télécharge un fichier (n'importe quel rôle) — récupère le base64 À LA DEMANDE */
+    async download(toolId, fileId) {
+      const f = this._all?.[toolId]?.[fileId] || {};
+      let b64 = this._b64cache[toolId + '/' + fileId];
+      if (!b64) { ui.showLoader('Préparation du téléchargement…'); try { b64 = await this._getB64(toolId, fileId, f); } finally { ui.hideLoader(); } }
+      if (!b64) return ui.toast('Fichier introuvable', 'danger');
       try {
-        const bin = atob(f.b64);
+        const bin = atob(b64);
         const bytes = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         const blob = new Blob([bytes], { type: f.mime || 'application/octet-stream' });
@@ -11126,9 +11244,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if (!await ui.confirm("Supprimer le fichier ?", `"${f.name}" sera supprimé définitivement.`, { type: "danger", okLabel: "🗑️ Supprimer le fichier" })) return;
       try {
         await fbDb.ref(`toolAttachments/${toolId}/${fileId}`).remove();
+        try { await fbDb.ref(`toolAttachmentsB64/${toolId}/${fileId}`).remove(); } catch(e){}
+        delete this._b64cache[toolId + '/' + fileId];
+        if (this._all?.[toolId]) delete this._all[toolId][fileId];
         try { db.audit('toolAttachment.delete', toolId, { name: f.name, fileId }); } catch(e){}
         ui.toast(`🗑️ "${f.name}" supprimé`, 'success');
-        // Le listener va re-render automatiquement
+        if (this._currentTool && this._currentTool.id === toolId) this.renderForTool(this._currentTool);
+        if (state.currentView === 'catalog' && views.catalog?.render) { try { views.catalog.render(); } catch(e){} }
       } catch(e) {
         console.error('[toolAttachments.delete]', e);
         ui.toast(`⛔ ${e.code || e.message}`, 'danger');
@@ -21420,6 +21542,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           btnInheritAll.addEventListener('click', () => this.inheritAllFamilies());
         }
 
+        // 🆕 Optimiser l'index des documents (déplace les b64 lourds hors de l'index)
+        const btnOptDocs = $('#btn-catalog-optimize-docs');
+        if (btnOptDocs) {
+          btnOptDocs.addEventListener('click', async () => {
+            if (!confirm("Optimiser l'index des documents ?\n\nLes fichiers volumineux seront déplacés hors de l'index pour accélérer et fiabiliser l'affichage. Aucun document n'est supprimé.\n\nContinuer ?")) return;
+            await toolAttachments._migrateHeavyDocs({ silent: false });  // détache + migre + rebranche le listener
+          });
+        }
+
         // ── Export Excel ──
         const btnExport = $('#btn-catalog-export');
         if (btnExport) {
@@ -21953,35 +22084,30 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!Object.keys(docs).length) return 0;
         const reSrc = baseFam.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const re = new RegExp(reSrc + '-R?\\d+', 'ig');
-        const upd = {};
         let adapted = 0;
-        for (const [fid, doc] of Object.entries(docs)) {
-          const isOffice = /\.(xlsx|xlsm|docx|pptx)$/i.test(doc.name || '') || (doc.mime || '').includes('openxmlformats');
-          const found = [...new Set((String(doc.name || '').match(re) || []))]
+        for (const [fid, docMeta] of Object.entries(docs)) {
+          const isOffice = /\.(xlsx|xlsm|docx|pptx)$/i.test(docMeta.name || '') || (docMeta.mime || '').includes('openxmlformats');
+          const found = [...new Set((String(docMeta.name || '').match(re) || []))]
             .filter(tok => tok.toUpperCase() !== tgtNum.toUpperCase() && tok.toUpperCase() !== tgtNameR.toUpperCase());
           const namePairs = found.map(tok => [tok, tgtNum]);
-          // Contenu : numéro + Fournisseur
-          const contentPairs = [...namePairs];
-          if (isOffice && doc.b64) {
+          const newName = (s => { let o = String(s || ''); for (const [f, t] of namePairs) o = o.split(f).join(t); return o; })(docMeta.name);
+          // Récupérer le base64 À LA DEMANDE (l'index ne le contient plus)
+          const srcB64 = isOffice ? await toolAttachments._getB64(tool.id, fid, docMeta) : null;
+          let newB64 = srcB64;
+          if (isOffice && srcB64) {
             const tgtFour = String(tool.fournisseur || tool.fabricant || '').trim();
-            try { contentPairs.push(...await this._officeIdentityPairs(doc.b64, true, tgtFour)); } catch (e) {}
-          }
-          const replStr = s => { let o = String(s || ''); for (const [f, t] of namePairs) o = o.split(f).join(t); return o; };
-          const newName = replStr(doc.name);
-          let newB64 = doc.b64;
-          if (isOffice && doc.b64 && contentPairs.length) { try { newB64 = await this._replaceInOfficeB64(doc.b64, contentPairs); } catch (e) { newB64 = doc.b64; } }
-          // 🆕 Champ N° d'inventaire = celui du tool (VIDE s'il n'est pas renseigné, rempli sinon)
-          if (isOffice && newB64) {
+            const contentPairs = [...namePairs];
+            try { contentPairs.push(...await this._officeIdentityPairs(srcB64, true, tgtFour)); } catch (e) {}
+            if (contentPairs.length) { try { newB64 = await this._replaceInOfficeB64(srcB64, contentPairs); } catch (e) { newB64 = srcB64; } }
+            // 🆕 Champ N° d'inventaire = celui du tool (VIDE s'il n'est pas renseigné, rempli sinon)
             const tgtInv = String(tool.numInventaire || '').trim();
             try { newB64 = await this._setOfficeFieldByLabel(newB64, /inventaire|inventory/i, tgtInv); } catch (e) {}
           }
-          if (newName === doc.name && newB64 === doc.b64) continue;  // aucun changement réel
-          upd[`toolAttachments/${tool.id}/${fid}`] = { ...doc, name: newName, b64: newB64, adaptedTo: tgtNum, adaptedAt: Date.now() };
+          const b64Changed = isOffice && srcB64 && newB64 !== srcB64;
+          if (newName === docMeta.name && !b64Changed) continue;  // aucun changement réel
+          const { b64: _x, ...meta } = docMeta;
+          await this._writeDoc(tool.id, fid, { ...meta, name: newName, adaptedTo: tgtNum, adaptedAt: Date.now() }, newB64 || srcB64);
           adapted++;
-        }
-        if (Object.keys(upd).length) {
-          await fbDb.ref().update(upd);
-          Object.keys(upd).forEach(path => { const fid = path.split('/').pop(); toolAttachments._all[tool.id][fid] = upd[path]; });
         }
         return adapted;
       },
@@ -22052,19 +22178,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (hasDocs) {
             const srcDocs = toolAttachments._all[docSource.id] || {};
             const existing = Object.values(toolAttachments._all?.[tool.id] || {}).map(d => (d.name || '') + '|' + (d.category || ''));
-            const upd = {};
-            for (const doc of Object.values(srcDocs)) {
+            for (const [srcFid, docMeta] of Object.entries(srcDocs)) {
+              const srcB64 = await toolAttachments._getB64(docSource.id, srcFid, docMeta);  // 🆕 b64 source à la demande
+              const doc = { ...docMeta, b64: srcB64 };
               let adapted; try { adapted = await this._adaptDocForTarget(doc, docSource, tool); } catch (e) { adapted = { ...doc }; }
               const sig = (adapted.name || '') + '|' + (adapted.category || '');
               if (existing.includes(sig)) continue;
               const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + docsCopied;
-              upd[`toolAttachments/${tool.id}/${fid}`] = { ...adapted, inheritedFrom: docSource.id, adaptedTo: name, uploadedAt: Date.now() };
+              const { b64: adB64, ...adMeta } = adapted;
+              await toolAttachments._writeDoc(tool.id, fid, { ...adMeta, inheritedFrom: docSource.id, adaptedTo: name, uploadedAt: Date.now() }, adB64);  // 🆕 métadonnée + b64 séparé
+              existing.push(sig);
               docsCopied++;
-            }
-            if (Object.keys(upd).length) {
-              await fbDb.ref().update(upd);
-              if (!toolAttachments._all[tool.id]) toolAttachments._all[tool.id] = {};
-              Object.keys(upd).forEach(path => { const fid = path.split('/').pop(); toolAttachments._all[tool.id][fid] = upd[path]; });
             }
           }
           try { db.audit('tool.inheritFamily', tool.id, { base, piecesCopied, docsCopied, adaptedExisting, silent }); } catch (e) {}
@@ -23278,19 +23402,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             try {
               const srcDocs = toolAttachments._all?.[this._inheritDocsFrom];
               if (srcDocs && Object.keys(srcDocs).length) {
-                const updates = {};
-                Object.values(srcDocs).forEach(doc => {
-                  const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-                  updates[`toolAttachments/${newToolId}/${fid}`] = {
-                    ...doc,
-                    inheritedFrom: this._inheritDocsFrom,
-                    uploadedAt: Date.now()
-                  };
-                });
-                if (Object.keys(updates).length) {
-                  await fbDb.ref().update(updates);
-                  ui.toast(`📎 ${Object.keys(updates).length} document(s) hérité(s) de la famille`, 'success', 4000);
+                let n = 0;
+                for (const [srcFid, docMeta] of Object.entries(srcDocs)) {
+                  const b64 = await toolAttachments._getB64(this._inheritDocsFrom, srcFid, docMeta);  // 🆕 b64 à la demande
+                  const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + n;
+                  const { b64: _x, ...meta } = docMeta;
+                  await toolAttachments._writeDoc(newToolId, fid, { ...meta, inheritedFrom: this._inheritDocsFrom, uploadedAt: Date.now() }, b64);  // 🆕 métadonnée + b64 séparé
+                  n++;
                 }
+                if (n) ui.toast(`📎 ${n} document(s) hérité(s) de la famille`, 'success', 4000);
               }
             } catch(e) { console.warn('[inherit docs]', e); }
           }

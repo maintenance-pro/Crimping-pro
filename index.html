@@ -22187,25 +22187,21 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         // Contenu : nom/numéro + Fournisseur (= FABRICANT de l'outil) + N° d'inventaire (du tool cible)
         const tgtFour = String(tgtTool.fabricant || tgtTool.fournisseur || '').trim();  // 🆕 FABRICANT en priorité (ex: SIROCO)
         const tgtInv  = this._invValue(tgtTool);                                        // 🆕 N° d'inventaire D'Outils (jamais vide)
-        const tgtSerial = String(tgtTool.serial || '').trim();                          // serial réel de l'outil (peut être vide)
-        const serialForName = tgtSerial || 'NA';                                        // 🆕 "NA" si aucun serial trouvé
+        const tgtSerial = String(tgtTool.serial || '').trim();                          // 🆕 serial de l'outil (ex: 1005)
         const TOOL_SECTION = /applicator|donn[eé]es?\s*outil/i;                         // 🆕 section « Données outil / Applicator datas »
         const excludeNums = [srcNum, tgtNum, srcNameR, tgtNameR];
-        // 🆕 Nom de fichier : on remplace le n° d'outil PUIS le serial du dernier segment (ex: N1029 → 1005, ou → NA)
-        let newName = this._replaceSerialInName(replName(doc.name), serialForName, excludeNums);
+        // 🆕 Nom de fichier : on remplace le n° d'outil PUIS le serial du dernier segment (ex: N1029 → 1005)
+        let newName = this._replaceSerialInName(replName(doc.name), tgtSerial, excludeNums);
         const contentPairs = [...namePairs];
-        // 🆕 Remplacement du serial DANS LE CONTENU : on ne cherche QUE des serials spécifiques.
-        //    On ne cherche JAMAIS "NA" ni un token < 3 caractères (sinon on casserait "Terminal", "Spécification"…).
-        const riskySerial = s => !s || String(s).trim().length < 3 || /^na$/i.test(String(s).trim());
+        // 🆕 Remplacer aussi dans le CONTENU le serial résiduel (issu du nom source) → serial cible
         const oldSerialFromName = (() => {
           const mm = String(doc.name || '').match(/^(.*?)(\.[A-Za-z0-9]+)$/);
           const b = (mm ? mm[1] : String(doc.name || '')).split(/\s+-\s+/);
           return b.length >= 2 ? b[b.length - 1].trim() : '';
         })();
-        if (oldSerialFromName && serialForName && oldSerialFromName !== serialForName &&
-            !riskySerial(oldSerialFromName) &&
+        if (oldSerialFromName && tgtSerial && oldSerialFromName !== tgtSerial &&
             !excludeNums.map(t => String(t || '').toUpperCase()).includes(oldSerialFromName.toUpperCase())) {
-          contentPairs.push([oldSerialFromName, serialForName]);
+          contentPairs.push([oldSerialFromName, tgtSerial]);
         }
         if (isOffice && doc.b64) {
           try { contentPairs.push(...await this._officeIdentityPairs(doc.b64, true, tgtFour, tgtInv, TOOL_SECTION)); } catch (e) {}
@@ -22250,10 +22246,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const found = [...new Set((String(docMeta.name || '').match(re) || []))]
             .filter(tok => tok.toUpperCase() !== tgtNum.toUpperCase() && tok.toUpperCase() !== tgtNameR.toUpperCase());
           const namePairs = found.map(tok => [tok, tgtNum]);
-          const tgtSerial = String(tool.serial || '').trim();  // serial réel (peut être vide)
-          const serialForName = tgtSerial || 'NA';             // 🆕 "NA" si aucun serial trouvé
+          const tgtSerial = String(tool.serial || '').trim();  // 🆕 serial de l'outil (ex: 1005)
           let newName = (s => { let o = String(s || ''); for (const [f, t] of namePairs) o = o.split(f).join(t); return o; })(docMeta.name);
-          newName = this._replaceSerialInName(newName, serialForName, [tgtNum, tgtNameR]);  // 🆕 serial dans le nom (ex: N1029 → 1005, ou → NA)
+          newName = this._replaceSerialInName(newName, tgtSerial, [tgtNum, tgtNameR]);  // 🆕 serial dans le nom (ex: N1029 → 1005)
           // Récupérer le base64 À LA DEMANDE (l'index ne le contient plus)
           const srcB64 = isOffice ? await toolAttachments._getB64(tool.id, fid, docMeta) : null;
           if (isOffice && !srcB64) console.warn(`[adaptDocs] ⚠️ base64 introuvable pour "${docMeta.name}" → contenu NON adapté (seul le nom le sera)`);
@@ -22269,11 +22264,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               const b = (mm ? mm[1] : String(docMeta.name || '')).split(/\s+-\s+/);
               return b.length >= 2 ? b[b.length - 1].trim() : '';
             })();
-            const riskySerial = s => !s || String(s).trim().length < 3 || /^na$/i.test(String(s).trim());
-            if (oldSerialFromName && serialForName && oldSerialFromName !== serialForName &&
-                !riskySerial(oldSerialFromName) &&
+            if (oldSerialFromName && tgtSerial && oldSerialFromName !== tgtSerial &&
                 ![tgtNum, tgtNameR].map(t => String(t || '').toUpperCase()).includes(oldSerialFromName.toUpperCase())) {
-              contentPairs.push([oldSerialFromName, serialForName]);
+              contentPairs.push([oldSerialFromName, tgtSerial]);
             }
             try { contentPairs.push(...await this._officeIdentityPairs(srcB64, true, tgtFour, tgtInv, TOOL_SECTION)); } catch (e) {}
             if (contentPairs.length) { try { newB64 = await this._replaceInOfficeB64(srcB64, contentPairs); } catch (e) { newB64 = srcB64; } }

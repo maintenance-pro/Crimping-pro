@@ -7513,6 +7513,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <!-- Champs cachés pour stocker les valeurs (compatible avec save) -->
               <input id="int-duration" name="duration" type="hidden" value="">
               <input id="int-subtype" type="hidden" value="">
+              <input id="int-reglage" type="hidden" value="">
               <input id="int-configs" type="hidden" value="">
               <!-- Bouton caché conservé pour rétro-compatibilité (sauvegarde auto désormais) -->
               <button type="button" id="btn-save-duration" hidden></button>
@@ -12475,6 +12476,69 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           console.error('[validateIntervention] PDR auto-record failed:', e)
         );
       }
+    },
+
+    /** 🆕 AUTO-VALIDATION — bon SANS changement conducteur (P-AR poinçon condu OU E-AR enclume condu) :
+     *  aucun passage laboratoire. Le bon est validé immédiatement (temps technicien conservé) et
+     *  l'outil est débloqué tout de suite. S'applique à Préventive / Homologation / Requalification. */
+    async autoValidateIntervention(reg) {
+      const now = Date.now();
+      const ref = fbDb.ref(`interventions/${reg}`);
+      const snap = await ref.once('value');
+      const data = snap.val();
+      if (!data) throw new Error('Bon introuvable');
+      const history = data.statusHistory || [];
+      history.push({ status: 'submitted', at: now, by: state.user.uid, byName: state.profile.displayName, auto: true });
+      history.push({ status: 'validated', at: now, by: state.user.uid, byName: state.profile.displayName, auto: true });
+      await ref.update({
+        status: 'validated',
+        statusHistory: history,
+        autoValidated: true,
+        lab: {
+          autoValidated: true,
+          decision: 'validated',
+          note: "Validé automatiquement — aucun changement conducteur (P-AR / E-AR). Sans passage laboratoire.",
+          filledAt: now,
+          filledBy: { uid: state.user.uid, name: state.profile.displayName, matricule: state.profile.matricule || '', auto: true }
+        },
+        'sla/submittedAt': now,
+        'sla/decidedAt': now,
+        'sla/durationMs': 0,
+        '_indexes/status': 'validated',
+        locked: true,
+        updatedAt: now
+      });
+      this.audit('intervention.autovalidate', reg);
+      if (state.interventions && state.interventions[reg]) {
+        state.interventions[reg] = { ...state.interventions[reg], status: 'validated', autoValidated: true, locked: true };
+      }
+      // 🆕 Débloquer l'outil immédiatement (statuts de blocage → "ok")
+      try { await this._unblockToolForBon(reg, data); } catch (e) { console.warn('[autoValidate] unblock tool:', e); }
+      await this._syncOneBon(reg);
+      this.notifyCrimping(reg, 'validated');
+      // Reset baseline PDR si des pièces NON-critiques ont changé (ex: P-AV / E-AV)
+      if (typeof wearAlerts !== 'undefined' && wearAlerts.recordPdrChangeFromBon) {
+        wearAlerts.recordPdrChangeFromBon(reg, data).catch(e => console.error('[autoValidate] PDR auto-record:', e));
+      }
+    },
+
+    /** 🆕 Débloque l'outil rattaché à un bon : remet à "ok" les statuts qui déclenchent le blocage
+     *  (requalif par temps/coups, jours d'utilisation, maintenance). */
+    async _unblockToolForBon(reg, bonData) {
+      const tid = bonData && bonData.tool && bonData.tool.toolId;
+      if (!tid) return;
+      const now = Date.now();
+      const upd = {
+        requalifTimeStatus: 'ok',
+        requalifStrokesStatus: 'ok',
+        daysInUseStatus: 'ok',
+        maintenanceStatus: 'ok',
+        lastRequalifAt: now,
+        lastRequalifBonReg: reg
+      };
+      await fbDb.ref(`tools/${tid}`).update(upd);
+      if (state.tools && state.tools[tid]) state.tools[tid] = { ...state.tools[tid], ...upd };
+      this.audit('tool.unblock.auto', tid);
     },
 
     /* ════════════════════════════════════════════════════════════════════
@@ -18789,7 +18853,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             drawRow('Matricule:', data.crimping.technicienMatricule || (data.crimping.filledBy && data.crimping.filledBy.matricule));
             drawRow('Date:', data.crimping.date ? new Date(data.crimping.date).toLocaleDateString('fr-FR') : '—');
             drawRow('Cycles compteur:', data.crimping.cycles);
-            drawRow('Type:', data.crimping.type ? {preventive:'Préventive',homologation:'Homologation',curative:'Homologation',requalification:'Requalification'}[data.crimping.type] : '—');
+            drawRow('Type:', data.crimping.type ? {preventive:'Préventive',homologation:'Homologation',curative:'Homologation',requalification:'Requalification',reglage_mecanique:'Réglage Mécanique'}[data.crimping.type] || data.crimping.type : '—');
             const pieces = Object.entries(data.crimping.piecesChanged||{}).filter(([,v])=>v).map(([k])=>pdrRef(k, data.tool)).join(', ') || 'Aucune';
             drawRow('Pièces changées:', pieces);
             if (data.crimping.observation) drawRow('Observation:', data.crimping.observation.slice(0,60));
@@ -18921,7 +18985,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             window._setIntDurationFromValue(
               data.crimping.duration || 0,
               data.crimping.subType || '',
-              data.crimping.configurationsCount || 0
+              data.crimping.configurationsCount || 0,
+              data.crimping.reglageMecanique === true
             );
           }
           const durEl = $('#int-duration');
@@ -19378,7 +19443,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const reg = state.currentInterventionId;
         const data = reg ? state.interventions?.[reg] : null;
         const type = data?.crimping?.type || '';
-        const needsDossier = (type === 'homologation' || type === 'requalification');
+        const needsDossier = (type === 'homologation' || type === 'requalification') && !data?.autoValidated;  // 🆕 auto-validé = clôturé direct, pas d'étape dossier
 
         // ⚙️ Stepper adapté selon le type d'intervention
         // - Préventive : validated = step 4 (clôturé)
@@ -19695,12 +19760,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const durationVal     = parseInt(document.getElementById('int-duration')?.value)    || 0;
           const subTypeVal      = document.getElementById('int-subtype')?.value               || '';
           const configsCountVal = parseInt(document.getElementById('int-configs')?.value)     || 0;
+          const reglageMecaVal  = (document.getElementById('int-reglage')?.value === '1');     // 🔧 mode Réglage Mécanique
 
           if (!reg) {
             // Création : on passe tout dans data
             data.duration            = durationVal;
             data.subType             = subTypeVal;
             data.configurationsCount = configsCountVal;
+            data.reglageMecanique    = reglageMecaVal;
             reg = await db.createIntervention(data);
             state.currentInterventionId = reg;
           } else {
@@ -19717,7 +19784,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               'crimping/photos': data.photos || [],  // 📷 photos d'intervention
               'crimping/duration': durationVal,                          // ⏱ AUTO : durée enregistrée au submit
               'crimping/subType': subTypeVal,
-              'crimping/configurationsCount': configsCountVal
+              'crimping/configurationsCount': configsCountVal,
+              'crimping/reglageMecanique': reglageMecaVal
             };
             await db.updateIntervention(reg, updates);
           }
@@ -19736,10 +19804,25 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             await db.updateIntervention(reg, { 'crimping/cyclesPhotoUrl': ph.url });
           }
           if (mode === 'submit') {
-            await db.submitToLab(reg);
-            const durMsg = durationVal > 0 ? ` (⏱ ${durationVal} min enregistrés)` : '';
-            ui.toast(`Bon N°${reg} soumis au labo ✅${durMsg}`, 'success');
-            this.setStatus('submitted');
+            const durMsg = durationVal > 0 ? ` (⏱ ${durationVal} min)` : '';
+            // 🔧 MODE RÉGLAGE MÉCANIQUE (bouton sous-type, combinable) :
+            //   • Réglage Mécanique SEUL (sans Coupe / Binding / Requalif) → bon VALIDÉ sans labo (outil débloqué)
+            //   • Réglage Mécanique + Coupe / + Binding / + Requalif        → temps libre + passage LABO
+            const reglageMeca  = reglageMecaVal;
+            const hasCompanion = (subTypeVal === 'coupe' || subTypeVal === 'binding' || data.type === 'requalification');
+            if (reglageMeca && !hasCompanion) {
+              await db.autoValidateIntervention(reg);
+              ui.toast(`Bon N°${reg} ✅ VALIDÉ automatiquement (Réglage mécanique seul — sans labo). Outil débloqué.${durMsg}`, 'success', 9000);
+              this.setStatus('validated');
+            } else {
+              await db.submitToLab(reg);
+              const companionLbl = (data.type === 'requalification') ? 'Requalif' : (subTypeVal === 'coupe' ? 'Coupe' : (subTypeVal === 'binding' ? 'Binding' : ''));
+              const msg = reglageMeca
+                ? `Bon N°${reg} → 🧪 LABO (Réglage mécanique${companionLbl ? ' + ' + companionLbl : ''}, temps libre)${durMsg}`
+                : `Bon N°${reg} soumis au labo ✅${durMsg}`;
+              ui.toast(msg, 'success', 7000);
+              this.setStatus('submitted');
+            }
           } else {
             // 📦 En mode brouillon : créer/MAJ la demande PDR si des PDR sont cochées
             // (utile pour que le magasinier puisse commencer à préparer dès la sauvegarde)
@@ -19782,10 +19865,27 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           return ui.toast(`🔒 Ce bon est déjà ${lbl} — verrouillé`, 'danger');
         }
 
-        // 📷 PRÉ-CHECK : vérifier qu'une photo de coupe est jointe (sinon avertir)
+        // 📷 PRÉ-CHECK coupe métallographique
         const coupeFile = document.getElementById('file-coupe')?.files?.[0];
-        const hasExistingCoupe = !!(existing?.lab?.coupeMetallo?.downloadUrl);
+        const hasExistingCoupe = !!(existing?.lab?.coupeMetallo?.downloadUrl || existing?.lab?.coupeMetallo?.dataUrl);
+        // 🆕 COUPE OBLIGATOIRE si changement conducteur (P-AR / E-AR) OU sous-type « coupe »
+        //    (tout changement poinçon condu / enclume condu impose une coupe métallographique).
+        const pcEx = (existing?.crimping?.piecesChanged) || {};
+        const conducteurChangedEx = !!(pcEx.pAr || pcEx.eAr);
+        const coupeMandatory = conducteurChangedEx || (existing?.crimping?.subType === 'coupe');
         if (!coupeFile && !hasExistingCoupe) {
+          if (coupeMandatory) {
+            // ⛔ BLOQUANT : impossible de valider sans la coupe métallographique
+            const btnUpload = document.querySelector('#upload-coupe .upload__btn');
+            if (btnUpload) {
+              btnUpload.focus();
+              btnUpload.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              btnUpload.style.boxShadow = '0 0 0 4px rgba(239,68,68,.45)';
+              setTimeout(() => { btnUpload.style.boxShadow = ''; }, 2500);
+            }
+            return ui.toast('⛔ Coupe métallographique OBLIGATOIRE pour ce bon (changement conducteur P-AR/E-AR). Joignez la photo/PDF avant de valider.', 'danger', 8000);
+          }
+          // Sinon : avertissement NON bloquant (bons sans coupe requise)
           const ok = await ui.confirm(
             '📷 Aucune photo jointe',
             'Tu n\'as pas joint de photo de la coupe métallographique. Le rapport sera incomplet. Continuer quand même ?',
@@ -20937,8 +21037,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const statusBadge = awaitingDelivery
             ? `<span class="status-pill status-pill--awaiting-delivery">📁 Attente livraison dossier</span>`
             : `<span class="status-pill status-pill--${i.status}">${fmt.statusLabel(i.status)}</span>`;
-          // Badge type (Préventive / Homologation / Requalification)
-          const typeBadge = type ? `<span style="display:inline-block;margin-left:.4rem;padding:.1rem .45rem;border-radius:4px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:rgba(255,255,255,.08);color:var(--text-secondary)">${ui.escape(type)}</span>` : '';
+          // Badge type (Préventive / Homologation / Requalification / Réglage Mécanique)
+          const _typeLbl = {preventive:'Préventive',homologation:'Homologation',curative:'Homologation',requalification:'Requalification',reglage_mecanique:'Réglage Mécanique'}[type] || type;
+          const typeBadge = type ? `<span style="display:inline-block;margin-left:.4rem;padding:.1rem .45rem;border-radius:4px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:rgba(255,255,255,.08);color:var(--text-secondary)">${ui.escape(_typeLbl)}</span>` : '';
           return `
           <article class="card" style="padding:var(--sp-5);cursor:pointer" data-reg="${i.numBon}">
             <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--sp-3);gap:.5rem;flex-wrap:wrap">
@@ -30143,6 +30244,77 @@ Erreur Firebase : ${e.message}`;
     }
 
     // ╔════════════════════════════════════════════════════════════════════╗
+    // ║  🆕 Champ durée LIBRE (saisie technicien) — utilisé en mode Réglage  ║
+    // ╚════════════════════════════════════════════════════════════════════╝
+    function buildFreeMinutes(preselect) {
+      const wrap = document.createElement('div');
+      wrap.className = 'dur-pills-wrap';
+      const lbl = document.createElement('div');
+      lbl.className = 'dur-sub-label';
+      lbl.textContent = "Temps d'intervention (libre)";
+      wrap.appendChild(lbl);
+      const row = document.createElement('div');
+      row.className = 'dur-homolog';
+      row.innerHTML = `
+        <div class="dur-homolog__left">
+          <span class="dur-homolog__label">Durée</span>
+          <span class="dur-homolog__hint">en minutes</span>
+        </div>
+        <div class="dur-homolog__center">
+          <button type="button" class="dur-homolog__btn" data-rmstep="minus">−</button>
+          <input type="number" min="0" max="600" value="${preselect || ''}" class="dur-homolog__input dur-free-input" placeholder="0" autocomplete="off">
+          <button type="button" class="dur-homolog__btn" data-rmstep="plus">+</button>
+        </div>
+        <div class="dur-homolog__right">
+          <span class="dur-homolog__total dur-free-total">${preselect ? preselect + ' min' : '—'}</span>
+          <span class="dur-homolog__hint">Total</span>
+        </div>
+      `;
+      wrap.appendChild(row);
+      const inp = row.querySelector('.dur-free-input');
+      const tot = row.querySelector('.dur-free-total');
+      const upd = () => {
+        const n = Math.max(0, Math.min(600, parseInt(inp.value) || 0));
+        if (inp.value !== '' && String(n) !== inp.value) inp.value = String(n);
+        tot.textContent = n > 0 ? n + ' min' : '—';
+        setDuration(n);
+      };
+      inp.addEventListener('input', upd);
+      row.querySelector('[data-rmstep="minus"]').addEventListener('click', () => { inp.value = Math.max(0, (parseInt(inp.value) || 0) - 5); upd(); });
+      row.querySelector('[data-rmstep="plus"]').addEventListener('click',  () => { inp.value = Math.min(600, (parseInt(inp.value) || 0) + 5); upd(); });
+      return wrap;
+    }
+
+    // ╔════════════════════════════════════════════════════════════════════╗
+    // ║  🆕 Bouton-bascule « Réglage Mécanique » (indépendant des pills)     ║
+    // ║  • Seul            → bon validé SANS labo                            ║
+    // ║  • + Coupe/Binding/Requalif → temps libre + passage LABO             ║
+    // ╚════════════════════════════════════════════════════════════════════╝
+    function buildReglageToggle(reglEl, onToggle) {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'dur-sub-card';
+      card.dataset.sub = 'reglage';
+      card.style.borderStyle = 'dashed';
+      card.innerHTML = `
+        <span class="dur-sub-card__icon">🔧</span>
+        <div class="dur-sub-card__txt">
+          <span class="dur-sub-card__label">Réglage Mécanique</span>
+          <span class="dur-sub-card__desc">Seul = validé sans labo</span>
+        </div>
+        <span class="dur-sub-card__check">✓</span>
+      `;
+      if (reglEl && reglEl.value === '1') card.dataset.selected = 'true';
+      card.addEventListener('click', () => {
+        const on = card.dataset.selected !== 'true';
+        card.dataset.selected = on ? 'true' : 'false';
+        if (reglEl) reglEl.value = on ? '1' : '';
+        if (typeof onToggle === 'function') onToggle(on);
+      });
+      return card;
+    }
+
+    // ╔════════════════════════════════════════════════════════════════════╗
     // ║  Rendu adaptatif selon le type d'intervention                       ║
     // ╚════════════════════════════════════════════════════════════════════╝
     // ► Préventive Coupe     : 15 / 20 min
@@ -30164,12 +30336,38 @@ Erreur Firebase : ${e.message}`;
       if (!type) return;
 
       if (type === 'preventive') {
-        // Sub-type chooser : Coupe / Binding (cards modernes)
+        const reglEl = document.getElementById('int-reglage');
+        // Sous-type / mode : Coupe / Binding (exclusifs) + 🔧 Réglage Mécanique (bascule indépendante)
         const subWrap = document.createElement('div');
         subWrap.className = 'dur-sub-wrap';
-        subWrap.innerHTML = `<div class="dur-sub-label">Sous-type préventive</div>`;
+        subWrap.innerHTML = `<div class="dur-sub-label">Sous-type / mode</div>`;
         const btnRow = document.createElement('div');
         btnRow.className = 'dur-sub-row';
+
+        const timeWrap = document.createElement('div');
+        timeWrap.id = 'p5j-time-options';
+        timeWrap.className = 'dur-pills-wrap';
+
+        // Recalcule la zone "temps" selon (Réglage Mécanique ON/OFF, sous-type sélectionné)
+        function refreshTime() {
+          timeWrap.innerHTML = '';
+          const rmOn = !!(reglEl && reglEl.value === '1');
+          const sub  = subInput.value || '';
+          if (rmOn) {
+            // 🔧 Réglage mécanique → TEMPS LIBRE (seul = validé sans labo ; + Coupe/Binding = labo)
+            timeWrap.appendChild(buildFreeMinutes(currentDur));
+          } else if (sub === 'coupe') {
+            const lbl = document.createElement('div'); lbl.className = 'dur-sub-label'; lbl.textContent = 'Durée';
+            timeWrap.appendChild(lbl);
+            timeWrap.appendChild(buildPills([15, 20], currentSub === 'coupe' ? currentDur : 0));
+          } else if (sub === 'binding') {
+            const lbl = document.createElement('div'); lbl.className = 'dur-sub-label'; lbl.textContent = 'Durée (auto)';
+            timeWrap.appendChild(lbl);
+            timeWrap.appendChild(buildPills([10], 10));
+            setDuration(10);   // auto-applique 10 min pour binding
+          }
+        }
+
         const subOptions = [
           { sub: 'coupe',   icon: '✂',  label: 'Coupe',   desc: 'Avec coupe outil' },
           { sub: 'binding', icon: '🔗', label: 'Binding', desc: 'Sans coupe (10 min)' }
@@ -30189,49 +30387,51 @@ Erreur Firebase : ${e.message}`;
           `;
           if (currentSub === opt.sub) b.dataset.selected = 'true';
           b.addEventListener('click', () => {
-            btnRow.querySelectorAll('.dur-sub-card').forEach(x =>
+            // Coupe/Binding restent EXCLUSIFS entre eux (mais combinables avec Réglage Mécanique)
+            btnRow.querySelectorAll('.dur-sub-card[data-sub="coupe"],.dur-sub-card[data-sub="binding"]').forEach(x =>
               x.dataset.selected = (x.dataset.sub === opt.sub) ? 'true' : 'false');
             subInput.value = opt.sub;
-            renderTimeOptions(opt.sub);
+            refreshTime();
           });
           btnRow.appendChild(b);
         });
+        // 🔧 Bascule Réglage Mécanique (combinable)
+        btnRow.appendChild(buildReglageToggle(reglEl, () => refreshTime()));
+
         subWrap.appendChild(btnRow);
         smartWrap.appendChild(subWrap);
-
-        const timeWrap = document.createElement('div');
-        timeWrap.id = 'p5j-time-options';
-        timeWrap.className = 'dur-pills-wrap';
         smartWrap.appendChild(timeWrap);
-
-        function renderTimeOptions(sub) {
-          timeWrap.innerHTML = '';
-          if (sub === 'coupe') {
-            const lbl = document.createElement('div');
-            lbl.className = 'dur-sub-label';
-            lbl.textContent = 'Durée';
-            timeWrap.appendChild(lbl);
-            const pills = buildPills([15, 20], currentSub === 'coupe' ? currentDur : 0);
-            timeWrap.appendChild(pills);
-          } else if (sub === 'binding') {
-            const lbl = document.createElement('div');
-            lbl.className = 'dur-sub-label';
-            lbl.textContent = 'Durée (auto)';
-            timeWrap.appendChild(lbl);
-            const pills = buildPills([10], 10);
-            timeWrap.appendChild(pills);
-            setDuration(10);   // auto-applique 10 min pour binding
-          }
-        }
-        if (currentSub) renderTimeOptions(currentSub);
+        refreshTime();
 
       } else if (type === 'requalification') {
-        const lbl = document.createElement('div');
-        lbl.className = 'dur-sub-label';
-        lbl.textContent = 'Durée';
-        smartWrap.appendChild(lbl);
-        const pills = buildPills([30, 40], currentDur);
-        smartWrap.appendChild(pills);
+        const reglEl = document.getElementById('int-reglage');
+        // 🔧 Bascule Réglage Mécanique (Requalif + Réglage = temps libre + labo)
+        const subWrap = document.createElement('div');
+        subWrap.className = 'dur-sub-wrap';
+        subWrap.innerHTML = `<div class="dur-sub-label">Mode</div>`;
+        const btnRow = document.createElement('div');
+        btnRow.className = 'dur-sub-row';
+
+        const timeWrap = document.createElement('div');
+        timeWrap.className = 'dur-pills-wrap';
+
+        function refreshTimeRq() {
+          timeWrap.innerHTML = '';
+          const rmOn = !!(reglEl && reglEl.value === '1');
+          if (rmOn) {
+            timeWrap.appendChild(buildFreeMinutes(currentDur));
+          } else {
+            const lbl = document.createElement('div'); lbl.className = 'dur-sub-label'; lbl.textContent = 'Durée';
+            timeWrap.appendChild(lbl);
+            timeWrap.appendChild(buildPills([30, 40], currentDur));
+          }
+        }
+
+        btnRow.appendChild(buildReglageToggle(reglEl, () => refreshTimeRq()));
+        subWrap.appendChild(btnRow);
+        smartWrap.appendChild(subWrap);
+        smartWrap.appendChild(timeWrap);
+        refreshTimeRq();
         subInput.value = '';
 
       } else if (type === 'homologation') {
@@ -30294,9 +30494,11 @@ Erreur Firebase : ${e.message}`;
           const hi = document.getElementById('int-duration');
           const si = document.getElementById('int-subtype');
           const ci = document.getElementById('int-configs');
+          const ri = document.getElementById('int-reglage');
           if (hi) hi.value = '';
           if (si) si.value = '';
           if (ci) ci.value = '';
+          if (ri) ri.value = '';
           const disp = document.getElementById('int-duration-display');
           if (disp) disp.textContent = '— aucune durée sélectionnée —';
           renderSmart(false);
@@ -30313,11 +30515,13 @@ Erreur Firebase : ${e.message}`;
     // ╔════════════════════════════════════════════════════════════════════╗
     // ║  Helper exposé pour pré-remplir depuis Firebase (intervention.open) ║
     // ╚════════════════════════════════════════════════════════════════════╝
-    window._setIntDurationFromValue = (min, subType, configsCount) => {
+    window._setIntDurationFromValue = (min, subType, configsCount, reglage) => {
       const v = parseInt(min) || 0;
       if (hiddenInput) hiddenInput.value = v > 0 ? String(v) : '';
       if (subInput)    subInput.value    = subType || '';
       if (cfgInput)    cfgInput.value    = configsCount ? String(configsCount) : '';
+      const ri = document.getElementById('int-reglage');
+      if (ri) ri.value = reglage ? '1' : '';
       setDuration(v);
       renderSmart(true);
     };

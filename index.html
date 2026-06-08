@@ -11385,7 +11385,26 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     }[s] || s),
     // 🆕 Libellé tenant compte du TYPE : le préventif n'a PAS d'étape dossier (étape 2).
     //    Donc un bon préventif "validé" est en réalité CLÔTURÉ → on affiche "Dossier livré".
-    statusLabelFor: (s, type) => (s === 'validated' && type === 'preventive') ? 'Dossier livré' : fmt.statusLabel(s)
+    statusLabelFor: (s, type) => (s === 'validated' && type === 'preventive') ? 'Dossier livré' : fmt.statusLabel(s),
+    // 🆕 Libellé détaillé type + sous-type/mode (pour l'historique) :
+    //    Préventif Coupe / Préventif Binding / Préventif Réglage Méca / Requalif + Réglage Méca …
+    fullType: (c) => {
+      c = c || {};
+      const type = c.type || '';
+      const sub = c.subType || '';
+      const rm = c.reglageMecanique === true;
+      if (type === 'preventive') {
+        const parts = [];
+        if (sub === 'coupe') parts.push('Coupe');
+        else if (sub === 'binding') parts.push('Binding');
+        if (rm) parts.push('Réglage Méca');
+        return parts.length ? 'Préventif ' + parts.join(' + ') : 'Préventif';
+      }
+      if (type === 'requalification') return rm ? 'Requalif + Réglage Méca' : 'Requalification';
+      if (type === 'homologation') return 'Homologation';
+      if (type === 'curative') return 'Curative';
+      return type || '—';
+    }
   };
 
   const debounce = (fn, wait = 300) => {
@@ -19108,6 +19127,32 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const canEditLab = ['submitted'].includes(data.status) && auth.can('intervention.editLab');
         labSection.disabled = !canEditLab && data.status !== 'validated' && data.status !== 'rejected';
 
+        // 🆕 RÉGLAGE MÉCANIQUE SEUL : aucun passage labo → on MASQUE toute la partie laboratoire
+        //    et on affiche une note claire. (Réglage méca + Coupe/Binding/Requalif → labo normal.)
+        {
+          const cR = data.crimping || {};
+          const rmOnly = cR.reglageMecanique === true
+            && cR.subType !== 'coupe' && cR.subType !== 'binding'
+            && cR.type !== 'requalification';
+          let rmNote = document.getElementById('rm-only-note');
+          if (rmOnly) {
+            labSection.hidden = true;
+            if (!rmNote && labSection.parentNode) {
+              rmNote = document.createElement('div');
+              rmNote.id = 'rm-only-note';
+              rmNote.style.cssText = 'margin:1rem 0;padding:.85rem 1.1rem;border-radius:10px;background:linear-gradient(135deg,rgba(0,229,160,.12),rgba(34,211,238,.06));border:1px solid rgba(0,229,160,.32);color:#00e5a0;font-weight:700;display:flex;align-items:center;gap:.55rem;font-size:.9rem';
+              labSection.parentNode.insertBefore(rmNote, labSection);
+            }
+            if (rmNote) {
+              rmNote.innerHTML = `🔧 Réglage Mécanique seul — <span style="font-weight:600;color:var(--text-secondary)">validé automatiquement, sans passage laboratoire.</span>`;
+              rmNote.hidden = false;
+            }
+          } else {
+            labSection.hidden = false;
+            if (rmNote) rmNote.hidden = true;
+          }
+        }
+
         // Technicien labo — UNIQUEMENT depuis le champ saisi manuellement
         if ($('#labo-tech-name')) $('#labo-tech-name').value = lab.technicienNom || '';
         if ($('#labo-tech-mat'))  $('#labo-tech-mat').value  = lab.technicienMatricule || '';
@@ -20986,7 +21031,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               : 'background:rgba(255,255,255,.08);color:var(--text-muted)';
             chatBadge = ` <span class="chat-badge-history" style="${style}" title="${hasUnread ? 'Nouveaux messages' : 'Messages'}">💬 ${chatInfo.total}</span>`;
           }
-          const typeCell = isP5J ? '<span style="color:#00e5a0">📸 Vérification visuelle</span>' : ui.escape(c.type || '—');
+          const typeCell = isP5J ? '<span style="color:#00e5a0">📸 Vérification visuelle</span>' : ui.escape(fmt.fullType(c));
           const photoCount = (c.photos || []).length;
           const obsCell = isP5J && photoCount
             ? `${ui.escape(c.observation || '—')} <span style="color:#00e5a0;font-size:.72rem">· 📷 ${photoCount}</span>`
@@ -21046,7 +21091,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             (i.tool && i.tool.outilId) || '',
             fmt.date(c.date),
             c.cycles || '',
-            c.type || '',
+            fmt.fullType(c),
             (c.observation || '').replace(/[\n\r;]/g, ' '),
             fmt.statusLabel(i.status),
             (c.technicienNom || (c.filledBy && c.filledBy.name)) || '',
@@ -21103,8 +21148,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const statusBadge = awaitingDelivery
             ? `<span class="status-pill status-pill--awaiting-delivery">📁 Attente livraison dossier</span>`
             : `<span class="status-pill status-pill--${i.status}">${fmt.statusLabelFor(i.status, type)}</span>`;
-          // Badge type (Préventive / Homologation / Requalification / Réglage Mécanique)
-          const _typeLbl = {preventive:'Préventive',homologation:'Homologation',curative:'Homologation',requalification:'Requalification',reglage_mecanique:'Réglage Mécanique'}[type] || type;
+          // Badge type détaillé (Préventif Coupe / Binding / Réglage Méca …)
+          const _typeLbl = fmt.fullType(i.crimping);
           const typeBadge = type ? `<span style="display:inline-block;margin-left:.4rem;padding:.1rem .45rem;border-radius:4px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:rgba(255,255,255,.08);color:var(--text-secondary)">${ui.escape(_typeLbl)}</span>` : '';
           return `
           <article class="card" style="padding:var(--sp-5);cursor:pointer" data-reg="${i.numBon}">
@@ -30458,6 +30503,31 @@ Erreur Firebase : ${e.message}`;
     // ► Requalification      : 30 / 40 min
     // ► Homologation         : N configurations × 30 min = total
     // ► Vide / Curative legacy : pills par défaut (10/15/20/30/40/60)
+    // 🆕 Masque/affiche la section Laboratoire en direct selon "Réglage Mécanique seul"
+    //    (réglage méca + Coupe/Binding/Requalif → labo normal ; réglage seul → pas de labo)
+    function updateLabVisibility() {
+      const labSection = document.getElementById('section-lab');
+      if (!labSection) return;
+      const rmOn = document.getElementById('int-reglage')?.value === '1';
+      const sub  = document.getElementById('int-subtype')?.value || '';
+      const type = document.getElementById('int-type')?.value || '';
+      const rmOnly = rmOn && sub !== 'coupe' && sub !== 'binding' && type !== 'requalification';
+      let note = document.getElementById('rm-only-note');
+      if (rmOnly) {
+        labSection.hidden = true;
+        if (!note && labSection.parentNode) {
+          note = document.createElement('div');
+          note.id = 'rm-only-note';
+          note.style.cssText = 'margin:1rem 0;padding:.85rem 1.1rem;border-radius:10px;background:linear-gradient(135deg,rgba(0,229,160,.12),rgba(34,211,238,.06));border:1px solid rgba(0,229,160,.32);color:#00e5a0;font-weight:700;display:flex;align-items:center;gap:.55rem;font-size:.9rem';
+          labSection.parentNode.insertBefore(note, labSection);
+        }
+        if (note) { note.innerHTML = `🔧 Réglage Mécanique seul — <span style="font-weight:600;color:var(--text-secondary)">validé automatiquement, sans passage laboratoire.</span>`; note.hidden = false; }
+      } else {
+        labSection.hidden = false;
+        if (note) note.hidden = true;
+      }
+    }
+
     function renderSmart(preserve) {
       if (!smartWrap) return;
       smartWrap.innerHTML = '';
@@ -30502,6 +30572,7 @@ Erreur Firebase : ${e.message}`;
             timeWrap.appendChild(buildPills([10], 10));
             setDuration(10);   // auto-applique 10 min pour binding
           }
+          updateLabVisibility();
         }
 
         const subOptions = [
@@ -30614,6 +30685,7 @@ Erreur Firebase : ${e.message}`;
         });
         subInput.value = '';
       }
+      updateLabVisibility();
     }
 
     // ╔════════════════════════════════════════════════════════════════════╗

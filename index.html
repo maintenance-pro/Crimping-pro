@@ -22168,21 +22168,30 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return dout + '/' + ser;          // ✅ STRICT "D'Outils/Serial" — Serial vide → "D'Outils/" (AUCUNE valeur de repli)
       },
 
-      /** 🆕 Remplace le DERNIER segment « - XXXX » d'un nom de fichier (le serial) par le serial cible.
-       *  Ex : "P00391150 - WZ7190-09 - N1029.xlsx" → "P00391150 - WZ7190-09 - 1005.xlsx".
-       *  Ne touche pas le dernier segment s'il s'agit du n° d'outil (cas sans serial). */
+      /** 🆕 Gère le DERNIER segment « - XXXX » (le serial) d'un nom de fichier :
+       *   • Serial présent + segment serial existant → on le REMPLACE (ex: …- 1005.xlsx → …- 2000.xlsx)
+       *   • Serial présent + pas de segment serial (le nom finit par le n° d'outil) → on l'AJOUTE (…- WZ7190-03.xlsx → …- WZ7190-03 - 1005.xlsx)
+       *   • Serial ABSENT + segment serial hérité → on le RETIRE (on n'écrit RIEN) : …- WZ7190-03 - 1005.xlsx → …- WZ7190-03.xlsx
+       *   • Le n° d'outil (excludeTokens) n'est jamais traité comme un serial. */
       _replaceSerialInName(name, newSerial, excludeTokens) {
-        if (!newSerial) return name;
         const m = String(name).match(/^(.*?)(\.[A-Za-z0-9]+)$/);
         const ext = m ? m[2] : '';
-        let base = m ? m[1] : String(name);
+        const base = m ? m[1] : String(name);
         const parts = base.split(/\s+-\s+/);
-        if (parts.length < 2) return name;                      // pas de segment serial
-        const last = parts[parts.length - 1].trim();
+        if (parts.length < 2) return name;                       // pas de structure "A - B" → on ne touche pas
         const excl = (excludeTokens || []).map(t => String(t || '').trim().toUpperCase()).filter(Boolean);
-        if (excl.includes(last.toUpperCase())) return name;     // dernier segment = n° d'outil → on ne touche pas
-        if (last === String(newSerial).trim()) return name;     // déjà bon
-        parts[parts.length - 1] = String(newSerial).trim();
+        const ser = String(newSerial == null ? '' : newSerial).trim();
+        const lastIdx = parts.length - 1;
+        const last = parts[lastIdx].trim();
+        const lastIsToolNum = excl.includes(last.toUpperCase());
+        if (ser) {
+          if (lastIsToolNum) { parts.push(ser); }               // pas encore de serial → on l'ajoute après le n° d'outil
+          else { if (last === ser) return name; parts[lastIdx] = ser; }  // remplace le serial existant
+          return parts.join(' - ') + ext;
+        }
+        // Serial ABSENT :
+        if (lastIsToolNum) return name;                          // rien à retirer (dernier segment = n° d'outil)
+        parts.pop();                                             // 🆕 retire le serial hérité → on n'écrit RIEN
         return parts.join(' - ') + ext;
       },
 

@@ -932,6 +932,22 @@ legend { padding: 0; }
   border-color: var(--border-strong);
   box-shadow: 0 0 20px rgba(0,212,255,.06);
 }
+/* 🆕 Cartes KPI modernes — vue Outils Bloqués */
+.bl-kpi {
+  position: relative;
+  overflow: hidden;
+  padding: 1rem 1.15rem;
+  border-radius: 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.bl-kpi:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(0,0,0,.30); }
+.bl-kpi__label { display:flex; align-items:center; gap:.4rem; font-size:.66rem; text-transform:uppercase; letter-spacing:.07em; color:var(--text-muted); font-weight:800; }
+.bl-kpi__value { font-size:2rem; font-weight:800; line-height:1.05; margin-top:.3rem; font-family:var(--font-mono); }
+.bl-kpi__wm { position:absolute; right:-6px; bottom:-16px; font-size:3.2rem; opacity:.07; pointer-events:none; }
+.bl-kpi__bar { position:absolute; top:0; left:0; right:0; height:3px; }
 .kpi__icon {
   font-size: 1.4rem;
   width: 44px;
@@ -8208,22 +8224,30 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         </header>
 
         <!-- KPIs -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem;margin-bottom:1rem">
-          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #00d4ff">
-            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">📦 Total outils</div>
-            <div id="bl-kpi-total" style="font-size:1.6rem;font-weight:700;color:#00d4ff">0</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem;margin-bottom:1.1rem">
+          <div class="bl-kpi" style="background:linear-gradient(135deg,rgba(0,212,255,.10),var(--bg-elevated));border-color:rgba(0,212,255,.28)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#00d4ff,transparent)"></div>
+            <div class="bl-kpi__label">📦 Total outils</div>
+            <div id="bl-kpi-total" class="bl-kpi__value" style="color:#00d4ff">0</div>
+            <div class="bl-kpi__wm">📦</div>
           </div>
-          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #10b981">
-            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">✅ OK (sains)</div>
-            <div id="bl-kpi-ok" style="font-size:1.6rem;font-weight:700;color:#10b981">0</div>
+          <div class="bl-kpi" style="background:linear-gradient(135deg,rgba(16,185,129,.10),var(--bg-elevated));border-color:rgba(16,185,129,.28)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#10b981,transparent)"></div>
+            <div class="bl-kpi__label">✅ OK (sains)</div>
+            <div id="bl-kpi-ok" class="bl-kpi__value" style="color:#10b981">0</div>
+            <div class="bl-kpi__wm">✅</div>
           </div>
-          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #f59e0b">
-            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">⚠️ Warning</div>
-            <div id="bl-kpi-warning" style="font-size:1.6rem;font-weight:700;color:#f59e0b">0</div>
+          <div class="bl-kpi" style="background:linear-gradient(135deg,rgba(245,158,11,.12),var(--bg-elevated));border-color:rgba(245,158,11,.30)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#f59e0b,transparent)"></div>
+            <div class="bl-kpi__label">⚠️ Warning</div>
+            <div id="bl-kpi-warning" class="bl-kpi__value" style="color:#f59e0b">0</div>
+            <div class="bl-kpi__wm">⚠️</div>
           </div>
-          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #ef4444">
-            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">🚫 Overrun (bloqués)</div>
-            <div id="bl-kpi-overrun" style="font-size:1.6rem;font-weight:700;color:#ef4444">0</div>
+          <div class="bl-kpi" style="background:linear-gradient(135deg,rgba(239,68,68,.13),var(--bg-elevated));border-color:rgba(239,68,68,.32)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#ef4444,transparent)"></div>
+            <div class="bl-kpi__label">🚫 Overrun (bloqués)</div>
+            <div id="bl-kpi-overrun" class="bl-kpi__value" style="color:#ef4444">0</div>
+            <div class="bl-kpi__wm">🚫</div>
           </div>
         </div>
 
@@ -8726,7 +8750,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       <section class="history" id="view-auditlog" data-view="auditlog" hidden>
         <header class="history__header">
           <h1 class="history__title" data-i18n="t.journal_daudit">Journal d'audit</h1>
-          <p style="color:var(--text-secondary);font-size:.875rem" data-i18n="t.100_dernieres_actions_administrateur">100 dernières actions administrateur</p>
+          <p style="color:var(--text-secondary);font-size:.875rem" data-i18n="t.100_dernieres_actions_administrateur">400 dernières actions · toutes opérations (bons, validations, déblocages, documents, PDR, accès)</p>
         </header>
         <div class="history__tablewrap">
           <table class="data-table">
@@ -11333,7 +11357,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       delivered: 'Dossier livré',
       rejected:  'Refusé',
       cancelled: 'Annulé'
-    }[s] || s)
+    }[s] || s),
+    // 🆕 Libellé tenant compte du TYPE : le préventif n'a PAS d'étape dossier (étape 2).
+    //    Donc un bon préventif "validé" est en réalité CLÔTURÉ → on affiche "Dossier livré".
+    statusLabelFor: (s, type) => (s === 'validated' && type === 'preventive') ? 'Dossier livré' : fmt.statusLabel(s)
   };
 
   const debounce = (fn, wait = 300) => {
@@ -12626,12 +12653,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
     /* --- audit & notifications --- */
     audit(action, entityId, extra = {}) {
+      // 🆕 Étiquette d'entité selon le type d'action (au lieu de toujours "interventions/…")
+      let entity;
+      if (action.startsWith('pdfTemplate'))            entity = `pdfTemplates/${entityId}`;
+      else if (action.startsWith('toolAttachment') || action.startsWith('tool.')) entity = `tools/${entityId}`;
+      else if (action.startsWith('access'))            entity = `accessConfig`;
+      else                                             entity = `interventions/${entityId}`;
       const log = {
         timestamp: Date.now(),
         uid: state.user.uid,
         userName: state.profile.displayName,
         action,
-        entity: `interventions/${entityId}`,
+        entity,
         ...extra
       };
       fbDb.ref('auditLog').push(log);
@@ -20935,7 +20968,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <td>${typeCell}</td>
               <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${ui.escape(c.observation || '')}">${obsCell}</td>
               <td>${coupe && coupe.downloadUrl ? `<a href="${coupe.downloadUrl}" target="_blank" rel="noopener">📎 ${ui.escape(coupe.fileName || 'Fichier')}</a>` : '—'}</td>
-              <td><span class="status-pill status-pill--${i.status}">${fmt.statusLabel(i.status)}</span></td>
+              <td><span class="status-pill status-pill--${i.status}">${fmt.statusLabelFor(i.status, c.type)}</span></td>
               <td>
                 <button class="btn btn--ghost" data-action="open" data-reg="${i.numBon}" data-kind="${i.kind || ''}">Ouvrir</button>
               </td>
@@ -21036,7 +21069,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const awaitingDelivery = (i.status === 'validated' && needsDossier);
           const statusBadge = awaitingDelivery
             ? `<span class="status-pill status-pill--awaiting-delivery">📁 Attente livraison dossier</span>`
-            : `<span class="status-pill status-pill--${i.status}">${fmt.statusLabel(i.status)}</span>`;
+            : `<span class="status-pill status-pill--${i.status}">${fmt.statusLabelFor(i.status, type)}</span>`;
           // Badge type (Préventive / Homologation / Requalification / Réglage Mécanique)
           const _typeLbl = {preventive:'Préventive',homologation:'Homologation',curative:'Homologation',requalification:'Requalification',reglage_mecanique:'Réglage Mécanique'}[type] || type;
           const typeBadge = type ? `<span style="display:inline-block;margin-left:.4rem;padding:.1rem .45rem;border-radius:4px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:rgba(255,255,255,.08);color:var(--text-secondary)">${ui.escape(_typeLbl)}</span>` : '';
@@ -24549,7 +24582,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!tbody) return;
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--text-muted)">Chargement…</td></tr>';
         try {
-          const snap = await fbDb.ref('auditLog').orderByChild('timestamp').limitToLast(100).once('value');
+          const snap = await fbDb.ref('auditLog').orderByChild('timestamp').limitToLast(400).once('value');
           const logs = [];
           snap.forEach(c => logs.unshift({ id: c.key, ...c.val() }));
           if (!logs.length) {
@@ -24559,13 +24592,27 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           tbody.innerHTML = logs.map(l => {
             const actionLabels = {
               'intervention.create':'Création bon','intervention.update':'Modification bon',
-              'intervention.submit':'Soumission labo','intervention.validate':'Validation',
-              'intervention.reject':'Refus','intervention.delete':'Suppression bon'
+              'intervention.submit':'Soumission labo','intervention.validate':'Validation labo',
+              'intervention.autovalidate':'Validation auto','intervention.deliverDossier':'Dossier livré',
+              'intervention.reject':'Refus','intervention.delete':'Suppression bon',
+              'tool.unblock.auto':'Déblocage outil',
+              'pdfTemplate.add':'Ajout modèle PDF','pdfTemplate.delete':'Suppr. modèle PDF',
+              'toolAttachment.add':'Ajout document','toolAttachment.bulkAdd':'Ajout docs (masse)','toolAttachment.delete':'Suppr. document',
+              'access.update':'MAJ accès rôles',
+              'pdr.approved':'PDR approuvée','pdr.rejected':'PDR refusée','pdr.delivered':'PDR livrée',
+              'pdr.ordered':'PDR commandée','pdr.received':'PDR reçue'
             };
             const actionColors = {
               'intervention.create':'var(--accent-500)','intervention.validate':'var(--success-500)',
+              'intervention.autovalidate':'#22c55e','intervention.deliverDossier':'#22c55e',
               'intervention.reject':'var(--danger-500)','intervention.delete':'var(--danger-500)',
-              'intervention.submit':'var(--warn-500)','intervention.update':'var(--text-secondary)'
+              'intervention.submit':'var(--warn-500)','intervention.update':'var(--text-secondary)',
+              'tool.unblock.auto':'#22d3ee',
+              'pdfTemplate.add':'#a855f7','pdfTemplate.delete':'#a855f7',
+              'toolAttachment.add':'#a855f7','toolAttachment.bulkAdd':'#a855f7','toolAttachment.delete':'#a855f7',
+              'access.update':'#f59e0b',
+              'pdr.approved':'#22c55e','pdr.rejected':'#ef4444','pdr.delivered':'#22d3ee',
+              'pdr.ordered':'#fbbf24','pdr.received':'#22c55e'
             };
             const label = actionLabels[l.action] || l.action;
             const color = actionColors[l.action] || 'var(--text-secondary)';

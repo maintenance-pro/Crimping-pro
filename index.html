@@ -26487,13 +26487,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           // 🆕 Affichage du GROUPE pour outils Stellantis (extrait du Inventory No.)
           const group = isStellantis ? this._extractGroup(r.inventoryNo) : null;
           const groupBadge = group
-            ? `<span style="background:${unlock.reason === 'group' ? '#a855f7' : '#e9d5ff'};color:${unlock.reason === 'group' ? 'white' : '#7c3aed'};font-size:.6rem;padding:.18rem .4rem;border-radius:4px;font-weight:800;letter-spacing:.04em;border:1px solid ${unlock.reason === 'group' ? '#7c3aed' : '#c4b5fd'};box-shadow:${unlock.reason === 'group' ? '0 1px 3px rgba(168,85,247,.4)' : 'none'}" title="${unlock.reason === 'group' ? 'Groupe CRITIQUE Stellantis (déblocage Labo toute cause)' : 'Groupe Stellantis non-critique'}">G:${group}${unlock.reason === 'group' ? ' 🎯' : ''}</span>`
+            ? `<span class="bl-pill" style="color:#a855f7;background:rgba(168,85,247,.13)" title="${unlock.reason === 'group' ? 'Groupe CRITIQUE Stellantis (déblocage Labo toute cause)' : 'Groupe Stellantis non-critique'}">G:${group}${unlock.reason === 'group' ? ' 🎯' : ''}</span>`
             : '';
           const unlockBadge = isBlocked
-            ? `<div style="display:inline-flex;align-items:center;gap:.25rem;background:${unlock.color};color:white;font-size:.6rem;padding:.18rem .42rem;border-radius:4px;font-weight:800;border:1px solid ${unlock.color};box-shadow:0 1px 3px ${unlock.color}55">${unlock.icon} ${unlock.label}${unlock.critical ? ' ⚠️CRITIQUE' : ''}${unlock.coupeToLab ? ' ✂️0.35²' : ''}</div>`
+            ? `<span class="bl-pill" style="color:${unlock.color};background:${unlock.color}22">${unlock.icon} ${unlock.label}${unlock.critical ? ' ⚠️ CRITIQUE' : ''}${unlock.coupeToLab ? ' ✂️0.35²' : ''}</span>`
             : '';
           const clientBadge = client
-            ? `<div style="display:inline-block;font-size:.58rem;color:${client.color};font-weight:800;letter-spacing:.05em;background:${client.color}15;padding:.1rem .35rem;border-radius:3px;border:1px solid ${client.color}40;margin-top:.2rem">${client.icon} ${client.name.toUpperCase()}</div>`
+            ? `<span class="bl-pill" style="color:${client.color};background:${client.color}1a;margin-top:.25rem">${client.icon} ${client.name.toUpperCase()}</span>`
             : '';
           return `
             <tr data-bl-row="${ui.escape(r.inventoryNo||'')}" style="border-bottom:1px solid var(--border-soft);${rowStyle};transition:background .15s;cursor:pointer" onmouseover="this.style.filter='brightness(1.15)'" onmouseout="this.style.filter=''">

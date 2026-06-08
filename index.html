@@ -1155,6 +1155,8 @@ legend { padding: 0; }
 .bl-pill--5j       { color:#22d3ee; background:rgba(34,211,238,.13); }
 .bl-pill--alert    { color:#f59e0b; background:rgba(245,158,11,.13); }
 .bl-pill--sub { font-size:.55rem; font-weight:700; opacity:.85; margin-left:2px; }
+/* 🆕 Journal d'audit — survol de ligne */
+.audit-row:hover { background: rgba(255,255,255,.035); }
 
 /* Stepper */
 .stepper {
@@ -24628,51 +24630,88 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--text-muted)" data-i18n="t.aucune_action_enregistree">Aucune action enregistrée</td></tr>';
             return;
           }
-          tbody.innerHTML = logs.map(l => {
-            const actionLabels = {
-              'intervention.create':'Création bon','intervention.update':'Modification bon',
-              'intervention.submit':'Soumission labo','intervention.validate':'Validation labo',
-              'intervention.autovalidate':'Validation auto','intervention.deliverDossier':'Dossier livré',
-              'intervention.reject':'Refus','intervention.delete':'Suppression bon',
-              'tool.create':'Création outil','tool.update':'Modification outil','tool.delete':'Suppression outil',
-              'tool.unblock.auto':'Déblocage outil','tool.inheritFamily':'Héritage famille',
-              'tools.bulkCleanIncomplete':'Nettoyage outils','tools.bulkDeleteAll':'Suppr. tous outils',
-              'pdfTemplate.add':'Ajout modèle PDF','pdfTemplate.delete':'Suppr. modèle PDF',
-              'toolAttachment.add':'Ajout document','toolAttachment.bulkAdd':'Ajout docs (masse)','toolAttachment.delete':'Suppr. document',
-              'preventive5j.add':'Préventive 5J',
-              'blocked.import':'Import Komax',
-              'access.update':'MAJ accès rôles',
-              'pdr.approved':'PDR approuvée','pdr.rejected':'PDR refusée','pdr.delivered':'PDR livrée',
-              'pdr.ordered':'PDR commandée','pdr.received':'PDR reçue',
-              'pdr.premature-change':'PDR changée tôt','pdr.auto-reset':'PDR auto-reset'
-            };
-            const actionColors = {
-              'intervention.create':'var(--accent-500)','intervention.validate':'var(--success-500)',
-              'intervention.autovalidate':'#22c55e','intervention.deliverDossier':'#22c55e',
-              'intervention.reject':'var(--danger-500)','intervention.delete':'var(--danger-500)',
-              'intervention.submit':'var(--warn-500)','intervention.update':'var(--text-secondary)',
-              'tool.create':'#22c55e','tool.update':'var(--text-secondary)','tool.delete':'var(--danger-500)',
-              'tool.unblock.auto':'#22d3ee','tool.inheritFamily':'#22d3ee',
-              'tools.bulkCleanIncomplete':'#f59e0b','tools.bulkDeleteAll':'var(--danger-500)',
-              'pdfTemplate.add':'#a855f7','pdfTemplate.delete':'#a855f7',
-              'toolAttachment.add':'#a855f7','toolAttachment.bulkAdd':'#a855f7','toolAttachment.delete':'#a855f7',
-              'preventive5j.add':'#00e5a0',
-              'blocked.import':'#00e5a0',
-              'access.update':'#f59e0b',
-              'pdr.approved':'#22c55e','pdr.rejected':'#ef4444','pdr.delivered':'#22d3ee',
-              'pdr.ordered':'#fbbf24','pdr.received':'#22c55e',
-              'pdr.premature-change':'#f59e0b','pdr.auto-reset':'#22d3ee'
-            };
+          // 🆕 Sous-titre dynamique (corrige le libellé i18n figé + compteurs utiles)
+          const _subEl = document.querySelector('#view-auditlog .history__header p');
+          if (_subEl) {
+            const _t0 = new Date(); _t0.setHours(0,0,0,0);
+            const _todayN = logs.filter(l => (l.timestamp||0) >= _t0.getTime()).length;
+            _subEl.removeAttribute('data-i18n');
+            _subEl.textContent = `${logs.length} action(s) récente(s) · ${_todayN} aujourd'hui`;
+          }
+          const actionLabels = {
+            'intervention.create':'Création bon','intervention.update':'Modification bon',
+            'intervention.submit':'Soumission labo','intervention.validate':'Validation labo',
+            'intervention.autovalidate':'Validation auto','intervention.deliverDossier':'Dossier livré',
+            'intervention.reject':'Refus','intervention.delete':'Suppression bon',
+            'tool.create':'Création outil','tool.update':'Modification outil','tool.delete':'Suppression outil',
+            'tool.unblock.auto':'Déblocage outil','tool.inheritFamily':'Héritage famille',
+            'tools.bulkCleanIncomplete':'Nettoyage outils','tools.bulkDeleteAll':'Suppr. tous outils',
+            'pdfTemplate.add':'Ajout modèle PDF','pdfTemplate.delete':'Suppr. modèle PDF',
+            'toolAttachment.add':'Ajout document','toolAttachment.bulkAdd':'Ajout docs (masse)','toolAttachment.delete':'Suppr. document',
+            'preventive5j.add':'Préventive 5J','blocked.import':'Import Komax','access.update':'MAJ accès rôles',
+            'pdr.approved':'PDR approuvée','pdr.rejected':'PDR refusée','pdr.delivered':'PDR livrée',
+            'pdr.ordered':'PDR commandée','pdr.received':'PDR reçue',
+            'pdr.premature-change':'PDR changée tôt','pdr.auto-reset':'PDR auto-reset'
+          };
+          const actionColors = {
+            'intervention.create':'var(--accent-500)','intervention.validate':'var(--success-500)',
+            'intervention.autovalidate':'#22c55e','intervention.deliverDossier':'#22c55e',
+            'intervention.reject':'var(--danger-500)','intervention.delete':'var(--danger-500)',
+            'intervention.submit':'var(--warn-500)','intervention.update':'#94a3b8',
+            'tool.create':'#22c55e','tool.update':'#94a3b8','tool.delete':'var(--danger-500)',
+            'tool.unblock.auto':'#22d3ee','tool.inheritFamily':'#22d3ee',
+            'tools.bulkCleanIncomplete':'#f59e0b','tools.bulkDeleteAll':'var(--danger-500)',
+            'pdfTemplate.add':'#a855f7','pdfTemplate.delete':'#a855f7',
+            'toolAttachment.add':'#a855f7','toolAttachment.bulkAdd':'#a855f7','toolAttachment.delete':'#a855f7',
+            'preventive5j.add':'#00e5a0','blocked.import':'#00e5a0','access.update':'#f59e0b',
+            'pdr.approved':'#22c55e','pdr.rejected':'#ef4444','pdr.delivered':'#22d3ee',
+            'pdr.ordered':'#fbbf24','pdr.received':'#22c55e',
+            'pdr.premature-change':'#f59e0b','pdr.auto-reset':'#22d3ee'
+          };
+          const actionIcons = {
+            'intervention.create':'📝','intervention.update':'✏️','intervention.submit':'📤','intervention.validate':'✅',
+            'intervention.autovalidate':'⚡','intervention.deliverDossier':'📁','intervention.reject':'❌','intervention.delete':'🗑️',
+            'tool.create':'🔧','tool.update':'🔧','tool.delete':'🗑️','tool.unblock.auto':'🔓','tool.inheritFamily':'🧬',
+            'tools.bulkCleanIncomplete':'🧹','tools.bulkDeleteAll':'🗑️',
+            'pdfTemplate.add':'📄','pdfTemplate.delete':'📄',
+            'toolAttachment.add':'📎','toolAttachment.bulkAdd':'📎','toolAttachment.delete':'📎',
+            'preventive5j.add':'📸','blocked.import':'📥','access.update':'🔐',
+            'pdr.approved':'✅','pdr.rejected':'❌','pdr.delivered':'📦','pdr.ordered':'🛒','pdr.received':'📦',
+            'pdr.premature-change':'⚠️','pdr.auto-reset':'♻️'
+          };
+          const _initials = (n) => { n = (n||'').trim(); if (!n) return '?'; return n.split(/\s+/).map(w => w[0]).slice(0,2).join('').toUpperCase(); };
+          const _relTime = (ts) => { if (!ts) return '—'; const d = Date.now() - ts; const m = Math.floor(d/60000), h = Math.floor(d/3600000), j = Math.floor(d/86400000); if (m < 1) return "à l'instant"; if (m < 60) return `il y a ${m} min`; if (h < 24) return `il y a ${h} h`; if (j < 7) return `il y a ${j} j`; return new Date(ts).toLocaleDateString('fr-FR'); };
+          const _dayLabel = (ts) => { const d = new Date(ts); d.setHours(0,0,0,0); const t = new Date(); t.setHours(0,0,0,0); const diff = Math.round((t - d)/86400000); if (diff === 0) return "Aujourd'hui"; if (diff === 1) return "Hier"; return new Date(ts).toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}); };
+          const _fmtEntity = (e) => { if (!e) return '—'; const parts = String(e).split('/'); const t = parts[0]; const id = parts.slice(1).join('/'); if (t === 'interventions') return id ? '📋 Bon ' + id : '📋 Bon'; if (t === 'tools') return '🔧 ' + id; if (t === 'pdfTemplates') return '📄 ' + id; if (t === 'accessConfig') return '🔐 Accès rôles'; return e; };
+          let _html = ''; let _lastDay = null;
+          logs.forEach(l => {
+            const dl = _dayLabel(l.timestamp);
+            if (dl !== _lastDay) {
+              _lastDay = dl;
+              _html += `<tr><td colspan="5" style="padding:.6rem .8rem;background:var(--bg-3);border-top:1px solid var(--border-soft);font-weight:800;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent-500)">📅 ${dl}</td></tr>`;
+            }
             const label = actionLabels[l.action] || l.action;
-            const color = actionColors[l.action] || 'var(--text-secondary)';
-            return `<tr>
-              <td style="color:var(--text-muted);font-size:.78rem;font-family:var(--font-mono)">${fmt.dateTime(l.timestamp)}</td>
-              <td style="font-weight:500">${ui.escape(l.userName||'—')}</td>
-              <td><span style="color:${color};font-size:.8rem;font-weight:600">${label}</span></td>
-              <td style="font-family:var(--font-mono);font-size:.78rem">${ui.escape(l.entity||'—')}</td>
-              <td style="font-size:.78rem;color:var(--text-muted)">${ui.escape(l.uid||'—').slice(0,12)}…</td>
+            const color = actionColors[l.action] || '#94a3b8';
+            const icon  = actionIcons[l.action] || '•';
+            _html += `<tr class="audit-row" style="transition:background .12s">
+              <td style="padding:.55rem .8rem;white-space:nowrap;vertical-align:middle">
+                <div style="font-weight:700;font-size:.76rem;color:var(--text-secondary)">${_relTime(l.timestamp)}</div>
+                <div style="font-size:.66rem;color:var(--text-muted);font-family:var(--font-mono);margin-top:.1rem">${fmt.dateTime(l.timestamp)}</div>
+              </td>
+              <td style="padding:.55rem .8rem;vertical-align:middle">
+                <span style="display:inline-flex;align-items:center;gap:.45rem">
+                  <span style="width:27px;height:27px;border-radius:50%;background:${color};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;flex:0 0 auto;box-shadow:0 1px 4px rgba(0,0,0,.25)">${_initials(l.userName)}</span>
+                  <span style="font-weight:600;font-size:.8rem">${ui.escape(l.userName||'—')}</span>
+                </span>
+              </td>
+              <td style="padding:.55rem .8rem;vertical-align:middle">
+                <span style="display:inline-flex;align-items:center;gap:.4rem;padding:.26rem .62rem;border-radius:999px;background:rgba(255,255,255,.045);border:1px solid currentColor;color:${color};font-size:.7rem;font-weight:800;white-space:nowrap">${icon} ${label}</span>
+              </td>
+              <td style="padding:.55rem .8rem;vertical-align:middle;font-family:var(--font-mono);font-size:.76rem;color:var(--text-secondary)">${ui.escape(_fmtEntity(l.entity))}</td>
+              <td style="padding:.55rem .8rem;vertical-align:middle;font-size:.7rem;color:var(--text-muted);font-family:var(--font-mono)">${ui.escape(l.uid||'—').slice(0,10)}…</td>
             </tr>`;
-          }).join('');
+          });
+          tbody.innerHTML = _html;
         } catch(e) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--danger-500)">Erreur: ${e.message}</td></tr>`; }
       },
       init() {}

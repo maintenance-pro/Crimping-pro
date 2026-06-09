@@ -23656,14 +23656,42 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       //    (La bannière "héritage de famille" proposera ensuite de copier les documents adaptés.)
       duplicateTool(tool) {
         if (!tool) return;
+        const oldFournisseur = (tool.fournisseur || '').trim();
+        // 🆕 On demande D'ABORD le fournisseur du nouvel outil
+        const typed = prompt(
+          "Fournisseur du nouvel outil ?\n\n" +
+          "• MÊME fournisseur → Réf Outil, Réf Fabricant, Outil ID et Fabricant sont CONSERVÉS.\n" +
+          "• Fournisseur DIFFÉRENT → ils seront VIDÉS (à ressaisir).\n\n" +
+          "Outil source : " + (oldFournisseur || '—'),
+          oldFournisseur
+        );
+        if (typed === null) return;   // annulé
+        const newFournisseur = typed.trim();
+        const sameFournisseur = oldFournisseur !== '' && newFournisseur.toLowerCase() === oldFournisseur.toLowerCase();
+
         const copy = { ...tool };
         delete copy.id;
         delete copy.createdAt;
         delete copy.updatedAt;
+        // Identité unique de l'outil : TOUJOURS vidée
+        delete copy.doutils;
+        delete copy.serial;
+        delete copy.numInventaire;
+        copy.fournisseur = newFournisseur;   // fournisseur saisi
+        // Fournisseur DIFFÉRENT → vider aussi les références + le fabricant
+        if (!sameFournisseur) {
+          ['refOutil', 'refFabricant', 'outilId', 'fabricant'].forEach(k => { delete copy[k]; });
+        }
+
         this.openModal(copy);   // pas d'id → mode création (nouvel outil)
         const titleEl = $('#tool-modal-title');
         if (titleEl) titleEl.textContent = '📋 Dupliquer — ' + (tool.designation || tool.doutils || tool.serial || tool.id || 'outil');
-        ui.toast("📋 Duplication : modifiez le N° série / D'Outils pour rendre l'outil unique, puis enregistrez.", 'info', 7000);
+        ui.toast(
+          sameFournisseur
+            ? "📋 Duplication (même fournisseur) : renseignez D'Outils, Serial et N° Inventaire. Références + Fabricant conservés."
+            : "📋 Duplication (autre fournisseur) : renseignez D'Outils, Serial, N° Inventaire, Fabricant et les références.",
+          'info', 8000
+        );
       },
 
       openModal(tool = null) {

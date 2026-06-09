@@ -8141,7 +8141,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <button class="btn btn--secondary" id="btn-catalog-export"><span data-i18n="action.exportExcel">📤 Exporter Excel</span></button>
             <button class="btn btn--secondary" id="btn-catalog-print-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Imprimer les QR codes des outils filtrés">🖨 QR Codes</button>
             <button class="btn btn--secondary" id="btn-catalog-bulk-docs" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog" style="background:rgba(124,58,237,.14);color:#a855f7;border:1px solid rgba(124,58,237,.35);font-weight:700" title="Joindre une liste de documents (Annexes) à plusieurs outils d'un coup">📎 Docs en masse</button>
-            <button class="btn btn--secondary" id="btn-catalog-inherit-all" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog" style="background:rgba(34,211,238,.14);color:#22d3ee;border:1px solid rgba(34,211,238,.35);font-weight:700" title="Héritage AUTOMATIQUE : chaque outil hérite pièces (même fournisseur) + documents adaptés de sa famille (connexion+groupe+client)">🧬 Hériter TOUT</button>
             <button class="btn btn--secondary" id="btn-catalog-optimize-docs" data-requires-role="super_admin,admin" data-edit-module="catalog" style="background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.3);font-weight:700" title="Allège l'index des documents (déplace les fichiers volumineux hors de l'index) — corrige l'affichage si les documents ne se chargent pas">⚙️ Optimiser docs</button>
             <button class="btn btn--primary" id="btn-catalog-add" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog">＋ Nouvel outil</button>
           </div>
@@ -21839,6 +21838,32 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               if (tool) this.showDetails(tool);
             }
           });
+
+          // 🆕 CLIC DROIT sur une carte → menu contextuel (Dupliquer / Détails / Modifier / Supprimer)
+          grid.addEventListener('contextmenu', (e) => {
+            const card = e.target.closest('article[data-tool-card]');
+            if (!card) return;
+            e.preventDefault();
+            const tool = state.tools[card.dataset.toolId];
+            if (tool) this._showToolContextMenu(e.clientX, e.clientY, tool);
+          });
+
+          // 🆕 APPUI LONG (tablette/atelier) = équivalent du clic droit
+          let _lpTimer = null;
+          grid.addEventListener('touchstart', (e) => {
+            const card = e.target.closest('article[data-tool-card]');
+            if (!card) return;
+            const t = e.touches[0];
+            _lpTimer = setTimeout(() => {
+              _lpTimer = null;
+              const tool = state.tools[card.dataset.toolId];
+              if (tool) this._showToolContextMenu(t.clientX, t.clientY, tool);
+            }, 550);
+          }, { passive: true });
+          const _cancelLp = () => { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } };
+          grid.addEventListener('touchend', _cancelLp);
+          grid.addEventListener('touchmove', _cancelLp);
+          grid.addEventListener('touchcancel', _cancelLp);
         }
         // ── 🚀 AUTO-INFINITE SCROLL (remplace le bouton "Charger plus") ──
         // Utilise IntersectionObserver : dès que la zone de fin entre dans le viewport,
@@ -23590,6 +23615,66 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           b.addEventListener('mouseleave', () => b.style.background = 'rgba(255,61,90,.10)');
         });
       },
+      // 🆕 Menu contextuel (clic droit) sur une carte outil
+      _showToolContextMenu(x, y, tool) {
+        document.getElementById('tool-ctx-menu')?.remove();
+        const canEdit   = ['admin','super_admin','responsable'].includes(state.role);
+        const canDelete = ['admin','super_admin'].includes(state.role);
+        const items = [];
+        items.push({ icon:'📋', label:'Dupliquer cet outil', color:'#22d3ee', act: () => this.duplicateTool(tool) });
+        items.push({ icon:'👁', label:'Voir les détails',    color:'var(--text-primary)', act: () => this.showDetails(tool) });
+        if (canEdit)   items.push({ icon:'✏️', label:'Modifier',  color:'var(--accent-500)', act: () => this.openModal(tool) });
+        if (canDelete) items.push({ icon:'🗑️', label:'Supprimer', color:'#ff3d5a',          act: () => this.deleteWithConfirm(tool) });
+
+        const menu = document.createElement('div');
+        menu.id = 'tool-ctx-menu';
+        menu.style.cssText = 'position:fixed;z-index:99999;min-width:200px;background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:11px;box-shadow:0 14px 38px rgba(0,0,0,.5);padding:.35rem';
+        const title = tool.designation || tool.doutils || tool.serial || tool.outilId || tool.id || 'Outil';
+        menu.innerHTML =
+          `<div style="padding:.4rem .6rem .45rem;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);border-bottom:1px solid var(--border-soft);margin-bottom:.25rem;font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ui.escape(title)}</div>` +
+          items.map((it, i) => `<button data-ctx="${i}" style="display:flex;align-items:center;gap:.55rem;width:100%;padding:.5rem .6rem;background:transparent;border:none;border-radius:7px;color:${it.color};font-weight:600;font-size:.83rem;cursor:pointer;text-align:left">${it.icon} ${it.label}</button>`).join('');
+        document.body.appendChild(menu);
+
+        // Position dans le viewport
+        const r = menu.getBoundingClientRect();
+        menu.style.left = Math.max(6, Math.min(x, window.innerWidth  - r.width  - 8)) + 'px';
+        menu.style.top  = Math.max(6, Math.min(y, window.innerHeight - r.height - 8)) + 'px';
+
+        const close = () => {
+          menu.remove();
+          document.removeEventListener('click', close);
+          document.removeEventListener('keydown', onKey);
+          window.removeEventListener('scroll', close, true);
+        };
+        const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+
+        menu.querySelectorAll('button[data-ctx]').forEach((b, i) => {
+          b.addEventListener('mouseenter', () => b.style.background = 'rgba(255,255,255,.06)');
+          b.addEventListener('mouseleave', () => b.style.background = 'transparent');
+          b.addEventListener('click', () => { close(); items[i].act(); });
+        });
+        setTimeout(() => {
+          document.addEventListener('click', close);
+          document.addEventListener('keydown', onKey);
+          window.addEventListener('scroll', close, true);
+        }, 0);
+      },
+
+      // 🆕 Duplique un outil : ouvre le formulaire "Nouvel outil" pré-rempli avec une COPIE de la source.
+      //    L'utilisateur ajuste le N° série / D'Outils pour rendre l'outil unique, puis enregistre.
+      //    (La bannière "héritage de famille" proposera ensuite de copier les documents adaptés.)
+      duplicateTool(tool) {
+        if (!tool) return;
+        const copy = { ...tool };
+        delete copy.id;
+        delete copy.createdAt;
+        delete copy.updatedAt;
+        this.openModal(copy);   // pas d'id → mode création (nouvel outil)
+        const titleEl = $('#tool-modal-title');
+        if (titleEl) titleEl.textContent = '📋 Dupliquer — ' + (tool.designation || tool.doutils || tool.serial || tool.id || 'outil');
+        ui.toast("📋 Duplication : modifiez le N° série / D'Outils pour rendre l'outil unique, puis enregistrez.", 'info', 7000);
+      },
+
       openModal(tool = null) {
         const modal = $('#modal-tool');
         modal.hidden = false;

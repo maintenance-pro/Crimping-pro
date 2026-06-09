@@ -8147,26 +8147,36 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         </header>
 
         <!-- 📊 KPI Strip -->
-        <div id="catalog-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.75rem;margin:1rem 0;font-family:var(--font-mono)">
-          <div class="kpi" data-kpi-filter="all" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid var(--accent-500);cursor:pointer;transition:transform .12s,box-shadow .12s" title="Voir tous les outils">
-            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">📦 Total</div>
-            <div id="cat-kpi-total" style="font-size:1.6rem;font-weight:700;color:var(--accent-500)">0</div>
+        <div id="catalog-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem;margin:1rem 0">
+          <div class="bl-kpi" data-kpi-filter="all" style="cursor:pointer;background:linear-gradient(135deg,rgba(0,212,255,.10),var(--bg-elevated));border-color:rgba(0,212,255,.28)" title="Voir tous les outils">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#00d4ff,transparent)"></div>
+            <div class="bl-kpi__label">📦 Total outils</div>
+            <div id="cat-kpi-total" class="bl-kpi__value" style="color:#00d4ff">0</div>
+            <div class="bl-kpi__wm">📦</div>
           </div>
-          <div class="kpi" data-kpi-filter="complete" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #00e5a0;cursor:pointer;transition:transform .12s,box-shadow .12s" title="Filtrer les outils complets">
-            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">✅ Complets</div>
-            <div id="cat-kpi-complete" style="font-size:1.6rem;font-weight:700;color:#00e5a0">0</div>
+          <div class="bl-kpi" data-kpi-filter="complete" style="cursor:pointer;background:linear-gradient(135deg,rgba(0,229,160,.10),var(--bg-elevated));border-color:rgba(0,229,160,.28)" title="Filtrer les outils complets">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#00e5a0,transparent)"></div>
+            <div class="bl-kpi__label">✅ Complets</div>
+            <div id="cat-kpi-complete" class="bl-kpi__value" style="color:#00e5a0">0</div>
+            <div class="bl-kpi__wm">✅</div>
           </div>
-          <div class="kpi" data-kpi-filter="incomplete" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #ff3d5a;cursor:pointer;transition:transform .12s,box-shadow .12s" title="Filtrer les outils incomplets">
-            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">⚠️ Incomplets</div>
-            <div id="cat-kpi-incomplete" style="font-size:1.6rem;font-weight:700;color:#ff3d5a">0</div>
+          <div class="bl-kpi" data-kpi-filter="incomplete" style="cursor:pointer;background:linear-gradient(135deg,rgba(255,61,90,.12),var(--bg-elevated));border-color:rgba(255,61,90,.30)" title="Filtrer les outils incomplets">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#ff3d5a,transparent)"></div>
+            <div class="bl-kpi__label">⚠️ Incomplets</div>
+            <div id="cat-kpi-incomplete" class="bl-kpi__value" style="color:#ff3d5a">0</div>
+            <div class="bl-kpi__wm">⚠️</div>
           </div>
-          <div class="kpi" data-kpi-docs="with" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #a855f7;cursor:pointer;transition:transform .12s,box-shadow .12s" title="Filtrer les outils avec documents joints">
-            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">📎 Avec docs</div>
-            <div id="cat-kpi-docs" style="font-size:1.6rem;font-weight:700;color:#a855f7">0</div>
+          <div class="bl-kpi" data-kpi-docs="with" style="cursor:pointer;background:linear-gradient(135deg,rgba(168,85,247,.12),var(--bg-elevated));border-color:rgba(168,85,247,.30)" title="Filtrer les outils avec documents joints">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#a855f7,transparent)"></div>
+            <div class="bl-kpi__label">📎 Avec docs</div>
+            <div id="cat-kpi-docs" class="bl-kpi__value" style="color:#a855f7">0</div>
+            <div class="bl-kpi__wm">📎</div>
           </div>
-          <div class="kpi" style="padding:.85rem 1rem;border-radius:9px;background:var(--bg-elevated);border-left:4px solid #ffb547">
-            <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:700">🏭 Fabricants</div>
-            <div id="cat-kpi-fabricants" style="font-size:1.6rem;font-weight:700;color:#ffb547">0</div>
+          <div class="bl-kpi" style="background:linear-gradient(135deg,rgba(255,181,71,.12),var(--bg-elevated));border-color:rgba(255,181,71,.30)" title="Nombre de fabricants distincts">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#ffb547,transparent)"></div>
+            <div class="bl-kpi__label">🏭 Fabricants</div>
+            <div id="cat-kpi-fabricants" class="bl-kpi__value" style="color:#ffb547">0</div>
+            <div class="bl-kpi__wm">🏭</div>
           </div>
         </div>
 
@@ -22465,6 +22475,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             !excludeNums.map(t => String(t || '').toUpperCase()).includes(oldSerialFromName.toUpperCase())) {
           contentPairs.push([oldSerialFromName, tgtSerial]);
         }
+        // 🆕 PRÉCISION : remplacer TOUTES les valeurs d'identité de l'outil SOURCE par celles de la CIBLE,
+        //    pour ne RIEN oublier dans le contenu (D'Outils, serial, N° inventaire, Outil ID, Réf Outil).
+        ['doutils', 'serial', 'numInventaire', 'outilId', 'refOutil'].forEach(f => {
+          const sv = String((srcTool && srcTool[f]) || '').trim();
+          const tv = String((tgtTool && tgtTool[f]) || '').trim();
+          if (sv && tv && sv !== tv && sv.length >= 3) contentPairs.push([sv, tv]);
+        });
         if (isOffice && doc.b64) {
           try { contentPairs.push(...await this._officeIdentityPairs(doc.b64, true, tgtFour, tgtInv, TOOL_SECTION)); } catch (e) {}
         }

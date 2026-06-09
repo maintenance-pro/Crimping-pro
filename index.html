@@ -23678,9 +23678,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         delete copy.serial;
         delete copy.numInventaire;
         copy.fournisseur = newFournisseur;   // fournisseur saisi
-        // Fournisseur DIFFÉRENT → vider aussi les références + le fabricant
+        // Fournisseur DIFFÉRENT → vider aussi les références + le fabricant + les RÉFÉRENCES DE PIÈCES
         if (!sameFournisseur) {
-          ['refOutil', 'refFabricant', 'outilId', 'fabricant'].forEach(k => { delete copy[k]; });
+          [
+            'refOutil', 'refFabricant', 'outilId', 'fabricant',
+            // 🆕 références de pièces (poinçons / enclumes / couteaux / presseur / matrices)
+            'pAr', 'pAv', 'eAr', 'eAv', 'cAr', 'cAv',
+            'presseur', 'matriceAvant', 'matriceArriere', 'ejector', 'couteauBanda'
+          ].forEach(k => { delete copy[k]; });
+          delete copy.pieces;   // si les pièces sont stockées en objet imbriqué
         }
 
         this.openModal(copy);   // pas d'id → mode création (nouvel outil)
@@ -23689,7 +23695,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         ui.toast(
           sameFournisseur
             ? "📋 Duplication (même fournisseur) : renseignez D'Outils, Serial et N° Inventaire. Références + Fabricant conservés."
-            : "📋 Duplication (autre fournisseur) : renseignez D'Outils, Serial, N° Inventaire, Fabricant et les références.",
+            : "📋 Duplication (autre fournisseur) : renseignez D'Outils, Serial, N° Inventaire, Fabricant, les références ET les pièces (vidées).",
           'info', 8000
         );
       },

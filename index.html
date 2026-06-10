@@ -9150,7 +9150,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <button class="modal__close" data-close>×</button>
       </header>
       <div style="padding:.55rem 1.1rem 0;font-size:.76rem;color:var(--text-secondary);line-height:1.5">
-        Gérez ici les modèles <strong>Annexe 5</strong> (par fournisseur, plusieurs variantes possibles). L'<strong>Annexe 4</strong> reste l'annexe déjà attachée à chaque outil (référentiel). Cliquez un outil : ses <strong>données + pièces</strong> sont <strong>injectées</strong> dans l'Annexe 5 de son fournisseur, puis l'Annexe est <strong>attachée à l'outil</strong>.
+        Gérez ici l'<strong>Annexe 4 témoin</strong> (référentiel propagé à chaque outil du groupe) et les modèles <strong>Annexe 5</strong> (par fournisseur, plusieurs variantes). Chaque changement du témoin <strong>régénère l'Annexe 4</strong> de tous les outils du groupe. Cliquez un outil : ses <strong>données + pièces</strong> sont injectées dans l'Annexe 5 de son fournisseur, puis <strong>attachée à l'outil</strong>.
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;padding:.6rem 1.1rem .15rem">
         <input id="annex-tpl-search" type="search" placeholder="🔍 Rechercher un groupe, un outil ou une connexion…" autocomplete="off" style="flex:1;min-width:200px;padding:.45rem .7rem;border-radius:8px;border:1px solid var(--border-soft);background:var(--bg-3);color:var(--text-primary);font-size:.8rem">
@@ -23908,9 +23908,21 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               ...c.groups[g].map(t => String(t.fournisseur || '').trim()),
               ...Object.values(a5map).map(e => String(e.fournisseur || '').trim())
             ].filter(Boolean))].sort();
-            // 🆕 Annexe 4 = l'annexe déjà attachée à chaque outil (référentiel) — pas de modèle de groupe ici.
-            // Cette zone ne gère QUE les modèles Annexe 5 (par fournisseur, avec injection des pièces).
-            let slotHtml = `<div style="flex:0 0 100%;font-size:.68rem;color:var(--text-muted);background:rgba(255,255,255,.03);border:1px solid var(--border-soft);border-radius:7px;padding:.4rem .6rem">📘 <strong>Annexe 4</strong> = l'annexe déjà attachée à chaque outil (référentiel, 1 par outil) — gérée sur la fiche outil, pas ici.</div>`;
+            // 🆕 Annexe 4 TÉMOIN (référentiel maître) — chaque changement se propage à l'Annexe 4 de chaque outil du groupe
+            const a4 = tpl.annex4 || {};
+            const a4Has = a4 && a4.name;
+            let slotHtml = `<div style="flex:0 0 100%;border:1px solid ${a4Has ? 'rgba(0,212,255,.4)' : 'var(--border-soft)'};border-radius:8px;padding:.55rem .7rem;background:${a4Has ? 'rgba(0,212,255,.06)' : 'rgba(255,255,255,.02)'}">
+              <div style="font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#00d4ff">📘 Annexe 4 témoin <span style="font-weight:600;text-transform:none;color:var(--text-muted)">(référentiel — propagée à chaque outil)</span></div>
+              <div style="font-size:.72rem;margin:.2rem 0;color:${a4Has ? '#00d4ff' : 'var(--text-muted)'};word-break:break-all">${a4Has ? '📎 ' + ui.escape(a4.name) : 'Aucun modèle témoin'}</div>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+                <label style="font-size:.7rem;color:var(--accent-500);cursor:pointer;font-weight:700">${a4Has ? '↻ Remplacer' : '＋ Ajouter le témoin'}
+                  <input type="file" accept=".xlsx,.xlsm" hidden data-tpl-upload="${groupKey}" data-tpl-slot="annex4" data-tpl-four="" data-tpl-cname="${ui.escape(c.name)}" data-tpl-group="${ui.escape(g)}">
+                </label>
+                ${a4Has ? `<button data-tpl-prop4="${groupKey}" title="Régénérer l'Annexe 4 de tous les outils du groupe" style="background:rgba(0,212,255,.12);border:1px solid rgba(0,212,255,.35);color:#00d4ff;font-size:.68rem;font-weight:700;border-radius:6px;padding:.2rem .5rem;cursor:pointer">⟳ Propager maintenant</button>
+                <button data-tpl-del="${groupKey}" data-tpl-delslot="annex4" style="background:none;border:none;color:#ff3d5a;font-size:.7rem;cursor:pointer;font-weight:700">🗑️</button>` : ''}
+              </div>
+              <div style="font-size:.62rem;color:var(--text-muted);margin-top:.3rem">Chaque changement du témoin régénère l'Annexe 4 attachée à tous les outils du groupe (données + pièces injectées).</div>
+            </div>`;
             // Annexe 5 : un bloc par fournisseur, avec PLUSIEURS variantes possibles (ex. TYCO 1, TYCO 2…)
             slotHtml += (fournisseurs.length ? fournisseurs : ['']).map(four => {
               const fk = this._fourKey(four);
@@ -23981,6 +23993,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             this._renderAnnexTemplates();
           });
         });
+        // 🆕 Bouton « ⟳ Propager maintenant » : régénère l'Annexe 4 de tous les outils du groupe depuis le témoin
+        body.querySelectorAll('button[data-tpl-prop4]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('Propager l\'Annexe 4 témoin sur tous les outils du groupe ?\n(Régénère leur Annexe 4 à partir du témoin actuel.)')) return;
+            try { await this._propagateAnnex4Temoin(btn.dataset.tplProp4); } catch (e) { ui.toast('Échec propagation : ' + e.message, 'danger'); }
+          });
+        });
         // 🆕 « ＋ Ajouter une Annexe 5 » : demande un nom (TYCO 1, TYCO 2…) puis ouvre le sélecteur de fichier
         body.querySelectorAll('button[data-tpl-add5]').forEach(btn => {
           btn.addEventListener('click', () => {
@@ -24042,19 +24061,88 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         this._annexTplCache = this._annexTplCache || {}; this._annexTplCache[groupKey] = cur;
         ui.toast(`✅ Modèle ${slot === 'annex4' ? 'Annexe 4' : 'Annexe 5' + ((label && label.trim()) ? ' « ' + label.trim() + ' »' : (four ? ' · ' + four : ''))} enregistré (groupe ${group})`, 'success');
         try { db.audit('annexTemplate.set', groupKey, { slot, four: four || '', label: label || '', file: file.name }); } catch (e) {}
+        // 🆕 Annexe 4 témoin changée → propager automatiquement à l'Annexe 4 de tous les outils du groupe
+        if (slot === 'annex4') { try { await this._propagateAnnex4Temoin(groupKey); } catch (e) { console.warn('[auto-propagate]', e); } }
         this._renderAnnexTemplates();
+      },
+
+      // 🆕 Applique les données d'un outil à un document modèle (fournisseur, inventaire, serial, pièces, renommage onglet)
+      async _applyToolDataToDoc(b64, tool, includePieces) {
+        const TOOL_SECTION = /applicator|donn[eé]es?\s*outil/i;
+        const tgtFour = String(tool.fabricant || tool.fournisseur || '').trim();
+        const tgtInv  = this._invValue(tool);
+        const tgtSerial = String(tool.serial || '').trim();
+        if (tgtFour)   { try { b64 = await this._setOfficeFieldByLabel(b64, /fournisseur|supplier/i, tgtFour, TOOL_SECTION); } catch (e) {} }
+        if (tgtInv)    { try { b64 = await this._setOfficeFieldByLabel(b64, /inventaire|inventory/i, tgtInv, TOOL_SECTION); } catch (e) {} }
+        if (tgtSerial) { try { b64 = await this._setOfficeFieldByLabel(b64, /\bserial\b|s[ée]rie/i, tgtSerial); } catch (e) {} }
+        if (includePieces !== false) {
+          const pieceVal = (f) => String((tool[f] != null && tool[f] !== '') ? tool[f] : ((tool.pieces && tool.pieces[f]) || '')).trim();
+          const pieceMap = [
+            ['pAr', /poin[çc]on\s*cond|wire\s*crimp/i],
+            ['pAv', /poin[çc]on\s*isol|insul[a-z]*\s*crimp|ins\.?\s*crimp/i],
+            ['eAr', /enclume\s*cond|wire\s*anvil/i],
+            ['eAv', /enclume\s*isol|insul[a-z]*\s*anvil|ins\.?\s*anvil/i],
+            ['cAr', /couteaux|floating\s*shear/i],
+            ['cAv', /matrice\s*couteau|slug\s*cut/i],
+            ['presseur', /presseur|hold\s*down/i],
+            ['matriceAvant', /matrice\s*avant/i],
+            ['matriceArriere', /matrice\s*arri/i]
+          ];
+          for (const [f, re] of pieceMap) { const v = pieceVal(f); if (v) { try { b64 = await this._setOfficeFieldByLabel(b64, re, v); } catch (e) {} } }
+        }
+        const nameR = tool.doutils || tool.designation || tool.serial || '';
+        const tgtNum = this._docNumberFromName(nameR);
+        const baseFam = this._extractFamily(nameR);
+        if (baseFam && tgtNum) { try { b64 = await this._renameFamilySheets(b64, baseFam, tgtNum); } catch (e) {} }
+        return { b64, nameR, tgtNum, tgtSerial };
+      },
+
+      // 🆕 Outils appartenant à un groupKey (même logique de regroupement que le rendu)
+      _toolsInGroupKey(groupKey) {
+        return Object.values(state.tools || {}).filter(t => {
+          const client = t.projet ? this._getClientForProject(t.projet) : null;
+          const ck = client ? client.key : 'autre';
+          const group = (t.groupe || this._extractFamily(t.doutils || t.designation || '') || '—');
+          return this._annexGroupKey(ck, group) === groupKey;
+        });
+      },
+
+      // 🆕 Propage l'Annexe 4 TÉMOIN : régénère l'Annexe 4 attachée à CHAQUE outil du groupe
+      async _propagateAnnex4Temoin(groupKey, silent) {
+        const tpl = (await fbDb.ref('annexTemplates/' + groupKey).once('value')).val() || {};
+        if (!tpl.annex4 || !tpl.annex4.b64) { if (!silent) ui.toast('Aucune Annexe 4 témoin sur ce groupe', 'warn'); return 0; }
+        const groupTools = this._toolsInGroupKey(groupKey);
+        if (!groupTools.length) { if (!silent) ui.toast('Aucun outil dans ce groupe', 'warn'); return 0; }
+        ui.showLoader(`Propagation de l'Annexe 4 témoin sur ${groupTools.length} outil(s)…`);
+        let done = 0;
+        for (const tool of groupTools) {
+          try {
+            // Retirer l'ancienne Annexe 4 issue du témoin (évite les doublons à chaque changement)
+            const all = (toolAttachments._all && toolAttachments._all[tool.id]) || {};
+            for (const [fid, meta] of Object.entries(all)) {
+              if (meta && meta.temoinAnnex4 && meta.fromTemplate === groupKey) {
+                try { await fbDb.ref('toolAttachments/' + tool.id + '/' + fid).remove(); await fbDb.ref('toolAttachmentsB64/' + tool.id + '/' + fid).remove(); } catch (e) {}
+                if (toolAttachments._all[tool.id]) delete toolAttachments._all[tool.id][fid];
+              }
+            }
+            const r = await this._applyToolDataToDoc(tpl.annex4.b64, tool, true);
+            const fname = `Annexe 4 - ${r.nameR || r.tgtNum || tool.id}${r.tgtSerial ? ' - ' + r.tgtSerial : ''}.xlsx`;
+            const fid = 'f_t4_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + '_' + done;
+            await toolAttachments._writeDoc(tool.id, fid, {
+              name: fname, category: 'Annexe 4', temoinAnnex4: true, fromTemplate: groupKey,
+              mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', uploadedAt: Date.now()
+            }, r.b64);
+            done++;
+          } catch (e) { console.warn('[propagate annex4]', tool.id, e); }
+        }
+        ui.hideLoader();
+        if (!silent) ui.toast(`✅ Annexe 4 témoin propagée sur ${done} outil(s)`, 'success', 6000);
+        try { db.audit('annexTemplate.propagate', groupKey, { count: done }); } catch (e) {}
+        return done;
       },
 
       async _injectAnnexForTool(tool, groupKey) {
         const tpl = (await fbDb.ref('annexTemplates/' + groupKey).once('value')).val() || {};
-        const tgtFour = String(tool.fabricant || tool.fournisseur || '').trim();
-        const tgtInv  = this._invValue(tool);
-        const tgtSerial = String(tool.serial || '').trim();
-        const nameR = tool.doutils || tool.designation || tool.serial || '';
-        const tgtNum = this._docNumberFromName(nameR);
-        const baseFam = this._extractFamily(nameR);
-        const TOOL_SECTION = /applicator|donn[eé]es?\s*outil/i;
-        // 🆕 Annexe 4 = modèle du GROUPE ; Annexe 5 = modèle du FOURNISSEUR de l'outil
         const a5map = tpl.annex5 || {};
         const fk = this._fourKey(tool.fournisseur);
         // 🆕 Annexe 5 du fournisseur de l'outil : 0 → aucune ; 1 → auto ; 2+ → on demande laquelle
@@ -24068,43 +24156,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (/^t/i.test(a)) chosen5 = a5matches;
           else { const idx = parseInt(a, 10) - 1; chosen5 = (idx >= 0 && idx < a5matches.length) ? [a5matches[idx]] : [a5matches[0]]; }
         }
-        // 🆕 On n'injecte QUE l'Annexe 5 (l'Annexe 4 reste l'annexe déjà attachée à l'outil = référentiel)
+        // On injecte l'Annexe 5 ; l'Annexe 4 est gérée par le témoin (propagation automatique)
         const jobs = [];
         chosen5.forEach(([id, e]) => jobs.push(['annex5', 'Annexe 5' + (e.label ? ' ' + e.label : ''), e]));
         let count = 0;
         for (const [slot, label, t] of jobs) {
           if (!t || !t.b64) continue;
-          let b64 = t.b64;
-          if (tgtFour)   { try { b64 = await this._setOfficeFieldByLabel(b64, /fournisseur|supplier/i, tgtFour, TOOL_SECTION); } catch (e) {} }
-          if (tgtInv)    { try { b64 = await this._setOfficeFieldByLabel(b64, /inventaire|inventory/i, tgtInv, TOOL_SECTION); } catch (e) {} }
-          if (tgtSerial) { try { b64 = await this._setOfficeFieldByLabel(b64, /\bserial\b|s[ée]rie/i, tgtSerial); } catch (e) {} }
-          // 🆕 Injection des PIÈCES dans l'Annexe 5 (libellés standard FR/EN — écrit seulement si le libellé existe)
-          if (slot === 'annex5') {
-            const pieceVal = (f) => String((tool[f] != null && tool[f] !== '') ? tool[f] : ((tool.pieces && tool.pieces[f]) || '')).trim();
-            const pieceMap = [
-              ['pAr', /poin[çc]on\s*cond|wire\s*crimp/i],
-              ['pAv', /poin[çc]on\s*isol|insul[a-z]*\s*crimp|ins\.?\s*crimp/i],
-              ['eAr', /enclume\s*cond|wire\s*anvil/i],
-              ['eAv', /enclume\s*isol|insul[a-z]*\s*anvil|ins\.?\s*anvil/i],
-              ['cAr', /couteaux|floating\s*shear/i],
-              ['cAv', /matrice\s*couteau|slug\s*cut/i],
-              ['presseur', /presseur|hold\s*down/i],
-              ['matriceAvant', /matrice\s*avant/i],
-              ['matriceArriere', /matrice\s*arri/i]
-            ];
-            for (const [f, re] of pieceMap) {
-              const v = pieceVal(f);
-              if (v) { try { b64 = await this._setOfficeFieldByLabel(b64, re, v); } catch (e) {} }
-            }
-          }
-          if (baseFam && tgtNum) { try { b64 = await this._renameFamilySheets(b64, baseFam, tgtNum); } catch (e) {} }
-          const fname = `${label} - ${nameR || tgtNum || tool.id}${tgtSerial ? ' - ' + tgtSerial : ''}.xlsx`;
+          const r = await this._applyToolDataToDoc(t.b64, tool, true);
+          const fname = `${label} - ${r.nameR || r.tgtNum || tool.id}${r.tgtSerial ? ' - ' + r.tgtSerial : ''}.xlsx`;
           const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + slot;
           await toolAttachments._writeDoc(tool.id, fid, {
             name: fname, category: label,
             mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             fromTemplate: groupKey, uploadedAt: Date.now()
-          }, b64);
+          }, r.b64);
           count++;
         }
         if (count) { try { db.audit('annexTemplate.inject', tool.id, { groupKey, count }); } catch (e) {} }

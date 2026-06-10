@@ -23828,29 +23828,47 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             const groupKey = this._annexGroupKey(ck, g);
             const tpl = tplIdx[groupKey] || {};
             const a5map = tpl.annex5 || {};
-            // 🆕 Fournisseurs distincts du groupe (Annexe 5 = un modèle par fournisseur)
-            const fournisseurs = [...new Set(c.groups[g].map(t => String(t.fournisseur || '').trim()).filter(Boolean))].sort();
-            const slotCard = (slot, four, labelHtml, entry) => {
-              const has = entry && entry.name;
-              return `<div style="flex:1;min-width:170px;border:1px dashed ${has ? 'rgba(0,229,160,.45)' : 'var(--border-soft)'};border-radius:8px;padding:.5rem .6rem;background:${has ? 'rgba(0,229,160,.06)' : 'transparent'}">
-                <div style="font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">${labelHtml}</div>
-                <div style="font-size:.72rem;margin:.2rem 0;color:${has ? '#00e5a0' : 'var(--text-muted)'};word-break:break-all">${has ? '📎 ' + ui.escape(entry.name) : 'Aucun modèle'}</div>
-                <label style="display:inline-block;font-size:.7rem;color:var(--accent-500);cursor:pointer;font-weight:700">${has ? '↻ Remplacer' : '＋ Ajouter'}
-                  <input type="file" accept=".xlsx,.xlsm" hidden data-tpl-upload="${groupKey}" data-tpl-slot="${slot}" data-tpl-four="${ui.escape(four || '')}" data-tpl-cname="${ui.escape(c.name)}" data-tpl-group="${ui.escape(g)}">
-                </label>${has ? ` · <button data-tpl-del="${groupKey}" data-tpl-delslot="${slot}" data-tpl-delfour="${ui.escape(four || '')}" style="background:none;border:none;color:#ff3d5a;font-size:.7rem;cursor:pointer;font-weight:700">🗑️</button>` : ''}
+            // 🆕 Fournisseurs = ceux des outils du groupe ∪ ceux ayant déjà une Annexe 5
+            const fournisseurs = [...new Set([
+              ...c.groups[g].map(t => String(t.fournisseur || '').trim()),
+              ...Object.values(a5map).map(e => String(e.fournisseur || '').trim())
+            ].filter(Boolean))].sort();
+            // Carte Annexe 4 : un seul modèle pour tout le groupe
+            const a4Has = tpl.annex4 && tpl.annex4.name;
+            let slotHtml = `<div style="flex:1;min-width:170px;border:1px dashed ${a4Has ? 'rgba(0,229,160,.45)' : 'var(--border-soft)'};border-radius:8px;padding:.5rem .6rem;background:${a4Has ? 'rgba(0,229,160,.06)' : 'transparent'}">
+              <div style="font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Annexe 4 <span style="font-weight:600;text-transform:none;color:var(--text-muted)">(groupe)</span></div>
+              <div style="font-size:.72rem;margin:.2rem 0;color:${a4Has ? '#00e5a0' : 'var(--text-muted)'};word-break:break-all">${a4Has ? '📎 ' + ui.escape(tpl.annex4.name) : 'Aucun modèle'}</div>
+              <label style="display:inline-block;font-size:.7rem;color:var(--accent-500);cursor:pointer;font-weight:700">${a4Has ? '↻ Remplacer' : '＋ Ajouter'}
+                <input type="file" accept=".xlsx,.xlsm" hidden data-tpl-upload="${groupKey}" data-tpl-slot="annex4" data-tpl-four="" data-tpl-cname="${ui.escape(c.name)}" data-tpl-group="${ui.escape(g)}">
+              </label>${a4Has ? ` · <button data-tpl-del="${groupKey}" data-tpl-delslot="annex4" style="background:none;border:none;color:#ff3d5a;font-size:.7rem;cursor:pointer;font-weight:700">🗑️</button>` : ''}
+            </div>`;
+            // 🆕 Annexe 5 : un bloc par fournisseur, AVEC PLUSIEURS variantes possibles (ex. TYCO 1, TYCO 2…)
+            slotHtml += (fournisseurs.length ? fournisseurs : ['']).map(four => {
+              const fk = this._fourKey(four);
+              const variants = Object.entries(a5map).filter(([id, e]) => this._fourKey(e.fournisseur) === fk);
+              const variantsHtml = variants.map(([id, e]) => {
+                const lbl = e.label || four || 'Annexe 5';
+                return `<div style="display:flex;align-items:center;gap:.4rem;font-size:.72rem;margin:.18rem 0;word-break:break-all">
+                  <span style="font-weight:700;color:#00e5a0">📎 ${ui.escape(lbl)}</span>
+                  <span style="color:var(--text-muted);font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${ui.escape(e.name || '')}</span>
+                  <label style="color:var(--accent-500);cursor:pointer;font-weight:700;font-size:.68rem" title="Remplacer ce fichier">↻
+                    <input type="file" accept=".xlsx,.xlsm" hidden data-tpl-upload="${groupKey}" data-tpl-slot="annex5" data-tpl-four="${ui.escape(four || '')}" data-tpl-entry="${ui.escape(id)}" data-tpl-label="${ui.escape(lbl)}" data-tpl-cname="${ui.escape(c.name)}" data-tpl-group="${ui.escape(g)}">
+                  </label>
+                  <button data-tpl-del="${groupKey}" data-tpl-delslot="annex5" data-tpl-delentry="${ui.escape(id)}" style="background:none;border:none;color:#ff3d5a;font-size:.68rem;cursor:pointer;font-weight:700" title="Supprimer">🗑️</button>
+                </div>`;
+              }).join('');
+              return `<div style="flex:1;min-width:210px;border:1px dashed ${variants.length ? 'rgba(0,229,160,.45)' : 'var(--border-soft)'};border-radius:8px;padding:.5rem .6rem;background:${variants.length ? 'rgba(0,229,160,.06)' : 'transparent'}">
+                <div style="font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Annexe 5 <span style="font-weight:700;text-transform:none;color:#00d4ff">· ${ui.escape(four || 'sans fournisseur')}</span></div>
+                ${variants.length ? variantsHtml : '<div style="font-size:.72rem;margin:.2rem 0;color:var(--text-muted)">Aucun modèle</div>'}
+                <button data-tpl-add5="${groupKey}" data-tpl-four="${ui.escape(four || '')}" data-tpl-cname="${ui.escape(c.name)}" data-tpl-group="${ui.escape(g)}" style="margin-top:.35rem;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);color:var(--accent-500);font-size:.68rem;font-weight:700;border-radius:6px;padding:.22rem .5rem;cursor:pointer">＋ Ajouter une Annexe 5</button>
               </div>`;
-            };
-            // Annexe 4 : un seul modèle pour tout le groupe
-            let slotHtml = slotCard('annex4', '', 'Annexe 4 <span style="font-weight:600;text-transform:none;color:var(--text-muted)">(groupe)</span>', tpl.annex4);
-            // 🆕 Annexe 5 : un modèle PAR FOURNISSEUR présent dans le groupe
-            slotHtml += (fournisseurs.length ? fournisseurs : ['']).map(four =>
-              slotCard('annex5', four, `Annexe 5 <span style="font-weight:700;text-transform:none;color:#00d4ff">· ${ui.escape(four || 'sans fournisseur')}</span>`, a5map[this._fourKey(four)])
-            ).join('');
+            }).join('');
             const toolsHtml = toolList.map(t => {
               const tname = t.doutils || t.serial || t.designation || t.id;
               const fk = this._fourKey(t.fournisseur);
-              // 🆕 Outil injectable s'il existe l'Annexe 4 du groupe OU l'Annexe 5 de SON fournisseur
-              const hasForTool = (tpl.annex4 && tpl.annex4.b64) || (a5map[fk] && a5map[fk].b64);
+              // 🆕 Outil injectable s'il existe l'Annexe 4 du groupe OU au moins une Annexe 5 de SON fournisseur
+              const has5 = Object.values(a5map).some(e => this._fourKey(e.fournisseur) === fk && e.b64);
+              const hasForTool = (tpl.annex4 && tpl.annex4.b64) || has5;
               const ttl = hasForTool ? `Injecter (Annexe 4 groupe + Annexe 5 ${t.fournisseur || ''}) et attacher` : `Aucun modèle pour cet outil — fournisseur « ${t.fournisseur || '—'} »`;
               return `<button data-inject-tool="${ui.escape(t.id || t.outilId || '')}" data-inject-group="${groupKey}" ${hasForTool ? '' : 'disabled'} style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .55rem;border-radius:6px;border:1px solid var(--border-soft);background:${hasForTool ? 'rgba(0,212,255,.08)' : 'var(--bg-3)'};color:${hasForTool ? 'var(--accent-500)' : 'var(--text-muted)'};font-size:.72rem;font-weight:600;cursor:${hasForTool ? 'pointer' : 'not-allowed'};font-family:var(--font-mono)" title="${ui.escape(ttl)}">💉 ${ui.escape(tname)}</button>`;
             }).join(' ');
@@ -23874,25 +23892,45 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             const f = e.target.files && e.target.files[0];
             if (!f) return;
             try { ui.showLoader('Enregistrement du modèle…'); } catch (_) {}
-            try { await this._uploadGroupTemplate(inp.dataset.tplUpload, inp.dataset.tplCname, inp.dataset.tplGroup, inp.dataset.tplSlot, f, inp.dataset.tplFour || ''); }
+            try { await this._uploadGroupTemplate(inp.dataset.tplUpload, inp.dataset.tplCname, inp.dataset.tplGroup, inp.dataset.tplSlot, f, inp.dataset.tplFour || '', inp.dataset.tplEntry || null, inp.dataset.tplLabel || ''); }
             catch (err) { ui.toast('Échec: ' + err.message, 'danger'); }
             try { ui.hideLoader(); } catch (_) {}
           });
         });
         body.querySelectorAll('button[data-tpl-del]').forEach(btn => {
           btn.addEventListener('click', async () => {
-            const gk = btn.dataset.tplDel, slot = btn.dataset.tplDelslot, four = btn.dataset.tplDelfour || '';
+            const gk = btn.dataset.tplDel, slot = btn.dataset.tplDelslot;
             if (!confirm('Supprimer ce modèle ?')) return;
             let path = 'annexTemplates/' + gk + '/' + slot;
-            if (slot === 'annex5') path += '/' + this._fourKey(four);
+            if (slot === 'annex5' && btn.dataset.tplDelentry) path += '/' + btn.dataset.tplDelentry;
             try {
               await fbDb.ref(path).remove();
               if (this._annexTplCache[gk]) {
-                if (slot === 'annex5' && this._annexTplCache[gk].annex5) delete this._annexTplCache[gk].annex5[this._fourKey(four)];
+                if (slot === 'annex5' && btn.dataset.tplDelentry && this._annexTplCache[gk].annex5) delete this._annexTplCache[gk].annex5[btn.dataset.tplDelentry];
                 else delete this._annexTplCache[gk][slot];
               }
             } catch (e) {}
             this._renderAnnexTemplates();
+          });
+        });
+        // 🆕 « ＋ Ajouter une Annexe 5 » : demande un nom (TYCO 1, TYCO 2…) puis ouvre le sélecteur de fichier
+        body.querySelectorAll('button[data-tpl-add5]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const four = btn.dataset.tplFour || '', gk = btn.dataset.tplAdd5, group = btn.dataset.tplGroup, cname = btn.dataset.tplCname;
+            const existing = Object.values((this._annexTplCache[gk] || {}).annex5 || {}).filter(e => this._fourKey(e.fournisseur) === this._fourKey(four)).length;
+            const def = (four ? four + ' ' : 'Annexe 5 ') + (existing + 1);
+            const label = prompt('Nom de cette Annexe 5 :', def);
+            if (label === null) return;
+            const inp = document.createElement('input');
+            inp.type = 'file'; inp.accept = '.xlsx,.xlsm';
+            inp.onchange = async (e) => {
+              const f = e.target.files && e.target.files[0]; if (!f) return;
+              try { ui.showLoader('Enregistrement du modèle…'); } catch (_) {}
+              try { await this._uploadGroupTemplate(gk, cname, group, 'annex5', f, four, null, (label.trim() || def)); }
+              catch (err) { ui.toast('Échec: ' + err.message, 'danger'); }
+              try { ui.hideLoader(); } catch (_) {}
+            };
+            inp.click();
           });
         });
         body.querySelectorAll('button[data-inject-tool]').forEach(btn => {
@@ -23902,14 +23940,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = '⏳…';
             try {
               const n = await this._injectAnnexForTool(tool, btn.dataset.injectGroup);
-              ui.toast(n ? `✅ ${n} Annexe(s) injectée(s) et attachée(s) à ${tool.doutils || tool.serial || tool.id}` : 'Aucun modèle à injecter', n ? 'success' : 'warn', 6000);
+              if (n !== -1) ui.toast(n ? `✅ ${n} Annexe(s) injectée(s) et attachée(s) à ${tool.doutils || tool.serial || tool.id}` : 'Aucun modèle à injecter', n ? 'success' : 'warn', 6000);
             } catch (e) { ui.toast('Échec injection: ' + e.message, 'danger'); }
             btn.disabled = false; btn.innerHTML = old;
           });
         });
       },
 
-      async _uploadGroupTemplate(groupKey, clientName, group, slot, file, four) {
+      async _uploadGroupTemplate(groupKey, clientName, group, slot, file, four, entryId, label) {
         const b64 = await new Promise((res, rej) => {
           const r = new FileReader();
           r.onload = () => res(String(r.result).split(',')[1]);
@@ -23919,19 +23957,23 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const ref = fbDb.ref('annexTemplates/' + groupKey);
         const cur = (await ref.once('value')).val() || {};
         cur.clientName = clientName; cur.group = group;
-        const entry = { name: file.name, b64, at: Date.now(), by: (state.profile && state.profile.displayName) || '' };
+        const meta = { name: file.name, b64, at: Date.now(), by: (state.profile && state.profile.displayName) || '' };
         if (slot === 'annex5') {
-          entry.fournisseur = String(four || '').trim();
-          // 🆕 Annexe 5 = map par fournisseur (migre un ancien format unique si présent)
+          // 🆕 Annexe 5 = map d'entrées : plusieurs variantes par fournisseur possibles (TYCO 1, TYCO 2…)
           cur.annex5 = (cur.annex5 && typeof cur.annex5 === 'object' && !cur.annex5.b64) ? cur.annex5 : {};
-          cur.annex5[this._fourKey(four)] = entry;
+          const id = entryId || ('e5_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+          const prev = cur.annex5[id] || {};
+          cur.annex5[id] = Object.assign({}, meta, {
+            fournisseur: String(four || '').trim() || prev.fournisseur || '',
+            label: (label && label.trim()) || prev.label || (four ? four : 'Annexe 5')
+          });
         } else {
-          cur.annex4 = entry;
+          cur.annex4 = meta;
         }
         await ref.set(cur);
         this._annexTplCache = this._annexTplCache || {}; this._annexTplCache[groupKey] = cur;
-        ui.toast(`✅ Modèle ${slot === 'annex4' ? 'Annexe 4' : 'Annexe 5' + (four ? ' · ' + four : '')} enregistré (groupe ${group})`, 'success');
-        try { db.audit('annexTemplate.set', groupKey, { slot, four: four || '', file: file.name }); } catch (e) {}
+        ui.toast(`✅ Modèle ${slot === 'annex4' ? 'Annexe 4' : 'Annexe 5' + ((label && label.trim()) ? ' « ' + label.trim() + ' »' : (four ? ' · ' + four : ''))} enregistré (groupe ${group})`, 'success');
+        try { db.audit('annexTemplate.set', groupKey, { slot, four: four || '', label: label || '', file: file.name }); } catch (e) {}
         this._renderAnnexTemplates();
       },
 
@@ -23947,9 +23989,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         // 🆕 Annexe 4 = modèle du GROUPE ; Annexe 5 = modèle du FOURNISSEUR de l'outil
         const a5map = tpl.annex5 || {};
         const fk = this._fourKey(tool.fournisseur);
+        // 🆕 Annexe 5 du fournisseur de l'outil : 0 → aucune ; 1 → auto ; 2+ → on demande laquelle
+        const a5matches = Object.entries(a5map).filter(([id, e]) => this._fourKey(e.fournisseur) === fk && e.b64);
+        let chosen5 = a5matches;
+        if (a5matches.length > 1) {
+          const list = a5matches.map((m, i) => `${i + 1}. ${m[1].label || m[1].name}`).join('\n');
+          const ans = prompt(`Plusieurs Annexe 5 pour « ${tool.fournisseur || 'ce fournisseur'} ».\nLaquelle injecter ?\n\n${list}\n\nTapez le numéro (ex : 1), ou « T » pour toutes :`, '1');
+          if (ans === null) return -1;   // annulé
+          const a = ans.trim();
+          if (/^t/i.test(a)) chosen5 = a5matches;
+          else { const idx = parseInt(a, 10) - 1; chosen5 = (idx >= 0 && idx < a5matches.length) ? [a5matches[idx]] : [a5matches[0]]; }
+        }
         const jobs = [];
         if (tpl.annex4 && tpl.annex4.b64) jobs.push(['annex4', 'Annexe 4', tpl.annex4]);
-        if (a5map[fk] && a5map[fk].b64) jobs.push(['annex5', 'Annexe 5', a5map[fk]]);
+        chosen5.forEach(([id, e]) => jobs.push(['annex5', 'Annexe 5' + (e.label ? ' ' + e.label : ''), e]));
         let count = 0;
         for (const [slot, label, t] of jobs) {
           if (!t || !t.b64) continue;

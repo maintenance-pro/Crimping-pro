@@ -9153,7 +9153,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         Ajoutez une <strong>Annexe 4</strong> (commune au groupe) et une <strong>Annexe 5 par fournisseur</strong> du groupe. Cliquez ensuite sur un outil : ses données (fournisseur, n° d'inventaire, serial, n° d'outil) sont <strong>injectées</strong> et les Annexes (<strong>4 du groupe</strong> + <strong>5 de son fournisseur</strong>) sont <strong>attachées à l'outil</strong>.
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;padding:.6rem 1.1rem .15rem">
-        <input id="annex-tpl-search" type="search" placeholder="🔍 Rechercher un groupe ou un outil…" autocomplete="off" style="flex:1;min-width:200px;padding:.45rem .7rem;border-radius:8px;border:1px solid var(--border-soft);background:var(--bg-3);color:var(--text-primary);font-size:.8rem">
+        <input id="annex-tpl-search" type="search" placeholder="🔍 Rechercher un groupe, un outil ou une connexion…" autocomplete="off" style="flex:1;min-width:200px;padding:.45rem .7rem;border-radius:8px;border:1px solid var(--border-soft);background:var(--bg-3);color:var(--text-primary);font-size:.8rem">
         <select id="annex-tpl-client" style="padding:.45rem .7rem;border-radius:8px;border:1px solid var(--border-soft);background:var(--bg-3);color:var(--text-primary);font-size:.8rem;cursor:pointer">
           <option value="">🗂 Tous les clients</option>
         </select>
@@ -23822,7 +23822,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             const groupMatches = !term || g.toLowerCase().includes(term);
             let toolList = c.groups[g];
             if (term && !groupMatches) {
-              toolList = toolList.filter(t => String(t.doutils || t.serial || t.designation || t.id || '').toLowerCase().includes(term));
+              toolList = toolList.filter(t =>
+                String(t.doutils || t.serial || t.designation || t.id || '').toLowerCase().includes(term) ||
+                String(t.connection || '').toLowerCase().includes(term)
+              );
               if (!toolList.length) continue;
             }
             const groupKey = this._annexGroupKey(ck, g);
@@ -23869,7 +23872,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               // 🆕 Outil injectable s'il existe l'Annexe 4 du groupe OU au moins une Annexe 5 de SON fournisseur
               const has5 = Object.values(a5map).some(e => this._fourKey(e.fournisseur) === fk && e.b64);
               const hasForTool = (tpl.annex4 && tpl.annex4.b64) || has5;
-              const ttl = hasForTool ? `Injecter (Annexe 4 groupe + Annexe 5 ${t.fournisseur || ''}) et attacher` : `Aucun modèle pour cet outil — fournisseur « ${t.fournisseur || '—'} »`;
+              const ttl = (hasForTool ? `Injecter (Annexe 4 groupe + Annexe 5 ${t.fournisseur || ''}) et attacher` : `Aucun modèle pour cet outil — fournisseur « ${t.fournisseur || '—'} »`) + (t.connection ? ` · Connexion : ${t.connection}` : '');
               return `<button data-inject-tool="${ui.escape(t.id || t.outilId || '')}" data-inject-group="${groupKey}" ${hasForTool ? '' : 'disabled'} style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .55rem;border-radius:6px;border:1px solid var(--border-soft);background:${hasForTool ? 'rgba(0,212,255,.08)' : 'var(--bg-3)'};color:${hasForTool ? 'var(--accent-500)' : 'var(--text-muted)'};font-size:.72rem;font-weight:600;cursor:${hasForTool ? 'pointer' : 'not-allowed'};font-family:var(--font-mono)" title="${ui.escape(ttl)}">💉 ${ui.escape(tname)}</button>`;
             }).join(' ');
             const shownCount = (term && !groupMatches) ? toolList.length : c.groups[g].length;

@@ -21509,7 +21509,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
       /** 🆕 Demande quel STATUT appliquer aux outils d'une liste importée.
        *  Renvoie la clé de statut choisie, ou false si l'utilisateur annule. */
-      async _promptImportStatus(count) {
+      async _promptImportStatus(count, preview) {
         return new Promise(resolve => {
           document.getElementById('import-status-modal')?.remove();
           // Ordre d'affichage : Nouveau recommandé en premier
@@ -21524,16 +21524,35 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               </div>
             </button>`;
           }).join('');
+          // 🆕 Bloc APERÇU du fichier (colonnes reconnues / ignorées + nouveaux / mises à jour)
+          let previewHtml = '';
+          if (preview) {
+            const chip = (txt, color) => `<span style="display:inline-block;background:${color}1a;color:${color};border:1px solid ${color}40;border-radius:5px;padding:.1rem .4rem;font-size:.63rem;font-weight:700;margin:.08rem;font-family:var(--font-mono)">${ui.escape(txt)}</span>`;
+            const mappedChips = preview.mapped.length ? preview.mapped.map(([col, f]) => chip(col + ' → ' + f, '#00e5a0')).join('') : '<span style="color:var(--text-muted);font-size:.7rem">aucune</span>';
+            const ignoredChips = preview.ignored.length ? preview.ignored.map(c => chip(c, '#ff8b6b')).join('') : '<span style="color:#00e5a0;font-size:.7rem">aucune ✓</span>';
+            previewHtml = `
+              <div style="background:var(--bg-3);border:1px solid var(--border-soft);border-radius:8px;padding:.7rem .8rem;margin-bottom:1rem;font-size:.74rem">
+                <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.55rem">
+                  <span style="background:rgba(0,212,255,.12);color:#00d4ff;border-radius:6px;padding:.2rem .5rem;font-weight:800;font-size:.7rem">📄 ${preview.rows} ligne(s)</span>
+                  <span style="background:rgba(0,229,160,.12);color:#00e5a0;border-radius:6px;padding:.2rem .5rem;font-weight:800;font-size:.7rem">🆕 ${preview.cntNew} nouveau(x)</span>
+                  <span style="background:rgba(168,85,247,.14);color:#a855f7;border-radius:6px;padding:.2rem .5rem;font-weight:800;font-size:.7rem">♻️ ${preview.cntUpdate} mise(s) à jour</span>
+                  ${preview.cntNoId ? `<span style="background:rgba(255,61,90,.12);color:#ff3d5a;border-radius:6px;padding:.2rem .5rem;font-weight:800;font-size:.7rem">⏭ ${preview.cntNoId} sans ID</span>` : ''}
+                </div>
+                <details style="margin-bottom:.3rem"><summary style="cursor:pointer;color:#00e5a0;font-weight:700;font-size:.7rem">✅ Colonnes reconnues (${preview.mapped.length})</summary><div style="margin-top:.3rem">${mappedChips}</div></details>
+                <details ${preview.ignored.length ? 'open' : ''}><summary style="cursor:pointer;color:#ff8b6b;font-weight:700;font-size:.7rem">⚠️ Colonnes ignorées (${preview.ignored.length})</summary><div style="margin-top:.3rem">${ignoredChips}${preview.ignored.length ? '<div style="margin-top:.35rem;color:var(--text-muted);font-size:.66rem">💡 Renommez ces colonnes pour qu\'elles soient importées (ex. nom d\'outil → « D\'outils » ou « Désignation »).</div>' : ''}</div></details>
+              </div>`;
+          }
           const html = `
             <div id="import-status-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(8px);z-index:10010;display:flex;align-items:center;justify-content:center;padding:1rem">
-              <div style="background:var(--bg-2);border:2px solid #00d4ff;border-radius:12px;padding:1.5rem;max-width:460px;width:100%;max-height:90vh;overflow-y:auto">
+              <div style="background:var(--bg-2);border:2px solid #00d4ff;border-radius:12px;padding:1.5rem;max-width:480px;width:100%;max-height:90vh;overflow-y:auto">
                 <header style="margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:.5rem">
                   <span style="font-size:1.6rem">🏷</span>
-                  <h2 style="margin:0;color:#00d4ff;font-size:1.05rem">Statut des outils importés</h2>
+                  <h2 style="margin:0;color:#00d4ff;font-size:1.05rem">Aperçu & statut de l'import</h2>
                 </header>
+                ${previewHtml}
                 <div style="font-size:.86rem;color:var(--text-primary);line-height:1.5;margin-bottom:1rem">
                   Vous importez <strong style="color:#00d4ff">${count}</strong> outil${count > 1 ? 's' : ''}. Quel <strong>statut opérationnel</strong> leur attribuer ?<br>
-                  <span style="font-size:.74rem;color:var(--text-muted)">Par défaut ils ne seront PAS mis "En production" automatiquement.</span>
+                  <span style="font-size:.74rem;color:var(--text-muted)">Par défaut ils ne seront PAS mis "En production" automatiquement. Les outils existants sont <strong>mis à jour</strong> (les champs vides du fichier ne suppriment rien).</span>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:1rem">
                   ${btns}
@@ -23267,13 +23286,30 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             }
             console.groupEnd();
 
-            // 🆕 Demander le STATUT à appliquer aux outils importés (pas "production" par défaut)
+            // 🆕 APERÇU : compter nouveaux / mises à jour / sans identifiant
+            const existingIds = new Set(Object.keys(state.tools || {}));
+            let cntNew = 0, cntUpdate = 0, cntNoId = 0;
+            for (const row of rows) {
+              const tmp = {};
+              for (const [col, val] of Object.entries(row)) { const f = MAP[normalize(col)]; if (f && val !== '' && val != null) tmp[f] = String(val).trim(); }
+              const idSrc = (tmp.serial || tmp.doutils || tmp.outilId || tmp.refOutil || '').trim();
+              if (!idSrc) { cntNoId++; continue; }
+              const rid = idSrc.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+              if (existingIds.has(rid)) cntUpdate++; else cntNew++;
+            }
+            const previewMapped = Object.entries(colMapping);
+            const previewIgnored = Object.keys(rows[0]).filter(col => !MAP[normalize(col)]);
+
+            // 🆕 Demander le STATUT + montrer l'aperçu (colonnes + nouveaux/mises à jour)
             ui.hideLoader();
-            const importStatus = await this._promptImportStatus(rows.length);
+            const importStatus = await this._promptImportStatus(rows.length, {
+              rows: rows.length, mapped: previewMapped, ignored: previewIgnored,
+              cntNew, cntUpdate, cntNoId
+            });
             if (!importStatus) { ui.toast('Import annulé', 'info', 2500); return; }
             ui.showLoader(`Import de ${rows.length} outils…`);
 
-            let imported = 0, skipped = 0;
+            let created = 0, updated = 0, skipped = 0;
             const errors = [];
 
             for (const [idx, row] of rows.entries()) {
@@ -23294,7 +23330,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               }
 
               const id = idSource.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-              tool.id = id || ('tool-' + Date.now() + '-' + imported);
+              tool.id = id || ('tool-' + Date.now() + '-' + idx);
 
               // Si on a un serial et pas d'outilId, on remplit outilId = doutils-serial pour rétro-compat
               if (!tool.outilId && tool.serial) {
@@ -23319,19 +23355,38 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               tool.updatedAt = Date.now();
 
               try {
-                await fbDb.ref('tools/' + tool.id).set(tool);
-                imported++;
+                const exists = state.tools && state.tools[tool.id];
+                if (exists) {
+                  // 🆕 FUSION : on ne met à jour QUE les champs fournis (non vides) — le reste est préservé
+                  const merged = Object.assign({}, exists);
+                  for (const [k, v] of Object.entries(tool)) {
+                    if (k === 'pieces') {
+                      const nonEmpty = Object.fromEntries(Object.entries(tool.pieces || {}).filter(([, pv]) => pv !== '' && pv != null));
+                      if (Object.keys(nonEmpty).length) merged.pieces = Object.assign({}, exists.pieces || {}, nonEmpty);
+                    } else if (k === 'createdAt') {
+                      // conserver la date de création d'origine
+                    } else if (v !== '' && v != null) {
+                      merged[k] = v;
+                    }
+                  }
+                  merged.updatedAt = Date.now();
+                  await fbDb.ref('tools/' + tool.id).set(merged);
+                  updated++;
+                } else {
+                  await fbDb.ref('tools/' + tool.id).set(tool);
+                  created++;
+                }
               } catch (e) {
                 skipped++;
-                errors.push(`Ligne ${idx+2} : ${e.code || e.message}`);
+                errors.push(`Ligne ${idx + 2} : ${e.code || e.message}`);
               }
             }
 
             ui.hideLoader();
-            const formatLabel = isNewFormat ? '🆕 nouveau format' : '📋 ancien format';
-            let msg = `${imported} outil(s) importé(s) (${formatLabel})`;
-            if (skipped) msg += ` — ${skipped} ignoré(s)`;
-            ui.toast(msg + ' ✅', 'success');
+            let msg = `✅ ${created} créé(s) · ♻️ ${updated} mis à jour`;
+            if (skipped) msg += ` · ⏭ ${skipped} ignoré(s)`;
+            if (previewIgnored.length) msg += ` — ${previewIgnored.length} colonne(s) non reconnue(s)`;
+            ui.toast(msg, 'success', 7000);
             if (errors.length) console.warn('[Import] Erreurs:', errors.slice(0, 10));
             this.render();
 
@@ -23575,14 +23630,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               🖱️ Clic droit / appui long → options
             </footer>` : '';
 
-          // Détails additionnels conditionnels
-          const extraDetails = [];
-          if (t.connection)  extraDetails.push(`<div>🔌 Conn: ${ui.escape(t.connection)}</div>`);
-          if (t.doutils && t.doutils !== titleText) extraDetails.push(`<div>🔧 D'Outils: ${ui.escape(t.doutils)}</div>`);
-          if (t.fournisseur) extraDetails.push(`<div>🏭 Fournisseur: ${ui.escape(t.fournisseur)}</div>`);
+          // 🆕 Score de complétude de la fiche (champs clés renseignés)
+          const keyFields = ['doutils', 'serial', 'connection', 'terminal', 'fournisseur', 'fabricant', 'refOutil', 'projet', 'groupe'];
+          const filledCount = keyFields.filter(f => t[f] != null && String(t[f]).trim() !== '').length;
+          const pct = Math.round(filledCount / keyFields.length * 100);
+          const pctColor = pct >= 80 ? '#00e5a0' : pct >= 50 ? '#ffb547' : '#ff3d5a';
+          // 🆕 Cellule de spécification (valeur, ou « — » en rouge si champ manquant)
+          const specCell = (icon, lbl, val) => `<div style="display:flex;align-items:center;gap:.25rem;min-width:0">
+            <span style="opacity:.55">${icon}</span><span style="opacity:.5;font-size:.6rem;text-transform:uppercase;letter-spacing:.03em">${lbl}</span>
+            ${val != null && String(val).trim() !== '' ? `<b style="color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ui.escape(String(val))}</b>` : '<span style="color:#ff6b6b;opacity:.55">—</span>'}</div>`;
 
           return `
-            <article class="card" data-tool-card data-tool-id="${ui.escape(tid)}" style="padding:1rem;border-left:3px solid ${accentBorder};display:flex;flex-direction:column;gap:.35rem;cursor:pointer;transition:transform .12s,box-shadow .12s" title="Cliquer pour voir tous les détails">
+            <article class="card" data-tool-card data-tool-id="${ui.escape(tid)}" style="padding:1rem;border-left:3px solid ${accentBorder};display:flex;flex-direction:column;gap:.4rem;cursor:pointer;transition:transform .12s,box-shadow .12s" title="Cliquer pour voir tous les détails">
               <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
                 <strong style="font-size:.95rem;color:${complete ? 'var(--text-primary)' : '#ff3d5a'};word-break:break-word;font-family:var(--font-mono)">${ui.escape(titleText)}</strong>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.18rem">
@@ -23590,12 +23649,25 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 </div>
               </header>
               ${clientBadge || groupeBadge || projetBadge || statusBadge || attachBadge ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">${statusBadge}${attachBadge}${clientBadge}${groupeBadge}${projetBadge}</div>` : ''}
-              <div style="color:var(--text-secondary);font-size:.74rem;font-family:var(--font-mono);line-height:1.5">
-                <div>Réf: ${ui.escape(t.refOutil || '—')}</div>
-                <div>Fab: ${ui.escape(t.refFabricant || '—')}</div>
-                ${extraDetails.join('')}
-                <div>Cycles: ${fmt.number(t.totalCounter || t.frequenceCycle || 0)}${t.totalCounter ? '' : ''}</div>
-                ${attSummary ? `<div style="color:#a855f7;margin-top:.15rem">📎 ${ui.escape(Object.keys(attSummary.cats).join(', '))}</div>` : `<div style="color:var(--text-muted);margin-top:.15rem;opacity:.7">📭 Aucun document joint</div>`}
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.2rem .55rem;font-size:.7rem;font-family:var(--font-mono);color:var(--text-secondary)">
+                ${specCell('🔌', 'Conn', t.connection)}
+                ${specCell('🔗', 'Term', t.terminal)}
+                ${specCell('🆔', 'Serial', t.serial)}
+                ${specCell('🏭', 'Fourn', t.fournisseur)}
+                ${specCell('📐', 'Réf', t.refOutil)}
+                ${specCell('🏷', 'Fab', t.refFabricant)}
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:.68rem;font-family:var(--font-mono);color:var(--text-muted)">
+                <span>🔄 ${fmt.number(t.totalCounter || t.frequenceCycle || 0)} cycles</span>
+                ${attSummary ? `<span style="color:#a855f7">📎 ${ui.escape(Object.keys(attSummary.cats).join(', '))}</span>` : '<span style="opacity:.6">📭 sans doc</span>'}
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:.6rem;color:var(--text-muted);margin-bottom:.18rem">
+                  <span>Complétude fiche</span><span style="color:${pctColor};font-weight:700">${filledCount}/${keyFields.length} · ${pct}%</span>
+                </div>
+                <div style="height:5px;border-radius:3px;background:rgba(148,163,184,.15);overflow:hidden">
+                  <div style="height:100%;width:${pct}%;background:${pctColor};border-radius:3px;transition:width .3s"></div>
+                </div>
               </div>
               ${actionsHtml}
             </article>`;

@@ -8141,6 +8141,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <button class="btn btn--secondary" id="btn-catalog-export"><span data-i18n="action.exportExcel">📤 Exporter Excel</span></button>
             <button class="btn btn--secondary" id="btn-catalog-print-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Imprimer les QR codes des outils filtrés">🖨 QR Codes</button>
             <button class="btn btn--secondary" id="btn-catalog-bulk-docs" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog" style="background:rgba(124,58,237,.14);color:#a855f7;border:1px solid rgba(124,58,237,.35);font-weight:700" title="Joindre une liste de documents (Annexes) à plusieurs outils d'un coup">📎 Docs en masse</button>
+            <button class="btn btn--secondary" id="btn-catalog-annex-templates" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog" style="background:rgba(0,229,160,.14);color:#00e5a0;border:1px solid rgba(0,229,160,.35);font-weight:700" title="Ajouter un modèle d'Annexe (4/5) par groupe, puis injecter les données d'un outil au clic">📐 Annexes / groupe</button>
             <button class="btn btn--secondary" id="btn-catalog-optimize-docs" data-requires-role="super_admin,admin" data-edit-module="catalog" style="background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.3);font-weight:700" title="Allège l'index des documents (déplace les fichiers volumineux hors de l'index) — corrige l'affichage si les documents ne se chargent pas">⚙️ Optimiser docs</button>
             <button class="btn btn--primary" id="btn-catalog-add" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog">＋ Nouvel outil</button>
           </div>
@@ -9139,6 +9140,23 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
   <!-- ===================================================================== -->
   <!-- MODALES                                                                -->
   <!-- ===================================================================== -->
+
+  <!-- Modal: Modèles d'Annexes par groupe -->
+  <div class="modal" id="modal-annex-templates" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:940px;width:96%;max-height:90vh;display:flex;flex-direction:column">
+      <header style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:1rem 1.1rem .6rem;border-bottom:1px solid var(--border-soft)">
+        <h2 style="margin:0;font-size:1.05rem">📐 Modèles d'Annexes par groupe</h2>
+        <button class="modal__close" data-close>×</button>
+      </header>
+      <div style="padding:.55rem 1.1rem 0;font-size:.76rem;color:var(--text-secondary);line-height:1.5">
+        Ajoutez un modèle <strong>Annexe 4</strong> et/ou <strong>Annexe 5</strong> à chaque groupe (rangés par client). Cliquez ensuite sur un outil : ses données (fournisseur, n° d'inventaire, serial, n° d'outil) sont <strong>injectées</strong> dans le modèle et l'Annexe est <strong>attachée à l'outil</strong>.
+      </div>
+      <div id="annex-tpl-body" style="overflow:auto;padding:1rem 1.1rem;flex:1">
+        <div style="text-align:center;color:var(--text-muted);padding:2rem">Chargement…</div>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal: confirmation générique -->
   <div class="modal" id="modal-confirm" role="dialog" aria-modal="true" hidden>
@@ -21735,6 +21753,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       init() {
         $('#catalog-search').addEventListener('input', debounce(() => { this._page = 1; this.render(); }, 200));
         $('#btn-catalog-add').addEventListener('click', () => this.openModal());
+        // 🆕 Modèles d'Annexes par groupe (injection des données au clic)
+        document.getElementById('btn-catalog-annex-templates')?.addEventListener('click', () => this.openAnnexTemplates());
 
         // ── Filtres ──
         document.getElementById('cat-filter-fab')?.addEventListener('change', () => { this._page = 1; this.render(); });
@@ -23717,6 +23737,160 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         );
       },
 
+      // ════════════════════════════════════════════════════════════════════
+      // 🆕 MODÈLES D'ANNEXES PAR GROUPE (Annexe 4 / 5) — injection des données au clic
+      // ════════════════════════════════════════════════════════════════════
+      _annexGroupKey(clientKey, group) {
+        return (String(clientKey || 'autre') + '__' + String(group || '_'))
+          .replace(/[^a-zA-Z0-9_]+/g, '_').slice(0, 180);
+      },
+
+      async openAnnexTemplates() {
+        const modal = document.getElementById('modal-annex-templates');
+        if (!modal) return;
+        modal.hidden = false;
+        modal.querySelectorAll('[data-close]').forEach(el =>
+          el.addEventListener('click', () => { modal.hidden = true; }, { once: true }));
+        try { this._annexTplCache = (await fbDb.ref('annexTemplates').once('value')).val() || {}; }
+        catch (e) { this._annexTplCache = {}; }
+        this._renderAnnexTemplates();
+      },
+
+      _renderAnnexTemplates() {
+        const body = document.getElementById('annex-tpl-body');
+        if (!body) return;
+        const tools = Object.values(state.tools || {});
+        const byClient = {};
+        tools.forEach(t => {
+          const client = t.projet ? this._getClientForProject(t.projet) : null;
+          const ck = client ? client.key : 'autre';
+          byClient[ck] = byClient[ck] || {
+            name: client ? client.name : 'Autres / sans client',
+            icon: client ? client.icon : '🏭',
+            color: client ? client.color : '#94a3b8',
+            groups: {}
+          };
+          const group = (t.groupe || this._extractFamily(t.doutils || t.designation || '') || '—');
+          (byClient[ck].groups[group] = byClient[ck].groups[group] || []).push(t);
+        });
+        const tplIdx = this._annexTplCache || {};
+        const clientKeys = Object.keys(byClient).sort();
+        if (!clientKeys.length) { body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:2rem">Aucun outil dans le catalogue.</div>'; return; }
+        let html = '';
+        for (const ck of clientKeys) {
+          const c = byClient[ck];
+          html += `<div style="margin-bottom:1.3rem">
+            <div style="display:flex;align-items:center;gap:.5rem;font-weight:800;font-size:.92rem;color:${c.color};border-bottom:2px solid ${c.color}55;padding-bottom:.35rem;margin-bottom:.6rem">${c.icon} ${ui.escape(c.name)}</div>`;
+          for (const g of Object.keys(c.groups).sort()) {
+            const groupKey = this._annexGroupKey(ck, g);
+            const tpl = tplIdx[groupKey] || {};
+            const slotHtml = ['annex4', 'annex5'].map(slot => {
+              const label = slot === 'annex4' ? 'Annexe 4' : 'Annexe 5';
+              const has = tpl[slot] && tpl[slot].name;
+              return `<div style="flex:1;min-width:170px;border:1px dashed ${has ? 'rgba(0,229,160,.45)' : 'var(--border-soft)'};border-radius:8px;padding:.5rem .6rem;background:${has ? 'rgba(0,229,160,.06)' : 'transparent'}">
+                <div style="font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">${label}</div>
+                <div style="font-size:.72rem;margin:.2rem 0;color:${has ? '#00e5a0' : 'var(--text-muted)'};word-break:break-all">${has ? '📎 ' + ui.escape(tpl[slot].name) : 'Aucun modèle'}</div>
+                <label style="display:inline-block;font-size:.7rem;color:var(--accent-500);cursor:pointer;font-weight:700">${has ? '↻ Remplacer' : '＋ Ajouter'}
+                  <input type="file" accept=".xlsx,.xlsm" hidden data-tpl-upload="${groupKey}" data-tpl-slot="${slot}" data-tpl-cname="${ui.escape(c.name)}" data-tpl-group="${ui.escape(g)}">
+                </label>${has ? ` · <button data-tpl-del="${groupKey}" data-tpl-delslot="${slot}" style="background:none;border:none;color:#ff3d5a;font-size:.7rem;cursor:pointer;font-weight:700">🗑️</button>` : ''}
+              </div>`;
+            }).join('');
+            const hasAnyTpl = (tpl.annex4 && tpl.annex4.b64) || (tpl.annex5 && tpl.annex5.b64);
+            const toolsHtml = c.groups[g].map(t => {
+              const tname = t.doutils || t.serial || t.designation || t.id;
+              return `<button data-inject-tool="${ui.escape(t.id || t.outilId || '')}" data-inject-group="${groupKey}" ${hasAnyTpl ? '' : 'disabled'} style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .55rem;border-radius:6px;border:1px solid var(--border-soft);background:${hasAnyTpl ? 'rgba(0,212,255,.08)' : 'var(--bg-3)'};color:${hasAnyTpl ? 'var(--accent-500)' : 'var(--text-muted)'};font-size:.72rem;font-weight:600;cursor:${hasAnyTpl ? 'pointer' : 'not-allowed'};font-family:var(--font-mono)" title="Injecter les donnees de cet outil et attacher l Annexe">💉 ${ui.escape(tname)}</button>`;
+            }).join(' ');
+            html += `<div style="border:1px solid var(--border-soft);border-radius:10px;padding:.7rem .8rem;margin-bottom:.6rem;background:var(--bg-elevated)">
+              <strong style="font-size:.82rem">🏷 Groupe ${ui.escape(g)} <span style="color:var(--text-muted);font-weight:500">· ${c.groups[g].length} outil(s)</span></strong>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:.55rem 0">${slotHtml}</div>
+              <div style="font-size:.65rem;color:var(--text-muted);margin-bottom:.3rem">Cliquer un outil = injecter ses donnees + attacher l'Annexe :</div>
+              <div style="display:flex;gap:.35rem;flex-wrap:wrap">${toolsHtml}</div>
+            </div>`;
+          }
+          html += `</div>`;
+        }
+        body.innerHTML = html;
+        body.querySelectorAll('input[data-tpl-upload]').forEach(inp => {
+          inp.addEventListener('change', async (e) => {
+            const f = e.target.files && e.target.files[0];
+            if (!f) return;
+            try { ui.showLoader('Enregistrement du modèle…'); } catch (_) {}
+            try { await this._uploadGroupTemplate(inp.dataset.tplUpload, inp.dataset.tplCname, inp.dataset.tplGroup, inp.dataset.tplSlot, f); }
+            catch (err) { ui.toast('Échec: ' + err.message, 'danger'); }
+            try { ui.hideLoader(); } catch (_) {}
+          });
+        });
+        body.querySelectorAll('button[data-tpl-del]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const gk = btn.dataset.tplDel, slot = btn.dataset.tplDelslot;
+            if (!confirm('Supprimer ce modèle ?')) return;
+            try { await fbDb.ref('annexTemplates/' + gk + '/' + slot).remove(); if (this._annexTplCache[gk]) delete this._annexTplCache[gk][slot]; } catch (e) {}
+            this._renderAnnexTemplates();
+          });
+        });
+        body.querySelectorAll('button[data-inject-tool]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const tool = state.tools[btn.dataset.injectTool];
+            if (!tool) return;
+            btn.disabled = true; const old = btn.innerHTML; btn.innerHTML = '⏳…';
+            try {
+              const n = await this._injectAnnexForTool(tool, btn.dataset.injectGroup);
+              ui.toast(n ? `✅ ${n} Annexe(s) injectée(s) et attachée(s) à ${tool.doutils || tool.serial || tool.id}` : 'Aucun modèle à injecter', n ? 'success' : 'warn', 6000);
+            } catch (e) { ui.toast('Échec injection: ' + e.message, 'danger'); }
+            btn.disabled = false; btn.innerHTML = old;
+          });
+        });
+      },
+
+      async _uploadGroupTemplate(groupKey, clientName, group, slot, file) {
+        const b64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(String(r.result).split(',')[1]);
+          r.onerror = () => rej(new Error('lecture du fichier'));
+          r.readAsDataURL(file);
+        });
+        const ref = fbDb.ref('annexTemplates/' + groupKey);
+        const cur = (await ref.once('value')).val() || {};
+        cur.clientName = clientName; cur.group = group;
+        cur[slot] = { name: file.name, b64, at: Date.now(), by: (state.profile && state.profile.displayName) || '' };
+        await ref.set(cur);
+        this._annexTplCache = this._annexTplCache || {}; this._annexTplCache[groupKey] = cur;
+        ui.toast(`✅ Modèle ${slot === 'annex4' ? 'Annexe 4' : 'Annexe 5'} enregistré (groupe ${group})`, 'success');
+        try { db.audit('annexTemplate.set', groupKey, { slot, file: file.name }); } catch (e) {}
+        this._renderAnnexTemplates();
+      },
+
+      async _injectAnnexForTool(tool, groupKey) {
+        const tpl = (await fbDb.ref('annexTemplates/' + groupKey).once('value')).val() || {};
+        const tgtFour = String(tool.fabricant || tool.fournisseur || '').trim();
+        const tgtInv  = this._invValue(tool);
+        const tgtSerial = String(tool.serial || '').trim();
+        const nameR = tool.doutils || tool.designation || tool.serial || '';
+        const tgtNum = this._docNumberFromName(nameR);
+        const baseFam = this._extractFamily(nameR);
+        const TOOL_SECTION = /applicator|donn[eé]es?\s*outil/i;
+        let count = 0;
+        for (const [slot, label] of [['annex4', 'Annexe 4'], ['annex5', 'Annexe 5']]) {
+          const t = tpl[slot];
+          if (!t || !t.b64) continue;
+          let b64 = t.b64;
+          if (tgtFour)   { try { b64 = await this._setOfficeFieldByLabel(b64, /fournisseur|supplier/i, tgtFour, TOOL_SECTION); } catch (e) {} }
+          if (tgtInv)    { try { b64 = await this._setOfficeFieldByLabel(b64, /inventaire|inventory/i, tgtInv, TOOL_SECTION); } catch (e) {} }
+          if (tgtSerial) { try { b64 = await this._setOfficeFieldByLabel(b64, /\bserial\b|s[ée]rie/i, tgtSerial); } catch (e) {} }
+          if (baseFam && tgtNum) { try { b64 = await this._renameFamilySheets(b64, baseFam, tgtNum); } catch (e) {} }
+          const fname = `${label} - ${nameR || tgtNum || tool.id}${tgtSerial ? ' - ' + tgtSerial : ''}.xlsx`;
+          const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + slot;
+          await toolAttachments._writeDoc(tool.id, fid, {
+            name: fname, category: label,
+            mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            fromTemplate: groupKey, uploadedAt: Date.now()
+          }, b64);
+          count++;
+        }
+        if (count) { try { db.audit('annexTemplate.inject', tool.id, { groupKey, count }); } catch (e) {} }
+        return count;
+      },
+
       openModal(tool = null) {
         const modal = $('#modal-tool');
         modal.hidden = false;
@@ -24820,6 +24994,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             'tools.bulkCleanIncomplete':'Nettoyage outils','tools.bulkDeleteAll':'Suppr. tous outils',
             'pdfTemplate.add':'Ajout modèle PDF','pdfTemplate.delete':'Suppr. modèle PDF',
             'toolAttachment.add':'Ajout document','toolAttachment.bulkAdd':'Ajout docs (masse)','toolAttachment.delete':'Suppr. document',
+            'annexTemplate.set':'Modèle Annexe','annexTemplate.inject':'Annexe injectée',
             'preventive5j.add':'Préventive 5J','blocked.import':'Import Komax','access.update':'MAJ accès rôles',
             'pdr.approved':'PDR approuvée','pdr.rejected':'PDR refusée','pdr.delivered':'PDR livrée',
             'pdr.ordered':'PDR commandée','pdr.received':'PDR reçue',
@@ -24835,6 +25010,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             'tools.bulkCleanIncomplete':'#f59e0b','tools.bulkDeleteAll':'var(--danger-500)',
             'pdfTemplate.add':'#a855f7','pdfTemplate.delete':'#a855f7',
             'toolAttachment.add':'#a855f7','toolAttachment.bulkAdd':'#a855f7','toolAttachment.delete':'#a855f7',
+            'annexTemplate.set':'#00e5a0','annexTemplate.inject':'#00e5a0',
             'preventive5j.add':'#00e5a0','blocked.import':'#00e5a0','access.update':'#f59e0b',
             'pdr.approved':'#22c55e','pdr.rejected':'#ef4444','pdr.delivered':'#22d3ee',
             'pdr.ordered':'#fbbf24','pdr.received':'#22c55e',
@@ -24847,6 +25023,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             'tools.bulkCleanIncomplete':'🧹','tools.bulkDeleteAll':'🗑️',
             'pdfTemplate.add':'📄','pdfTemplate.delete':'📄',
             'toolAttachment.add':'📎','toolAttachment.bulkAdd':'📎','toolAttachment.delete':'📎',
+            'annexTemplate.set':'📐','annexTemplate.inject':'💉',
             'preventive5j.add':'📸','blocked.import':'📥','access.update':'🔐',
             'pdr.approved':'✅','pdr.rejected':'❌','pdr.delivered':'📦','pdr.ordered':'🛒','pdr.received':'📦',
             'pdr.premature-change':'⚠️','pdr.auto-reset':'♻️'

@@ -9150,7 +9150,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <button class="modal__close" data-close>×</button>
       </header>
       <div style="padding:.55rem 1.1rem 0;font-size:.76rem;color:var(--text-secondary);line-height:1.5">
-        Ajoutez une <strong>Annexe 4</strong> (commune au groupe) et une <strong>Annexe 5 par fournisseur</strong> du groupe. Cliquez ensuite sur un outil : ses données (fournisseur, n° d'inventaire, serial, n° d'outil) sont <strong>injectées</strong> et les Annexes (<strong>4 du groupe</strong> + <strong>5 de son fournisseur</strong>) sont <strong>attachées à l'outil</strong>.
+        Gérez ici les modèles <strong>Annexe 5</strong> (par fournisseur, plusieurs variantes possibles). L'<strong>Annexe 4</strong> reste l'annexe déjà attachée à chaque outil (référentiel). Cliquez un outil : ses <strong>données + pièces</strong> sont <strong>injectées</strong> dans l'Annexe 5 de son fournisseur, puis l'Annexe est <strong>attachée à l'outil</strong>.
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;padding:.6rem 1.1rem .15rem">
         <input id="annex-tpl-search" type="search" placeholder="🔍 Rechercher un groupe, un outil ou une connexion…" autocomplete="off" style="flex:1;min-width:200px;padding:.45rem .7rem;border-radius:8px;border:1px solid var(--border-soft);background:var(--bg-3);color:var(--text-primary);font-size:.8rem">
@@ -23836,16 +23836,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               ...c.groups[g].map(t => String(t.fournisseur || '').trim()),
               ...Object.values(a5map).map(e => String(e.fournisseur || '').trim())
             ].filter(Boolean))].sort();
-            // Carte Annexe 4 : un seul modèle pour tout le groupe
-            const a4Has = tpl.annex4 && tpl.annex4.name;
-            let slotHtml = `<div style="flex:1;min-width:170px;border:1px dashed ${a4Has ? 'rgba(0,229,160,.45)' : 'var(--border-soft)'};border-radius:8px;padding:.5rem .6rem;background:${a4Has ? 'rgba(0,229,160,.06)' : 'transparent'}">
-              <div style="font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)">Annexe 4 <span style="font-weight:600;text-transform:none;color:var(--text-muted)">(groupe)</span></div>
-              <div style="font-size:.72rem;margin:.2rem 0;color:${a4Has ? '#00e5a0' : 'var(--text-muted)'};word-break:break-all">${a4Has ? '📎 ' + ui.escape(tpl.annex4.name) : 'Aucun modèle'}</div>
-              <label style="display:inline-block;font-size:.7rem;color:var(--accent-500);cursor:pointer;font-weight:700">${a4Has ? '↻ Remplacer' : '＋ Ajouter'}
-                <input type="file" accept=".xlsx,.xlsm" hidden data-tpl-upload="${groupKey}" data-tpl-slot="annex4" data-tpl-four="" data-tpl-cname="${ui.escape(c.name)}" data-tpl-group="${ui.escape(g)}">
-              </label>${a4Has ? ` · <button data-tpl-del="${groupKey}" data-tpl-delslot="annex4" style="background:none;border:none;color:#ff3d5a;font-size:.7rem;cursor:pointer;font-weight:700">🗑️</button>` : ''}
-            </div>`;
-            // 🆕 Annexe 5 : un bloc par fournisseur, AVEC PLUSIEURS variantes possibles (ex. TYCO 1, TYCO 2…)
+            // 🆕 Annexe 4 = l'annexe déjà attachée à chaque outil (référentiel) — pas de modèle de groupe ici.
+            // Cette zone ne gère QUE les modèles Annexe 5 (par fournisseur, avec injection des pièces).
+            let slotHtml = `<div style="flex:0 0 100%;font-size:.68rem;color:var(--text-muted);background:rgba(255,255,255,.03);border:1px solid var(--border-soft);border-radius:7px;padding:.4rem .6rem">📘 <strong>Annexe 4</strong> = l'annexe déjà attachée à chaque outil (référentiel, 1 par outil) — gérée sur la fiche outil, pas ici.</div>`;
+            // Annexe 5 : un bloc par fournisseur, avec PLUSIEURS variantes possibles (ex. TYCO 1, TYCO 2…)
             slotHtml += (fournisseurs.length ? fournisseurs : ['']).map(four => {
               const fk = this._fourKey(four);
               const variants = Object.entries(a5map).filter(([id, e]) => this._fourKey(e.fournisseur) === fk);
@@ -23869,10 +23863,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             const toolsHtml = toolList.map(t => {
               const tname = t.doutils || t.serial || t.designation || t.id;
               const fk = this._fourKey(t.fournisseur);
-              // 🆕 Outil injectable s'il existe l'Annexe 4 du groupe OU au moins une Annexe 5 de SON fournisseur
-              const has5 = Object.values(a5map).some(e => this._fourKey(e.fournisseur) === fk && e.b64);
-              const hasForTool = (tpl.annex4 && tpl.annex4.b64) || has5;
-              const ttl = (hasForTool ? `Injecter (Annexe 4 groupe + Annexe 5 ${t.fournisseur || ''}) et attacher` : `Aucun modèle pour cet outil — fournisseur « ${t.fournisseur || '—'} »`) + (t.connection ? ` · Connexion : ${t.connection}` : '');
+              // 🆕 Outil injectable s'il existe au moins une Annexe 5 de SON fournisseur (Annexe 4 = référentiel de l'outil)
+              const hasForTool = Object.values(a5map).some(e => this._fourKey(e.fournisseur) === fk && e.b64);
+              const ttl = (hasForTool ? `Injecter l'Annexe 5 ${t.fournisseur || ''} (données + pièces) et attacher` : `Aucune Annexe 5 pour cet outil — fournisseur « ${t.fournisseur || '—'} »`) + (t.connection ? ` · Connexion : ${t.connection}` : '');
               return `<button data-inject-tool="${ui.escape(t.id || t.outilId || '')}" data-inject-group="${groupKey}" ${hasForTool ? '' : 'disabled'} style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .55rem;border-radius:6px;border:1px solid var(--border-soft);background:${hasForTool ? 'rgba(0,212,255,.08)' : 'var(--bg-3)'};color:${hasForTool ? 'var(--accent-500)' : 'var(--text-muted)'};font-size:.72rem;font-weight:600;cursor:${hasForTool ? 'pointer' : 'not-allowed'};font-family:var(--font-mono)" title="${ui.escape(ttl)}">💉 ${ui.escape(tname)}</button>`;
             }).join(' ');
             const shownCount = (term && !groupMatches) ? toolList.length : c.groups[g].length;
@@ -24003,8 +23996,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (/^t/i.test(a)) chosen5 = a5matches;
           else { const idx = parseInt(a, 10) - 1; chosen5 = (idx >= 0 && idx < a5matches.length) ? [a5matches[idx]] : [a5matches[0]]; }
         }
+        // 🆕 On n'injecte QUE l'Annexe 5 (l'Annexe 4 reste l'annexe déjà attachée à l'outil = référentiel)
         const jobs = [];
-        if (tpl.annex4 && tpl.annex4.b64) jobs.push(['annex4', 'Annexe 4', tpl.annex4]);
         chosen5.forEach(([id, e]) => jobs.push(['annex5', 'Annexe 5' + (e.label ? ' ' + e.label : ''), e]));
         let count = 0;
         for (const [slot, label, t] of jobs) {
@@ -24013,6 +24006,25 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (tgtFour)   { try { b64 = await this._setOfficeFieldByLabel(b64, /fournisseur|supplier/i, tgtFour, TOOL_SECTION); } catch (e) {} }
           if (tgtInv)    { try { b64 = await this._setOfficeFieldByLabel(b64, /inventaire|inventory/i, tgtInv, TOOL_SECTION); } catch (e) {} }
           if (tgtSerial) { try { b64 = await this._setOfficeFieldByLabel(b64, /\bserial\b|s[ée]rie/i, tgtSerial); } catch (e) {} }
+          // 🆕 Injection des PIÈCES dans l'Annexe 5 (libellés standard FR/EN — écrit seulement si le libellé existe)
+          if (slot === 'annex5') {
+            const pieceVal = (f) => String((tool[f] != null && tool[f] !== '') ? tool[f] : ((tool.pieces && tool.pieces[f]) || '')).trim();
+            const pieceMap = [
+              ['pAr', /poin[çc]on\s*cond|wire\s*crimp/i],
+              ['pAv', /poin[çc]on\s*isol|insul[a-z]*\s*crimp|ins\.?\s*crimp/i],
+              ['eAr', /enclume\s*cond|wire\s*anvil/i],
+              ['eAv', /enclume\s*isol|insul[a-z]*\s*anvil|ins\.?\s*anvil/i],
+              ['cAr', /couteaux|floating\s*shear/i],
+              ['cAv', /matrice\s*couteau|slug\s*cut/i],
+              ['presseur', /presseur|hold\s*down/i],
+              ['matriceAvant', /matrice\s*avant/i],
+              ['matriceArriere', /matrice\s*arri/i]
+            ];
+            for (const [f, re] of pieceMap) {
+              const v = pieceVal(f);
+              if (v) { try { b64 = await this._setOfficeFieldByLabel(b64, re, v); } catch (e) {} }
+            }
+          }
           if (baseFam && tgtNum) { try { b64 = await this._renameFamilySheets(b64, baseFam, tgtNum); } catch (e) {} }
           const fname = `${label} - ${nameR || tgtNum || tool.id}${tgtSerial ? ' - ' + tgtSerial : ''}.xlsx`;
           const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + slot;

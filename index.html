@@ -11486,7 +11486,23 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       });
       const widthOf = (c) => { const col = ws.getColumn(c); if (col && col.hidden) return 0; const w = col && col.width; return w ? Math.round(w * 7 + 5) : 64; };
       const heightOf = (r) => { const row = ws.getRow(r); if (row && row.hidden) return 0; return (row && row.height) ? Math.round(row.height * 1.33) : null; };
-      const argb = (col) => { if (!col || !col.argb) return null; let s = String(col.argb); if (s.length === 8) s = s.slice(2); return s.length === 6 ? '#' + s : null; };
+      // 🆕 Résolution COMPLÈTE des couleurs Excel : ARGB direct, couleurs de THÈME (+teinte), palette INDEXÉE
+      const THEME = ['FFFFFF', '000000', 'E7E6E6', '44546A', '4472C4', 'ED7D31', 'A5A5A5', 'FFC000', '5B9BD5', '70AD47'];
+      const INDEXED = ['000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF','000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF','800000','008000','000080','808000','800080','008080','C0C0C0','808080','9999FF','993366','FFFFCC','CCFFFF','660066','FF8080','0066CC','CCCCFF','000080','FF00FF','FFFF00','00FFFF','800080','800000','008080','0000FF','00CCFF','CCFFFF','CCFFCC','FFFF99','99CCFF','FF99CC','CC99FF','FFCC99','3366FF','33CCCC','99CC00','FFCC00','FF9900','FF6600','666699','969696','003366','339966','003300','333300','993300','993366','333399','333333'];
+      const applyTint = (hex, t) => {
+        if (!t) return hex;
+        const n = parseInt(hex, 16); const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+        const f = (v) => Math.max(0, Math.min(255, t < 0 ? Math.round(v * (1 + t)) : Math.round(v + (255 - v) * t)));
+        return ch.map(v => ('0' + f(v).toString(16)).slice(-2)).join('').toUpperCase();
+      };
+      const colorOf = (col) => {
+        if (!col) return null;
+        if (col.argb) { let s = String(col.argb); if (s.length === 8) s = s.slice(2); return s.length === 6 ? '#' + s : null; }
+        if (col.theme != null) { const base = THEME[col.theme] || '000000'; return '#' + applyTint(base, col.tint || 0); }
+        if (col.indexed != null) { const s = INDEXED[col.indexed]; return s ? '#' + s : null; }
+        return null;
+      };
+      const argb = colorOf;
       const valOf = (cell) => {
         let v = cell && cell.value; if (v == null) return '';
         if (typeof v === 'object') {
@@ -11505,12 +11521,39 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const bd = cell && cell.border;
         if (bd) { ['top', 'bottom', 'left', 'right'].forEach(side => { const b = bd[side]; if (b && b.style) { hasBorder = true; const w = /thick|medium|double/.test(b.style) ? 2 : 1; const col = argb(b.color) || '#555'; s += `;border-${side}:${w}px solid ${col}`; } }); }
         if (!hasBorder) s += ';border:1px solid #d8dde3';
+        // 🆕 Remplissages : uni + TRAMES HACHURÉES (rayures) reproduites en CSS
         const fill = cell && cell.fill;
-        if (fill && fill.type === 'pattern' && fill.pattern === 'solid') { const fg = argb(fill.fgColor); if (fg && !/^#ffffff$/i.test(fg)) s += `;background:${fg}`; }
+        if (fill && fill.type === 'pattern' && fill.pattern && fill.pattern !== 'none') {
+          const fg = argb(fill.fgColor) || '#000000';
+          const bg = argb(fill.bgColor) || '#FFFFFF';
+          if (fill.pattern === 'solid') {
+            if (fg && !/^#ffffff$/i.test(fg)) s += `;background:${fg}`;
+          } else if (/gray|trellis|grid/i.test(fill.pattern)) {
+            s += `;background:repeating-linear-gradient(45deg, ${fg} 0, ${fg} 1px, ${bg} 1px, ${bg} 3px)`;
+          } else if (/down/i.test(fill.pattern)) {
+            s += `;background:repeating-linear-gradient(135deg, ${fg} 0, ${fg} 1px, ${bg} 1px, ${bg} 4px)`;
+          } else if (/up|diag/i.test(fill.pattern)) {
+            s += `;background:repeating-linear-gradient(45deg, ${fg} 0, ${fg} 1px, ${bg} 1px, ${bg} 4px)`;
+          } else if (/horz/i.test(fill.pattern)) {
+            s += `;background:repeating-linear-gradient(0deg, ${fg} 0, ${fg} 1px, ${bg} 1px, ${bg} 4px)`;
+          } else if (/vert/i.test(fill.pattern)) {
+            s += `;background:repeating-linear-gradient(90deg, ${fg} 0, ${fg} 1px, ${bg} 1px, ${bg} 4px)`;
+          } else {
+            s += `;background:repeating-linear-gradient(45deg, ${fg} 0, ${fg} 1px, ${bg} 1px, ${bg} 4px)`;
+          }
+        }
         const fo = cell && cell.font;
         if (fo) { if (fo.bold) s += ';font-weight:700'; if (fo.italic) s += ';font-style:italic'; const fc = argb(fo.color); if (fc && !/^#000000$/i.test(fc)) s += `;color:${fc}`; if (fo.size) s += `;font-size:${Math.max(8, Math.round(fo.size))}px`; }
         const al = cell && cell.alignment;
-        if (al) { if (al.horizontal) s += `;text-align:${al.horizontal}`; if (al.vertical) s += `;vertical-align:${al.vertical === 'middle' ? 'middle' : al.vertical}`; }
+        if (al) {
+          if (al.horizontal) s += `;text-align:${al.horizontal}`;
+          if (al.vertical) s += `;vertical-align:${al.vertical === 'middle' ? 'middle' : al.vertical}`;
+          // 🆕 Texte VERTICAL / pivoté (ex. en-têtes « Sample 1 », « Last Of »)
+          const rot = al.textRotation;
+          if (rot === 'vertical') s += ';writing-mode:vertical-rl;text-orientation:upright';
+          else if (typeof rot === 'number' && rot >= 45) s += ';writing-mode:vertical-rl;transform:rotate(180deg);text-align:center';
+          else if (typeof rot === 'number' && rot <= -45) s += ';writing-mode:vertical-rl;text-align:center';
+        }
         return s;
       };
       let cg = '<colgroup>';

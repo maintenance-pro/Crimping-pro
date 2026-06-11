@@ -11224,10 +11224,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           Aucun document joint à cet outil
         </div>`;
       } else {
-        html += list.map(([fid, f]) => `
+        html += list.map(([fid, f]) => {
+          const isXl = (f.mime || '').includes('spreadsheet') || /\.(xlsx|xls)$/i.test(f.name || '');
+          return `
           <div data-att-id="${ui.escape(fid)}" style="display:flex;align-items:center;gap:.65rem;padding:.55rem .85rem;border-bottom:1px solid var(--border-soft)">
             <span style="font-size:1.4rem">${iconForMime(f.mime, f.name)}</span>
-            <div style="flex:1;min-width:0">
+            <div style="flex:1;min-width:0${isXl ? ';cursor:pointer' : ''}" ${isXl ? `data-att-open="${ui.escape(fid)}" title="👁 Cliquer : afficher le contenu Excel dans la page"` : ''}>
               <div style="font-weight:600;font-size:.84rem;color:var(--text-primary);word-break:break-word">${ui.escape(f.name || 'sans nom')}</div>
               <div style="display:flex;gap:.5rem;flex-wrap:wrap;font-size:.7rem;color:var(--text-muted);margin-top:.15rem">
                 <span style="background:rgba(0,212,255,.15);color:#00d4ff;padding:.05rem .4rem;border-radius:4px;font-weight:600">${ui.escape(f.category || 'Autre')}</span>
@@ -11237,6 +11239,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               </div>
               ${f.description ? `<div style="font-size:.72rem;color:var(--text-secondary);font-style:italic;margin-top:.1rem">${ui.escape(f.description)}</div>` : ''}
             </div>
+            ${isXl ? `<button data-att-view="${ui.escape(fid)}" title="👁 Afficher le contenu dans la page (sans ouvrir Excel)" style="
+                padding:.35rem .55rem;background:rgba(0,229,160,.12);color:#00e5a0;
+                border:1px solid rgba(0,229,160,.3);border-radius:5px;cursor:pointer;font-size:.78rem">
+              👁
+            </button>` : ''}
             <button data-att-download="${ui.escape(fid)}" title="Télécharger" style="
                 padding:.35rem .55rem;background:rgba(0,212,255,.12);color:var(--accent-500);
                 border:1px solid rgba(0,212,255,.3);border-radius:5px;cursor:pointer;font-size:.78rem">
@@ -11249,7 +11256,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 🗑️
               </button>` : ''}
           </div>
-        `).join('');
+        `; }).join('');
       }
       container.innerHTML = html;
 
@@ -11259,6 +11266,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
       container.querySelectorAll('button[data-att-download]').forEach(b => {
         b.onclick = () => this.download(toolId, b.dataset.attDownload);
+      });
+      // 🆕 Aperçu Excel DANS LA PAGE (bouton 👁 + clic sur la ligne du fichier)
+      container.querySelectorAll('button[data-att-view]').forEach(b => {
+        b.onclick = () => this.viewExcel(toolId, b.dataset.attView);
+      });
+      container.querySelectorAll('[data-att-open]').forEach(el => {
+        el.onclick = () => this.viewExcel(toolId, el.dataset.attOpen);
       });
       container.querySelectorAll('button[data-att-delete]').forEach(b => {
         b.onclick = () => this.delete(toolId, b.dataset.attDelete);
@@ -11354,6 +11368,97 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         console.error('[toolAttachments.download]', e);
         ui.toast('Erreur téléchargement : ' + e.message, 'danger');
       }
+    },
+
+    /** 🆕 Affiche le CONTENU d'un fichier Excel directement DANS LA PAGE (sans ouvrir Excel, sans redirection) */
+    async viewExcel(toolId, fileId) {
+      const f = this._all?.[toolId]?.[fileId] || {};
+      const isXl = (f.mime || '').includes('spreadsheet') || /\.(xlsx|xls)$/i.test(f.name || '');
+      if (!isXl) return this.download(toolId, fileId);   // non-Excel : comportement existant inchangé
+      document.getElementById('excel-viewer-overlay')?.remove();
+      document.body.insertAdjacentHTML('beforeend', `
+        <div id="excel-viewer-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.9);backdrop-filter:blur(8px);z-index:10012;display:flex;align-items:center;justify-content:center;padding:1rem">
+          <div style="background:var(--bg-2);border:2px solid #00d4ff;border-radius:12px;width:min(1100px,100%);max-height:94vh;display:flex;flex-direction:column;overflow:hidden">
+            <header style="display:flex;align-items:center;gap:.6rem;padding:.8rem 1rem;border-bottom:1px solid var(--border-soft)">
+              <span style="font-size:1.3rem">📊</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:800;color:#00d4ff;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ui.escape(f.name || 'Fichier Excel')}</div>
+                <div style="font-size:.68rem;color:var(--text-muted)">Contenu affiché dans la page — sans ouvrir Excel</div>
+              </div>
+              <button data-xlv-download title="Télécharger le fichier" style="padding:.4rem .7rem;background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3);border-radius:6px;cursor:pointer;font-size:.74rem;font-weight:700">⬇️ Télécharger</button>
+              <button data-xlv-close style="padding:.4rem .7rem;background:rgba(255,255,255,.06);color:var(--text-primary);border:1px solid var(--border-soft);border-radius:6px;cursor:pointer;font-size:.74rem;font-weight:700">← Retour</button>
+            </header>
+            <div id="excel-viewer-tabs" style="display:flex;gap:.3rem;padding:.55rem 1rem 0;flex-wrap:wrap"></div>
+            <div id="excel-viewer-body" style="flex:1;overflow:auto;padding:.8rem 1rem">
+              <div style="text-align:center;color:var(--text-muted);padding:2.5rem">⏳ Chargement du fichier Excel…</div>
+            </div>
+          </div>
+        </div>`);
+      const ov = document.getElementById('excel-viewer-overlay');
+      const escFn = (e) => { if (e.key === 'Escape') close(); };
+      const close = () => { ov.remove(); document.removeEventListener('keydown', escFn); };
+      document.addEventListener('keydown', escFn);
+      ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+      ov.querySelector('[data-xlv-close]').onclick = close;
+      ov.querySelector('[data-xlv-download]').onclick = () => this.download(toolId, fileId);
+      const bodyEl = ov.querySelector('#excel-viewer-body');
+      const tabsEl = ov.querySelector('#excel-viewer-tabs');
+      const msg = (txt, color) => `<div style="text-align:center;padding:2.5rem;color:${color || 'var(--text-muted)'};font-size:.86rem">${txt}</div>`;
+      try {
+        const b64 = this._b64cache[toolId + '/' + fileId] || await this._getB64(toolId, fileId, f);
+        if (!b64) { bodyEl.innerHTML = msg('📭 Impossible de charger ce fichier (introuvable ou vide).', '#ff8b6b'); return; }
+        if (!window.XLSX) {
+          if (views?.catalog?._ensureXLSXLib) await views.catalog._ensureXLSXLib();
+          else await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('librairie XLSX inaccessible')); document.head.appendChild(s); });
+        }
+        const wb = XLSX.read(b64, { type: 'base64' });
+        const sheets = wb.SheetNames || [];
+        if (!sheets.length) { bodyEl.innerHTML = msg('📭 Ce fichier Excel est vide (aucune feuille).'); return; }
+        const renderSheet = (name) => {
+          tabsEl.querySelectorAll('button').forEach(b => {
+            const on = b.dataset.xlvSheet === name;
+            b.style.background = on ? 'rgba(0,212,255,.16)' : 'transparent';
+            b.style.color = on ? '#00d4ff' : 'var(--text-muted)';
+            b.style.borderColor = on ? 'rgba(0,212,255,.5)' : 'var(--border-soft)';
+          });
+          bodyEl.innerHTML = this._excelSheetHtml(wb.Sheets[name]);
+          bodyEl.scrollTop = 0;
+        };
+        tabsEl.innerHTML = sheets.map(n => `<button data-xlv-sheet="${ui.escape(n)}" style="border:1px solid var(--border-soft);border-bottom:none;background:transparent;color:var(--text-muted);border-radius:7px 7px 0 0;padding:.3rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:var(--font-mono)">${ui.escape(n)}</button>`).join('');
+        tabsEl.querySelectorAll('button').forEach(b => b.onclick = () => renderSheet(b.dataset.xlvSheet));
+        renderSheet(sheets[0]);
+      } catch (e) {
+        console.error('[viewExcel]', e);
+        bodyEl.innerHTML = msg(`⚠️ Impossible d'afficher ce fichier Excel.<br><span style="font-size:.72rem;color:var(--text-muted)">${ui.escape(e.message || 'erreur de lecture')} — utilisez ⬇️ Télécharger.</span>`, '#ff3d5a');
+      }
+    },
+
+    /** 🆕 Convertit une feuille Excel en tableau HTML (style dashboard, repères type Excel) */
+    _excelSheetHtml(ws) {
+      const EMPTY = `<div style="text-align:center;color:var(--text-muted);padding:2.5rem;font-size:.86rem">📭 Feuille vide.</div>`;
+      if (!ws || !ws['!ref']) return EMPTY;
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+      while (aoa.length && aoa[aoa.length - 1].every(c => String(c).trim() === '')) aoa.pop();
+      if (!aoa.length) return EMPTY;
+      const MAXR = 500, MAXC = 50;
+      const rows = aoa.slice(0, MAXR);
+      const nCols = Math.min(Math.max(...rows.map(r => r.length), 1), MAXC);
+      const colL = (i) => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+      const thS = 'background:var(--bg-3);color:#00d4ff;font-weight:700;border:1px solid var(--border-soft);padding:.22rem .5rem;position:sticky;top:0;z-index:2;font-size:.66rem';
+      const rnS = 'background:var(--bg-3);color:var(--text-muted);font-weight:700;border:1px solid var(--border-soft);padding:.22rem .45rem;position:sticky;left:0;z-index:1;font-size:.66rem;text-align:right';
+      let h = `<div style="overflow:auto;border:1px solid var(--border-soft);border-radius:8px;max-height:100%"><table style="border-collapse:collapse;font-size:.74rem;font-family:var(--font-mono);min-width:100%">`;
+      h += `<thead><tr><th style="${thS};left:0;z-index:3"></th>` + Array.from({ length: nCols }, (_, i) => `<th style="${thS}">${colL(i)}</th>`).join('') + `</tr></thead><tbody>`;
+      rows.forEach((r, ri) => {
+        h += `<tr><td style="${rnS}">${ri + 1}</td>`;
+        for (let ci = 0; ci < nCols; ci++) {
+          const v = r[ci] != null ? String(r[ci]) : '';
+          h += `<td style="border:1px solid var(--border-soft);padding:.22rem .5rem;color:var(--text-primary);white-space:pre-wrap;max-width:340px;vertical-align:top">${ui.escape(v)}</td>`;
+        }
+        h += `</tr>`;
+      });
+      h += `</tbody></table></div>`;
+      if (aoa.length > MAXR) h += `<div style="font-size:.68rem;color:var(--text-muted);margin-top:.4rem">⚠️ Affichage limité aux ${MAXR} premières lignes — utilisez ⬇️ Télécharger pour le fichier complet.</div>`;
+      return h;
     },
 
     /** Supprime un fichier (admin/super_admin uniquement) */

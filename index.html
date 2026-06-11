@@ -11411,7 +11411,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (views?.catalog?._ensureXLSXLib) await views.catalog._ensureXLSXLib();
           else await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('librairie XLSX inaccessible')); document.head.appendChild(s); });
         }
-        const wb = XLSX.read(b64, { type: 'base64' });
+        const wb = XLSX.read(b64, { type: 'base64', cellStyles: true });
         const sheets = wb.SheetNames || [];
         if (!sheets.length) { bodyEl.innerHTML = msg('📭 Ce fichier Excel est vide (aucune feuille).'); return; }
         const renderSheet = (name) => {
@@ -11433,31 +11433,70 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       }
     },
 
-    /** 🆕 Convertit une feuille Excel en tableau HTML (style dashboard, repères type Excel) */
+    /** 🆕 Rend une feuille Excel TELLE QUELLE : cellules fusionnées, largeurs de colonnes, styles si présents */
     _excelSheetHtml(ws) {
       const EMPTY = `<div style="text-align:center;color:var(--text-muted);padding:2.5rem;font-size:.86rem">📭 Feuille vide.</div>`;
       if (!ws || !ws['!ref']) return EMPTY;
-      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
-      while (aoa.length && aoa[aoa.length - 1].every(c => String(c).trim() === '')) aoa.pop();
-      if (!aoa.length) return EMPTY;
-      const MAXR = 500, MAXC = 50;
-      const rows = aoa.slice(0, MAXR);
-      const nCols = Math.min(Math.max(...rows.map(r => r.length), 1), MAXC);
-      const colL = (i) => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
-      const thS = 'background:var(--bg-3);color:#00d4ff;font-weight:700;border:1px solid var(--border-soft);padding:.22rem .5rem;position:sticky;top:0;z-index:2;font-size:.66rem';
-      const rnS = 'background:var(--bg-3);color:var(--text-muted);font-weight:700;border:1px solid var(--border-soft);padding:.22rem .45rem;position:sticky;left:0;z-index:1;font-size:.66rem;text-align:right';
-      let h = `<div style="overflow:auto;border:1px solid var(--border-soft);border-radius:8px;max-height:100%"><table style="border-collapse:collapse;font-size:.74rem;font-family:var(--font-mono);min-width:100%">`;
-      h += `<thead><tr><th style="${thS};left:0;z-index:3"></th>` + Array.from({ length: nCols }, (_, i) => `<th style="${thS}">${colL(i)}</th>`).join('') + `</tr></thead><tbody>`;
-      rows.forEach((r, ri) => {
-        h += `<tr><td style="${rnS}">${ri + 1}</td>`;
-        for (let ci = 0; ci < nCols; ci++) {
-          const v = r[ci] != null ? String(r[ci]) : '';
-          h += `<td style="border:1px solid var(--border-soft);padding:.22rem .5rem;color:var(--text-primary);white-space:pre-wrap;max-width:340px;vertical-align:top">${ui.escape(v)}</td>`;
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      const maxR = Math.min(range.e.r, range.s.r + 400);
+      const maxC = Math.min(range.e.c, range.s.c + 40);
+      // Fusions : cellule d'ancrage (colspan/rowspan) + cellules couvertes (à sauter)
+      const anchor = {}, covered = {};
+      (ws['!merges'] || []).forEach(m => {
+        anchor[m.s.r + '_' + m.s.c] = { rs: m.e.r - m.s.r + 1, cs: m.e.c - m.s.c + 1 };
+        for (let r = m.s.r; r <= m.e.r; r++) for (let c = m.s.c; c <= m.e.c; c++) {
+          if (r !== m.s.r || c !== m.s.c) covered[r + '_' + c] = 1;
         }
-        h += `</tr>`;
       });
-      h += `</tbody></table></div>`;
-      if (aoa.length > MAXR) h += `<div style="font-size:.68rem;color:var(--text-muted);margin-top:.4rem">⚠️ Affichage limité aux ${MAXR} premières lignes — utilisez ⬇️ Télécharger pour le fichier complet.</div>`;
+      // Largeurs de colonnes (depuis le fichier, sinon défaut)
+      const cols = ws['!cols'] || [];
+      const widthOf = (c) => { const cc = cols[c]; if (!cc) return 70; if (cc.hidden) return 0; if (cc.wpx) return Math.round(cc.wpx); if (cc.wch != null) return Math.max(26, Math.round(cc.wch * 7 + 6)); return 70; };
+      const rowsMeta = ws['!rows'] || [];
+      const heightOf = (r) => { const rr = rowsMeta[r]; if (rr && rr.hidden) return 0; if (rr && rr.hpx) return Math.round(rr.hpx); return null; };
+      const argb = (s) => { if (!s) return null; s = String(s).replace('#', ''); if (s.length === 8) s = s.slice(2); return s.length === 6 ? '#' + s : null; };
+      const cellStyle = (cell) => {
+        let s = 'border:1px solid #cfd4da;padding:.18rem .4rem;white-space:pre-wrap;vertical-align:middle;overflow:hidden';
+        const st = cell && cell.s;
+        if (st) {
+          const fill = st.fgColor && argb(st.fgColor.rgb);
+          if (fill && !/^#fff/i.test(fill)) s += `;background:${fill}`;
+          if (st.font) {
+            if (st.font.bold) s += ';font-weight:700';
+            if (st.font.italic) s += ';font-style:italic';
+            const fc = st.font.color && argb(st.font.color.rgb);
+            if (fc && !/^#000/i.test(fc)) s += `;color:${fc}`;
+            if (st.font.sz) s += `;font-size:${Math.max(9, Math.round(st.font.sz))}px`;
+          }
+          if (st.alignment) {
+            if (st.alignment.horizontal) s += `;text-align:${st.alignment.horizontal}`;
+            const v = st.alignment.vertical; if (v) s += `;vertical-align:${v === 'center' ? 'middle' : v}`;
+          }
+        }
+        return s;
+      };
+      let cg = '<colgroup>';
+      for (let c = range.s.c; c <= maxC; c++) { const w = widthOf(c); cg += `<col style="width:${w}px${w === 0 ? ';display:none' : ''}">`; }
+      cg += '</colgroup>';
+      let h = `<div style="overflow:auto;background:#fff;border:1px solid var(--border-soft);border-radius:8px;padding:.5rem"><table style="border-collapse:collapse;table-layout:fixed;font-size:.72rem;color:#0a1a2f;font-family:Calibri,Arial,sans-serif">${cg}<tbody>`;
+      let nonEmpty = false;
+      for (let r = range.s.r; r <= maxR; r++) {
+        const rh = heightOf(r);
+        if (rh === 0) continue;
+        h += `<tr${rh ? ` style="height:${rh}px"` : ''}>`;
+        for (let c = range.s.c; c <= maxC; c++) {
+          if (covered[r + '_' + c]) continue;
+          const cell = ws[XLSX.utils.encode_cell({ r, c })];
+          const val = cell ? (cell.w != null ? cell.w : (cell.v != null ? cell.v : '')) : '';
+          if (String(val).trim() !== '') nonEmpty = true;
+          const an = anchor[r + '_' + c];
+          const span = an ? ` colspan="${an.cs}" rowspan="${an.rs}"` : '';
+          h += `<td${span} style="${cellStyle(cell)}">${ui.escape(String(val))}</td>`;
+        }
+        h += '</tr>';
+      }
+      h += '</tbody></table></div>';
+      if (!nonEmpty) return EMPTY;
+      if (range.e.r > maxR) h += `<div style="font-size:.68rem;color:var(--text-muted);margin-top:.4rem">⚠️ Affichage limité aux ${maxR - range.s.r + 1} premières lignes — ⬇️ Télécharger pour le fichier complet.</div>`;
       return h;
     },
 

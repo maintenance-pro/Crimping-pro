@@ -11407,30 +11407,135 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       try {
         const b64 = this._b64cache[toolId + '/' + fileId] || await this._getB64(toolId, fileId, f);
         if (!b64) { bodyEl.innerHTML = msg('📭 Impossible de charger ce fichier (introuvable ou vide).', '#ff8b6b'); return; }
-        if (!window.XLSX) {
-          if (views?.catalog?._ensureXLSXLib) await views.catalog._ensureXLSXLib();
-          else await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('librairie XLSX inaccessible')); document.head.appendChild(s); });
-        }
-        const wb = XLSX.read(b64, { type: 'base64', cellStyles: true });
-        const sheets = wb.SheetNames || [];
-        if (!sheets.length) { bodyEl.innerHTML = msg('📭 Ce fichier Excel est vide (aucune feuille).'); return; }
-        const renderSheet = (name) => {
-          tabsEl.querySelectorAll('button').forEach(b => {
-            const on = b.dataset.xlvSheet === name;
-            b.style.background = on ? 'rgba(0,212,255,.16)' : 'transparent';
-            b.style.color = on ? '#00d4ff' : 'var(--text-muted)';
-            b.style.borderColor = on ? 'rgba(0,212,255,.5)' : 'var(--border-soft)';
-          });
-          bodyEl.innerHTML = this._excelSheetHtml(wb.Sheets[name]);
-          bodyEl.scrollTop = 0;
+        // Onglets + rendu commun
+        const buildTabs = (names, getHtml) => {
+          const renderSheet = (name) => {
+            tabsEl.querySelectorAll('button').forEach(b => {
+              const on = b.dataset.xlvSheet === name;
+              b.style.background = on ? 'rgba(0,212,255,.16)' : 'transparent';
+              b.style.color = on ? '#00d4ff' : 'var(--text-muted)';
+              b.style.borderColor = on ? 'rgba(0,212,255,.5)' : 'var(--border-soft)';
+            });
+            bodyEl.innerHTML = getHtml(name); bodyEl.scrollTop = 0;
+          };
+          tabsEl.innerHTML = names.map(n => `<button data-xlv-sheet="${ui.escape(n)}" style="border:1px solid var(--border-soft);border-bottom:none;background:transparent;color:var(--text-muted);border-radius:7px 7px 0 0;padding:.3rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:var(--font-mono)">${ui.escape(n)}</button>`).join('');
+          tabsEl.querySelectorAll('button').forEach(b => b.onclick = () => renderSheet(b.dataset.xlvSheet));
+          renderSheet(names[0]);
         };
-        tabsEl.innerHTML = sheets.map(n => `<button data-xlv-sheet="${ui.escape(n)}" style="border:1px solid var(--border-soft);border-bottom:none;background:transparent;color:var(--text-muted);border-radius:7px 7px 0 0;padding:.3rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:var(--font-mono)">${ui.escape(n)}</button>`).join('');
-        tabsEl.querySelectorAll('button').forEach(b => b.onclick = () => renderSheet(b.dataset.xlvSheet));
-        renderSheet(sheets[0]);
+        const isXls = /\.xls$/i.test(f.name || '') && !/\.xlsx$/i.test(f.name || '');
+        let used = false;
+        // 🆕 ExcelJS : rendu FIDÈLE avec couleurs, bordures, polices, fusions
+        if (!isXls) {
+          try {
+            await this._ensureExcelJS();
+            const bin = atob(b64); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            const wbx = new ExcelJS.Workbook();
+            await wbx.xlsx.load(bytes.buffer);
+            const wss = (wbx.worksheets || []).filter(s => s && s.name);
+            if (wss.length) {
+              const byName = {}; wss.forEach(s => byName[s.name] = s);
+              buildTabs(wss.map(s => s.name), (name) => this._exceljsSheetHtml(byName[name]));
+              used = true;
+            }
+          } catch (ex) { console.warn('[viewExcel ExcelJS → repli SheetJS]', ex); }
+        }
+        // Repli SheetJS (.xls ou échec ExcelJS)
+        if (!used) {
+          if (!window.XLSX) {
+            if (views?.catalog?._ensureXLSXLib) await views.catalog._ensureXLSXLib();
+            else await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = res; s.onerror = () => rej(new Error('librairie XLSX inaccessible')); document.head.appendChild(s); });
+          }
+          const wb = XLSX.read(b64, { type: 'base64', cellStyles: true });
+          const sheets = wb.SheetNames || [];
+          if (!sheets.length) { bodyEl.innerHTML = msg('📭 Ce fichier Excel est vide (aucune feuille).'); return; }
+          buildTabs(sheets, (name) => this._excelSheetHtml(wb.Sheets[name]));
+        }
       } catch (e) {
         console.error('[viewExcel]', e);
         bodyEl.innerHTML = msg(`⚠️ Impossible d'afficher ce fichier Excel.<br><span style="font-size:.72rem;color:var(--text-muted)">${ui.escape(e.message || 'erreur de lecture')} — utilisez ⬇️ Télécharger.</span>`, '#ff3d5a');
       }
+    },
+
+    /** 🆕 Charge la librairie ExcelJS (lecture fidèle des couleurs/bordures) à la demande */
+    _ensureExcelJS() {
+      return new Promise((res, rej) => {
+        if (window.ExcelJS) return res();
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+        s.onload = () => res();
+        s.onerror = () => rej(new Error('librairie ExcelJS inaccessible'));
+        document.head.appendChild(s);
+      });
+    },
+
+    /** 🆕 Rend une feuille ExcelJS TELLE QUELLE : couleurs de remplissage, polices, bordures, alignement, fusions, largeurs */
+    _exceljsSheetHtml(ws) {
+      const EMPTY = `<div style="text-align:center;color:var(--text-muted);padding:2.5rem;font-size:.86rem">📭 Feuille vide.</div>`;
+      if (!ws) return EMPTY;
+      const lastRow = Math.min(ws.rowCount || 0, 600);
+      const lastCol = Math.min(ws.columnCount || 0, 60);
+      if (!lastRow || !lastCol) return EMPTY;
+      const addrToRC = (a) => { const m = String(a).match(/^([A-Z]+)(\d+)$/i); if (!m) return { r: 1, c: 1 }; let col = 0; const L = m[1].toUpperCase(); for (let i = 0; i < L.length; i++) col = col * 26 + (L.charCodeAt(i) - 64); return { r: parseInt(m[2], 10), c: col }; };
+      // Fusions
+      const anchor = {}, covered = {};
+      ((ws.model && ws.model.merges) || []).forEach(rg => {
+        const p = String(rg).split(':'); if (p.length !== 2) return;
+        const s = addrToRC(p[0]), e = addrToRC(p[1]);
+        anchor[s.r + '_' + s.c] = { rs: e.r - s.r + 1, cs: e.c - s.c + 1 };
+        for (let r = s.r; r <= e.r; r++) for (let c = s.c; c <= e.c; c++) if (r !== s.r || c !== s.c) covered[r + '_' + c] = 1;
+      });
+      const widthOf = (c) => { const col = ws.getColumn(c); if (col && col.hidden) return 0; const w = col && col.width; return w ? Math.round(w * 7 + 5) : 64; };
+      const heightOf = (r) => { const row = ws.getRow(r); if (row && row.hidden) return 0; return (row && row.height) ? Math.round(row.height * 1.33) : null; };
+      const argb = (col) => { if (!col || !col.argb) return null; let s = String(col.argb); if (s.length === 8) s = s.slice(2); return s.length === 6 ? '#' + s : null; };
+      const valOf = (cell) => {
+        let v = cell && cell.value; if (v == null) return '';
+        if (typeof v === 'object') {
+          if (Array.isArray(v.richText)) return v.richText.map(t => t.text).join('');
+          if (v.result != null) return v.result;
+          if (v.text != null) return v.text;
+          if (v instanceof Date) return v.toLocaleDateString('fr-FR');
+          if (v.formula != null) return '';
+          return '';
+        }
+        return v;
+      };
+      const styleOf = (cell) => {
+        let s = 'padding:.14rem .35rem;white-space:pre-wrap;vertical-align:middle;overflow:hidden';
+        let hasBorder = false;
+        const bd = cell && cell.border;
+        if (bd) { ['top', 'bottom', 'left', 'right'].forEach(side => { const b = bd[side]; if (b && b.style) { hasBorder = true; const w = /thick|medium|double/.test(b.style) ? 2 : 1; const col = argb(b.color) || '#555'; s += `;border-${side}:${w}px solid ${col}`; } }); }
+        if (!hasBorder) s += ';border:1px solid #d8dde3';
+        const fill = cell && cell.fill;
+        if (fill && fill.type === 'pattern' && fill.pattern === 'solid') { const fg = argb(fill.fgColor); if (fg && !/^#ffffff$/i.test(fg)) s += `;background:${fg}`; }
+        const fo = cell && cell.font;
+        if (fo) { if (fo.bold) s += ';font-weight:700'; if (fo.italic) s += ';font-style:italic'; const fc = argb(fo.color); if (fc && !/^#000000$/i.test(fc)) s += `;color:${fc}`; if (fo.size) s += `;font-size:${Math.max(8, Math.round(fo.size))}px`; }
+        const al = cell && cell.alignment;
+        if (al) { if (al.horizontal) s += `;text-align:${al.horizontal}`; if (al.vertical) s += `;vertical-align:${al.vertical === 'middle' ? 'middle' : al.vertical}`; }
+        return s;
+      };
+      let cg = '<colgroup>';
+      for (let c = 1; c <= lastCol; c++) { const w = widthOf(c); cg += `<col style="width:${w}px${w === 0 ? ';display:none' : ''}">`; }
+      cg += '</colgroup>';
+      let h = `<div style="overflow:auto;background:#fff;border:1px solid var(--border-soft);border-radius:8px;padding:.5rem"><table style="border-collapse:collapse;table-layout:fixed;font-size:.7rem;color:#0a1a2f;font-family:Calibri,Arial,sans-serif">${cg}<tbody>`;
+      let nonEmpty = false;
+      for (let r = 1; r <= lastRow; r++) {
+        const rh = heightOf(r); if (rh === 0) continue;
+        h += `<tr${rh ? ` style="height:${rh}px"` : ''}>`;
+        for (let c = 1; c <= lastCol; c++) {
+          if (covered[r + '_' + c]) continue;
+          const cell = ws.getCell(r, c);
+          const val = valOf(cell);
+          if (String(val).trim() !== '') nonEmpty = true;
+          const an = anchor[r + '_' + c];
+          const span = an ? ` colspan="${an.cs}" rowspan="${an.rs}"` : '';
+          h += `<td${span} style="${styleOf(cell)}">${ui.escape(String(val))}</td>`;
+        }
+        h += '</tr>';
+      }
+      h += '</tbody></table></div>';
+      if (!nonEmpty) return EMPTY;
+      if ((ws.rowCount || 0) > lastRow) h += `<div style="font-size:.68rem;color:var(--text-muted);margin-top:.4rem">⚠️ Affichage limité aux ${lastRow} premières lignes — ⬇️ Télécharger pour le fichier complet.</div>`;
+      return h;
     },
 
     /** 🆕 Rend une feuille Excel TELLE QUELLE : cellules fusionnées, largeurs de colonnes, styles si présents */

@@ -9157,6 +9157,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <select id="annex-tpl-client" style="padding:.45rem .7rem;border-radius:8px;border:1px solid var(--border-soft);background:var(--bg-3);color:var(--text-primary);font-size:.8rem;cursor:pointer">
           <option value="">🗂 Tous les clients</option>
         </select>
+        <button id="annex-tpl-auto-temoin" title="Définir un témoin Annexe 4 pour chaque groupe depuis un outil qui en possède une, puis propager" style="background:rgba(0,212,255,.12);border:1px solid rgba(0,212,255,.35);color:#00d4ff;font-size:.74rem;font-weight:700;border-radius:8px;padding:.45rem .7rem;cursor:pointer;white-space:nowrap">📥 Témoin auto (tous groupes)</button>
       </div>
       <div id="annex-tpl-body" style="overflow:auto;padding:1rem 1.1rem;flex:1">
         <div style="text-align:center;color:var(--text-muted);padding:2rem">Chargement…</div>
@@ -23858,6 +23859,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           this._annexFiltersWired = true;
           if (srch) srch.addEventListener('input', () => { this._annexTplSearch = srch.value || ''; this._renderAnnexTemplates(); });
           if (sel)  sel.addEventListener('change', () => { this._annexTplClientFilter = sel.value || ''; this._renderAnnexTemplates(); });
+          const autoBtn = document.getElementById('annex-tpl-auto-temoin');
+          if (autoBtn) autoBtn.addEventListener('click', async () => { try { await this._autoTemoinAllGroups(); } catch (e) { ui.toast('Échec : ' + e.message, 'danger'); } });
         }
         this._renderAnnexTemplates();
       },
@@ -23915,9 +23918,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <div style="font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#00d4ff">📘 Annexe 4 témoin <span style="font-weight:600;text-transform:none;color:var(--text-muted)">(référentiel — propagée à chaque outil)</span></div>
               <div style="font-size:.72rem;margin:.2rem 0;color:${a4Has ? '#00d4ff' : 'var(--text-muted)'};word-break:break-all">${a4Has ? '📎 ' + ui.escape(a4.name) : 'Aucun modèle témoin'}</div>
               <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
-                <label style="font-size:.7rem;color:var(--accent-500);cursor:pointer;font-weight:700">${a4Has ? '↻ Remplacer' : '＋ Ajouter le témoin'}
+                <label style="font-size:.7rem;color:var(--accent-500);cursor:pointer;font-weight:700">${a4Has ? '↻ Remplacer (fichier)' : '＋ Ajouter (fichier)'}
                   <input type="file" accept=".xlsx,.xlsm" hidden data-tpl-upload="${groupKey}" data-tpl-slot="annex4" data-tpl-four="" data-tpl-cname="${ui.escape(c.name)}" data-tpl-group="${ui.escape(g)}">
                 </label>
+                <button data-tpl-from-tool="${groupKey}" title="Définir le témoin depuis l'Annexe 4 déjà attachée à un outil du groupe" style="background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.35);color:#00e5a0;font-size:.68rem;font-weight:700;border-radius:6px;padding:.2rem .5rem;cursor:pointer">📥 Depuis un outil</button>
+                <button data-tpl-fromtool="${groupKey}" data-tpl-cname="${ui.escape(c.name)}" data-tpl-group="${ui.escape(g)}" title="Utiliser l'Annexe 4 déjà attachée à un outil du groupe comme témoin" style="background:rgba(0,229,160,.12);border:1px solid rgba(0,229,160,.35);color:#00e5a0;font-size:.68rem;font-weight:700;border-radius:6px;padding:.2rem .5rem;cursor:pointer">📌 Depuis un outil</button>
                 ${a4Has ? `<button data-tpl-prop4="${groupKey}" title="Régénérer l'Annexe 4 de tous les outils du groupe" style="background:rgba(0,212,255,.12);border:1px solid rgba(0,212,255,.35);color:#00d4ff;font-size:.68rem;font-weight:700;border-radius:6px;padding:.2rem .5rem;cursor:pointer">⟳ Propager maintenant</button>
                 <button data-tpl-del="${groupKey}" data-tpl-delslot="annex4" style="background:none;border:none;color:#ff3d5a;font-size:.7rem;cursor:pointer;font-weight:700">🗑️</button>` : ''}
               </div>
@@ -24000,6 +24005,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             try { await this._propagateAnnex4Temoin(btn.dataset.tplProp4); } catch (e) { ui.toast('Échec propagation : ' + e.message, 'danger'); }
           });
         });
+        // 🆕 Bouton « 📥 Depuis un outil » : définir le témoin du groupe depuis l'Annexe 4 d'un outil existant
+        body.querySelectorAll('button[data-tpl-from-tool]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            try { await this._pickTemoinFromTool(btn.dataset.tplFromTool); } catch (e) { ui.toast('Échec : ' + e.message, 'danger'); }
+          });
+        });
         // 🆕 « ＋ Ajouter une Annexe 5 » : demande un nom (TYCO 1, TYCO 2…) puis ouvre le sélecteur de fichier
         body.querySelectorAll('button[data-tpl-add5]').forEach(btn => {
           btn.addEventListener('click', () => {
@@ -24067,14 +24078,16 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       // 🆕 Applique les données d'un outil à un document modèle (fournisseur, inventaire, serial, pièces, renommage onglet)
-      async _applyToolDataToDoc(b64, tool, includePieces) {
+      async _applyToolDataToDoc(b64, tool, includePieces, piecesOnly) {
         const TOOL_SECTION = /applicator|donn[eé]es?\s*outil/i;
-        const tgtFour = String(tool.fabricant || tool.fournisseur || '').trim();
-        const tgtInv  = this._invValue(tool);
         const tgtSerial = String(tool.serial || '').trim();
-        if (tgtFour)   { try { b64 = await this._setOfficeFieldByLabel(b64, /fournisseur|supplier/i, tgtFour, TOOL_SECTION); } catch (e) {} }
-        if (tgtInv)    { try { b64 = await this._setOfficeFieldByLabel(b64, /inventaire|inventory/i, tgtInv, TOOL_SECTION); } catch (e) {} }
-        if (tgtSerial) { try { b64 = await this._setOfficeFieldByLabel(b64, /\bserial\b|s[ée]rie/i, tgtSerial); } catch (e) {} }
+        if (!piecesOnly) {
+          const tgtFour = String(tool.fabricant || tool.fournisseur || '').trim();
+          const tgtInv  = this._invValue(tool);
+          if (tgtFour)   { try { b64 = await this._setOfficeFieldByLabel(b64, /fournisseur|supplier/i, tgtFour, TOOL_SECTION); } catch (e) {} }
+          if (tgtInv)    { try { b64 = await this._setOfficeFieldByLabel(b64, /inventaire|inventory/i, tgtInv, TOOL_SECTION); } catch (e) {} }
+          if (tgtSerial) { try { b64 = await this._setOfficeFieldByLabel(b64, /\bserial\b|s[ée]rie/i, tgtSerial); } catch (e) {} }
+        }
         if (includePieces !== false) {
           const pieceVal = (f) => String((tool[f] != null && tool[f] !== '') ? tool[f] : ((tool.pieces && tool.pieces[f]) || '')).trim();
           const pieceMap = [
@@ -24092,8 +24105,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
         const nameR = tool.doutils || tool.designation || tool.serial || '';
         const tgtNum = this._docNumberFromName(nameR);
-        const baseFam = this._extractFamily(nameR);
-        if (baseFam && tgtNum) { try { b64 = await this._renameFamilySheets(b64, baseFam, tgtNum); } catch (e) {} }
+        if (!piecesOnly) {
+          const baseFam = this._extractFamily(nameR);
+          if (baseFam && tgtNum) { try { b64 = await this._renameFamilySheets(b64, baseFam, tgtNum); } catch (e) {} }
+        }
         return { b64, nameR, tgtNum, tgtSerial };
       },
 
@@ -24113,25 +24128,41 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!tpl.annex4 || !tpl.annex4.b64) { if (!silent) ui.toast('Aucune Annexe 4 témoin sur ce groupe', 'warn'); return 0; }
         const groupTools = this._toolsInGroupKey(groupKey);
         if (!groupTools.length) { if (!silent) ui.toast('Aucun outil dans ce groupe', 'warn'); return 0; }
+        // 🆕 Si le témoin provient d'un outil, on remplace son identité (source→cible) lors de la propagation
+        const sourceTool = tpl.annex4.fromTool ? (state.tools && state.tools[tpl.annex4.fromTool]) : null;
         ui.showLoader(`Propagation de l'Annexe 4 témoin sur ${groupTools.length} outil(s)…`);
         let done = 0;
         for (const tool of groupTools) {
           try {
-            // Retirer l'ancienne Annexe 4 issue du témoin (évite les doublons à chaque changement)
+            // Retirer toute Annexe 4 existante de l'outil (témoin précédent OU annexe d'origine) → remplacée par le témoin
             const all = (toolAttachments._all && toolAttachments._all[tool.id]) || {};
             for (const [fid, meta] of Object.entries(all)) {
-              if (meta && meta.temoinAnnex4 && meta.fromTemplate === groupKey) {
+              const isA4 = meta && (meta.temoinAnnex4 || /annexe?\s*4\b/i.test(meta.category || '') || /annexe?\s*4\b/i.test(meta.name || ''));
+              if (isA4) {
                 try { await fbDb.ref('toolAttachments/' + tool.id + '/' + fid).remove(); await fbDb.ref('toolAttachmentsB64/' + tool.id + '/' + fid).remove(); } catch (e) {}
                 if (toolAttachments._all[tool.id]) delete toolAttachments._all[tool.id][fid];
               }
             }
-            const r = await this._applyToolDataToDoc(tpl.annex4.b64, tool, true);
-            const fname = `Annexe 4 - ${r.nameR || r.tgtNum || tool.id}${r.tgtSerial ? ' - ' + r.tgtSerial : ''}.xlsx`;
+            let b64;
+            if (sourceTool && sourceTool.id !== tool.id) {
+              // Témoin issu d'un autre outil → remplacement robuste de l'identité source→cible, puis pièces de la cible
+              const adapted = await this._adaptDocForTarget({ b64: tpl.annex4.b64, name: tpl.annex4.name }, sourceTool, tool);
+              const r = await this._applyToolDataToDoc((adapted && adapted.b64) || tpl.annex4.b64, tool, true, true);
+              b64 = r.b64;
+            } else {
+              // Témoin générique (uploadé) ou l'outil source lui-même → injection directe
+              const r = await this._applyToolDataToDoc(tpl.annex4.b64, tool, true, false);
+              b64 = r.b64;
+            }
+            const nameR = tool.doutils || tool.designation || tool.serial || '';
+            const tgtNum = this._docNumberFromName(nameR);
+            const tgtSerial = String(tool.serial || '').trim();
+            const fname = `Annexe 4 - ${nameR || tgtNum || tool.id}${tgtSerial ? ' - ' + tgtSerial : ''}.xlsx`;
             const fid = 'f_t4_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + '_' + done;
             await toolAttachments._writeDoc(tool.id, fid, {
               name: fname, category: 'Annexe 4', temoinAnnex4: true, fromTemplate: groupKey,
               mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', uploadedAt: Date.now()
-            }, r.b64);
+            }, b64);
             done++;
           } catch (e) { console.warn('[propagate annex4]', tool.id, e); }
         }
@@ -24139,6 +24170,129 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!silent) ui.toast(`✅ Annexe 4 témoin propagée sur ${done} outil(s)`, 'success', 6000);
         try { db.audit('annexTemplate.propagate', groupKey, { count: done }); } catch (e) {}
         return done;
+      },
+
+      // 🆕 Désigne le TÉMOIN Annexe 4 du groupe à partir de l'Annexe 4 déjà attachée à un outil du groupe
+      async _setTemoinFromTool(groupKey, clientName, group) {
+        const groupTools = this._toolsInGroupKey(groupKey);
+        const candidates = [];
+        for (const t of groupTools) {
+          const atts = (toolAttachments._all && toolAttachments._all[t.id]) || {};
+          for (const [fid, meta] of Object.entries(atts)) {
+            if (meta && (meta.category === 'Annexe 4' || /annex\w*\s*4/i.test(meta.name || ''))) { candidates.push({ tool: t, fid, meta }); break; }
+          }
+        }
+        if (!candidates.length) { ui.toast('Aucun outil avec une Annexe 4 attachée dans ce groupe', 'warn', 5000); return; }
+        const list = candidates.map((c, i) => `${i + 1}. ${c.tool.doutils || c.tool.serial || c.tool.id} — ${c.meta.name || 'Annexe 4'}`).join('\n');
+        const ans = prompt(`Choisir l'outil dont l'Annexe 4 servira de TÉMOIN au groupe :\n\n${list}\n\nTapez le numéro :`, '1');
+        if (ans === null) return;
+        const idx = parseInt(ans.trim(), 10) - 1;
+        const chosen = candidates[(idx >= 0 && idx < candidates.length) ? idx : 0];
+        ui.showLoader('Récupération de l\'Annexe 4 témoin…');
+        let b64 = null;
+        try { b64 = await toolAttachments._getB64(chosen.tool.id, chosen.fid, chosen.meta); } catch (e) {}
+        if (!b64) { ui.hideLoader(); ui.toast('Impossible de lire l\'Annexe 4 de cet outil', 'danger'); return; }
+        const ref = fbDb.ref('annexTemplates/' + groupKey);
+        const cur = (await ref.once('value')).val() || {};
+        cur.clientName = clientName; cur.group = group;
+        cur.annex4 = { name: chosen.meta.name || ('Annexe 4 témoin - ' + (chosen.tool.doutils || chosen.tool.id)), b64, fromTool: chosen.tool.id, at: Date.now(), by: (state.profile && state.profile.displayName) || '' };
+        await ref.set(cur);
+        this._annexTplCache = this._annexTplCache || {}; this._annexTplCache[groupKey] = cur;
+        ui.hideLoader();
+        ui.toast(`✅ Témoin Annexe 4 défini depuis ${chosen.tool.doutils || chosen.tool.id}`, 'success', 5000);
+        try { db.audit('annexTemplate.set', groupKey, { slot: 'annex4', fromTool: chosen.tool.id }); } catch (e) {}
+        this._renderAnnexTemplates();
+        if (confirm('Témoin défini. Le propager à l\'Annexe 4 de tous les outils du groupe maintenant ?')) {
+          try { await this._propagateAnnex4Temoin(groupKey); } catch (e) { ui.toast('Échec propagation : ' + e.message, 'danger'); }
+        }
+      },
+
+      // 🆕 Définir le témoin Annexe 4 du groupe À PARTIR de l'Annexe 4 déjà attachée à un outil
+      async _pickTemoinFromTool(groupKey) {
+        const groupTools = this._toolsInGroupKey(groupKey);
+        const candidates = [];
+        for (const tool of groupTools) {
+          const all = (toolAttachments._all && toolAttachments._all[tool.id]) || {};
+          for (const [fid, meta] of Object.entries(all)) {
+            if (!meta) continue;
+            const isOffice = /\.xlsx?$/i.test(meta.name || '') || /spreadsheet/i.test(meta.mime || '');
+            const looksA4 = /annexe?\s*4\b/i.test(meta.category || '') || /annexe?\s*4\b/i.test(meta.name || '') || !!meta.temoinAnnex4;
+            if (looksA4 || isOffice) candidates.push({ toolId: tool.id, toolName: tool.doutils || tool.serial || tool.id, fid, name: meta.name || fid, meta, isA4: looksA4 });
+          }
+        }
+        candidates.sort((a, b) => (b.isA4 ? 1 : 0) - (a.isA4 ? 1 : 0));
+        if (!candidates.length) { ui.toast('Aucune Annexe 4 trouvée sur les outils de ce groupe', 'warn', 5000); return; }
+        const list = candidates.slice(0, 30).map((c, i) => `${i + 1}. ${c.toolName} — ${c.name}${c.isA4 ? ' ✓' : ''}`).join('\n');
+        const ans = prompt(`Choisir l'Annexe 4 témoin du groupe (depuis un outil) :\n\n${list}\n\nTapez le numéro :`, '1');
+        if (ans === null) return;
+        const pick = candidates[parseInt(ans.trim(), 10) - 1];
+        if (!pick) { ui.toast('Choix invalide', 'warn'); return; }
+        ui.showLoader('Récupération de l\'Annexe 4…');
+        let b64;
+        try { b64 = await toolAttachments._getB64(pick.toolId, pick.fid, pick.meta); } catch (e) { ui.hideLoader(); ui.toast('Impossible de lire ce document', 'danger'); return; }
+        if (!b64) { ui.hideLoader(); ui.toast('Document vide', 'warn'); return; }
+        const srcTool = state.tools[pick.toolId] || {};
+        const client = srcTool.projet ? this._getClientForProject(srcTool.projet) : null;
+        const cname = client ? client.name : 'Autres / sans client';
+        const group = (srcTool.groupe || this._extractFamily(srcTool.doutils || srcTool.designation || '') || '—');
+        const ref = fbDb.ref('annexTemplates/' + groupKey);
+        const cur = (await ref.once('value')).val() || {};
+        cur.clientName = cname; cur.group = group;
+        cur.annex4 = { name: pick.name, b64, fromTool: pick.toolId, at: Date.now(), by: (state.profile && state.profile.displayName) || '' };
+        await ref.set(cur);
+        this._annexTplCache = this._annexTplCache || {}; this._annexTplCache[groupKey] = cur;
+        ui.hideLoader();
+        ui.toast(`✅ Témoin Annexe 4 défini depuis ${pick.toolName}`, 'success');
+        try { db.audit('annexTemplate.set', groupKey, { slot: 'annex4', fromTool: pick.toolId }); } catch (e) {}
+        await this._propagateAnnex4Temoin(groupKey);   // régénère l'Annexe 4 de tous les outils du groupe
+        this._renderAnnexTemplates();
+      },
+
+      // 🆕 Définir un témoin Annexe 4 pour TOUS les groupes d'un coup (depuis l'Annexe 4 d'un outil de chaque groupe)
+      async _autoTemoinAllGroups() {
+        const groups = {};
+        Object.values(state.tools || {}).forEach(t => {
+          const client = t.projet ? this._getClientForProject(t.projet) : null;
+          const ck = client ? client.key : 'autre';
+          const group = (t.groupe || this._extractFamily(t.doutils || t.designation || '') || '—');
+          const gk = this._annexGroupKey(ck, group);
+          (groups[gk] = groups[gk] || []).push(t);
+        });
+        const gks = Object.keys(groups);
+        if (!confirm(`Définir automatiquement un témoin Annexe 4 pour chaque groupe (${gks.length}) à partir d'un outil qui en possède une, puis propager ?`)) return;
+        ui.showLoader(`Création des témoins (${gks.length} groupes)…`);
+        let setCount = 0, propTotal = 0;
+        for (const gk of gks) {
+          // Trouver un outil du groupe ayant une Annexe 4
+          let src = null;
+          for (const tool of groups[gk]) {
+            const all = (toolAttachments._all && toolAttachments._all[tool.id]) || {};
+            for (const [fid, meta] of Object.entries(all)) {
+              if (!meta) continue;
+              const looksA4 = /annexe?\s*4\b/i.test(meta.category || '') || /annexe?\s*4\b/i.test(meta.name || '') || !!meta.temoinAnnex4;
+              const isOffice = /\.xlsx?$/i.test(meta.name || '') || /spreadsheet/i.test(meta.mime || '');
+              if (looksA4 || isOffice) { src = { tool, fid, meta, name: meta.name || fid, isA4: looksA4 }; if (looksA4) break; }
+            }
+            if (src && src.isA4) break;
+          }
+          if (!src) continue;
+          let b64;
+          try { b64 = await toolAttachments._getB64(src.tool.id, src.fid, src.meta); } catch (e) { continue; }
+          if (!b64) continue;
+          const client = src.tool.projet ? this._getClientForProject(src.tool.projet) : null;
+          const ref = fbDb.ref('annexTemplates/' + gk);
+          const cur = (await ref.once('value')).val() || {};
+          cur.clientName = client ? client.name : 'Autres / sans client';
+          cur.group = (src.tool.groupe || this._extractFamily(src.tool.doutils || src.tool.designation || '') || '—');
+          cur.annex4 = { name: src.name, b64, fromTool: src.tool.id, at: Date.now(), by: (state.profile && state.profile.displayName) || '' };
+          await ref.set(cur);
+          this._annexTplCache = this._annexTplCache || {}; this._annexTplCache[gk] = cur;
+          setCount++;
+          propTotal += await this._propagateAnnex4Temoin(gk, true);   // silencieux
+        }
+        ui.hideLoader();
+        ui.toast(`✅ ${setCount} témoin(s) définis · Annexe 4 régénérée sur ${propTotal} outil(s)`, 'success', 7000);
+        this._renderAnnexTemplates();
       },
 
       async _injectAnnexForTool(tool, groupKey) {

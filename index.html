@@ -11706,12 +11706,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
      Stockage : preparations/{toolId}/pdcc/{ficheId}
      ══════════════════════════════════════════════════════════════════ */
   const pdcc = {
-    toolId: null, toolName: '', counter: 1, state: null, _escHandler: null,
+    toolId: null, toolName: '', counter: 1, state: null, _escHandler: null, _ci: 0, _si: 0,
     sectionsSpecs: {
       '1.5²': { nominal:{DCH:1.52,CB:2.18,ICH:3.10,ICB:3.11}, rows:[1.56,1.55,1.54,1.53,1.52,1.51,1.50,1.49,1.48], colors:{red:[1.56,1.48],yellow:[1.55,1.54,1.50,1.49],green:[1.53,1.52,1.51]} },
       '2.0²': { nominal:{DCH:1.60,CB:2.18,ICH:3.35,ICB:3.11}, rows:[1.64,1.63,1.62,1.61,1.60,1.59,1.58,1.57,1.56], colors:{red:[1.64,1.56],yellow:[1.63,1.62,1.58,1.57],green:[1.61,1.60,1.59]} }
     },
-    CYCLES: [1,2,3,4,5],
+    CYCLES: [1,2,3,4,5,6,7,8],
     SAMPLES: [{k:'S1',l:'S1'},{k:'S2',l:'S2'},{k:'S3',l:'S3'},{k:'L',l:'L'}],
     META_FIELDS: [{k:'product',l:'Product',src:'pdcc-mProduct'},{k:'lead',l:'Lead Number',src:'pdcc-mLead'},{k:'qty',l:'Cycle Quantity',src:'pdcc-mQty'},{k:'pull',l:'Code/Pull Test',src:'pdcc-mPull'},{k:'date',l:'Date',src:'pdcc-mDate'},{k:'name',l:'Name',src:'pdcc-mName'}],
 
@@ -11749,8 +11749,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         + '#pdcc-overlay table.pd-grid thead th{background:#0d1626;color:#cfe3ff;font-weight:700;padding:.3rem .25rem;font-family:Inter,sans-serif}'
         + '#pdcc-overlay .pd-ytitle{writing-mode:vertical-rl;transform:rotate(180deg);background:#0d1626;color:#cfe3ff;font-weight:700;width:26px}'
         + '#pdcc-overlay .pd-yval{background:#eef2f8;font-weight:800;color:#0a1a2f;width:54px;padding:.26rem .35rem}'
-        + '#pdcc-overlay .pd-sub{background:#16223a;color:#9fb6da;font-weight:600;width:34px;font-size:.64rem;font-family:Inter,sans-serif}'
-        + '#pdcc-overlay .pd-cell{width:34px;height:24px;position:relative}'
+        + '#pdcc-overlay .pd-sub{background:#16223a;color:#9fb6da;font-weight:600;width:30px;font-size:.62rem;font-family:Inter,sans-serif}'
+        + '#pdcc-overlay .pd-sub.pd-cur{background:#00d4ff;color:#04121f;box-shadow:inset 0 -3px 0 rgba(4,18,31,.6)}'
+        + '#pdcc-overlay .pd-cell{width:30px;height:24px;position:relative}'
         + '#pdcc-overlay .pd-cell.z-red{background:#ff3333}#pdcc-overlay .pd-cell.z-yellow{background:#ffff00}#pdcc-overlay .pd-cell.z-green{background:#99ff99}'
         + "#pdcc-overlay .pd-cell.mark::after{content:'X';color:#000;font-weight:900;font-size:1rem;line-height:24px;display:block;font-family:Inter,sans-serif}"
         + '#pdcc-overlay .pd-sep{border-left:2px solid #0096d6 !important}'
@@ -11775,6 +11776,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._injectStyles();
       await this._loadCounter();
       this.state = this._newState();
+      this._ci = 0; this._si = 0;   // position guidée : Cycle 1 · Sample 1
       this._renderShell();
       this._loadHistory();
     },
@@ -11798,7 +11800,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           + '<div class="pd-f"><label>CB</label><input type="number" step="0.01" id="pdcc-inCB" placeholder="nominal —"></div>'
           + '<div class="pd-f"><label>ICH</label><input type="number" step="0.01" id="pdcc-inICH" placeholder="nominal —"></div>'
           + '<div class="pd-f"><label>ICB</label><input type="number" step="0.01" id="pdcc-inICB" placeholder="nominal —"></div>'
-          + '</div><div class="pd-actions"><button class="pd-btn pd-btn--p" id="pdcc-btnValidate">✔ Valider (pointer X)</button><span class="pd-hint" id="pdcc-hint">Sélectionnez une section pour générer la matrice.</span></div></div>'
+          + '</div><div class="pd-actions"><span id="pdcc-pos" style="font-family:var(--font-mono);font-weight:800;color:#00e5a0;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.35);border-radius:8px;padding:.4rem .7rem">▶ Cycle 1 · Sample 1</span><button class="pd-btn pd-btn--p" id="pdcc-btnValidate">✔ Valider → suivant</button><span class="pd-hint" id="pdcc-hint">Sélectionnez une section pour générer la matrice.</span></div></div>'
         + '<div class="pd-card"><div class="pd-ct">🏷️ Traçabilité du cycle</div><div class="pd-form">'
           + '<div class="pd-f"><label>Product</label><input type="text" id="pdcc-mProduct"></div>'
           + '<div class="pd-f"><label>Lead Number</label><input type="text" id="pdcc-mLead"></div>'
@@ -11816,6 +11818,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const g=(id)=>document.getElementById(id);
       g('pdcc-close').onclick=()=>this.close();
       g('pdcc-selSection').onchange=()=>{ this._updatePlaceholders(); this._buildMatrix(); };
+      g('pdcc-selCycle').onchange=()=>{ const v=parseInt(g('pdcc-selCycle').value,10); const i=this.CYCLES.indexOf(v); this._ci=(i>=0?i:0); this._highlightPos(); };
+      g('pdcc-selSample').onchange=()=>{ const k=g('pdcc-selSample').value; const i=this.SAMPLES.findIndex(function(s){return s.k===k;}); this._si=(i>=0?i:0); this._highlightPos(); };
+      g('pdcc-inDCH').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); this._validate(); } });
       g('pdcc-btnValidate').onclick=()=>this._validate();
       g('pdcc-btnMeta').onclick=()=>this._saveMeta();
       g('pdcc-btnArchive').onclick=()=>this._archive();
@@ -11843,20 +11848,24 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       let head='<thead><tr><th rowspan="2" class="pd-ytitle">DCH</th>';
       this.CYCLES.forEach(function(c){ head+='<th colspan="4">CYCLE '+c+'</th>'; });
       head+='</tr><tr>';
-      this.CYCLES.forEach(function(c){ self.SAMPLES.forEach(function(s,i){ head+='<th class="pd-sub'+(i===0?' pd-sep':'')+'">'+s.l+'</th>'; }); });
+      this.CYCLES.forEach(function(c){ self.SAMPLES.forEach(function(s,i){ head+='<th class="pd-sub'+(i===0?' pd-sep':'')+'" id="pdcc-sub-'+c+'-'+s.k+'">'+s.l+'</th>'; }); });
       head+='</tr></thead>';
       let body='<tbody>';
       spec.rows.forEach(function(val){ const z=self._zoneOf(spec,val); body+='<tr><td class="pd-yval">'+val.toFixed(2)+'</td>';
         self.CYCLES.forEach(function(c){ self.SAMPLES.forEach(function(s,i){ body+='<td class="pd-cell z-'+z+(i===0?' pd-sep':'')+'" id="pdcc-cell-'+val.toFixed(2)+'-'+c+'-'+s.k+'"></td>'; }); });
         body+='</tr>'; });
       body+='</tbody>'; tbl.innerHTML=head+body;
-      let t=''; this.META_FIELDS.forEach(function(f){ t+='<tr><td class="tlabel">'+f.l+'</td>'; self.CYCLES.forEach(function(c){ t+='<td class="tblock" colspan="4" id="pdcc-meta-'+f.k+'-'+c+'">-</td>'; }); t+='</tr>'; });
+      let t='<tr><td class="tlabel">Valeur (mm)</td>';
+      this.CYCLES.forEach(function(c){ self.SAMPLES.forEach(function(s,i){ t+='<td class="tblock'+(i===0?' pd-sep':'')+'" id="pdcc-val-'+c+'-'+s.k+'" style="font-size:.6rem;padding:.22rem .05rem">-</td>'; }); });
+      t+='</tr>';
+      this.META_FIELDS.forEach(function(f){ t+='<tr><td class="tlabel">'+f.l+'</td>'; self.CYCLES.forEach(function(c){ t+='<td class="tblock" colspan="4" id="pdcc-meta-'+f.k+'-'+c+'">-</td>'; }); t+='</tr>'; });
       trace.innerHTML=t;
       this._repaint();
+      this._highlightPos();
     },
     _repaint(){
       const self=this;
-      Object.keys(this.state.samples).forEach(function(key){ const d=self.state.samples[key]; const p=key.split('-'); const cell=document.getElementById('pdcc-cell-'+d.row+'-'+p[0]+'-'+p[1]); if(cell) cell.classList.add('mark'); });
+      Object.keys(this.state.samples).forEach(function(key){ const d=self.state.samples[key]; const p=key.split('-'); const cell=document.getElementById('pdcc-cell-'+d.row+'-'+p[0]+'-'+p[1]); if(cell) cell.classList.add('mark'); const v=document.getElementById('pdcc-val-'+p[0]+'-'+p[1]); if(v && d.value!=null) v.textContent=Number(d.value).toFixed(2); });
       Object.keys(this.state.metadata).forEach(function(c){ const m=self.state.metadata[c]; self.META_FIELDS.forEach(function(f){ const el=document.getElementById('pdcc-meta-'+f.k+'-'+c); if(el) el.textContent=m[f.k]||'-'; }); });
     },
     _validate(){
@@ -11868,9 +11877,38 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       spec.rows.forEach(function(v){ const c=document.getElementById('pdcc-cell-'+v.toFixed(2)+'-'+cycle+'-'+sample); if(c) c.classList.remove('mark'); });
       const target=document.getElementById('pdcc-cell-'+row+'-'+cycle+'-'+sample); if(target) target.classList.add('mark');
       this.state.samples[cycle+'-'+sample]={ value:dchRaw, cb:parseFloat(document.getElementById('pdcc-inCB').value)||null, ich:parseFloat(document.getElementById('pdcc-inICH').value)||null, icb:parseFloat(document.getElementById('pdcc-inICB').value)||null, row:row };
+      const vEl=document.getElementById('pdcc-val-'+cycle+'-'+sample); if(vEl) vEl.textContent=dchRaw.toFixed(2);
       const lo=spec.rows[spec.rows.length-1], hi=spec.rows[0]; const out=(dchRaw>hi)||(dchRaw<lo);
-      document.getElementById('pdcc-hint').innerHTML='✔ Pointé : Cycle '+cycle+' · '+sample+' · DCH '+dchRaw.toFixed(2)+' (ligne '+row+')'+(out?' · <b style="color:#ff7a45">⚠ hors plage</b>':'');
-      document.getElementById('pdcc-inDCH').value=''; document.getElementById('pdcc-inDCH').focus();
+      document.getElementById('pdcc-hint').innerHTML='✔ Cycle '+cycle+' · '+sample+' : '+dchRaw.toFixed(2)+' (ligne '+row+')'+(out?' · <b style="color:#ff7a45">⚠ hors plage</b>':'');
+      document.getElementById('pdcc-inDCH').value='';
+      this._advance();
+    },
+
+    /** 🆕 Avance automatique : Sample 1 → 2 → 3 → Last/Off, puis cycle suivant (jusqu'au 8) */
+    _advance(){
+      this._si++;
+      if(this._si>=this.SAMPLES.length){ this._si=0; this._ci++; }
+      if(this._ci>=this.CYCLES.length){
+        this._ci=this.CYCLES.length-1; this._si=this.SAMPLES.length-1;
+        this._syncSelects(); this._highlightPos();
+        document.getElementById('pdcc-hint').innerHTML='🏁 <b style="color:#00e5a0">Annexe complète (8 cycles)</b> — vous pouvez 📦 Archiver la fiche.';
+        return;
+      }
+      this._syncSelects(); this._highlightPos();
+      const el=document.getElementById('pdcc-inDCH'); if(el) el.focus();
+    },
+    _syncSelects(){
+      const c=document.getElementById('pdcc-selCycle'), s=document.getElementById('pdcc-selSample');
+      if(c) c.value=String(this.CYCLES[this._ci]);
+      if(s) s.value=this.SAMPLES[this._si].k;
+    },
+    _highlightPos(){
+      document.querySelectorAll('#pdcc-overlay .pd-sub.pd-cur').forEach(function(el){ el.classList.remove('pd-cur'); });
+      const cy=this.CYCLES[this._ci], sk=this.SAMPLES[this._si].k;
+      const cur=document.getElementById('pdcc-sub-'+cy+'-'+sk);
+      if(cur) cur.classList.add('pd-cur');
+      const pos=document.getElementById('pdcc-pos');
+      if(pos) pos.textContent='▶ Cycle '+cy+' · '+(sk==='L'?'Last / Off':'Sample '+sk.slice(1));
     },
     _saveMeta(){
       const self=this; const sec=document.getElementById('pdcc-selSection').value; if(!sec){ ui.toast('Sélectionnez une section.','warn'); return; }
@@ -11894,6 +11932,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     _reset(advance){
       if(advance) this.counter++;
       this.state=this._newState();
+      this._ci = 0; this._si = 0;
+      this._syncSelects();
       const sid=document.getElementById('pdcc-sheetId'); if(sid) sid.textContent='FICHE : '+this.state.id;
       ['pdcc-inDCH','pdcc-inCB','pdcc-inICH','pdcc-inICB','pdcc-mProduct','pdcc-mLead','pdcc-mQty','pdcc-mPull','pdcc-mName'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
       const md=document.getElementById('pdcc-mDate'); if(md) md.value=new Date().toISOString().slice(0,10);

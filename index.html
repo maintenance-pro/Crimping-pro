@@ -11789,6 +11789,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         ['pdcc-selSection','pdcc-selMode'].forEach(function(id){ const el=document.getElementById(id); const f=el&&el.closest('.pd-f'); if(f) f.style.display='none'; });
         const xb=document.getElementById('pdcc-btnXls'); if(xb) xb.style.display='';
         this.state.section=(this._fileSpec&&(this._fileSpec.cross||this._fileSpec.label))||'fichier';
+        this._removeFallbackWarn();
         // Nominaux lus DANS le fichier → placeholders (Crimp Height 6,60 · Crimp Width 9,10 · …)
         const N=(this._map&&this._map.noms)||{};
         [['pdcc-inDCH',N.ch],['pdcc-inCB',N.cw],['pdcc-inICH',N.ih],['pdcc-inICB',N.iw],['pdcc-inPT',N.pt]].forEach(function(p){ const el=document.getElementById(p[0]); if(el&&p[1]) el.placeholder='nominal '+p[1]; });
@@ -11806,10 +11807,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Annexe analysée — dimensions du fichier (non modifiables). <b>'+det+' échantillon'+(det>1?'s':'')+'</b> détecté'+(det>1?'s':'')+' · ajustez « Échantillons / cycle » si l\'annexe en a 3 ou 5.';
       } else {
         const h=document.getElementById('pdcc-hint');
-        if(h){
-          if(this._annexHasXls) h.innerHTML='⚠ L\'annexe attachée est au format <b>.xls</b> (ancien), non analysable. Ré-enregistrez-la en <b>.xlsx</b> dans Excel (Fichier ▶ Enregistrer sous ▶ Classeur Excel .xlsx) puis ré-attachez-la pour afficher VOTRE PDCC telle quelle.';
-          else h.innerHTML='⚠ Aucune Annexe <b>.xlsx</b> exploitable sur cet outil → modèle générique affiché. Attachez l\'Annexe 4 PDCC (.xlsx) à l\'outil pour afficher VOTRE échelle et vos zones telles quelles.';
-        }
+        const why=this._annexHasXls
+          ? 'L\'annexe attachée est un ancien <b>.xls</b> non analysable (Excel ▶ Enregistrer sous ▶ Classeur <b>.xlsx</b>).'
+          : 'Aucune Annexe <b>.xlsx</b> exploitable n\'est attachée à cet outil.';
+        if(h) h.innerHTML='⚠ '+why;
+        this._showFallbackWarn(why);
       }
       this._loadHistory();
     },
@@ -11824,7 +11826,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         + '<div class="pd-bar"><div><div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.07em">PDCC — Annexe 4 · '+ui.escape(this.toolName)+'</div>'
           + '<span class="pd-id" id="pdcc-sheetId">FICHE : '+this.state.id+'</span></div>'
           + '<span class="pd-badge"><span class="dot"></span> En cours de saisie</span>'
-          + '<button class="pd-btn pd-btn--x" id="pdcc-close" style="margin-left:auto">← Fermer</button></div>'
+          + '<button class="pd-btn pd-btn--g" id="pdcc-btnLoad" style="margin-left:auto">📂 Charger l\'Annexe PDCC (.xlsx)</button>'
+          + '<button class="pd-btn pd-btn--x" id="pdcc-close">← Fermer</button></div>'
         + '<div class="pd-card"><div class="pd-ct">📝 Saisie d\'un point de mesure</div>'
           + '<div id="pdcc-ask" style="font-size:.95rem;font-weight:700;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.5);border-radius:10px;padding:.6rem .8rem;margin-bottom:.8rem">📏 <b>MESURE DEMANDÉE</b> — Cycle 1 · Sample 1</div>'
           + '<div class="pd-form">'
@@ -11854,6 +11857,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._initSelectors();
       const g=(id)=>document.getElementById(id);
       g('pdcc-close').onclick=()=>this.close();
+      g('pdcc-btnLoad').onclick=()=>this.loadAnnexFile();
       g('pdcc-selSection').onchange=()=>{ this._updatePlaceholders(); this._buildMatrix(); };
       g('pdcc-selCycle').onchange=()=>{ const v=parseInt(g('pdcc-selCycle').value,10); const i=this.CYCLES.indexOf(v); this._ci=(i>=0?i:0); this._highlightPos(); this._setPhase('measure'); };
       g('pdcc-selSample').onchange=()=>{ const k=g('pdcc-selSample').value; const i=this.SAMPLES.findIndex(function(s){return s.k===k;}); this._si=(i>=0?i:0); this._highlightPos(); this._setPhase('measure'); };
@@ -12059,6 +12063,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }catch(e){ console.warn('[pdcc file save]',e); ui.toast('Fiche archivée, mais copie Excel non sauvegardée ('+(e.message||e)+').','warn'); }
       }
       try{ if(typeof db!=='undefined'&&db.audit) db.audit('pdcc.archive', this.toolId, {fiche:this.state.id}); }catch(e){}
+      if(!this._wbMode) ui.toast('⚠ Archivée SANS copie Excel (modèle générique). Chargez l\'Annexe .xlsx (📂) pour des fiches téléchargeables.','warn');
       this._reset(true);
       this._loadHistory();
     },
@@ -12466,13 +12471,77 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       return btoa(bin);
     },
 
+    /** 📂 Charger VOTRE Annexe PDCC depuis le PC → affichée telle quelle + remplissage dans le fichier.
+        Plus aucune dépendance aux pièces jointes : si l'analyse auto échoue, ce bouton garantit le bon fichier. */
+    loadAnnexFile(){
+      const self=this;
+      const inp=document.createElement('input'); inp.type='file'; inp.accept='.xlsx';
+      inp.onchange=async function(){
+        const file=inp.files&&inp.files[0]; if(!file) return;
+        if(!/\.xlsx$/i.test(file.name)){ ui.toast('Choisissez un fichier .xlsx (les anciens .xls : Excel ▶ Enregistrer sous ▶ .xlsx).','warn'); return; }
+        ui.showLoader('Analyse de '+file.name+'…');
+        try{
+          await toolAttachments._ensureExcelJS();
+          const ab=await file.arrayBuffer();
+          const wb=new ExcelJS.Workbook(); await wb.xlsx.load(ab.slice(0));
+          const sheets=(wb.worksheets||[]).filter(function(s){return s&&s.name;});
+          sheets.sort(function(a,b){ return (/pdcc/i.test(b.name)?1:0)-(/pdcc/i.test(a.name)?1:0); });
+          let ws=null, map=null;
+          for(const s of sheets){ const m=self._mapSheet(s); if(m){ ws=s; map=m; break; } }
+          if(!ws||!map){ ui.hideLoader(); ui.toast('Structure PDCC non reconnue dans ce fichier (il faut la ligne « Sample 1… » et l\'échelle numérique).','danger'); return; }
+          // 🎯 Bascule en MODE CLASSEUR sur CE fichier
+          self._wb=wb; self._ws=ws; self._wbBytes=ab.slice(0); self._origName=file.name; self._map=map; self._wbMode=true; self._annexHasXls=false;
+          try{ const sp=self._extractSpecFromSheet(ws); if(sp){ sp.label=file.name+' · '+ws.name; self._fileSpec=sp; } }catch(e){}
+          self.CYCLES=map.cycles.map(function(b){return b.n;});
+          self.SAMPLES=map.cycles[0].cols.map(function(o){return {k:o.k,l:o.k};});
+          self.state.samples={}; self.state.metadata={};
+          self._ci=0; self._si=0;
+          self._initSelectors();
+          ['pdcc-selSection','pdcc-selMode'].forEach(function(id){ const el=document.getElementById(id); const f=el&&el.closest('.pd-f'); if(f) f.style.display='none'; });
+          const xb=document.getElementById('pdcc-btnXls'); if(xb) xb.style.display='';
+          const N=map.noms||{};
+          [['pdcc-inDCH',N.ch],['pdcc-inCB',N.cw],['pdcc-inICH',N.ih],['pdcc-inICB',N.iw],['pdcc-inPT',N.pt]].forEach(function(p){ const el=document.getElementById(p[0]); if(el&&p[1]) el.placeholder='nominal '+p[1]; });
+          self.state.section=(self._fileSpec&&(self._fileSpec.cross||self._fileSpec.label))||file.name;
+          self._removeFallbackWarn();
+          self._renderWbSheet();
+          self._syncSelects(); self._highlightPos(); self._setPhase('measure');
+          ui.hideLoader();
+          const sl=self.SAMPLES.map(function(s){return s.k;}).join(' · ');
+          const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ <b>'+ui.escape(file.name)+'</b> chargé tel quel — '+self.CYCLES.length+' cycles × '+self.SAMPLES.length+' échantillons ('+sl+').';
+          ui.toast('📂 Annexe chargée — le remplissage se fait dans VOTRE fichier.','success');
+          // Proposer de l'attacher à l'outil pour les prochaines fois (auto-chargement)
+          if(confirm('Attacher « '+file.name+' » à cet outil ?\nLa prochaine fois, cette Annexe se chargera automatiquement.')){
+            try{
+              const b64=await toolAttachments._fileToB64(file);
+              const fid='f_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+              await toolAttachments._writeDoc(self.toolId, fid, { name:file.name, category:'Annexe 4 PDCC', description:'Chargée depuis la fiche PDCC', mime:file.type||'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', sizeKB:Math.round(file.size/1024), uploadedAt:Date.now(), uploadedBy:(state.user&&state.user.uid)||'', uploadedByName:(state.profile&&state.profile.displayName)||'?' }, b64);
+              try{ db.audit('toolAttachment.add', self.toolId, { name:file.name, via:'pdcc' }); }catch(e){}
+              ui.toast('📎 Annexe attachée à l\'outil.','success');
+            }catch(e){ console.warn('[pdcc attach]',e); ui.toast('Attachement impossible : '+(e.message||e),'warn'); }
+          }
+        }catch(e){ ui.hideLoader(); console.error('[pdcc load]',e); ui.toast('Lecture du fichier impossible : '+(e.message||e),'danger'); }
+      };
+      inp.click();
+    },
+
+    /** ⚠ Bannière visible quand on est sur le MODÈLE GÉNÉRIQUE (annexe non trouvée/analysée) */
+    _showFallbackWarn(msg){
+      this._removeFallbackWarn();
+      const sc=document.querySelector('#pdcc-overlay .pd-scroll'); if(!sc||!sc.parentElement) return;
+      const w=document.createElement('div'); w.id='pdcc-fallback-warn';
+      w.style.cssText='margin:.2rem 0 .7rem;padding:.7rem .9rem;border:1px solid rgba(255,122,69,.6);background:rgba(255,122,69,.1);border-radius:10px;font-size:.86rem;font-weight:600;color:#ffb547';
+      w.innerHTML='⚠ <b>MODÈLE GÉNÉRIQUE affiché — ce n\'est PAS votre PDCC.</b> '+msg+' → Cliquez <b>📂 Charger l\'Annexe PDCC (.xlsx)</b> en haut pour afficher VOTRE fichier tel quel et remplir dedans.';
+      sc.parentElement.insertBefore(w, sc);
+    },
+    _removeFallbackWarn(){ document.getElementById('pdcc-fallback-warn')?.remove(); },
+
     async _loadHistory(){
       const self=this;
       const host=document.getElementById('pdcc-hist'); if(!host) return;
       let v={}; try{ const snap=await fbDb.ref('preparations/'+this.toolId+'/pdcc').once('value'); v=snap.val()||{}; }catch(e){}
       const arr=Object.values(v).sort(function(a,b){return (b.archivedAt||0)-(a.archivedAt||0);});
       if(!arr.length){ host.innerHTML='<div class="pd-hint" style="padding:1rem;text-align:center">Aucune fiche archivée pour cet outil.</div>'; return; }
-      host.innerHTML=arr.map(function(p){ const when=p.archivedAt?new Date(p.archivedAt).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''; const dl=p.hasFile?'<button class="pd-btn pd-btn--x" data-pdccdl="'+ui.escape(p.id||'')+'" style="padding:.3rem .55rem;font-size:.7rem">⬇️ Excel</button>':''; return '<div class="pd-hist"><span style="font-size:1.1rem">📄</span><div style="flex:1;min-width:0"><div class="hid">'+ui.escape(p.id||'')+'</div><div style="font-size:.72rem;color:var(--text-muted)">Section '+ui.escape(p.section||'—')+' · '+when+' · '+ui.escape(p.by||'')+'</div></div>'+dl+'<span class="pd-pill">'+(p.sampleCount||0)+' éch.</span></div>'; }).join('');
+      host.innerHTML=arr.map(function(p){ const when=p.archivedAt?new Date(p.archivedAt).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''; const dl=p.hasFile?'<button class="pd-btn pd-btn--x" data-pdccdl="'+ui.escape(p.id||'')+'" style="padding:.3rem .55rem;font-size:.7rem">⬇️ Excel</button>':''; const noF=p.hasFile?'':' · <span style="color:#ffb547">sans copie Excel (modèle générique)</span>'; return '<div class="pd-hist"><span style="font-size:1.1rem">📄</span><div style="flex:1;min-width:0"><div class="hid">'+ui.escape(p.id||'')+'</div><div style="font-size:.72rem;color:var(--text-muted)">Section '+ui.escape(p.section||'—')+' · '+when+' · '+ui.escape(p.by||'')+noF+'</div></div>'+dl+'<span class="pd-pill">'+(p.sampleCount||0)+' éch.</span></div>'; }).join('');
       host.querySelectorAll('[data-pdccdl]').forEach(function(btn){ btn.onclick=async function(){
         const id=btn.getAttribute('data-pdccdl'); btn.disabled=true;
         try{

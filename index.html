@@ -11706,7 +11706,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
      Stockage : preparations/{toolId}/pdcc/{ficheId}
      ══════════════════════════════════════════════════════════════════ */
   const pdcc = {
-    toolId: null, toolName: '', counter: 1, state: null, _escHandler: null, _ci: 0, _si: 0,
+    toolId: null, toolName: '', counter: 1, state: null, _escHandler: null, _ci: 0, _si: 0, _phase: 'measure', _serialPort: null, _serialReader: null, _serialBuf: '', _fileSpec: null,
     sectionsSpecs: {
       '1.5²': { nominal:{DCH:1.52,CB:2.18,ICH:3.10,ICB:3.11}, rows:[1.56,1.55,1.54,1.53,1.52,1.51,1.50,1.49,1.48], colors:{red:[1.56,1.48],yellow:[1.55,1.54,1.50,1.49],green:[1.53,1.52,1.51]} },
       '2.0²': { nominal:{DCH:1.60,CB:2.18,ICH:3.35,ICB:3.11}, rows:[1.64,1.63,1.62,1.61,1.60,1.59,1.58,1.57,1.56], colors:{red:[1.64,1.56],yellow:[1.63,1.62,1.58,1.57],green:[1.61,1.60,1.59]} }
@@ -11775,13 +11775,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this.toolId = toolId; this.toolName = toolName || toolId;
       this._injectStyles();
       await this._loadCounter();
+      // 🆕 Analyse de la VRAIE Annexe Excel de l'outil → échelle, zones couleur, échantillons, cycles, en-tête
+      this._fileSpec = null;
+      try { await this._analyzeAnnex(); } catch(e){ console.warn('[pdcc] analyse annexe impossible', e); this._fileSpec = null; }
+      if (this._fileSpec) { this.CYCLES = this._fileSpec.cycles.slice(); this.SAMPLES = this._fileSpec.samples.slice(); }
       this.state = this._newState();
       this._ci = 0; this._si = 0;   // position guidée : Cycle 1 · Sample 1
       this._renderShell();
+      if (this._fileSpec) {
+        ['pdcc-selSection','pdcc-selMode'].forEach(function(id){ const el=document.getElementById(id); const f=el&&el.closest('.pd-f'); if(f) f.style.display='none'; });
+        this._buildMatrix();
+        const h=document.getElementById('pdcc-hint'); if(h) h.textContent='Annexe analysée — matrice affichée telle qu\'elle est dans le fichier.';
+      }
       this._loadHistory();
     },
 
-    close(){ document.getElementById('pdcc-overlay')?.remove(); if(this._escHandler){ document.removeEventListener('keydown', this._escHandler); this._escHandler=null; } },
+    close(){ this._disconnectSerial(); document.getElementById('pdcc-meta-modal')?.remove(); document.getElementById('pdcc-overlay')?.remove(); if(this._escHandler){ document.removeEventListener('keydown', this._escHandler); this._escHandler=null; } },
 
     _renderShell(){
       document.getElementById('pdcc-overlay')?.remove();
@@ -11792,15 +11801,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           + '<span class="pd-id" id="pdcc-sheetId">FICHE : '+this.state.id+'</span></div>'
           + '<span class="pd-badge"><span class="dot"></span> En cours de saisie</span>'
           + '<button class="pd-btn pd-btn--x" id="pdcc-close" style="margin-left:auto">← Fermer</button></div>'
-        + '<div class="pd-card"><div class="pd-ct">📝 Saisie d\'un point de mesure</div><div class="pd-form">'
+        + '<div class="pd-card"><div class="pd-ct">📝 Saisie d\'un point de mesure</div>'
+          + '<div id="pdcc-ask" style="font-size:.95rem;font-weight:700;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.5);border-radius:10px;padding:.6rem .8rem;margin-bottom:.8rem">📏 <b>MESURE DEMANDÉE</b> — Cycle 1 · Sample 1</div>'
+          + '<div class="pd-form">'
           + '<div class="pd-f"><label>Section</label><select id="pdcc-selSection"></select></div>'
           + '<div class="pd-f"><label>N° Cycle</label><select id="pdcc-selCycle"></select></div>'
-          + '<div class="pd-f"><label>Échantillon</label><select id="pdcc-selSample"><option value="S1">Sample 1</option><option value="S2">Sample 2</option><option value="S3">Sample 3</option><option value="L">Last / Off</option></select></div>'
+          + '<div class="pd-f"><label>Échantillon</label><select id="pdcc-selSample"></select></div>'
+          + '<div class="pd-f"><label>Échantillons / cycle</label><select id="pdcc-selMode"><option value="4L">S1–S3 + Last</option><option value="3">S1–S3</option><option value="5">S1–S5</option></select></div>'
           + '<div class="pd-f"><label>DCH ▶ matrice</label><input type="number" step="0.01" id="pdcc-inDCH" placeholder="nominal —"></div>'
           + '<div class="pd-f"><label>CB</label><input type="number" step="0.01" id="pdcc-inCB" placeholder="nominal —"></div>'
           + '<div class="pd-f"><label>ICH</label><input type="number" step="0.01" id="pdcc-inICH" placeholder="nominal —"></div>'
           + '<div class="pd-f"><label>ICB</label><input type="number" step="0.01" id="pdcc-inICB" placeholder="nominal —"></div>'
-          + '</div><div class="pd-actions"><span id="pdcc-pos" style="font-family:var(--font-mono);font-weight:800;color:#00e5a0;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.35);border-radius:8px;padding:.4rem .7rem">▶ Cycle 1 · Sample 1</span><button class="pd-btn pd-btn--p" id="pdcc-btnValidate">✔ Valider → suivant</button><span class="pd-hint" id="pdcc-hint">Sélectionnez une section pour générer la matrice.</span></div></div>'
+          + '</div><div class="pd-actions"><span id="pdcc-pos" style="font-family:var(--font-mono);font-weight:800;color:#00e5a0;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.35);border-radius:8px;padding:.4rem .7rem">▶ Cycle 1 · Sample 1</span><button class="pd-btn pd-btn--p" id="pdcc-btnValidate">✔ Valider la mesure</button><button class="pd-btn pd-btn--x" id="pdcc-btnSkip" style="display:none">⏭ Passer la saisie manuelle</button><button class="pd-btn pd-btn--x" id="pdcc-btnSerial">🔌 Micromètre USB</button><span class="pd-hint" id="pdcc-serialStat">⌨️ mode clavier prêt</span><span class="pd-hint" id="pdcc-hint">Sélectionnez une section pour générer la matrice.</span></div></div>'
         + '<div class="pd-card"><div class="pd-ct">🏷️ Traçabilité du cycle</div><div class="pd-form">'
           + '<div class="pd-f"><label>Product</label><input type="text" id="pdcc-mProduct"></div>'
           + '<div class="pd-f"><label>Lead Number</label><input type="text" id="pdcc-mLead"></div>'
@@ -11809,7 +11821,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           + '<div class="pd-f"><label>Date</label><input type="date" id="pdcc-mDate"></div>'
           + '<div class="pd-f"><label>Name</label><input type="text" id="pdcc-mName"></div>'
           + '</div><div class="pd-actions"><button class="pd-btn pd-btn--g" id="pdcc-btnMeta">💾 Enregistrer la traçabilité du cycle</button></div></div>'
-        + '<div class="pd-card"><div class="pd-ct">📊 Matrice PDCC</div><div class="pd-scroll"><table class="pd-grid" id="pdcc-grid"><tbody><tr><td style="padding:2rem;color:#0a1a2f;background:#fff">Choisissez une section.</td></tr></tbody></table><table class="pd-trace" id="pdcc-trace"></table></div></div>'
+        + '<div class="pd-card"><div class="pd-ct">📊 Matrice PDCC</div><div id="pdcc-fileinfo"></div><div class="pd-scroll"><table class="pd-grid" id="pdcc-grid"><tbody><tr><td style="padding:2rem;color:#0a1a2f;background:#fff">Choisissez une section.</td></tr></tbody></table><table class="pd-trace" id="pdcc-trace"></table></div></div>'
         + '<div class="pd-card" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap"><button class="pd-btn pd-btn--a" id="pdcc-btnArchive">📦 Archiver la Fiche</button><button class="pd-btn pd-btn--x" id="pdcc-btnReset">🧹 Réinitialiser</button><span class="pd-hint">Archive → enregistrée dans Firebase + historique, puis fiche vierge.</span></div>'
         + '<div class="pd-card"><div class="pd-ct">🗂️ Historique des fiches archivées (cet outil)</div><div id="pdcc-hist"><div class="pd-hint" style="padding:1rem;text-align:center">Chargement…</div></div></div>'
         + '</div>';
@@ -11818,84 +11830,144 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const g=(id)=>document.getElementById(id);
       g('pdcc-close').onclick=()=>this.close();
       g('pdcc-selSection').onchange=()=>{ this._updatePlaceholders(); this._buildMatrix(); };
-      g('pdcc-selCycle').onchange=()=>{ const v=parseInt(g('pdcc-selCycle').value,10); const i=this.CYCLES.indexOf(v); this._ci=(i>=0?i:0); this._highlightPos(); };
-      g('pdcc-selSample').onchange=()=>{ const k=g('pdcc-selSample').value; const i=this.SAMPLES.findIndex(function(s){return s.k===k;}); this._si=(i>=0?i:0); this._highlightPos(); };
+      g('pdcc-selCycle').onchange=()=>{ const v=parseInt(g('pdcc-selCycle').value,10); const i=this.CYCLES.indexOf(v); this._ci=(i>=0?i:0); this._highlightPos(); this._setPhase('measure'); };
+      g('pdcc-selSample').onchange=()=>{ const k=g('pdcc-selSample').value; const i=this.SAMPLES.findIndex(function(s){return s.k===k;}); this._si=(i>=0?i:0); this._highlightPos(); this._setPhase('measure'); };
+      g('pdcc-selMode').onchange=()=>{ this._setSampleMode(g('pdcc-selMode').value); this._fillSampleOptions(); this._buildMatrix(); this._syncSelects(); this._setPhase('measure'); };
       g('pdcc-inDCH').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); this._validate(); } });
+      g('pdcc-inCB').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); g('pdcc-inICH').focus(); } });
+      g('pdcc-inICH').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); g('pdcc-inICB').focus(); } });
+      g('pdcc-inICB').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); this._validate(); } });
+      g('pdcc-btnSkip').onclick=()=>this._skipManual();
+      g('pdcc-btnSerial').onclick=()=>this.connectSerial();
       g('pdcc-btnValidate').onclick=()=>this._validate();
       g('pdcc-btnMeta').onclick=()=>this._saveMeta();
       g('pdcc-btnArchive').onclick=()=>this._archive();
       g('pdcc-btnReset').onclick=()=>{ if(confirm('Réinitialiser la fiche sans archiver ?')) this._reset(false); };
       this._escHandler=(e)=>{ if(e.key==='Escape') this.close(); };
       document.addEventListener('keydown', this._escHandler);
+      this._setPhase('measure');
     },
 
     _initSelectors(){
       const g=(id)=>document.getElementById(id);
       g('pdcc-selSection').innerHTML='<option value="">— Choisir —</option>'+Object.keys(this.sectionsSpecs).map(function(s){return '<option value="'+s+'">Section '+s+'</option>';}).join('');
       g('pdcc-selCycle').innerHTML=this.CYCLES.map(function(c){return '<option value="'+c+'">Cycle '+c+'</option>';}).join('');
+      this._fillSampleOptions();
       g('pdcc-mDate').value=new Date().toISOString().slice(0,10);
     },
+    _fillSampleOptions(){
+      const s=document.getElementById('pdcc-selSample'); if(!s) return;
+      s.innerHTML=this.SAMPLES.map(function(x){return '<option value="'+x.k+'">'+(x.k==='L'?'Last / Off':'Sample '+x.k.slice(1))+'</option>';}).join('');
+    },
+    /** 🆕 Nombre d'échantillons par cycle selon l'Annexe : 3, 4 (S1–S3+Last) ou 5 */
+    _setSampleMode(mode){
+      if(mode==='3') this.SAMPLES=[{k:'S1',l:'S1'},{k:'S2',l:'S2'},{k:'S3',l:'S3'}];
+      else if(mode==='5') this.SAMPLES=[{k:'S1',l:'S1'},{k:'S2',l:'S2'},{k:'S3',l:'S3'},{k:'S4',l:'S4'},{k:'S5',l:'S5'}];
+      else this.SAMPLES=[{k:'S1',l:'S1'},{k:'S2',l:'S2'},{k:'S3',l:'S3'},{k:'L',l:'L'}];
+      this._si=0;
+    },
     _updatePlaceholders(){
-      const spec=this.sectionsSpecs[document.getElementById('pdcc-selSection').value];
-      function set(id,v){ document.getElementById(id).placeholder = (v!=null)?('nominal '+v.toFixed(2)):'nominal —'; }
+      const ssEl=document.getElementById('pdcc-selSection');
+      const spec=this._fileSpec?null:this.sectionsSpecs[ssEl?ssEl.value:''];
+      function set(id,v){ const el=document.getElementById(id); if(el) el.placeholder=(v!=null)?('nominal '+v.toFixed(2)):'mesure (mm)'; }
       set('pdcc-inDCH',spec&&spec.nominal.DCH); set('pdcc-inCB',spec&&spec.nominal.CB); set('pdcc-inICH',spec&&spec.nominal.ICH); set('pdcc-inICB',spec&&spec.nominal.ICB);
     },
     _buildMatrix(){
-      const self=this; const sec=document.getElementById('pdcc-selSection').value; this.state.section=sec;
+      const self=this;
       const tbl=document.getElementById('pdcc-grid'), trace=document.getElementById('pdcc-trace');
-      if(!sec){ tbl.innerHTML='<tbody><tr><td style="padding:2rem;color:#0a1a2f;background:#fff">Choisissez une section.</td></tr></tbody>'; trace.innerHTML=''; return; }
-      const spec=this.sectionsSpecs[sec];
+      if(!tbl||!trace) return;
+      this._renderFileInfo();
+      let rows=null, zfn=null;
+      if(this._fileSpec){
+        rows=this._fileSpec.rows; const zm=this._fileSpec.zones||{};
+        zfn=function(v){ return zm[Number(v).toFixed(2)]||''; };
+        this.state.section=this._fileSpec.cross||this._fileSpec.label||'annexe';
+      } else {
+        const sec=(document.getElementById('pdcc-selSection')||{}).value; this.state.section=sec||'';
+        if(!sec){ tbl.innerHTML='<tbody><tr><td style="padding:2rem;color:#0a1a2f;background:#fff">Choisissez une section.</td></tr></tbody>'; trace.innerHTML=''; return; }
+        const spec=this.sectionsSpecs[sec]; rows=spec.rows; zfn=function(v){ return self._zoneOf(spec,v); };
+      }
+      const span=this.SAMPLES.length;
       let head='<thead><tr><th rowspan="2" class="pd-ytitle">DCH</th>';
-      this.CYCLES.forEach(function(c){ head+='<th colspan="4">CYCLE '+c+'</th>'; });
+      this.CYCLES.forEach(function(c){ head+='<th colspan="'+span+'">CYCLE '+c+'</th>'; });
       head+='</tr><tr>';
       this.CYCLES.forEach(function(c){ self.SAMPLES.forEach(function(s,i){ head+='<th class="pd-sub'+(i===0?' pd-sep':'')+'" id="pdcc-sub-'+c+'-'+s.k+'">'+s.l+'</th>'; }); });
       head+='</tr></thead>';
       let body='<tbody>';
-      spec.rows.forEach(function(val){ const z=self._zoneOf(spec,val); body+='<tr><td class="pd-yval">'+val.toFixed(2)+'</td>';
-        self.CYCLES.forEach(function(c){ self.SAMPLES.forEach(function(s,i){ body+='<td class="pd-cell z-'+z+(i===0?' pd-sep':'')+'" id="pdcc-cell-'+val.toFixed(2)+'-'+c+'-'+s.k+'"></td>'; }); });
+      rows.forEach(function(val){ const z=zfn(val); body+='<tr><td class="pd-yval">'+Number(val).toFixed(2)+'</td>';
+        self.CYCLES.forEach(function(c){ self.SAMPLES.forEach(function(s,i){ body+='<td class="pd-cell'+(z?' z-'+z:'')+(i===0?' pd-sep':'')+'" id="pdcc-cell-'+Number(val).toFixed(2)+'-'+c+'-'+s.k+'"></td>'; }); });
         body+='</tr>'; });
       body+='</tbody>'; tbl.innerHTML=head+body;
       let t='<tr><td class="tlabel">Valeur (mm)</td>';
       this.CYCLES.forEach(function(c){ self.SAMPLES.forEach(function(s,i){ t+='<td class="tblock'+(i===0?' pd-sep':'')+'" id="pdcc-val-'+c+'-'+s.k+'" style="font-size:.6rem;padding:.22rem .05rem">-</td>'; }); });
       t+='</tr>';
-      this.META_FIELDS.forEach(function(f){ t+='<tr><td class="tlabel">'+f.l+'</td>'; self.CYCLES.forEach(function(c){ t+='<td class="tblock" colspan="4" id="pdcc-meta-'+f.k+'-'+c+'">-</td>'; }); t+='</tr>'; });
+      this.META_FIELDS.forEach(function(f){ t+='<tr><td class="tlabel">'+f.l+'</td>'; self.CYCLES.forEach(function(c){ t+='<td class="tblock" colspan="'+span+'" id="pdcc-meta-'+f.k+'-'+c+'">-</td>'; }); t+='</tr>'; });
       trace.innerHTML=t;
       this._repaint();
       this._highlightPos();
+      this._setPhase(this._phase||'measure');
     },
     _repaint(){
       const self=this;
       Object.keys(this.state.samples).forEach(function(key){ const d=self.state.samples[key]; const p=key.split('-'); const cell=document.getElementById('pdcc-cell-'+d.row+'-'+p[0]+'-'+p[1]); if(cell) cell.classList.add('mark'); const v=document.getElementById('pdcc-val-'+p[0]+'-'+p[1]); if(v && d.value!=null) v.textContent=Number(d.value).toFixed(2); });
       Object.keys(this.state.metadata).forEach(function(c){ const m=self.state.metadata[c]; self.META_FIELDS.forEach(function(f){ const el=document.getElementById('pdcc-meta-'+f.k+'-'+c); if(el) el.textContent=m[f.k]||'-'; }); });
     },
+    _rowsActive(){
+      if(this._fileSpec) return this._fileSpec.rows;
+      const s=this.sectionsSpecs[(document.getElementById('pdcc-selSection')||{}).value];
+      return s?s.rows:null;
+    },
     _validate(){
-      const sec=document.getElementById('pdcc-selSection').value; if(!sec){ ui.toast('Sélectionnez une section.','warn'); return; }
-      const spec=this.sectionsSpecs[sec]; const dchRaw=parseFloat(document.getElementById('pdcc-inDCH').value);
-      if(isNaN(dchRaw)){ ui.toast('Saisissez une valeur DCH valide.','warn'); return; }
+      if(this._phase==='manual'){ this._finishManual(); return; }
+      const rows=this._rowsActive();
+      if(!rows){ ui.toast('Sélectionnez une section (aucune Annexe analysée).','warn'); return; }
+      const dchRaw=parseFloat(String(document.getElementById('pdcc-inDCH').value).replace(',','.'));
+      if(isNaN(dchRaw)){ ui.toast('Saisissez ou mesurez une valeur DCH valide.','warn'); return; }
       const cycle=document.getElementById('pdcc-selCycle').value, sample=document.getElementById('pdcc-selSample').value;
-      const row=this._snap(spec,dchRaw).toFixed(2);
-      spec.rows.forEach(function(v){ const c=document.getElementById('pdcc-cell-'+v.toFixed(2)+'-'+cycle+'-'+sample); if(c) c.classList.remove('mark'); });
+      const row=this._snap({rows:rows},dchRaw).toFixed(2);
+      rows.forEach(function(v){ const c=document.getElementById('pdcc-cell-'+Number(v).toFixed(2)+'-'+cycle+'-'+sample); if(c) c.classList.remove('mark'); });
       const target=document.getElementById('pdcc-cell-'+row+'-'+cycle+'-'+sample); if(target) target.classList.add('mark');
-      this.state.samples[cycle+'-'+sample]={ value:dchRaw, cb:parseFloat(document.getElementById('pdcc-inCB').value)||null, ich:parseFloat(document.getElementById('pdcc-inICH').value)||null, icb:parseFloat(document.getElementById('pdcc-inICB').value)||null, row:row };
+      this.state.samples[cycle+'-'+sample]={ value:dchRaw, cb:null, ich:null, icb:null, row:row };
       const vEl=document.getElementById('pdcc-val-'+cycle+'-'+sample); if(vEl) vEl.textContent=dchRaw.toFixed(2);
-      const lo=spec.rows[spec.rows.length-1], hi=spec.rows[0]; const out=(dchRaw>hi)||(dchRaw<lo);
-      document.getElementById('pdcc-hint').innerHTML='✔ Cycle '+cycle+' · '+sample+' : '+dchRaw.toFixed(2)+' (ligne '+row+')'+(out?' · <b style="color:#ff7a45">⚠ hors plage</b>':'');
+      const lo=Math.min(rows[0],rows[rows.length-1]), hi=Math.max(rows[0],rows[rows.length-1]); const out=(dchRaw>hi)||(dchRaw<lo);
+      document.getElementById('pdcc-hint').innerHTML='✔ Mesure '+dchRaw.toFixed(2)+' enregistrée ('+sample+', ligne '+row+')'+(out?' · <b style="color:#ff7a45">⚠ hors plage</b>':'');
       document.getElementById('pdcc-inDCH').value='';
+      this._setPhase('manual');   // ✍️ demande de remplir les autres colonnes
+    },
+    /** 🆕 Fin de la saisie manuelle CB/ICH/ICB → enregistre puis passe à l'échantillon suivant */
+    _finishManual(){
+      const g=(id)=>document.getElementById(id);
+      const cycle=g('pdcc-selCycle').value, sample=g('pdcc-selSample').value;
+      const rec=this.state.samples[cycle+'-'+sample];
+      if(rec){
+        const pf=function(id){ const v=parseFloat(String(g(id).value).replace(',','.')); return isNaN(v)?null:v; };
+        rec.cb=pf('pdcc-inCB'); rec.ich=pf('pdcc-inICH'); rec.icb=pf('pdcc-inICB');
+      }
+      ['pdcc-inCB','pdcc-inICH','pdcc-inICB'].forEach(function(id){ const el=g(id); if(el) el.value=''; });
+      this._advance();
+    },
+    /** 🆕 ⏭ Passer la saisie manuelle de cet échantillon */
+    _skipManual(){
+      const g=(id)=>document.getElementById(id);
+      ['pdcc-inCB','pdcc-inICH','pdcc-inICB'].forEach(function(id){ const el=g(id); if(el) el.value=''; });
       this._advance();
     },
 
-    /** 🆕 Avance automatique : Sample 1 → 2 → 3 → Last/Off, puis cycle suivant (jusqu'au 8) */
+    /** 🆕 Avance automatique : Sample suivant, puis cycle suivant ; fin de cycle → demande la traçabilité */
     _advance(){
+      const prevCi=this._ci;
       this._si++;
-      if(this._si>=this.SAMPLES.length){ this._si=0; this._ci++; }
+      let finished=null;
+      if(this._si>=this.SAMPLES.length){ this._si=0; this._ci++; finished=this.CYCLES[prevCi]; }
       if(this._ci>=this.CYCLES.length){
         this._ci=this.CYCLES.length-1; this._si=this.SAMPLES.length-1;
-        this._syncSelects(); this._highlightPos();
-        document.getElementById('pdcc-hint').innerHTML='🏁 <b style="color:#00e5a0">Annexe complète (8 cycles)</b> — vous pouvez 📦 Archiver la fiche.';
+        this._syncSelects(); this._highlightPos(); this._setPhase('measure');
+        document.getElementById('pdcc-hint').innerHTML='🏁 <b style="color:#00e5a0">Annexe complète ('+this.CYCLES.length+' cycles)</b> — vous pouvez 📦 Archiver la fiche.';
+        if(finished!=null) this._promptCycleMeta(finished);
         return;
       }
-      this._syncSelects(); this._highlightPos();
-      const el=document.getElementById('pdcc-inDCH'); if(el) el.focus();
+      this._syncSelects(); this._highlightPos(); this._setPhase('measure');
+      if(finished!=null) this._promptCycleMeta(finished);
     },
     _syncSelects(){
       const c=document.getElementById('pdcc-selCycle'), s=document.getElementById('pdcc-selSample');
@@ -11911,7 +11983,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if(pos) pos.textContent='▶ Cycle '+cy+' · '+(sk==='L'?'Last / Off':'Sample '+sk.slice(1));
     },
     _saveMeta(){
-      const self=this; const sec=document.getElementById('pdcc-selSection').value; if(!sec){ ui.toast('Sélectionnez une section.','warn'); return; }
+      const self=this; const ssEl=document.getElementById('pdcc-selSection'); if(!this._fileSpec && !(ssEl&&ssEl.value)){ ui.toast('Sélectionnez une section.','warn'); return; }
       const cycle=document.getElementById('pdcc-selCycle').value; const m={};
       this.META_FIELDS.forEach(function(f){ m[f.k]=document.getElementById(f.src).value.trim(); });
       this.state.metadata[cycle]=m;
@@ -11922,7 +11994,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const nbSamples=Object.keys(this.state.samples).length, nbMeta=Object.keys(this.state.metadata).length;
       if(nbSamples===0&&nbMeta===0){ ui.toast('Fiche vide : rien à archiver.','warn'); return; }
       const spec=this.sectionsSpecs[this.state.section]||{};
-      const payload={ id:this.state.id, toolId:this.toolId, toolName:this.toolName, section:this.state.section, nominal:spec.nominal||null, createdAt:this.state.createdAt, archivedAt:Date.now(), sampleCount:nbSamples, samples:this.state.samples, metadata:this.state.metadata, by:(state.profile&&(state.profile.displayName||state.profile.email))||state.role||'' };
+      const payload={ id:this.state.id, toolId:this.toolId, toolName:this.toolName, section:this.state.section, annexe:(this._fileSpec&&this._fileSpec.label)||null, header:(this._fileSpec&&this._fileSpec.header)||null, nominal:spec.nominal||null, createdAt:this.state.createdAt, archivedAt:Date.now(), sampleCount:nbSamples, samples:this.state.samples, metadata:this.state.metadata, by:(state.profile&&(state.profile.displayName||state.profile.email))||state.role||'' };
       try{ await fbDb.ref('preparations/'+this.toolId+'/pdcc/'+this.state.id).set(payload); ui.toast('📦 Fiche '+this.state.id+' archivée.','success'); }
       catch(e){ console.error('[pdcc archive]',e); ui.toast('Erreur archivage : '+(e.message||e),'danger'); return; }
       try{ if(typeof db!=='undefined'&&db.audit) db.audit('pdcc.archive', this.toolId, {fiche:this.state.id}); }catch(e){}
@@ -11937,9 +12009,236 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const sid=document.getElementById('pdcc-sheetId'); if(sid) sid.textContent='FICHE : '+this.state.id;
       ['pdcc-inDCH','pdcc-inCB','pdcc-inICH','pdcc-inICB','pdcc-mProduct','pdcc-mLead','pdcc-mQty','pdcc-mPull','pdcc-mName'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
       const md=document.getElementById('pdcc-mDate'); if(md) md.value=new Date().toISOString().slice(0,10);
-      if(document.getElementById('pdcc-selSection').value) this._buildMatrix(); else { const g=document.getElementById('pdcc-grid'), t=document.getElementById('pdcc-trace'); if(g)g.innerHTML=''; if(t)t.innerHTML=''; }
+      const ssEl=document.getElementById('pdcc-selSection'); if(this._fileSpec || (ssEl&&ssEl.value)) this._buildMatrix(); else { const g=document.getElementById('pdcc-grid'), t=document.getElementById('pdcc-trace'); if(g)g.innerHTML=''; if(t)t.innerHTML=''; }
       const h=document.getElementById('pdcc-hint'); if(h) h.textContent= advance?('✅ Archivée. Nouvelle fiche '+this.state.id+'.'):'Fiche réinitialisée.';
     },
+
+    /** 🆕 Phase de saisie : 'measure' (micromètre → DCH) ou 'manual' (autres colonnes CB/ICH/ICB) */
+    _setPhase(p){
+      this._phase = p || 'measure';
+      const g=(id)=>document.getElementById(id);
+      const dch=g('pdcc-inDCH'), cb=g('pdcc-inCB'), ich=g('pdcc-inICH'), icb=g('pdcc-inICB');
+      const skip=g('pdcc-btnSkip'), val=g('pdcc-btnValidate'), ask=g('pdcc-ask');
+      if(!dch||!val||!ask) return;
+      const manual=(this._phase==='manual');
+      [cb,ich,icb].forEach(function(el){ if(el){ el.disabled=!manual; el.style.opacity=manual?'1':'.45'; } });
+      dch.disabled=manual; dch.style.opacity=manual?'.45':'1';
+      if(skip) skip.style.display=manual?'':'none';
+      val.textContent = manual ? '✔ Enregistrer → suivant' : '✔ Valider la mesure';
+      const cy=this.CYCLES[this._ci], smp=this.SAMPLES[this._si]||this.SAMPLES[0], sk=smp?smp.k:'S1';
+      const lbl=(sk==='L'?'Last / Off':'Sample '+String(sk).slice(1));
+      ask.innerHTML = manual
+        ? '✍️ <b>SAISIE MANUELLE</b> — Cycle '+cy+' · '+lbl+' : remplissez les autres colonnes <b>CB / ICH / ICB</b> puis Entrée — ou ⏭ Passer'
+        : '📏 <b>MESURE DEMANDÉE</b> — Cycle '+cy+' · '+lbl+' — <span style="color:#00e5a0">micromètre relié au PC : appuyez sur DATA</span> · ou tapez la valeur + Entrée';
+      ask.style.borderColor = manual ? 'rgba(255,181,71,.55)' : 'rgba(0,212,255,.5)';
+      try{ if(manual){ if(cb) cb.focus(); } else { dch.focus(); } }catch(e){}
+    },
+
+    /** 🆕 Fin de cycle : demande de remplir manuellement les colonnes de traçabilité de CE cycle */
+    _promptCycleMeta(cycle){
+      const self=this;
+      document.getElementById('pdcc-meta-modal')?.remove();
+      const me=(state.profile&&(state.profile.displayName||state.profile.email))||'';
+      const wrap=document.createElement('div'); wrap.id='pdcc-meta-modal';
+      wrap.style.cssText='position:fixed;inset:0;z-index:10016;background:rgba(4,8,16,.72);display:flex;align-items:center;justify-content:center;padding:1rem';
+      wrap.innerHTML='<div style="background:#0d1626;border:1px solid var(--border-strong);border-radius:14px;padding:1.1rem;max-width:600px;width:100%">'
+        + '<div class="pd-ct">✍️ Cycle '+cycle+' terminé — remplissez les autres colonnes</div>'
+        + '<div class="pd-form">'
+        + '<div class="pd-f"><label>Product</label><input id="pmm-product" type="text"></div>'
+        + '<div class="pd-f"><label>Lead Number</label><input id="pmm-lead" type="text"></div>'
+        + '<div class="pd-f"><label>Cycle Quantity</label><input id="pmm-qty" type="number"></div>'
+        + '<div class="pd-f"><label>Code / Pull Test</label><input id="pmm-pull" type="text"></div>'
+        + '<div class="pd-f"><label>Date</label><input id="pmm-date" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'
+        + '<div class="pd-f"><label>Name</label><input id="pmm-name" type="text" value="'+ui.escape(me)+'"></div>'
+        + '</div><div class="pd-actions"><button class="pd-btn pd-btn--g" id="pmm-save">💾 Enregistrer Cycle '+cycle+'</button><button class="pd-btn pd-btn--x" id="pmm-later">Plus tard</button></div></div>';
+      document.body.appendChild(wrap);
+      const done=function(){ wrap.remove(); const el=document.getElementById('pdcc-inDCH'); if(el&&!el.disabled){ try{ el.focus(); }catch(e){} } };
+      wrap.querySelector('#pmm-later').onclick=done;
+      wrap.querySelector('#pmm-save').onclick=function(){
+        const rd=function(id){ const el=wrap.querySelector('#'+id); return el?String(el.value||'').trim():''; };
+        const m={ product:rd('pmm-product'), lead:rd('pmm-lead'), qty:rd('pmm-qty'), pull:rd('pmm-pull'), date:rd('pmm-date'), name:rd('pmm-name') };
+        self.state.metadata[cycle]=m;
+        self.META_FIELDS.forEach(function(f){ const el=document.getElementById('pdcc-meta-'+f.k+'-'+cycle); if(el) el.textContent=m[f.k]||'-'; });
+        ui.toast('💾 Traçabilité du Cycle '+cycle+' enregistrée.','success');
+        done();
+      };
+      try{ wrap.querySelector('#pmm-product').focus(); }catch(e){}
+    },
+
+    /** 🆕 Micromètre relié au PC — port série (Web Serial).
+        Le mode CLAVIER (interfaces USB type Mitutoyo) marche sans rien : la touche DATA tape la valeur + Entrée dans le champ. */
+    async connectSerial(){
+      const stat=document.getElementById('pdcc-serialStat');
+      if(!('serial' in navigator)){ ui.toast('Web Serial non supporté par ce navigateur — utilisez le micromètre en mode clavier USB (touche DATA).','warn'); if(stat) stat.textContent='⌨️ mode clavier (série non supporté)'; return; }
+      try{
+        this._serialPort=await navigator.serial.requestPort();
+        await this._serialPort.open({ baudRate: 9600 });
+        const dec=new TextDecoderStream();
+        this._serialPort.readable.pipeTo(dec.writable).catch(function(){});
+        this._serialReader=dec.readable.getReader();
+        this._serialBuf='';
+        if(stat){ stat.textContent='🟢 micromètre connecté (série)'; stat.style.color='#00e5a0'; }
+        ui.toast('🔌 Micromètre connecté — chaque envoi DATA remplit la mesure demandée.','success');
+        this._serialLoop();
+      }catch(e){ console.warn('[pdcc série]',e); ui.toast('Connexion micromètre annulée ou échouée.','warn'); }
+    },
+    async _serialLoop(){
+      try{
+        while(this._serialReader){
+          const r=await this._serialReader.read();
+          if(r.done) break;
+          this._serialBuf=(this._serialBuf||'')+(r.value||'');
+          let idx;
+          while((idx=this._serialBuf.search(/[\r\n]/))>=0){
+            const line=this._serialBuf.slice(0,idx).trim();
+            this._serialBuf=this._serialBuf.slice(idx+1);
+            if(!line) continue;
+            const m=line.match(/-?\d+[.,]\d+|-?\d+/);
+            if(m && this._phase!=='manual'){
+              const v=parseFloat(m[0].replace(',','.'));
+              const el=document.getElementById('pdcc-inDCH');
+              if(el && !isNaN(v)){ el.value=v; this._validate(); }
+            }
+          }
+        }
+      }catch(e){ console.warn('[pdcc série lecture]',e); }
+    },
+    async _disconnectSerial(){
+      try{ if(this._serialReader){ await this._serialReader.cancel().catch(function(){}); this._serialReader=null; } }catch(e){}
+      try{ if(this._serialPort){ await this._serialPort.close().catch(function(){}); this._serialPort=null; } }catch(e){}
+      const stat=document.getElementById('pdcc-serialStat'); if(stat){ stat.textContent='⌨️ mode clavier prêt'; stat.style.color=''; }
+    },
+
+    /** 🆕 Bandeau des infos extraites de l'Annexe */
+    _renderFileInfo(){
+      const host=document.getElementById('pdcc-fileinfo'); if(!host) return;
+      if(!this._fileSpec){ host.innerHTML=''; return; }
+      const h=this._fileSpec.header||{};
+      const chip=function(l,v){ return v?('<span style="background:rgba(0,212,255,.12);border:1px solid rgba(0,212,255,.3);border-radius:7px;padding:.25rem .55rem;font-size:.72rem"><b style="color:#00d4ff">'+l+'</b> <span style="font-family:var(--font-mono)">'+ui.escape(String(v))+'</span></span>'):''; };
+      host.innerHTML='<div style="display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:.6rem">'
+        + chip('📄 Annexe', this._fileSpec.label||'')
+        + chip('Terminal', h.terminal) + chip('Cable/Type', h.cable)
+        + chip('Cross Section', h.cross) + chip('Applicator', h.applicator)
+        + '<span class="pd-hint" style="align-self:center">matrice générée depuis le fichier — échelle et zones telles quelles</span></div>';
+    },
+
+    /** 🆕 Analyse l'Annexe Excel jointe à l'outil → PDCC telle qu'elle est */
+    async _analyzeAnnex(){
+      this._fileSpec=null;
+      const atts=(typeof toolAttachments!=='undefined' && toolAttachments._all && toolAttachments._all[this.toolId])||{};
+      const entries=Object.entries(atts).filter(function(kv){ const m=kv[1]||{}; return ((m.mime||'').includes('spreadsheet'))||/\.xlsx$/i.test(m.name||''); });
+      if(!entries.length) return;
+      entries.sort(function(a,b){
+        const sc=function(m){ m=m||{}; const s=((m.name||'')+' '+(m.category||'')); return (/pdcc/i.test(s)?2:0)+(/annexe?\s*4/i.test(s)?1:0); };
+        return sc(b[1])-sc(a[1]);
+      });
+      const fid=entries[0][0], meta=entries[0][1];
+      const b64=await toolAttachments._getB64(this.toolId, fid, meta);
+      if(!b64) return;
+      await toolAttachments._ensureExcelJS();
+      const bin=atob(b64); const bytes=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+      const wb=new ExcelJS.Workbook(); await wb.xlsx.load(bytes.buffer);
+      const sheets=(wb.worksheets||[]).filter(function(s){return s&&s.name;});
+      let ws=sheets.find(function(s){ return /pdcc/i.test(s.name); })||null;
+      if(ws){ this._fileSpec=this._extractSpecFromSheet(ws); }
+      if(!this._fileSpec){ for(const s of sheets){ const sp=this._extractSpecFromSheet(s); if(sp){ ws=s; this._fileSpec=sp; break; } } }
+      if(this._fileSpec && ws){ this._fileSpec.label=(meta.category||meta.name||'PDCC')+' · '+ws.name; }
+    },
+
+    /** 🆕 Extraction : échelle DCH (suite de nombres à pas constant), zones couleur, échantillons, cycles, en-tête */
+    _extractSpecFromSheet(ws){
+      try{
+        const maxR=Math.min(ws.rowCount||0,140), maxC=Math.min(ws.columnCount||0,90);
+        if(!maxR||!maxC) return null;
+        const txt=function(r,c){ try{ const v=ws.getCell(r,c).value; if(v==null) return ''; if(typeof v==='object'){ if(Array.isArray(v.richText)) return v.richText.map(function(t){return t.text;}).join(''); if(v.result!=null) return String(v.result); if(v.text!=null) return String(v.text); return ''; } return String(v); }catch(e){ return ''; } };
+        const num=function(r,c){ const t=txt(r,c).replace(',','.').trim(); if(!/^-?\d+(\.\d+)?$/.test(t)) return null; const f=parseFloat(t); return isNaN(f)?null:f; };
+        // 1) Échelle verticale (pas constant 0.004–0.06, ≥5 valeurs)
+        let best=null;
+        for(let c=1;c<=Math.min(maxC,14);c++){
+          let r=1;
+          while(r<=maxR){
+            if(num(r,c)==null){ r++; continue; }
+            const start=r; const vals=[];
+            let rr=r;
+            while(rr<=maxR){ const v=num(rr,c); if(v==null) break; vals.push(v); rr++; }
+            if(vals.length>=5){
+              const step=Math.abs(vals[0]-vals[1]);
+              let ok=step>=0.004 && step<=0.06;
+              for(let i=1;i<vals.length-1&&ok;i++){ if(Math.abs(Math.abs(vals[i]-vals[i+1])-step)>0.0025) ok=false; }
+              if(ok && (!best||vals.length>best.vals.length)) best={col:c,row:start,vals:vals.slice()};
+            }
+            r=(rr>r)?rr:(r+1);
+          }
+        }
+        if(!best) return null;
+        let rows=best.vals.slice();
+        if(rows[0]<rows[rows.length-1]) rows=rows.slice().reverse();
+        // 2) Zone couleur dominante par ligne (à droite de l'échelle)
+        const self=this; const zones={};
+        best.vals.forEach(function(v,i){
+          const r=best.row+i; const count={};
+          for(let c=best.col+1;c<=Math.min(maxC,best.col+45);c++){
+            let cell; try{ cell=ws.getCell(r,c); }catch(e){ continue; }
+            const f=cell&&cell.fill;
+            if(f&&f.type==='pattern'&&f.pattern==='solid'&&f.fgColor){
+              const z=self._zoneFromFill(f.fgColor);
+              if(z) count[z]=(count[z]||0)+1;
+            }
+          }
+          let bz='',bn=0; Object.keys(count).forEach(function(k){ if(count[k]>bn){bn=count[k];bz=k;} });
+          zones[v.toFixed(2)]=bz;
+        });
+        // 3) Échantillons + cycles : ligne contenant plusieurs « Sample 1 »
+        let samples=null, cycles=null;
+        for(let r=1;r<=maxR&&!samples;r++){
+          let firsts=0; const names={}; let sawLast=false;
+          for(let c=1;c<=maxC;c++){
+            const t=txt(r,c);
+            const m=t.match(/sample\s*(\d)/i);
+            if(m){ names['S'+m[1]]=true; if(m[1]==='1') firsts++; }
+            if(/last/i.test(t)) sawLast=true;
+          }
+          if(firsts>=2){
+            const ks=Object.keys(names).sort();
+            const arr=ks.map(function(k){ return {k:k,l:k}; });
+            if(sawLast) arr.push({k:'L',l:'L'});
+            if(arr.length>=2){ samples=arr; cycles=[]; for(let i=1;i<=firsts;i++) cycles.push(i); }
+          }
+        }
+        if(!samples) samples=[{k:'S1',l:'S1'},{k:'S2',l:'S2'},{k:'S3',l:'S3'},{k:'L',l:'L'}];
+        if(!cycles||!cycles.length) cycles=[1,2,3,4,5,6,7,8];
+        // 4) En-tête : valeur sous le libellé (sinon à droite)
+        const header={};
+        const find=function(re,key){
+          for(let r=1;r<=Math.min(maxR,14);r++) for(let c=1;c<=maxC;c++){
+            if(re.test(txt(r,c).trim())){
+              let v=txt(r+1,c).trim();
+              if(!v){ for(let cc=c+1;cc<=Math.min(maxC,c+8);cc++){ const t2=txt(r,cc).trim()||txt(r+1,cc).trim(); if(t2&&!re.test(t2)){ v=t2; break; } } }
+              if(v){ header[key]=v; return; }
+            }
+          }
+        };
+        find(/^terminal$/i,'terminal'); find(/cable\s*\/?\s*type/i,'cable'); find(/cross\s*section/i,'cross'); find(/applicator\s*no/i,'applicator');
+        return { rows:rows, zones:zones, samples:samples, cycles:cycles, header:header, cross:header.cross||'' };
+      }catch(e){ console.warn('[pdcc extraction]',e); return null; }
+    },
+    /** 🆕 Classe une couleur de remplissage en zone red / yellow / green */
+    _zoneFromFill(col){
+      let hex=null;
+      if(col.argb){ let s=String(col.argb); if(s.length===8)s=s.slice(2); if(s.length===6) hex=s; }
+      else if(col.indexed!=null){ const I=['000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF','000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00']; hex=I[col.indexed]||null; }
+      else return '';
+      if(!hex) return '';
+      const n=parseInt(hex,16); const r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+      const mx=Math.max(r,g,b), mn=Math.min(r,g,b);
+      if(mx-mn<18) return '';                            // blanc / gris (achromatique)
+      if(r>200&&g<140&&b<140) return 'red';
+      if(r>200&&g>200&&b<150) return 'yellow';
+      if(g>165&&r<210&&b<200) return 'green';            // 92D050, 99FF99…
+      if(g>200&&r>170&&b>170&&b<235) return 'green';     // verts très clairs CCFFCC / E2EFDA
+      return '';
+    },
+
     async _loadHistory(){
       const host=document.getElementById('pdcc-hist'); if(!host) return;
       let v={}; try{ const snap=await fbDb.ref('preparations/'+this.toolId+'/pdcc').once('value'); v=snap.val()||{}; }catch(e){}

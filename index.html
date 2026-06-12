@@ -7101,6 +7101,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <span class="sidebar__pill" id="nav-pdr-req-count" style="background:#ffb547;color:#0a1628">0</span>
             </button>
           </li>
+          <!-- 🆕 PRÉPARATIONS — section dédiée au rôle Opérateur -->
+          <li class="sidebar__item" data-requires-role="operateur,admin,super_admin">
+            <button class="sidebar__link" data-nav="preparations">
+              <span class="sidebar__icon">🧰</span><span class="sidebar__label">Préparations</span>
+            </button>
+          </li>
         </ul>
       </nav>
 
@@ -7873,6 +7879,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       <!-- ================================================================= -->
       <!-- VIEW — PRÉVENTIVE 5 JOURS (vérification visuelle rapide)          -->
       <!-- ================================================================= -->
+      <!-- 🆕 SECTION PRÉPARATIONS — réservée au rôle Opérateur (admins : supervision) -->
+      <section class="intervention" id="view-preparations" data-view="preparations" hidden>
+        <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:1rem">
+          <div>
+            <h1 style="margin:0;font-size:1.35rem">🧰 Préparations</h1>
+            <p style="margin:.25rem 0 0;color:var(--text-muted);font-size:.8rem">Tâches de préparation — section dédiée aux opérateurs</p>
+          </div>
+          <button id="btn-prep-add" hidden style="background:rgba(0,229,160,.15);color:#00e5a0;border:1px solid rgba(0,229,160,.35);border-radius:8px;padding:.5rem .9rem;font-size:.8rem;font-weight:700;cursor:pointer">＋ Nouvelle préparation</button>
+        </header>
+        <div id="prep-kpis" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.9rem"></div>
+        <div id="prep-list"></div>
+      </section>
+
       <section class="intervention" id="view-preventive5j" data-view="preventive5j" hidden>
         <header class="intervention__header">
           <div>
@@ -9875,6 +9894,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <option value="crimp">🟢 Technicien Crimping</option>
               <option value="labo">🔵 Technicien Laboratoire</option>
               <option value="magasinier">📦 Magasinier</option>
+              <option value="operateur">🟠 Opérateur (Préparations)</option>
               <option value="responsable" data-i18n="t.responsable_maintenance">🟡 Responsable Maintenance</option>
               <option value="admin">🔴 Administrateur</option>
             </select>
@@ -12026,6 +12046,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       { key: 'crimp',       label: 'Technicien Crimping',     icon: '🟢' },
       { key: 'labo',        label: 'Technicien Laboratoire',  icon: '🔵' },
       { key: 'magasinier',  label: 'Magasinier',              icon: '📦' },
+      { key: 'operateur',   label: 'Opérateur (Préparations)', icon: '🟠' },
     ],
     LEVELS: { none: '🚫 Aucun', view: '👁 Lecture', edit: '✏️ Édition' },
 
@@ -13522,7 +13543,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         mergedTarget = hash;
         resolvedHash = mergedHubs[hash];
       }
-      const valid = ['hub','intervention','preventive5j','history','queue','catalog','blocked','users','technicians','stats','auditlog','magasin','performance','pdr','demandes-pdr'];
+      const valid = ['hub','intervention','preventive5j','history','queue','catalog','blocked','users','technicians','stats','auditlog','magasin','performance','pdr','demandes-pdr','preparations'];
       let view = valid.includes(resolvedHash) ? resolvedHash : 'hub';
 
       // ── Restrictions par rôle ──
@@ -13534,6 +13555,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (typeof ui !== 'undefined' && ui.toast) ui.toast('Accès non autorisé pour votre rôle', 'warn');
           return;
         }
+      }
+
+      // 🆕 Rôle OPÉRATEUR : accès UNIQUEMENT à sa section Préparations
+      if (state.role === 'operateur' && view !== 'preparations') {
+        window.location.hash = 'preparations';
+        return;
       }
 
       // 🆕 GESTION DES ACCÈS configurable : bloquer les modules en niveau 'Aucun'
@@ -21246,6 +21273,50 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       }
     },
 
+    /* ========== 🆕 PRÉPARATIONS (rôle Opérateur) — lecture seule, réutilise les bons préventifs ========== */
+    preparations: {
+      render() {
+        const kpiEl = document.getElementById('prep-kpis');
+        const listEl = document.getElementById('prep-list');
+        if (!kpiEl || !listEl) return;
+        // Les "préparations" = bons préventifs (coupe / binding / réglage mécanique)
+        const all = Object.entries(state.interventions || {})
+          .map(([reg, c]) => ({ reg, ...c }))
+          .filter(c => c.type === 'preventive')
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        const enCours = all.filter(c => c.status === 'submitted' || c.status === 'draft').length;
+        const termine = all.filter(c => c.status === 'validated' || c.status === 'delivered').length;
+        const kpi = (icon, label, val, color) => `<div style="flex:1;min-width:130px;background:linear-gradient(135deg,${color}1a,var(--bg-elevated));border:1px solid ${color}44;border-radius:10px;padding:.7rem .85rem">
+          <div style="font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700">${icon} ${label}</div>
+          <div style="font-size:1.5rem;font-weight:800;color:${color};font-family:var(--font-mono)">${val}</div></div>`;
+        kpiEl.innerHTML = kpi('📋', 'Total', all.length, '#00d4ff') + kpi('⏳', 'En cours', enCours, '#ffb547') + kpi('✅', 'Terminées', termine, '#00e5a0');
+
+        if (!all.length) {
+          listEl.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:2.5rem;font-style:italic">Aucune préparation pour le moment.</div>`;
+          return;
+        }
+        const statusColor = (s) => s === 'validated' || s === 'delivered' ? '#00e5a0' : (s === 'submitted' ? '#ffb547' : 'var(--text-muted)');
+        listEl.innerHTML = all.slice(0, 150).map(c => {
+          const st = (fmt.statusLabelFor ? fmt.statusLabelFor(c.status, c.type) : (c.status || '—'));
+          const typ = (fmt.fullType ? fmt.fullType(c) : 'Préparation');
+          const sc = statusColor(c.status);
+          const tool = c.toolSerial || c.toolDoutils || c.outilId || c.toolId || '';
+          const when = c.createdAt ? new Date(c.createdAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+          return `<div style="display:flex;align-items:center;gap:.75rem;padding:.7rem .9rem;border:1px solid var(--border-soft);border-left:3px solid ${sc};border-radius:9px;margin-bottom:.55rem;background:var(--bg-elevated)">
+            <span style="font-size:1.3rem">🧰</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:.86rem;color:var(--text-primary);font-family:var(--font-mono)">${ui.escape(String(c.reg || ''))} ${tool ? `· ${ui.escape(String(tool))}` : ''}</div>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;font-size:.7rem;color:var(--text-muted);margin-top:.15rem">
+                <span style="background:rgba(0,212,255,.15);color:#00d4ff;padding:.05rem .45rem;border-radius:4px;font-weight:600">${ui.escape(typ)}</span>
+                ${when ? `<span>${ui.escape(when)}</span>` : ''}
+              </div>
+            </div>
+            <span style="font-size:.72rem;font-weight:700;color:${sc};white-space:nowrap">${ui.escape(st)}</span>
+          </div>`;
+        }).join('');
+      }
+    },
+
     /* ========== HISTORY ========== */
     history: {
       init() {
@@ -25509,6 +25580,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                   <option value="admin"      ${u.role === 'admin'      ? 'selected' : ''}>🔴 Administrateur</option>
                   <option value="labo"       ${u.role === 'labo'       ? 'selected' : ''}>🔵 Technicien Labo</option>
                   <option value="magasinier" ${u.role === 'magasinier' ? 'selected' : ''}>📦 Magasinier</option>
+                  <option value="operateur"  ${u.role === 'operateur'  ? 'selected' : ''}>🟠 Opérateur (Préparations)</option>
                   <option value="crimp"      ${u.role === 'crimp'      ? 'selected' : ''}>🟢 Technicien Crimping</option>
                   <option value="responsable"${u.role === 'responsable'? 'selected' : ''} data-i18n="t.responsable_maintenance">🟡 Responsable Maintenance</option>
                 </select>

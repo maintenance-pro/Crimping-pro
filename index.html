@@ -12733,6 +12733,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       state.listeners.push(() => ref.off('value', handler));
     },
 
+    /* --- 🆕 préparations (file d'outils pour l'opérateur) --- */
+    listenPreparations() {
+      const ref = fbDb.ref('preparations');
+      const handler = (snap) => {
+        state.preparations = snap.val() || {};
+        if (state.currentView === 'preparations' && views.preparations) views.preparations.render();
+      };
+      ref.on('value', handler);
+      state.listeners.push(() => ref.off('value', handler));
+    },
+
     /* --- stock --- */
     listenStock() {
       const ref = fbDb.ref('stock');
@@ -21273,47 +21284,55 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       }
     },
 
-    /* ========== 🆕 PRÉPARATIONS (rôle Opérateur) — lecture seule, réutilise les bons préventifs ========== */
+    /* ========== 🆕 PRÉPARATIONS (rôle Opérateur) — outils ajoutés : nom + connexion + Annexe/PDCC ========== */
     preparations: {
       render() {
         const kpiEl = document.getElementById('prep-kpis');
         const listEl = document.getElementById('prep-list');
         if (!kpiEl || !listEl) return;
-        // Les "préparations" = bons préventifs (coupe / binding / réglage mécanique)
-        const all = Object.entries(state.interventions || {})
-          .map(([reg, c]) => ({ reg, ...c }))
-          .filter(c => c.type === 'preventive')
-          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        const enCours = all.filter(c => c.status === 'submitted' || c.status === 'draft').length;
-        const termine = all.filter(c => c.status === 'validated' || c.status === 'delivered').length;
-        const kpi = (icon, label, val, color) => `<div style="flex:1;min-width:130px;background:linear-gradient(135deg,${color}1a,var(--bg-elevated));border:1px solid ${color}44;border-radius:10px;padding:.7rem .85rem">
+        const preps = Object.values(state.preparations || {}).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+        const canManage = ['admin', 'super_admin', 'responsable'].includes(state.role);
+        const kpi = (icon, label, val, color) => `<div style="flex:1;min-width:150px;background:linear-gradient(135deg,${color}1a,var(--bg-elevated));border:1px solid ${color}44;border-radius:10px;padding:.7rem .85rem">
           <div style="font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700">${icon} ${label}</div>
           <div style="font-size:1.5rem;font-weight:800;color:${color};font-family:var(--font-mono)">${val}</div></div>`;
-        kpiEl.innerHTML = kpi('📋', 'Total', all.length, '#00d4ff') + kpi('⏳', 'En cours', enCours, '#ffb547') + kpi('✅', 'Terminées', termine, '#00e5a0');
+        kpiEl.innerHTML = kpi('🧰', 'Outils à préparer', preps.length, '#00d4ff');
 
-        if (!all.length) {
-          listEl.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:2.5rem;font-style:italic">Aucune préparation pour le moment.</div>`;
+        if (!preps.length) {
+          listEl.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:2.5rem;font-style:italic">Aucun outil en préparation.<br><span style="font-size:.74rem">Un responsable peut en ajouter via le catalogue → clic droit sur un outil → « ➕ Ajouter à préparation ».</span></div>`;
           return;
         }
-        const statusColor = (s) => s === 'validated' || s === 'delivered' ? '#00e5a0' : (s === 'submitted' ? '#ffb547' : 'var(--text-muted)');
-        listEl.innerHTML = all.slice(0, 150).map(c => {
-          const st = (fmt.statusLabelFor ? fmt.statusLabelFor(c.status, c.type) : (c.status || '—'));
-          const typ = (fmt.fullType ? fmt.fullType(c) : 'Préparation');
-          const sc = statusColor(c.status);
-          const tool = c.toolSerial || c.toolDoutils || c.outilId || c.toolId || '';
-          const when = c.createdAt ? new Date(c.createdAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '';
-          return `<div style="display:flex;align-items:center;gap:.75rem;padding:.7rem .9rem;border:1px solid var(--border-soft);border-left:3px solid ${sc};border-radius:9px;margin-bottom:.55rem;background:var(--bg-elevated)">
-            <span style="font-size:1.3rem">🧰</span>
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:700;font-size:.86rem;color:var(--text-primary);font-family:var(--font-mono)">${ui.escape(String(c.reg || ''))} ${tool ? `· ${ui.escape(String(tool))}` : ''}</div>
-              <div style="display:flex;gap:.5rem;flex-wrap:wrap;font-size:.7rem;color:var(--text-muted);margin-top:.15rem">
-                <span style="background:rgba(0,212,255,.15);color:#00d4ff;padding:.05rem .45rem;border-radius:4px;font-weight:600">${ui.escape(typ)}</span>
-                ${when ? `<span>${ui.escape(when)}</span>` : ''}
+        listEl.innerHTML = preps.map(p => {
+          const atts = (typeof toolAttachments !== 'undefined' && toolAttachments._all && toolAttachments._all[p.toolId]) || {};
+          const xls = Object.entries(atts).filter(([fid, m]) => ((m.mime || '').includes('spreadsheet')) || /\.xlsx?$/i.test(m.name || ''));
+          const xlBtns = xls.length
+            ? xls.map(([fid, m]) => `<button data-prep-xl="${p.toolId}::${fid}" style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(0,212,255,.14);color:#00d4ff;border:1px solid rgba(0,212,255,.4);border-radius:7px;padding:.4rem .7rem;font-size:.76rem;font-weight:700;cursor:pointer">📊 ${ui.escape(m.category || m.name || 'Annexe (PDCC)')}</button>`).join('')
+            : `<span style="color:var(--text-muted);font-size:.72rem;font-style:italic">Aucune Annexe jointe à cet outil</span>`;
+          return `<div style="padding:.85rem 1rem;border:1px solid var(--border-soft);border-left:3px solid #00e5a0;border-radius:10px;margin-bottom:.6rem;background:var(--bg-elevated)">
+            <div style="display:flex;align-items:center;gap:.6rem">
+              <span style="font-size:1.4rem">🔧</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:800;font-size:.95rem;color:var(--text-primary);font-family:var(--font-mono)">${ui.escape(p.doutils || p.toolId)}</div>
+                <div style="font-size:.78rem;color:var(--text-muted);margin-top:.1rem">🔌 Connexion : <b style="color:var(--text-primary)">${ui.escape(p.connection || '—')}</b></div>
               </div>
+              ${canManage ? `<button data-prep-del="${p.toolId}" title="Retirer des préparations" style="background:rgba(255,61,90,.12);color:#ff3d5a;border:1px solid rgba(255,61,90,.35);border-radius:7px;padding:.35rem .6rem;font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap">🗑️ Retirer</button>` : ''}
             </div>
-            <span style="font-size:.72rem;font-weight:700;color:${sc};white-space:nowrap">${ui.escape(st)}</span>
+            <div style="display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.6rem;padding-top:.6rem;border-top:1px dashed var(--border-soft)">${xlBtns}</div>
           </div>`;
         }).join('');
+
+        // Ouvrir l'Annexe / PDCC dans le visualiseur (lecture + téléchargement pour remplir)
+        listEl.querySelectorAll('[data-prep-xl]').forEach(b => b.onclick = () => {
+          const [tid, fid] = b.dataset.prepXl.split('::');
+          if (typeof toolAttachments !== 'undefined' && toolAttachments.viewExcel) toolAttachments.viewExcel(tid, fid);
+        });
+        // Retrait (responsables/admins)
+        listEl.querySelectorAll('[data-prep-del]').forEach(b => b.onclick = async () => {
+          const tid = b.dataset.prepDel;
+          if (!confirm('Retirer cet outil des préparations ?')) return;
+          try { if (typeof fbDb !== 'undefined') await fbDb.ref('preparations/' + tid).remove(); } catch (e) { console.error(e); }
+          if (state.preparations) delete state.preparations[tid];
+          this.render();
+        });
       }
     },
 
@@ -24086,6 +24105,32 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         });
       },
       // 🆕 Menu contextuel (clic droit) sur une carte outil
+      /** 🆕 Ajoute un outil à la file de Préparations (Firebase) — l'opérateur le verra dans sa section */
+      async addToPreparation(tool) {
+        try {
+          if (!tool) return;
+          const id = tool.id || tool.outilId || tool.serial;
+          if (!id) { ui.toast('Outil sans identifiant — impossible à ajouter', 'danger'); return; }
+          const rec = {
+            toolId: id,
+            doutils: tool.doutils || tool.serial || tool.designation || '',
+            connection: tool.connection || '',
+            addedAt: Date.now(),
+            addedBy: (state.profile && (state.profile.displayName || state.profile.email)) || state.role || ''
+          };
+          const ref = (typeof fbDb !== 'undefined' && fbDb) ? fbDb.ref('preparations/' + id) : null;
+          if (ref) { await ref.set(rec); }
+          if (!state.preparations) state.preparations = {};
+          state.preparations[id] = rec;
+          ui.toast(`✅ « ${rec.doutils || id} » ajouté aux préparations`, 'success');
+          try { if (typeof db !== 'undefined' && db.audit) db.audit('preparation.add', id, { doutils: rec.doutils }); } catch (e) {}
+          if (state.currentView === 'preparations' && views.preparations) views.preparations.render();
+        } catch (e) {
+          console.error('[addToPreparation]', e);
+          ui.toast('Erreur ajout préparation : ' + (e.message || e), 'danger');
+        }
+      },
+
       _showToolContextMenu(x, y, tool) {
         document.getElementById('tool-ctx-menu')?.remove();
         const canEdit   = ['admin','super_admin','responsable'].includes(state.role);
@@ -24093,6 +24138,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const items = [];
         items.push({ icon:'📋', label:'Dupliquer cet outil', color:'#22d3ee', act: () => this.duplicateTool(tool) });
         items.push({ icon:'👁', label:'Voir les détails',    color:'var(--text-primary)', act: () => this.showDetails(tool) });
+        // 🆕 Ajouter l'outil à la file de Préparations (visible par l'opérateur)
+        items.push({ icon:'➕', label:'Ajouter à préparation', color:'#00e5a0', act: () => this.addToPreparation(tool) });
         if (canEdit)   items.push({ icon:'✏️', label:'Modifier',  color:'var(--accent-500)', act: () => this.openModal(tool) });
         if (canDelete) items.push({ icon:'🗑️', label:'Supprimer', color:'#ff3d5a',          act: () => this.deleteWithConfirm(tool) });
 
@@ -31153,6 +31200,7 @@ Erreur Firebase : ${e.message}`;
       ui.showLoader('Chargement des données…');
       db.listenTools();
       db.listenInterventions();
+      db.listenPreparations();   // 🆕 file de préparations (opérateur)
       db.listenStock();
       db.listenNotifications();
       try { toolAttachments.init(); } catch(e) {}  // 🆕 charger les pièces jointes dès le départ (badges 📎 fiables)

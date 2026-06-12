@@ -11783,9 +11783,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._ci = 0; this._si = 0;   // position guidée : Cycle 1 · Sample 1
       this._renderShell();
       if (this._fileSpec) {
-        ['pdcc-selSection','pdcc-selMode'].forEach(function(id){ const el=document.getElementById(id); const f=el&&el.closest('.pd-f'); if(f) f.style.display='none'; });
+        // Dimensions = celles du fichier → INTERDIT de les changer : on masque seulement le choix de Section
+        const sf=document.getElementById('pdcc-selSection'); const sfp=sf&&sf.closest('.pd-f'); if(sfp) sfp.style.display='none';
+        // 🆕 On GARDE le choix « 3 / 4 / 5 échantillons » visible, pré-réglé sur ce qui a été détecté dans l'annexe
+        const det=this._fileSpec.samples.length, hasL=this._fileSpec.samples.some(function(s){return s.k==='L';});
+        const mode=(det===3&&!hasL)?'3':(det>=5?'5':'4L');
+        const mEl=document.getElementById('pdcc-selMode'); if(mEl) mEl.value=mode;
         this._buildMatrix();
-        const h=document.getElementById('pdcc-hint'); if(h) h.textContent='Annexe analysée — matrice affichée telle qu\'elle est dans le fichier.';
+        const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Annexe analysée — dimensions du fichier (non modifiables). <b>'+det+' échantillon'+(det>1?'s':'')+'</b> détecté'+(det>1?'s':'')+' · ajustez « Échantillons / cycle » si l\'annexe en a 3 ou 5.';
+      } else {
+        const h=document.getElementById('pdcc-hint');
+        if(h){
+          if(this._annexHasXls) h.innerHTML='⚠ L\'annexe attachée est au format <b>.xls</b> (ancien), non analysable. Ré-enregistrez-la en <b>.xlsx</b> dans Excel (Fichier ▶ Enregistrer sous ▶ Classeur Excel .xlsx) puis ré-attachez-la pour afficher VOTRE PDCC telle quelle.';
+          else h.innerHTML='⚠ Aucune Annexe <b>.xlsx</b> exploitable sur cet outil → modèle générique affiché. Attachez l\'Annexe 4 PDCC (.xlsx) à l\'outil pour afficher VOTRE échelle et vos zones telles quelles.';
+        }
       }
       this._loadHistory();
     },
@@ -12124,9 +12135,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
     /** 🆕 Analyse l'Annexe Excel jointe à l'outil → PDCC telle qu'elle est */
     async _analyzeAnnex(){
-      this._fileSpec=null;
+      this._fileSpec=null; this._annexHasXls=false;
       const atts=(typeof toolAttachments!=='undefined' && toolAttachments._all && toolAttachments._all[this.toolId])||{};
-      const entries=Object.entries(atts).filter(function(kv){ const m=kv[1]||{}; return ((m.mime||'').includes('spreadsheet'))||/\.xlsx$/i.test(m.name||''); });
+      const all=Object.entries(atts);
+      const entries=all.filter(function(kv){ const m=kv[1]||{}; return ((m.mime||'').includes('spreadsheet'))||/\.xlsx$/i.test(m.name||''); });
+      // 🆕 Annexe en ancien format .xls (non analysable) → on le signale pour guider l'utilisateur
+      this._annexHasXls = (all.some(function(kv){ return /\.xls$/i.test((kv[1]||{}).name||''); }) && !entries.length);
       if(!entries.length) return;
       entries.sort(function(a,b){
         const sc=function(m){ m=m||{}; const s=((m.name||'')+' '+(m.category||'')); return (/pdcc/i.test(s)?2:0)+(/annexe?\s*4/i.test(s)?1:0); };

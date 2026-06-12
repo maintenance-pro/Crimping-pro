@@ -11591,7 +11591,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (String(val).trim() !== '') nonEmpty = true;
           const an = anchor[r + '_' + c];
           const span = an ? ` colspan="${an.cs}" rowspan="${an.rs}"` : '';
-          h += `<td${span} style="${styleOf(cell)}">${ui.escape(String(val))}</td>`;
+          h += `<td${span} data-rc="${r}-${c}" style="${styleOf(cell)}">${ui.escape(String(val))}</td>`;
         }
         h += '</tr>';
       }
@@ -11706,7 +11706,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
      Stockage : preparations/{toolId}/pdcc/{ficheId}
      ══════════════════════════════════════════════════════════════════ */
   const pdcc = {
-    toolId: null, toolName: '', counter: 1, state: null, _escHandler: null, _ci: 0, _si: 0, _phase: 'measure', _serialPort: null, _serialReader: null, _serialBuf: '', _fileSpec: null,
+    toolId: null, toolName: '', counter: 1, state: null, _escHandler: null, _ci: 0, _si: 0, _phase: 'measure', _serialPort: null, _serialReader: null, _serialBuf: '', _fileSpec: null, _wb: null, _ws: null, _wbBytes: null, _map: null, _wbMode: false, _origName: '',
     sectionsSpecs: {
       '1.5²': { nominal:{DCH:1.52,CB:2.18,ICH:3.10,ICB:3.11}, rows:[1.56,1.55,1.54,1.53,1.52,1.51,1.50,1.49,1.48], colors:{red:[1.56,1.48],yellow:[1.55,1.54,1.50,1.49],green:[1.53,1.52,1.51]} },
       '2.0²': { nominal:{DCH:1.60,CB:2.18,ICH:3.35,ICB:3.11}, rows:[1.64,1.63,1.62,1.61,1.60,1.59,1.58,1.57,1.56], colors:{red:[1.64,1.56],yellow:[1.63,1.62,1.58,1.57],green:[1.61,1.60,1.59]} }
@@ -11751,6 +11751,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         + '#pdcc-overlay .pd-yval{background:#eef2f8;font-weight:800;color:#0a1a2f;width:54px;padding:.26rem .35rem}'
         + '#pdcc-overlay .pd-sub{background:#16223a;color:#9fb6da;font-weight:600;width:30px;font-size:.62rem;font-family:Inter,sans-serif}'
         + '#pdcc-overlay .pd-sub.pd-cur{background:#00d4ff;color:#04121f;box-shadow:inset 0 -3px 0 rgba(4,18,31,.6)}'
+        + '#pdcc-wbhost td.pd-xlcur{outline:3px solid #00d4ff;outline-offset:-3px;box-shadow:inset 0 0 0 3px rgba(0,212,255,.4)}'
         + '#pdcc-overlay .pd-cell{width:30px;height:24px;position:relative}'
         + '#pdcc-overlay .pd-cell.z-red{background:#ff3333}#pdcc-overlay .pd-cell.z-yellow{background:#ffff00}#pdcc-overlay .pd-cell.z-green{background:#99ff99}'
         + "#pdcc-overlay .pd-cell.mark::after{content:'X';color:#000;font-weight:900;font-size:1rem;line-height:24px;display:block;font-family:Inter,sans-serif}"
@@ -11778,11 +11779,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       // 🆕 Analyse de la VRAIE Annexe Excel de l'outil → échelle, zones couleur, échantillons, cycles, en-tête
       this._fileSpec = null;
       try { await this._analyzeAnnex(); } catch(e){ console.warn('[pdcc] analyse annexe impossible', e); this._fileSpec = null; }
-      if (this._fileSpec) { this.CYCLES = this._fileSpec.cycles.slice(); this.SAMPLES = this._fileSpec.samples.slice(); }
+      if (this._wbMode) { this.CYCLES=this._map.cycles.map(function(b){return b.n;}); this.SAMPLES=this._map.cycles[0].cols.map(function(o){return {k:o.k,l:o.k};}); }
+      else if (this._fileSpec) { this.CYCLES = this._fileSpec.cycles.slice(); this.SAMPLES = this._fileSpec.samples.slice(); }
       this.state = this._newState();
       this._ci = 0; this._si = 0;   // position guidée : Cycle 1 · Sample 1
       this._renderShell();
-      if (this._fileSpec) {
+      if (this._wbMode) {
+        // 🎯 MODE CLASSEUR : VOTRE Excel est affiché TEL QUEL, rempli DANS ses cellules — diamètres & architecture INTACTS
+        ['pdcc-selSection','pdcc-selMode'].forEach(function(id){ const el=document.getElementById(id); const f=el&&el.closest('.pd-f'); if(f) f.style.display='none'; });
+        const xb=document.getElementById('pdcc-btnXls'); if(xb) xb.style.display='';
+        this.state.section=(this._fileSpec&&(this._fileSpec.cross||this._fileSpec.label))||'fichier';
+        this._renderWbSheet();
+        const sl=this.SAMPLES.map(function(s){return s.k;}).join(' · ');
+        const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Classeur chargé <b>tel quel</b> — <b>'+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons</b> ('+sl+') lus dans le fichier. Chaque mesure s\'écrit dans la cellule d\'origine.';
+      } else if (this._fileSpec) {
         // Dimensions = celles du fichier → INTERDIT de les changer : on masque seulement le choix de Section
         const sf=document.getElementById('pdcc-selSection'); const sfp=sf&&sf.closest('.pd-f'); if(sfp) sfp.style.display='none';
         // 🆕 On GARDE le choix « 3 / 4 / 5 échantillons » visible, pré-réglé sur ce qui a été détecté dans l'annexe
@@ -11833,7 +11843,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           + '<div class="pd-f"><label>Name</label><input type="text" id="pdcc-mName"></div>'
           + '</div><div class="pd-actions"><button class="pd-btn pd-btn--g" id="pdcc-btnMeta">💾 Enregistrer la traçabilité du cycle</button></div></div>'
         + '<div class="pd-card"><div class="pd-ct">📊 Matrice PDCC</div><div id="pdcc-fileinfo"></div><div class="pd-scroll"><table class="pd-grid" id="pdcc-grid"><tbody><tr><td style="padding:2rem;color:#0a1a2f;background:#fff">Choisissez une section.</td></tr></tbody></table><table class="pd-trace" id="pdcc-trace"></table></div></div>'
-        + '<div class="pd-card" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap"><button class="pd-btn pd-btn--a" id="pdcc-btnArchive">📦 Archiver la Fiche</button><button class="pd-btn pd-btn--x" id="pdcc-btnReset">🧹 Réinitialiser</button><span class="pd-hint">Archive → enregistrée dans Firebase + historique, puis fiche vierge.</span></div>'
+        + '<div class="pd-card" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap"><button class="pd-btn pd-btn--a" id="pdcc-btnArchive">📦 Archiver la Fiche</button><button class="pd-btn pd-btn--g" id="pdcc-btnXls" style="display:none">⬇️ Télécharger l\'Excel rempli</button><button class="pd-btn pd-btn--x" id="pdcc-btnReset">🧹 Réinitialiser</button><span class="pd-hint">Archive → Firebase + copie Excel remplie, puis fiche vierge.</span></div>'
         + '<div class="pd-card"><div class="pd-ct">🗂️ Historique des fiches archivées (cet outil)</div><div id="pdcc-hist"><div class="pd-hint" style="padding:1rem;text-align:center">Chargement…</div></div></div>'
         + '</div>';
       document.body.appendChild(ov);
@@ -11854,6 +11864,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       g('pdcc-btnMeta').onclick=()=>this._saveMeta();
       g('pdcc-btnArchive').onclick=()=>this._archive();
       g('pdcc-btnReset').onclick=()=>{ if(confirm('Réinitialiser la fiche sans archiver ?')) this._reset(false); };
+      g('pdcc-btnXls').onclick=()=>this._downloadWb();
       this._escHandler=(e)=>{ if(e.key==='Escape') this.close(); };
       document.addEventListener('keydown', this._escHandler);
       this._setPhase('measure');
@@ -11884,6 +11895,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       set('pdcc-inDCH',spec&&spec.nominal.DCH); set('pdcc-inCB',spec&&spec.nominal.CB); set('pdcc-inICH',spec&&spec.nominal.ICH); set('pdcc-inICB',spec&&spec.nominal.ICB);
     },
     _buildMatrix(){
+      if(this._wbMode){ this._renderWbSheet(); return; }
       const self=this;
       const tbl=document.getElementById('pdcc-grid'), trace=document.getElementById('pdcc-trace');
       if(!tbl||!trace) return;
@@ -11919,6 +11931,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._setPhase(this._phase||'measure');
     },
     _repaint(){
+      if(this._wbMode) return;   // mode classeur : les marques vivent DANS le fichier
       const self=this;
       Object.keys(this.state.samples).forEach(function(key){ const d=self.state.samples[key]; const p=key.split('-'); const cell=document.getElementById('pdcc-cell-'+d.row+'-'+p[0]+'-'+p[1]); if(cell) cell.classList.add('mark'); const v=document.getElementById('pdcc-val-'+p[0]+'-'+p[1]); if(v && d.value!=null) v.textContent=Number(d.value).toFixed(2); });
       Object.keys(this.state.metadata).forEach(function(c){ const m=self.state.metadata[c]; self.META_FIELDS.forEach(function(f){ const el=document.getElementById('pdcc-meta-'+f.k+'-'+c); if(el) el.textContent=m[f.k]||'-'; }); });
@@ -11935,6 +11948,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const dchRaw=parseFloat(String(document.getElementById('pdcc-inDCH').value).replace(',','.'));
       if(isNaN(dchRaw)){ ui.toast('Saisissez ou mesurez une valeur DCH valide.','warn'); return; }
       const cycle=document.getElementById('pdcc-selCycle').value, sample=document.getElementById('pdcc-selSample').value;
+      if(this._wbMode){
+        // 🎯 Injection DANS le fichier : X dans la VRAIE cellule de la zone colorée — style, fusion, dimensions intacts
+        const tgt=this._wbTarget(cycle,sample,dchRaw);
+        if(!tgt){ ui.toast('Colonne introuvable dans le fichier pour Cycle '+cycle+' · '+sample+'.','danger'); return; }
+        const prev=this.state.samples[cycle+'-'+sample];
+        if(prev&&prev.r&&prev.c){ try{ this._ws.getCell(prev.r,prev.c).value=null; }catch(e){} }   // correction : on efface l'ancien X
+        try{ this._ws.getCell(tgt.r,tgt.c).value='X'; }catch(e){ ui.toast('Écriture impossible : '+(e.message||e),'danger'); return; }
+        if(this._map.trace && this._map.trace.value){ try{ this._ws.getCell(this._map.trace.value, tgt.c).value=dchRaw; }catch(e){} }
+        this.state.samples[cycle+'-'+sample]={ value:dchRaw, cb:null, ich:null, icb:null, row:tgt.v.toFixed(2), r:tgt.r, c:tgt.c };
+        this._renderWbSheet();
+        const vs=this._map.scale.map(function(s){return s.v;}); const lo2=Math.min.apply(null,vs), hi2=Math.max.apply(null,vs); const out2=(dchRaw>hi2)||(dchRaw<lo2);
+        document.getElementById('pdcc-hint').innerHTML='✔ X écrit dans le fichier — Cycle '+cycle+' · '+sample+' à <b>'+tgt.v.toFixed(2)+'</b> (mesure '+dchRaw.toFixed(2)+')'+(out2?' · <b style="color:#ff7a45">⚠ hors plage</b>':'');
+        document.getElementById('pdcc-inDCH').value='';
+        this._setPhase('manual');
+        return;
+      }
       const row=this._snap({rows:rows},dchRaw).toFixed(2);
       rows.forEach(function(v){ const c=document.getElementById('pdcc-cell-'+Number(v).toFixed(2)+'-'+cycle+'-'+sample); if(c) c.classList.remove('mark'); });
       const target=document.getElementById('pdcc-cell-'+row+'-'+cycle+'-'+sample); if(target) target.classList.add('mark');
@@ -11992,12 +12021,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if(cur) cur.classList.add('pd-cur');
       const pos=document.getElementById('pdcc-pos');
       if(pos) pos.textContent='▶ Cycle '+cy+' · '+(sk==='L'?'Last / Off':'Sample '+sk.slice(1));
+      if(this._wbMode) this._wbHighlight();
     },
     _saveMeta(){
       const self=this; const ssEl=document.getElementById('pdcc-selSection'); if(!this._fileSpec && !(ssEl&&ssEl.value)){ ui.toast('Sélectionnez une section.','warn'); return; }
       const cycle=document.getElementById('pdcc-selCycle').value; const m={};
       this.META_FIELDS.forEach(function(f){ m[f.k]=document.getElementById(f.src).value.trim(); });
       this.state.metadata[cycle]=m;
+      this._writeMetaToSheet(cycle,m);
       this.META_FIELDS.forEach(function(f){ const el=document.getElementById('pdcc-meta-'+f.k+'-'+cycle); if(el) el.textContent=m[f.k]||'-'; });
       document.getElementById('pdcc-hint').textContent='💾 Traçabilité enregistrée pour le Cycle '+cycle+'.';
     },
@@ -12005,9 +12036,16 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const nbSamples=Object.keys(this.state.samples).length, nbMeta=Object.keys(this.state.metadata).length;
       if(nbSamples===0&&nbMeta===0){ ui.toast('Fiche vide : rien à archiver.','warn'); return; }
       const spec=this.sectionsSpecs[this.state.section]||{};
-      const payload={ id:this.state.id, toolId:this.toolId, toolName:this.toolName, section:this.state.section, annexe:(this._fileSpec&&this._fileSpec.label)||null, header:(this._fileSpec&&this._fileSpec.header)||null, nominal:spec.nominal||null, createdAt:this.state.createdAt, archivedAt:Date.now(), sampleCount:nbSamples, samples:this.state.samples, metadata:this.state.metadata, by:(state.profile&&(state.profile.displayName||state.profile.email))||state.role||'' };
+      const payload={ id:this.state.id, toolId:this.toolId, toolName:this.toolName, section:this.state.section, annexe:(this._fileSpec&&this._fileSpec.label)||null, header:(this._fileSpec&&this._fileSpec.header)||null, nominal:spec.nominal||null, createdAt:this.state.createdAt, archivedAt:Date.now(), sampleCount:nbSamples, samples:this.state.samples, metadata:this.state.metadata, mode:(this._wbMode?'fichier':'matrice'), hasFile:!!this._wbMode, fileName:(this._wbMode?this._origName:null), by:(state.profile&&(state.profile.displayName||state.profile.email))||state.role||'' };
       try{ await fbDb.ref('preparations/'+this.toolId+'/pdcc/'+this.state.id).set(payload); ui.toast('📦 Fiche '+this.state.id+' archivée.','success'); }
       catch(e){ console.error('[pdcc archive]',e); ui.toast('Erreur archivage : '+(e.message||e),'danger'); return; }
+      if(this._wbMode){
+        // 🎯 Copie EXACTE de l'Excel rempli, stockée à part (nœud séparé pour ne pas alourdir l'historique)
+        try{
+          const b64=await this._wbB64();
+          await fbDb.ref('preparations/'+this.toolId+'/pdccFiles/'+this.state.id).set({ name:(this._origName||'PDCC.xlsx').replace(/\.xlsx$/i,'')+'_'+this.state.id+'.xlsx', b64:b64, size:b64.length, at:Date.now() });
+        }catch(e){ console.warn('[pdcc file save]',e); ui.toast('Fiche archivée, mais copie Excel non sauvegardée ('+(e.message||e)+').','warn'); }
+      }
       try{ if(typeof db!=='undefined'&&db.audit) db.audit('pdcc.archive', this.toolId, {fiche:this.state.id}); }catch(e){}
       this._reset(true);
       this._loadHistory();
@@ -12020,7 +12058,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const sid=document.getElementById('pdcc-sheetId'); if(sid) sid.textContent='FICHE : '+this.state.id;
       ['pdcc-inDCH','pdcc-inCB','pdcc-inICH','pdcc-inICB','pdcc-mProduct','pdcc-mLead','pdcc-mQty','pdcc-mPull','pdcc-mName'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
       const md=document.getElementById('pdcc-mDate'); if(md) md.value=new Date().toISOString().slice(0,10);
-      const ssEl=document.getElementById('pdcc-selSection'); if(this._fileSpec || (ssEl&&ssEl.value)) this._buildMatrix(); else { const g=document.getElementById('pdcc-grid'), t=document.getElementById('pdcc-trace'); if(g)g.innerHTML=''; if(t)t.innerHTML=''; }
+      const ssEl=document.getElementById('pdcc-selSection');
+      if(this._wbMode){ this._reloadWb(); }
+      else if(this._fileSpec || (ssEl&&ssEl.value)) this._buildMatrix(); else { const g=document.getElementById('pdcc-grid'), t=document.getElementById('pdcc-trace'); if(g)g.innerHTML=''; if(t)t.innerHTML=''; }
       const h=document.getElementById('pdcc-hint'); if(h) h.textContent= advance?('✅ Archivée. Nouvelle fiche '+this.state.id+'.'):'Fiche réinitialisée.';
     },
 
@@ -12069,6 +12109,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const rd=function(id){ const el=wrap.querySelector('#'+id); return el?String(el.value||'').trim():''; };
         const m={ product:rd('pmm-product'), lead:rd('pmm-lead'), qty:rd('pmm-qty'), pull:rd('pmm-pull'), date:rd('pmm-date'), name:rd('pmm-name') };
         self.state.metadata[cycle]=m;
+        self._writeMetaToSheet(cycle,m);
         self.META_FIELDS.forEach(function(f){ const el=document.getElementById('pdcc-meta-'+f.k+'-'+cycle); if(el) el.textContent=m[f.k]||'-'; });
         ui.toast('💾 Traçabilité du Cycle '+cycle+' enregistrée.','success');
         done();
@@ -12136,6 +12177,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     /** 🆕 Analyse l'Annexe Excel jointe à l'outil → PDCC telle qu'elle est */
     async _analyzeAnnex(){
       this._fileSpec=null; this._annexHasXls=false;
+      this._wb=null; this._ws=null; this._wbBytes=null; this._map=null; this._wbMode=false; this._origName='';
       const atts=(typeof toolAttachments!=='undefined' && toolAttachments._all && toolAttachments._all[this.toolId])||{};
       const all=Object.entries(atts);
       const entries=all.filter(function(kv){ const m=kv[1]||{}; return ((m.mime||'').includes('spreadsheet'))||/\.xlsx$/i.test(m.name||''); });
@@ -12156,7 +12198,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       let ws=sheets.find(function(s){ return /pdcc/i.test(s.name); })||null;
       if(ws){ this._fileSpec=this._extractSpecFromSheet(ws); }
       if(!this._fileSpec){ for(const s of sheets){ const sp=this._extractSpecFromSheet(s); if(sp){ ws=s; this._fileSpec=sp; break; } } }
-      if(this._fileSpec && ws){ this._fileSpec.label=(meta.category||meta.name||'PDCC')+' · '+ws.name; }
+      if(this._fileSpec && ws){
+        this._fileSpec.label=(meta.category||meta.name||'PDCC')+' · '+ws.name;
+        // 🎯 MODE CLASSEUR : on garde le VRAI fichier pour y injecter les données — rien d'autre n'est touché
+        this._wb=wb; this._ws=ws; this._origName=meta.name||'PDCC.xlsx';
+        try{ this._wbBytes=bytes.buffer.slice(0); }catch(e){ this._wbBytes=null; }
+        try{ this._map=this._mapSheet(ws); }catch(e){ console.warn('[pdcc map]',e); this._map=null; }
+        this._wbMode = !!(this._map && this._map.cycles && this._map.cycles.length && this._map.scale && this._map.scale.length);
+      }
     },
 
     /** 🆕 Extraction : échelle DCH (suite de nombres à pas constant), zones couleur, échantillons, cycles, en-tête */
@@ -12253,12 +12302,165 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       return '';
     },
 
+    /** 🎯 CARTOGRAPHIE du classeur : repère les VRAIES cellules — échelle, colonnes Sample par cycle (fusions comprises), lignes de traçabilité */
+    _mapSheet(ws){
+      const maxR=Math.min(ws.rowCount||0,200), maxC=Math.min(ws.columnCount||0,140);
+      if(!maxR||!maxC) return null;
+      const txt=function(r,c){ try{ const v=ws.getCell(r,c).value; if(v==null) return ''; if(typeof v==='object'){ if(Array.isArray(v.richText)) return v.richText.map(function(t){return t.text;}).join(''); if(v.result!=null) return String(v.result); if(v.text!=null) return String(v.text); return ''; } return String(v); }catch(e){ return ''; } };
+      const num=function(r,c){ const t=txt(r,c).replace(',','.').trim(); if(!/^-?\d+(\.\d+)?$/.test(t)) return null; const f=parseFloat(t); return isNaN(f)?null:f; };
+      // Fusions → ancre (pour surligner la vraie cellule rendue)
+      const master={};
+      ((ws.model&&ws.model.merges)||[]).forEach(function(rg){
+        const p=String(rg).split(':'); if(p.length!==2) return;
+        const A=function(a){ const m=String(a).match(/^([A-Z]+)(\d+)$/i); if(!m) return null; let col=0; const L=m[1].toUpperCase(); for(let i=0;i<L.length;i++) col=col*26+(L.charCodeAt(i)-64); return {r:parseInt(m[2],10),c:col}; };
+        const s=A(p[0]), e=A(p[1]); if(!s||!e) return;
+        for(let r=s.r;r<=e.r;r++) for(let c=s.c;c<=e.c;c++) master[r+'_'+c]=s.r+'-'+s.c;
+      });
+      // 1) Ligne « Sample 1 … Last » → colonnes RÉELLES, groupées par cycle
+      let hdrRow=0, cycles=[];
+      for(let r=1;r<=maxR && !cycles.length;r++){
+        let firsts=0; const seq=[];
+        for(let c=1;c<=maxC;c++){
+          const t=txt(r,c); if(!t) continue;
+          const m=t.match(/sample\s*0?(\d)/i);
+          if(m){ seq.push({k:'S'+m[1], c:c, a:(master[r+'_'+c]||(r+'-'+c))}); if(m[1]==='1') firsts++; }
+          else if(/last/i.test(t)) seq.push({k:'L', c:c, a:(master[r+'_'+c]||(r+'-'+c))});
+        }
+        if(firsts>=2){
+          hdrRow=r; let cur=null; const blocks=[];
+          seq.forEach(function(o){ if(o.k==='S1'){ cur={n:blocks.length+1,cols:[]}; blocks.push(cur); } if(cur && !cur.cols.some(function(x){return x.k===o.k;})) cur.cols.push(o); });
+          cycles=blocks.filter(function(b){return b.cols.length>=2;});
+        }
+      }
+      if(!cycles.length) return null;
+      const firstC=cycles[0].cols[0].c;
+      // 2) Échelle verticale réelle (colonne à GAUCHE des Sample, pas constant, ≥5 valeurs)
+      let best=null;
+      for(let c=1;c<firstC;c++){
+        let r=1;
+        while(r<=maxR){
+          if(num(r,c)==null){ r++; continue; }
+          const start=r; const vals=[]; let rr=r;
+          while(rr<=maxR){ const v=num(rr,c); if(v==null) break; vals.push(v); rr++; }
+          if(vals.length>=5){
+            const step=Math.abs(vals[0]-vals[1]);
+            let ok=step>=0.004 && step<=0.06;
+            for(let i=1;i<vals.length-1&&ok;i++){ if(Math.abs(Math.abs(vals[i]-vals[i+1])-step)>0.0025) ok=false; }
+            if(ok && (!best||vals.length>best.vals.length)) best={col:c,row:start,vals:vals.slice()};
+          }
+          r=(rr>r)?rr:(r+1);
+        }
+      }
+      if(!best) return null;
+      const scale=best.vals.map(function(v,i){ return { r:best.row+i, v:v }; });
+      const gridBot=scale[scale.length-1].r;
+      // 3) Lignes de traçabilité SOUS la grille (jamais l'en-tête du haut)
+      const tr={}; const want=[['product',/product/i],['lead',/lead/i],['qty',/quantit/i],['pull',/pull|code/i],['date',/^date\b/i],['name',/^name\b/i],['value',/^valeur|^value\b/i]];
+      for(let r=gridBot+1;r<=maxR;r++){
+        for(let c=1;c<=Math.min(maxC,firstC+2);c++){
+          const t=txt(r,c).trim(); if(!t) continue;
+          want.forEach(function(w){ if(tr[w[0]]==null && w[1].test(t)) tr[w[0]]=r; });
+        }
+      }
+      return { hdrRow:hdrRow, cycles:cycles, scale:scale, scaleCol:best.col, trace:tr, firstC:firstC };
+    },
+
+    /** 🎯 Cellule RÉELLE cible : cycle + échantillon + valeur snappée sur l'échelle du fichier */
+    _wbTarget(cycle,sample,val){
+      const m=this._map; if(!m) return null;
+      const blk=m.cycles.find(function(b){return String(b.n)===String(cycle);}); if(!blk) return null;
+      const co=blk.cols.find(function(o){return o.k===sample;}); if(!co) return null;
+      let best=m.scale[0], df=Infinity;
+      m.scale.forEach(function(s){ const d=Math.abs(s.v-val); if(d<df){ df=d; best=s; } });
+      return { r:best.r, c:co.c, v:best.v, a:co.a };
+    },
+
+    /** 🎯 Affiche le classeur TEL QU'IL EST (rendu fidèle complet) à la place de la matrice reconstruite */
+    _renderWbSheet(){
+      const tbl=document.getElementById('pdcc-grid'), trace=document.getElementById('pdcc-trace');
+      let host=document.getElementById('pdcc-wbhost');
+      if(!host){
+        if(tbl) tbl.style.display='none';
+        if(trace) trace.style.display='none';
+        host=document.createElement('div'); host.id='pdcc-wbhost';
+        const sc=(tbl&&tbl.closest('.pd-scroll'))||document.querySelector('#pdcc-overlay .pd-scroll');
+        if(sc) sc.appendChild(host); else document.querySelector('#pdcc-overlay .pd-panel')?.appendChild(host);
+      }
+      try{ host.innerHTML=toolAttachments._exceljsSheetHtml(this._ws); }
+      catch(e){ host.innerHTML='<div class="pd-hint" style="padding:1rem">Rendu impossible : '+(e.message||e)+'</div>'; }
+      this._renderFileInfo();
+      this._wbHighlight();
+    },
+    /** 🎯 Surligne dans le classeur la colonne (en-tête Sample) en cours de mesure */
+    _wbHighlight(){
+      if(!this._wbMode||!this._map) return;
+      document.querySelectorAll('#pdcc-wbhost td.pd-xlcur').forEach(function(el){ el.classList.remove('pd-xlcur'); });
+      const cy=this.CYCLES[this._ci], smp=this.SAMPLES[this._si]||this.SAMPLES[0]; if(!smp) return;
+      const blk=this._map.cycles.find(function(b){return String(b.n)===String(cy);});
+      const co=blk&&blk.cols.find(function(o){return o.k===smp.k;});
+      if(!co) return;
+      const el=document.querySelector('#pdcc-wbhost td[data-rc="'+co.a+'"]');
+      if(el){ el.classList.add('pd-xlcur'); try{ el.scrollIntoView({block:'nearest',inline:'center'}); }catch(e){} }
+    },
+    /** 🎯 Écrit la traçabilité dans les VRAIES lignes du fichier (si repérées), colonne du cycle, sans toucher au reste */
+    _writeMetaToSheet(cycle,m){
+      if(!this._wbMode||!this._map||!this._map.trace) return;
+      const blk=this._map.cycles.find(function(b){return String(b.n)===String(cycle);}); if(!blk) return;
+      const c0=blk.cols[0].c; const self=this; let wrote=false;
+      const put=function(key,val){ const r=self._map.trace[key]; if(!r||val==null||String(val).trim()==='') return; try{ const n=Number(String(val).replace(',','.')); self._ws.getCell(r,c0).value=(String(val).trim()!==''&&!isNaN(n)&&/^\s*-?\d+([.,]\d+)?\s*$/.test(String(val)))?n:val; wrote=true; }catch(e){} };
+      put('product',m.product); put('lead',m.lead); put('qty',m.qty); put('pull',m.pull); put('name',m.name);
+      if(m.date && this._map.trace.date){ const d=String(m.date); const fr=/^\d{4}-\d{2}-\d{2}$/.test(d)? d.split('-').reverse().join('/') : d; try{ this._ws.getCell(this._map.trace.date,c0).value=fr; wrote=true; }catch(e){} }
+      if(wrote) this._renderWbSheet();
+    },
+    /** 🎯 Recharge le classeur d'ORIGINE (fiche vierge) après archivage / réinitialisation */
+    async _reloadWb(){
+      if(!this._wbBytes) return;
+      try{
+        const wb=new ExcelJS.Workbook(); await wb.xlsx.load(this._wbBytes.slice(0));
+        const name=this._ws&&this._ws.name;
+        this._wb=wb; this._ws=(name&&wb.getWorksheet(name))||wb.worksheets[0];
+        const mp=this._mapSheet(this._ws); if(mp) this._map=mp;
+        this._renderWbSheet();
+      }catch(e){ console.warn('[pdcc reload]',e); }
+    },
+    /** 🎯 Export : VOTRE Excel d'origine, rempli — identique au fichier que vous avez donné */
+    async _downloadWb(){
+      if(!this._wbMode||!this._wb){ ui.toast('Aucun classeur chargé.','warn'); return; }
+      try{
+        const buf=await this._wb.xlsx.writeBuffer();
+        const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+        a.download=(this._origName||'PDCC.xlsx').replace(/\.xlsx?$/i,'')+'_'+this.state.id+'.xlsx';
+        document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
+        ui.toast('⬇️ Excel rempli téléchargé.','success');
+      }catch(e){ ui.toast('Téléchargement impossible : '+(e.message||e),'danger'); }
+    },
+    async _wbB64(){
+      const buf=await this._wb.xlsx.writeBuffer();
+      const u8=new Uint8Array(buf); let bin=''; const CH=0x8000;
+      for(let i=0;i<u8.length;i+=CH) bin+=String.fromCharCode.apply(null,u8.subarray(i,i+CH));
+      return btoa(bin);
+    },
+
     async _loadHistory(){
+      const self=this;
       const host=document.getElementById('pdcc-hist'); if(!host) return;
       let v={}; try{ const snap=await fbDb.ref('preparations/'+this.toolId+'/pdcc').once('value'); v=snap.val()||{}; }catch(e){}
       const arr=Object.values(v).sort(function(a,b){return (b.archivedAt||0)-(a.archivedAt||0);});
       if(!arr.length){ host.innerHTML='<div class="pd-hint" style="padding:1rem;text-align:center">Aucune fiche archivée pour cet outil.</div>'; return; }
-      host.innerHTML=arr.map(function(p){ const when=p.archivedAt?new Date(p.archivedAt).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''; return '<div class="pd-hist"><span style="font-size:1.1rem">📄</span><div style="flex:1;min-width:0"><div class="hid">'+ui.escape(p.id||'')+'</div><div style="font-size:.72rem;color:var(--text-muted)">Section '+ui.escape(p.section||'—')+' · '+when+' · '+ui.escape(p.by||'')+'</div></div><span class="pd-pill">'+(p.sampleCount||0)+' éch.</span></div>'; }).join('');
+      host.innerHTML=arr.map(function(p){ const when=p.archivedAt?new Date(p.archivedAt).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''; const dl=p.hasFile?'<button class="pd-btn pd-btn--x" data-pdccdl="'+ui.escape(p.id||'')+'" style="padding:.3rem .55rem;font-size:.7rem">⬇️ Excel</button>':''; return '<div class="pd-hist"><span style="font-size:1.1rem">📄</span><div style="flex:1;min-width:0"><div class="hid">'+ui.escape(p.id||'')+'</div><div style="font-size:.72rem;color:var(--text-muted)">Section '+ui.escape(p.section||'—')+' · '+when+' · '+ui.escape(p.by||'')+'</div></div>'+dl+'<span class="pd-pill">'+(p.sampleCount||0)+' éch.</span></div>'; }).join('');
+      host.querySelectorAll('[data-pdccdl]').forEach(function(btn){ btn.onclick=async function(){
+        const id=btn.getAttribute('data-pdccdl'); btn.disabled=true;
+        try{
+          const snap=await fbDb.ref('preparations/'+self.toolId+'/pdccFiles/'+id).once('value'); const f=snap.val();
+          if(!f||!f.b64){ ui.toast('Copie Excel introuvable pour '+id+'.','warn'); return; }
+          const bin=atob(f.b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+          const blob=new Blob([u8],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+          const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=f.name||(id+'.xlsx');
+          document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
+        }catch(e){ ui.toast('Téléchargement impossible : '+(e.message||e),'danger'); }
+        finally{ btn.disabled=false; }
+      }; });
     }
   };
   window.pdcc = pdcc;

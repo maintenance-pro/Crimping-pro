@@ -11700,6 +11700,216 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
   // Expose globalement
   window.toolAttachments = toolAttachments;
 
+  /* ══════════════════════════════════════════════════════════════════
+     🆕 PDCC — Annexe 4 interactif (zone Préparations)
+     Saisie native de la matrice + traçabilité + archivage Firebase.
+     Stockage : preparations/{toolId}/pdcc/{ficheId}
+     ══════════════════════════════════════════════════════════════════ */
+  const pdcc = {
+    toolId: null, toolName: '', counter: 1, state: null, _escHandler: null,
+    sectionsSpecs: {
+      '1.5²': { nominal:{DCH:1.52,CB:2.18,ICH:3.10,ICB:3.11}, rows:[1.56,1.55,1.54,1.53,1.52,1.51,1.50,1.49,1.48], colors:{red:[1.56,1.48],yellow:[1.55,1.54,1.50,1.49],green:[1.53,1.52,1.51]} },
+      '2.0²': { nominal:{DCH:1.60,CB:2.18,ICH:3.35,ICB:3.11}, rows:[1.64,1.63,1.62,1.61,1.60,1.59,1.58,1.57,1.56], colors:{red:[1.64,1.56],yellow:[1.63,1.62,1.58,1.57],green:[1.61,1.60,1.59]} }
+    },
+    CYCLES: [1,2,3,4,5],
+    SAMPLES: [{k:'S1',l:'S1'},{k:'S2',l:'S2'},{k:'S3',l:'S3'},{k:'L',l:'L'}],
+    META_FIELDS: [{k:'product',l:'Product',src:'pdcc-mProduct'},{k:'lead',l:'Lead Number',src:'pdcc-mLead'},{k:'qty',l:'Cycle Quantity',src:'pdcc-mQty'},{k:'pull',l:'Code/Pull Test',src:'pdcc-mPull'},{k:'date',l:'Date',src:'pdcc-mDate'},{k:'name',l:'Name',src:'pdcc-mName'}],
+
+    _sheetId(n){ return 'PDCC-' + (new Date().getFullYear()) + '-' + String(n).padStart(4,'0'); },
+    _newState(){ return { id:this._sheetId(this.counter), section:'', samples:{}, metadata:{}, createdAt:Date.now() }; },
+    _zoneOf(spec,val){ if(spec.colors.red.includes(val))return'red'; if(spec.colors.yellow.includes(val))return'yellow'; if(spec.colors.green.includes(val))return'green'; return''; },
+    _snap(spec,d){ let b=spec.rows[0],df=Infinity; spec.rows.forEach(function(v){var x=Math.abs(v-d); if(x<df){df=x;b=v;}}); return b; },
+
+    _injectStyles(){
+      if(document.getElementById('pdcc-styles')) return;
+      const s=document.createElement('style'); s.id='pdcc-styles';
+      s.textContent = '#pdcc-overlay{position:fixed;inset:0;background:rgba(4,8,16,.93);backdrop-filter:blur(8px);z-index:10014;overflow:auto}'
+        + '#pdcc-overlay .pd-panel{max-width:1280px;width:100%;margin:0 auto;padding:1rem 1.1rem 3rem}'
+        + '#pdcc-overlay .pd-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;background:linear-gradient(135deg,#102136,#111c30);border:1px solid var(--border-soft);border-radius:14px;padding:.85rem 1.1rem;margin-bottom:1rem}'
+        + '#pdcc-overlay .pd-id{font-family:var(--font-mono);font-weight:800;font-size:.95rem;color:var(--text-primary);background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.35);border-radius:8px;padding:.3rem .65rem}'
+        + '#pdcc-overlay .pd-badge{display:inline-flex;align-items:center;gap:.45rem;font-size:.76rem;font-weight:700;color:#ffb547;background:rgba(255,181,71,.12);border:1px solid rgba(255,181,71,.35);border-radius:20px;padding:.3rem .75rem}'
+        + '#pdcc-overlay .pd-badge .dot{width:8px;height:8px;border-radius:50%;background:#ffb547;box-shadow:0 0 8px #ffb547}'
+        + '#pdcc-overlay .pd-card{background:#0d1626;border:1px solid var(--border-soft);border-radius:14px;padding:1rem;margin-bottom:1rem}'
+        + '#pdcc-overlay .pd-ct{font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#00d4ff;margin-bottom:.75rem}'
+        + '#pdcc-overlay .pd-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.7rem}'
+        + '#pdcc-overlay .pd-f{display:flex;flex-direction:column;gap:.28rem}'
+        + '#pdcc-overlay .pd-f label{font-size:.66rem;font-weight:700;color:var(--text-muted);text-transform:uppercase}'
+        + '#pdcc-overlay .pd-f input,#pdcc-overlay .pd-f select{background:var(--bg-elevated,#16223a);border:1px solid var(--border-strong);border-radius:8px;color:var(--text-primary);padding:.45rem .55rem;font-size:.83rem;font-family:var(--font-mono);outline:none}'
+        + '#pdcc-overlay .pd-f input:focus,#pdcc-overlay .pd-f select:focus{border-color:#00d4ff;box-shadow:0 0 0 3px rgba(0,212,255,.15)}'
+        + '#pdcc-overlay .pd-btn{cursor:pointer;border:none;border-radius:9px;font-weight:800;font-size:.82rem;padding:.55rem 1rem}'
+        + '#pdcc-overlay .pd-btn--p{background:linear-gradient(135deg,#00d4ff,#0096d6);color:#04121f}'
+        + '#pdcc-overlay .pd-btn--g{background:linear-gradient(135deg,#00e5a0,#00b37e);color:#04201a}'
+        + '#pdcc-overlay .pd-btn--a{background:linear-gradient(135deg,#ffb547,#ff7a45);color:#2a1402}'
+        + '#pdcc-overlay .pd-btn--x{background:transparent;border:1px solid var(--border-strong);color:var(--text-primary)}'
+        + '#pdcc-overlay .pd-actions{display:flex;gap:.55rem;flex-wrap:wrap;margin-top:.9rem;align-items:center}'
+        + '#pdcc-overlay .pd-hint{font-size:.72rem;color:var(--text-muted)}'
+        + '#pdcc-overlay .pd-scroll{overflow-x:auto;border:1px solid var(--border-strong);border-radius:12px;background:#fff;padding:2px}'
+        + '#pdcc-overlay table.pd-grid{border-collapse:collapse;width:100%;font-size:.72rem;color:#0a1a2f;font-family:var(--font-mono)}'
+        + '#pdcc-overlay table.pd-grid th,#pdcc-overlay table.pd-grid td{border:1px solid #9aa6b8;text-align:center;padding:0;white-space:nowrap}'
+        + '#pdcc-overlay table.pd-grid thead th{background:#0d1626;color:#cfe3ff;font-weight:700;padding:.3rem .25rem;font-family:Inter,sans-serif}'
+        + '#pdcc-overlay .pd-ytitle{writing-mode:vertical-rl;transform:rotate(180deg);background:#0d1626;color:#cfe3ff;font-weight:700;width:26px}'
+        + '#pdcc-overlay .pd-yval{background:#eef2f8;font-weight:800;color:#0a1a2f;width:54px;padding:.26rem .35rem}'
+        + '#pdcc-overlay .pd-sub{background:#16223a;color:#9fb6da;font-weight:600;width:34px;font-size:.64rem;font-family:Inter,sans-serif}'
+        + '#pdcc-overlay .pd-cell{width:34px;height:24px;position:relative}'
+        + '#pdcc-overlay .pd-cell.z-red{background:#ff3333}#pdcc-overlay .pd-cell.z-yellow{background:#ffff00}#pdcc-overlay .pd-cell.z-green{background:#99ff99}'
+        + "#pdcc-overlay .pd-cell.mark::after{content:'X';color:#000;font-weight:900;font-size:1rem;line-height:24px;display:block;font-family:Inter,sans-serif}"
+        + '#pdcc-overlay .pd-sep{border-left:2px solid #0096d6 !important}'
+        + '#pdcc-overlay table.pd-trace{border-collapse:collapse;width:100%;font-size:.72rem;margin-top:6px;font-family:Inter,sans-serif}'
+        + '#pdcc-overlay table.pd-trace td{border:1px solid #9aa6b8;padding:.3rem .4rem;background:#fff;color:#0a1a2f}'
+        + '#pdcc-overlay table.pd-trace .tlabel{background:#0d1626;color:#cfe3ff;font-weight:700;text-align:right;width:120px;white-space:nowrap}'
+        + '#pdcc-overlay table.pd-trace .tblock{font-family:var(--font-mono);text-align:center;font-weight:600}'
+        + '#pdcc-overlay .pd-hist{display:flex;align-items:center;gap:.7rem;padding:.55rem .75rem;border:1px solid var(--border-soft);border-left:3px solid #00e5a0;border-radius:9px;margin-bottom:.45rem;background:var(--bg-elevated)}'
+        + '#pdcc-overlay .pd-hist .hid{font-family:var(--font-mono);font-weight:800;color:#00d4ff}'
+        + '#pdcc-overlay .pd-pill{font-size:.66rem;font-weight:700;padding:.1rem .5rem;border-radius:5px;background:rgba(0,212,255,.15);color:#00d4ff}';
+      document.head.appendChild(s);
+    },
+
+    async _loadCounter(){
+      try{ const snap = await fbDb.ref('preparations/'+this.toolId+'/pdcc').once('value'); this.counter = Object.keys(snap.val()||{}).length + 1; }
+      catch(e){ this.counter = 1; }
+    },
+
+    async open(toolId, toolName){
+      if(!toolId){ ui.toast('Outil introuvable.','danger'); return; }
+      this.toolId = toolId; this.toolName = toolName || toolId;
+      this._injectStyles();
+      await this._loadCounter();
+      this.state = this._newState();
+      this._renderShell();
+      this._loadHistory();
+    },
+
+    close(){ document.getElementById('pdcc-overlay')?.remove(); if(this._escHandler){ document.removeEventListener('keydown', this._escHandler); this._escHandler=null; } },
+
+    _renderShell(){
+      document.getElementById('pdcc-overlay')?.remove();
+      const ov=document.createElement('div'); ov.id='pdcc-overlay';
+      ov.innerHTML =
+        '<div class="pd-panel">'
+        + '<div class="pd-bar"><div><div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.07em">PDCC — Annexe 4 · '+ui.escape(this.toolName)+'</div>'
+          + '<span class="pd-id" id="pdcc-sheetId">FICHE : '+this.state.id+'</span></div>'
+          + '<span class="pd-badge"><span class="dot"></span> En cours de saisie</span>'
+          + '<button class="pd-btn pd-btn--x" id="pdcc-close" style="margin-left:auto">← Fermer</button></div>'
+        + '<div class="pd-card"><div class="pd-ct">📝 Saisie d\'un point de mesure</div><div class="pd-form">'
+          + '<div class="pd-f"><label>Section</label><select id="pdcc-selSection"></select></div>'
+          + '<div class="pd-f"><label>N° Cycle</label><select id="pdcc-selCycle"></select></div>'
+          + '<div class="pd-f"><label>Échantillon</label><select id="pdcc-selSample"><option value="S1">Sample 1</option><option value="S2">Sample 2</option><option value="S3">Sample 3</option><option value="L">Last / Off</option></select></div>'
+          + '<div class="pd-f"><label>DCH ▶ matrice</label><input type="number" step="0.01" id="pdcc-inDCH" placeholder="nominal —"></div>'
+          + '<div class="pd-f"><label>CB</label><input type="number" step="0.01" id="pdcc-inCB" placeholder="nominal —"></div>'
+          + '<div class="pd-f"><label>ICH</label><input type="number" step="0.01" id="pdcc-inICH" placeholder="nominal —"></div>'
+          + '<div class="pd-f"><label>ICB</label><input type="number" step="0.01" id="pdcc-inICB" placeholder="nominal —"></div>'
+          + '</div><div class="pd-actions"><button class="pd-btn pd-btn--p" id="pdcc-btnValidate">✔ Valider (pointer X)</button><span class="pd-hint" id="pdcc-hint">Sélectionnez une section pour générer la matrice.</span></div></div>'
+        + '<div class="pd-card"><div class="pd-ct">🏷️ Traçabilité du cycle</div><div class="pd-form">'
+          + '<div class="pd-f"><label>Product</label><input type="text" id="pdcc-mProduct"></div>'
+          + '<div class="pd-f"><label>Lead Number</label><input type="text" id="pdcc-mLead"></div>'
+          + '<div class="pd-f"><label>Cycle Quantity</label><input type="number" id="pdcc-mQty"></div>'
+          + '<div class="pd-f"><label>Code / Pull Test</label><input type="text" id="pdcc-mPull"></div>'
+          + '<div class="pd-f"><label>Date</label><input type="date" id="pdcc-mDate"></div>'
+          + '<div class="pd-f"><label>Name</label><input type="text" id="pdcc-mName"></div>'
+          + '</div><div class="pd-actions"><button class="pd-btn pd-btn--g" id="pdcc-btnMeta">💾 Enregistrer la traçabilité du cycle</button></div></div>'
+        + '<div class="pd-card"><div class="pd-ct">📊 Matrice PDCC</div><div class="pd-scroll"><table class="pd-grid" id="pdcc-grid"><tbody><tr><td style="padding:2rem;color:#0a1a2f;background:#fff">Choisissez une section.</td></tr></tbody></table><table class="pd-trace" id="pdcc-trace"></table></div></div>'
+        + '<div class="pd-card" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap"><button class="pd-btn pd-btn--a" id="pdcc-btnArchive">📦 Archiver la Fiche</button><button class="pd-btn pd-btn--x" id="pdcc-btnReset">🧹 Réinitialiser</button><span class="pd-hint">Archive → enregistrée dans Firebase + historique, puis fiche vierge.</span></div>'
+        + '<div class="pd-card"><div class="pd-ct">🗂️ Historique des fiches archivées (cet outil)</div><div id="pdcc-hist"><div class="pd-hint" style="padding:1rem;text-align:center">Chargement…</div></div></div>'
+        + '</div>';
+      document.body.appendChild(ov);
+      this._initSelectors();
+      const g=(id)=>document.getElementById(id);
+      g('pdcc-close').onclick=()=>this.close();
+      g('pdcc-selSection').onchange=()=>{ this._updatePlaceholders(); this._buildMatrix(); };
+      g('pdcc-btnValidate').onclick=()=>this._validate();
+      g('pdcc-btnMeta').onclick=()=>this._saveMeta();
+      g('pdcc-btnArchive').onclick=()=>this._archive();
+      g('pdcc-btnReset').onclick=()=>{ if(confirm('Réinitialiser la fiche sans archiver ?')) this._reset(false); };
+      this._escHandler=(e)=>{ if(e.key==='Escape') this.close(); };
+      document.addEventListener('keydown', this._escHandler);
+    },
+
+    _initSelectors(){
+      const g=(id)=>document.getElementById(id);
+      g('pdcc-selSection').innerHTML='<option value="">— Choisir —</option>'+Object.keys(this.sectionsSpecs).map(function(s){return '<option value="'+s+'">Section '+s+'</option>';}).join('');
+      g('pdcc-selCycle').innerHTML=this.CYCLES.map(function(c){return '<option value="'+c+'">Cycle '+c+'</option>';}).join('');
+      g('pdcc-mDate').value=new Date().toISOString().slice(0,10);
+    },
+    _updatePlaceholders(){
+      const spec=this.sectionsSpecs[document.getElementById('pdcc-selSection').value];
+      function set(id,v){ document.getElementById(id).placeholder = (v!=null)?('nominal '+v.toFixed(2)):'nominal —'; }
+      set('pdcc-inDCH',spec&&spec.nominal.DCH); set('pdcc-inCB',spec&&spec.nominal.CB); set('pdcc-inICH',spec&&spec.nominal.ICH); set('pdcc-inICB',spec&&spec.nominal.ICB);
+    },
+    _buildMatrix(){
+      const self=this; const sec=document.getElementById('pdcc-selSection').value; this.state.section=sec;
+      const tbl=document.getElementById('pdcc-grid'), trace=document.getElementById('pdcc-trace');
+      if(!sec){ tbl.innerHTML='<tbody><tr><td style="padding:2rem;color:#0a1a2f;background:#fff">Choisissez une section.</td></tr></tbody>'; trace.innerHTML=''; return; }
+      const spec=this.sectionsSpecs[sec];
+      let head='<thead><tr><th rowspan="2" class="pd-ytitle">DCH</th>';
+      this.CYCLES.forEach(function(c){ head+='<th colspan="4">CYCLE '+c+'</th>'; });
+      head+='</tr><tr>';
+      this.CYCLES.forEach(function(c){ self.SAMPLES.forEach(function(s,i){ head+='<th class="pd-sub'+(i===0?' pd-sep':'')+'">'+s.l+'</th>'; }); });
+      head+='</tr></thead>';
+      let body='<tbody>';
+      spec.rows.forEach(function(val){ const z=self._zoneOf(spec,val); body+='<tr><td class="pd-yval">'+val.toFixed(2)+'</td>';
+        self.CYCLES.forEach(function(c){ self.SAMPLES.forEach(function(s,i){ body+='<td class="pd-cell z-'+z+(i===0?' pd-sep':'')+'" id="pdcc-cell-'+val.toFixed(2)+'-'+c+'-'+s.k+'"></td>'; }); });
+        body+='</tr>'; });
+      body+='</tbody>'; tbl.innerHTML=head+body;
+      let t=''; this.META_FIELDS.forEach(function(f){ t+='<tr><td class="tlabel">'+f.l+'</td>'; self.CYCLES.forEach(function(c){ t+='<td class="tblock" colspan="4" id="pdcc-meta-'+f.k+'-'+c+'">-</td>'; }); t+='</tr>'; });
+      trace.innerHTML=t;
+      this._repaint();
+    },
+    _repaint(){
+      const self=this;
+      Object.keys(this.state.samples).forEach(function(key){ const d=self.state.samples[key]; const p=key.split('-'); const cell=document.getElementById('pdcc-cell-'+d.row+'-'+p[0]+'-'+p[1]); if(cell) cell.classList.add('mark'); });
+      Object.keys(this.state.metadata).forEach(function(c){ const m=self.state.metadata[c]; self.META_FIELDS.forEach(function(f){ const el=document.getElementById('pdcc-meta-'+f.k+'-'+c); if(el) el.textContent=m[f.k]||'-'; }); });
+    },
+    _validate(){
+      const sec=document.getElementById('pdcc-selSection').value; if(!sec){ ui.toast('Sélectionnez une section.','warn'); return; }
+      const spec=this.sectionsSpecs[sec]; const dchRaw=parseFloat(document.getElementById('pdcc-inDCH').value);
+      if(isNaN(dchRaw)){ ui.toast('Saisissez une valeur DCH valide.','warn'); return; }
+      const cycle=document.getElementById('pdcc-selCycle').value, sample=document.getElementById('pdcc-selSample').value;
+      const row=this._snap(spec,dchRaw).toFixed(2);
+      spec.rows.forEach(function(v){ const c=document.getElementById('pdcc-cell-'+v.toFixed(2)+'-'+cycle+'-'+sample); if(c) c.classList.remove('mark'); });
+      const target=document.getElementById('pdcc-cell-'+row+'-'+cycle+'-'+sample); if(target) target.classList.add('mark');
+      this.state.samples[cycle+'-'+sample]={ value:dchRaw, cb:parseFloat(document.getElementById('pdcc-inCB').value)||null, ich:parseFloat(document.getElementById('pdcc-inICH').value)||null, icb:parseFloat(document.getElementById('pdcc-inICB').value)||null, row:row };
+      const lo=spec.rows[spec.rows.length-1], hi=spec.rows[0]; const out=(dchRaw>hi)||(dchRaw<lo);
+      document.getElementById('pdcc-hint').innerHTML='✔ Pointé : Cycle '+cycle+' · '+sample+' · DCH '+dchRaw.toFixed(2)+' (ligne '+row+')'+(out?' · <b style="color:#ff7a45">⚠ hors plage</b>':'');
+      document.getElementById('pdcc-inDCH').value=''; document.getElementById('pdcc-inDCH').focus();
+    },
+    _saveMeta(){
+      const self=this; const sec=document.getElementById('pdcc-selSection').value; if(!sec){ ui.toast('Sélectionnez une section.','warn'); return; }
+      const cycle=document.getElementById('pdcc-selCycle').value; const m={};
+      this.META_FIELDS.forEach(function(f){ m[f.k]=document.getElementById(f.src).value.trim(); });
+      this.state.metadata[cycle]=m;
+      this.META_FIELDS.forEach(function(f){ const el=document.getElementById('pdcc-meta-'+f.k+'-'+cycle); if(el) el.textContent=m[f.k]||'-'; });
+      document.getElementById('pdcc-hint').textContent='💾 Traçabilité enregistrée pour le Cycle '+cycle+'.';
+    },
+    async _archive(){
+      const nbSamples=Object.keys(this.state.samples).length, nbMeta=Object.keys(this.state.metadata).length;
+      if(nbSamples===0&&nbMeta===0){ ui.toast('Fiche vide : rien à archiver.','warn'); return; }
+      const spec=this.sectionsSpecs[this.state.section]||{};
+      const payload={ id:this.state.id, toolId:this.toolId, toolName:this.toolName, section:this.state.section, nominal:spec.nominal||null, createdAt:this.state.createdAt, archivedAt:Date.now(), sampleCount:nbSamples, samples:this.state.samples, metadata:this.state.metadata, by:(state.profile&&(state.profile.displayName||state.profile.email))||state.role||'' };
+      try{ await fbDb.ref('preparations/'+this.toolId+'/pdcc/'+this.state.id).set(payload); ui.toast('📦 Fiche '+this.state.id+' archivée.','success'); }
+      catch(e){ console.error('[pdcc archive]',e); ui.toast('Erreur archivage : '+(e.message||e),'danger'); return; }
+      try{ if(typeof db!=='undefined'&&db.audit) db.audit('pdcc.archive', this.toolId, {fiche:this.state.id}); }catch(e){}
+      this._reset(true);
+      this._loadHistory();
+    },
+    _reset(advance){
+      if(advance) this.counter++;
+      this.state=this._newState();
+      const sid=document.getElementById('pdcc-sheetId'); if(sid) sid.textContent='FICHE : '+this.state.id;
+      ['pdcc-inDCH','pdcc-inCB','pdcc-inICH','pdcc-inICB','pdcc-mProduct','pdcc-mLead','pdcc-mQty','pdcc-mPull','pdcc-mName'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+      const md=document.getElementById('pdcc-mDate'); if(md) md.value=new Date().toISOString().slice(0,10);
+      if(document.getElementById('pdcc-selSection').value) this._buildMatrix(); else { const g=document.getElementById('pdcc-grid'), t=document.getElementById('pdcc-trace'); if(g)g.innerHTML=''; if(t)t.innerHTML=''; }
+      const h=document.getElementById('pdcc-hint'); if(h) h.textContent= advance?('✅ Archivée. Nouvelle fiche '+this.state.id+'.'):'Fiche réinitialisée.';
+    },
+    async _loadHistory(){
+      const host=document.getElementById('pdcc-hist'); if(!host) return;
+      let v={}; try{ const snap=await fbDb.ref('preparations/'+this.toolId+'/pdcc').once('value'); v=snap.val()||{}; }catch(e){}
+      const arr=Object.values(v).sort(function(a,b){return (b.archivedAt||0)-(a.archivedAt||0);});
+      if(!arr.length){ host.innerHTML='<div class="pd-hint" style="padding:1rem;text-align:center">Aucune fiche archivée pour cet outil.</div>'; return; }
+      host.innerHTML=arr.map(function(p){ const when=p.archivedAt?new Date(p.archivedAt).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''; return '<div class="pd-hist"><span style="font-size:1.1rem">📄</span><div style="flex:1;min-width:0"><div class="hid">'+ui.escape(p.id||'')+'</div><div style="font-size:.72rem;color:var(--text-muted)">Section '+ui.escape(p.section||'—')+' · '+when+' · '+ui.escape(p.by||'')+'</div></div><span class="pd-pill">'+(p.sampleCount||0)+' éch.</span></div>'; }).join('');
+    }
+  };
+  window.pdcc = pdcc;
+
   const fmt = {
     date: (ts) => {
       if (!ts) return '—';
@@ -21316,10 +21526,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               </div>
               ${canManage ? `<button data-prep-del="${p.toolId}" title="Retirer des préparations" style="background:rgba(255,61,90,.12);color:#ff3d5a;border:1px solid rgba(255,61,90,.35);border-radius:7px;padding:.35rem .6rem;font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap">🗑️ Retirer</button>` : ''}
             </div>
-            <div style="display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.6rem;padding-top:.6rem;border-top:1px dashed var(--border-soft)">${xlBtns}</div>
+            <div style="display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.6rem;padding-top:.6rem;border-top:1px dashed var(--border-soft)">
+              <button data-prep-pdcc="${p.toolId}::${ui.escape(p.doutils || p.toolId)}" style="display:inline-flex;align-items:center;gap:.4rem;background:linear-gradient(135deg,#00e5a0,#00b37e);color:#04201a;border:none;border-radius:7px;padding:.4rem .8rem;font-size:.76rem;font-weight:800;cursor:pointer">📝 Remplir PDCC (Annexe 4)</button>
+              ${xlBtns}
+            </div>
           </div>`;
         }).join('');
 
+        // Ouvrir le PDCC interactif (Annexe 4) — saisie native + archivage Firebase
+        listEl.querySelectorAll('[data-prep-pdcc]').forEach(b => b.onclick = () => {
+          const sep = b.dataset.prepPdcc.split('::');
+          if (typeof pdcc !== 'undefined' && pdcc.open) pdcc.open(sep[0], sep[1]);
+        });
         // Ouvrir l'Annexe / PDCC dans le visualiseur (lecture + téléchargement pour remplir)
         listEl.querySelectorAll('[data-prep-xl]').forEach(b => b.onclick = () => {
           const [tid, fid] = b.dataset.prepXl.split('::');

@@ -11789,6 +11789,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         ['pdcc-selSection','pdcc-selMode'].forEach(function(id){ const el=document.getElementById(id); const f=el&&el.closest('.pd-f'); if(f) f.style.display='none'; });
         const xb=document.getElementById('pdcc-btnXls'); if(xb) xb.style.display='';
         this.state.section=(this._fileSpec&&(this._fileSpec.cross||this._fileSpec.label))||'fichier';
+        // Nominaux lus DANS le fichier → placeholders (Crimp Height 6,60 · Crimp Width 9,10 · …)
+        const N=(this._map&&this._map.noms)||{};
+        [['pdcc-inDCH',N.ch],['pdcc-inCB',N.cw],['pdcc-inICH',N.ih],['pdcc-inICB',N.iw],['pdcc-inPT',N.pt]].forEach(function(p){ const el=document.getElementById(p[0]); if(el&&p[1]) el.placeholder='nominal '+p[1]; });
         this._renderWbSheet();
         const sl=this.SAMPLES.map(function(s){return s.k;}).join(' · ');
         const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Classeur chargé <b>tel quel</b> — <b>'+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons</b> ('+sl+') lus dans le fichier. Chaque mesure s\'écrit dans la cellule d\'origine.';
@@ -11829,10 +11832,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           + '<div class="pd-f"><label>N° Cycle</label><select id="pdcc-selCycle"></select></div>'
           + '<div class="pd-f"><label>Échantillon</label><select id="pdcc-selSample"></select></div>'
           + '<div class="pd-f"><label>Échantillons / cycle</label><select id="pdcc-selMode"><option value="4L">S1–S3 + Last</option><option value="3">S1–S3</option><option value="5">S1–S5</option></select></div>'
-          + '<div class="pd-f"><label>DCH ▶ matrice</label><input type="number" step="0.01" id="pdcc-inDCH" placeholder="nominal —"></div>'
-          + '<div class="pd-f"><label>CB</label><input type="number" step="0.01" id="pdcc-inCB" placeholder="nominal —"></div>'
-          + '<div class="pd-f"><label>ICH</label><input type="number" step="0.01" id="pdcc-inICH" placeholder="nominal —"></div>'
-          + '<div class="pd-f"><label>ICB</label><input type="number" step="0.01" id="pdcc-inICB" placeholder="nominal —"></div>'
+          + '<div class="pd-f"><label>Crimp Height ▶ X</label><input type="number" step="0.01" id="pdcc-inDCH" placeholder="mesure (mm)"></div>'
+          + '<div class="pd-f"><label>Crimp Width</label><input type="number" step="0.01" id="pdcc-inCB" placeholder="nominal —"></div>'
+          + '<div class="pd-f"><label>Insulation Height</label><input type="number" step="0.01" id="pdcc-inICH" placeholder="nominal —"></div>'
+          + '<div class="pd-f"><label>Insulation Width</label><input type="number" step="0.01" id="pdcc-inICB" placeholder="nominal —"></div>'
+          + '<div class="pd-f"><label>Pull-Test (N)</label><input type="number" step="0.01" id="pdcc-inPT" placeholder="nominal —"></div>'
           + '</div><div class="pd-actions"><span id="pdcc-pos" style="font-family:var(--font-mono);font-weight:800;color:#00e5a0;background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.35);border-radius:8px;padding:.4rem .7rem">▶ Cycle 1 · Sample 1</span><button class="pd-btn pd-btn--p" id="pdcc-btnValidate">✔ Valider la mesure</button><button class="pd-btn pd-btn--x" id="pdcc-btnSkip" style="display:none">⏭ Passer la saisie manuelle</button><button class="pd-btn pd-btn--x" id="pdcc-btnSerial">🔌 Micromètre USB</button><span class="pd-hint" id="pdcc-serialStat">⌨️ mode clavier prêt</span><span class="pd-hint" id="pdcc-hint">Sélectionnez une section pour générer la matrice.</span></div></div>'
         + '<div class="pd-card"><div class="pd-ct">🏷️ Traçabilité du cycle</div><div class="pd-form">'
           + '<div class="pd-f"><label>Product</label><input type="text" id="pdcc-mProduct"></div>'
@@ -11857,7 +11861,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       g('pdcc-inDCH').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); this._validate(); } });
       g('pdcc-inCB').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); g('pdcc-inICH').focus(); } });
       g('pdcc-inICH').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); g('pdcc-inICB').focus(); } });
-      g('pdcc-inICB').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); this._validate(); } });
+      g('pdcc-inICB').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); g('pdcc-inPT').focus(); } });
+      g('pdcc-inPT').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); this._validate(); } });
       g('pdcc-btnSkip').onclick=()=>this._skipManual();
       g('pdcc-btnSerial').onclick=()=>this.connectSerial();
       g('pdcc-btnValidate').onclick=()=>this._validate();
@@ -11955,13 +11960,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const prev=this.state.samples[cycle+'-'+sample];
         if(prev&&prev.r&&prev.c){ try{ this._ws.getCell(prev.r,prev.c).value=null; }catch(e){} }   // correction : on efface l'ancien X
         try{ this._ws.getCell(tgt.r,tgt.c).value='X'; }catch(e){ ui.toast('Écriture impossible : '+(e.message||e),'danger'); return; }
-        if(this._map.trace && this._map.trace.value){ try{ this._ws.getCell(this._map.trace.value, tgt.c).value=dchRaw; }catch(e){} }
-        this.state.samples[cycle+'-'+sample]={ value:dchRaw, cb:null, ich:null, icb:null, row:tgt.v.toFixed(2), r:tgt.r, c:tgt.c };
+        if(this._map.vals && this._map.vals.ch){ try{ this._ws.getCell(this._map.vals.ch, tgt.c).value=dchRaw; }catch(e){} }   // valeur sous CE sample (ligne Crimp Height)
+        this.state.samples[cycle+'-'+sample]={ value:dchRaw, cb:null, ich:null, icb:null, pt:null, row:tgt.v.toFixed(2), r:tgt.r, c:tgt.c };
         this._renderWbSheet();
         const vs=this._map.scale.map(function(s){return s.v;}); const lo2=Math.min.apply(null,vs), hi2=Math.max.apply(null,vs); const out2=(dchRaw>hi2)||(dchRaw<lo2);
         document.getElementById('pdcc-hint').innerHTML='✔ X écrit dans le fichier — Cycle '+cycle+' · '+sample+' à <b>'+tgt.v.toFixed(2)+'</b> (mesure '+dchRaw.toFixed(2)+')'+(out2?' · <b style="color:#ff7a45">⚠ hors plage</b>':'');
         document.getElementById('pdcc-inDCH').value='';
-        this._setPhase('manual');
+        if(sample==='S1') this._setPhase('manual'); else this._advance();   // CW/IH/IW/PT : Sample 1 uniquement (cases hachurées ailleurs)
         return;
       }
       const row=this._snap({rows:rows},dchRaw).toFixed(2);
@@ -11972,24 +11977,31 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const lo=Math.min(rows[0],rows[rows.length-1]), hi=Math.max(rows[0],rows[rows.length-1]); const out=(dchRaw>hi)||(dchRaw<lo);
       document.getElementById('pdcc-hint').innerHTML='✔ Mesure '+dchRaw.toFixed(2)+' enregistrée ('+sample+', ligne '+row+')'+(out?' · <b style="color:#ff7a45">⚠ hors plage</b>':'');
       document.getElementById('pdcc-inDCH').value='';
-      this._setPhase('manual');   // ✍️ demande de remplir les autres colonnes
+      if(sample==='S1') this._setPhase('manual'); else this._advance();   // ✍️ autres colonnes : Sample 1 uniquement
     },
-    /** 🆕 Fin de la saisie manuelle CB/ICH/ICB → enregistre puis passe à l'échantillon suivant */
+    /** 🆕 Fin de la saisie manuelle (Sample 1) : CW/IH/IW/PT → écrits dans les VRAIES lignes du fichier, colonne Sample 1 */
     _finishManual(){
       const g=(id)=>document.getElementById(id);
       const cycle=g('pdcc-selCycle').value, sample=g('pdcc-selSample').value;
       const rec=this.state.samples[cycle+'-'+sample];
-      if(rec){
-        const pf=function(id){ const v=parseFloat(String(g(id).value).replace(',','.')); return isNaN(v)?null:v; };
-        rec.cb=pf('pdcc-inCB'); rec.ich=pf('pdcc-inICH'); rec.icb=pf('pdcc-inICB');
+      const pf=function(id){ const v=parseFloat(String(g(id).value).replace(',','.')); return isNaN(v)?null:v; };
+      const cw=pf('pdcc-inCB'), ih=pf('pdcc-inICH'), iw=pf('pdcc-inICB'), pt=pf('pdcc-inPT');
+      if(rec){ rec.cb=cw; rec.ich=ih; rec.icb=iw; rec.pt=pt; }
+      if(this._wbMode && this._map && this._map.vals){
+        const blk=this._map.cycles.find(function(b){return String(b.n)===String(cycle);});
+        if(blk){
+          const c1=blk.cols[0].c; const V=this._map.vals; const self=this; let wrote=false;
+          [['cw',cw],['ih',ih],['iw',iw],['pt',pt]].forEach(function(p){ const r=V[p[0]]; if(r&&p[1]!=null){ try{ self._ws.getCell(r,c1).value=p[1]; wrote=true; }catch(e){} } });
+          if(wrote) this._renderWbSheet();
+        }
       }
-      ['pdcc-inCB','pdcc-inICH','pdcc-inICB'].forEach(function(id){ const el=g(id); if(el) el.value=''; });
+      ['pdcc-inCB','pdcc-inICH','pdcc-inICB','pdcc-inPT'].forEach(function(id){ const el=g(id); if(el) el.value=''; });
       this._advance();
     },
     /** 🆕 ⏭ Passer la saisie manuelle de cet échantillon */
     _skipManual(){
       const g=(id)=>document.getElementById(id);
-      ['pdcc-inCB','pdcc-inICH','pdcc-inICB'].forEach(function(id){ const el=g(id); if(el) el.value=''; });
+      ['pdcc-inCB','pdcc-inICH','pdcc-inICB','pdcc-inPT'].forEach(function(id){ const el=g(id); if(el) el.value=''; });
       this._advance();
     },
 
@@ -12056,7 +12068,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._ci = 0; this._si = 0;
       this._syncSelects();
       const sid=document.getElementById('pdcc-sheetId'); if(sid) sid.textContent='FICHE : '+this.state.id;
-      ['pdcc-inDCH','pdcc-inCB','pdcc-inICH','pdcc-inICB','pdcc-mProduct','pdcc-mLead','pdcc-mQty','pdcc-mPull','pdcc-mName'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
+      ['pdcc-inDCH','pdcc-inCB','pdcc-inICH','pdcc-inICB','pdcc-inPT','pdcc-mProduct','pdcc-mLead','pdcc-mQty','pdcc-mPull','pdcc-mName'].forEach(function(id){ const el=document.getElementById(id); if(el) el.value=''; });
       const md=document.getElementById('pdcc-mDate'); if(md) md.value=new Date().toISOString().slice(0,10);
       const ssEl=document.getElementById('pdcc-selSection');
       if(this._wbMode){ this._reloadWb(); }
@@ -12068,19 +12080,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     _setPhase(p){
       this._phase = p || 'measure';
       const g=(id)=>document.getElementById(id);
-      const dch=g('pdcc-inDCH'), cb=g('pdcc-inCB'), ich=g('pdcc-inICH'), icb=g('pdcc-inICB');
+      const dch=g('pdcc-inDCH'), cb=g('pdcc-inCB'), ich=g('pdcc-inICH'), icb=g('pdcc-inICB'), pt=g('pdcc-inPT');
       const skip=g('pdcc-btnSkip'), val=g('pdcc-btnValidate'), ask=g('pdcc-ask');
       if(!dch||!val||!ask) return;
       const manual=(this._phase==='manual');
-      [cb,ich,icb].forEach(function(el){ if(el){ el.disabled=!manual; el.style.opacity=manual?'1':'.45'; } });
+      [cb,ich,icb,pt].forEach(function(el){ if(el){ el.disabled=!manual; el.style.opacity=manual?'1':'.45'; } });
       dch.disabled=manual; dch.style.opacity=manual?'.45':'1';
       if(skip) skip.style.display=manual?'':'none';
       val.textContent = manual ? '✔ Enregistrer → suivant' : '✔ Valider la mesure';
       const cy=this.CYCLES[this._ci], smp=this.SAMPLES[this._si]||this.SAMPLES[0], sk=smp?smp.k:'S1';
       const lbl=(sk==='L'?'Last / Off':'Sample '+String(sk).slice(1));
       ask.innerHTML = manual
-        ? '✍️ <b>SAISIE MANUELLE</b> — Cycle '+cy+' · '+lbl+' : remplissez les autres colonnes <b>CB / ICH / ICB</b> puis Entrée — ou ⏭ Passer'
-        : '📏 <b>MESURE DEMANDÉE</b> — Cycle '+cy+' · '+lbl+' — <span style="color:#00e5a0">micromètre relié au PC : appuyez sur DATA</span> · ou tapez la valeur + Entrée';
+        ? '✍️ <b>SAISIE MANUELLE — Sample 1 uniquement</b> (Cycle '+cy+') : <b>Crimp Width / Insulation Height / Insulation Width / Pull-Test</b> — les autres colonnes sont hachurées dans la PDCC. Entrée pour valider — ou ⏭ Passer'
+        : '📏 <b>MESURE DEMANDÉE — Crimp Height</b> · Cycle '+cy+' · '+lbl+' — <span style="color:#00e5a0">micromètre relié au PC : appuyez sur DATA</span> · ou tapez la valeur + Entrée';
       ask.style.borderColor = manual ? 'rgba(255,181,71,.55)' : 'rgba(0,212,255,.5)';
       try{ if(manual){ if(cb) cb.focus(); } else { dch.focus(); } }catch(e){}
     },
@@ -12224,11 +12236,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             const start=r; const vals=[];
             let rr=r;
             while(rr<=maxR){ const v=num(rr,c); if(v==null) break; vals.push(v); rr++; }
-            if(vals.length>=5){
-              const step=Math.abs(vals[0]-vals[1]);
-              let ok=step>=0.004 && step<=0.06;
-              for(let i=1;i<vals.length-1&&ok;i++){ if(Math.abs(Math.abs(vals[i]-vals[i+1])-step)>0.0025) ok=false; }
-              if(ok && (!best||vals.length>best.vals.length)) best={col:c,row:start,vals:vals.slice()};
+            let i=0;
+            while(i<vals.length-1){
+              const step=Math.abs(vals[i]-vals[i+1]);
+              let j=i+1;
+              while(j<vals.length-1 && Math.abs(Math.abs(vals[j]-vals[j+1])-step)<=0.0025) j++;
+              const seg=vals.slice(i,j+1);
+              if(step>=0.004 && step<=0.06 && seg.length>=5 && (!best||seg.length>best.vals.length)) best={col:c,row:start+i,vals:seg};
+              i=j;
             }
             r=(rr>r)?rr:(r+1);
           }
@@ -12342,11 +12357,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if(num(r,c)==null){ r++; continue; }
           const start=r; const vals=[]; let rr=r;
           while(rr<=maxR){ const v=num(rr,c); if(v==null) break; vals.push(v); rr++; }
-          if(vals.length>=5){
-            const step=Math.abs(vals[0]-vals[1]);
-            let ok=step>=0.004 && step<=0.06;
-            for(let i=1;i<vals.length-1&&ok;i++){ if(Math.abs(Math.abs(vals[i]-vals[i+1])-step)>0.0025) ok=false; }
-            if(ok && (!best||vals.length>best.vals.length)) best={col:c,row:start,vals:vals.slice()};
+          // 🔧 Le plus long SEGMENT à pas constant dans la suite (les nominaux 6,60/9,10/… plus bas dans la même colonne ne cassent plus l'échelle)
+          let i=0;
+          while(i<vals.length-1){
+            const step=Math.abs(vals[i]-vals[i+1]);
+            let j=i+1;
+            while(j<vals.length-1 && Math.abs(Math.abs(vals[j]-vals[j+1])-step)<=0.0025) j++;
+            const seg=vals.slice(i,j+1);
+            if(step>=0.004 && step<=0.06 && seg.length>=5 && (!best||seg.length>best.vals.length)) best={col:c,row:start+i,vals:seg};
+            i=j;
           }
           r=(rr>r)?rr:(r+1);
         }
@@ -12354,15 +12373,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if(!best) return null;
       const scale=best.vals.map(function(v,i){ return { r:best.row+i, v:v }; });
       const gridBot=scale[scale.length-1].r;
-      // 3) Lignes de traçabilité SOUS la grille (jamais l'en-tête du haut)
-      const tr={}; const want=[['product',/product/i],['lead',/lead/i],['qty',/quantit/i],['pull',/pull|code/i],['date',/^date\b/i],['name',/^name\b/i],['value',/^valeur|^value\b/i]];
+      // 3) Lignes de VALEURS sous la grille (Crimp Height / Width, Insulation H/W, Pull-Test) + nominaux
+      //    puis lignes de TRAÇABILITÉ (Product, Lead, Quantity, Code/Pull Test, Date, Name) — jamais l'en-tête du haut
+      const tr={}, vals={}, noms={};
+      const wantV=[['ch',/crimp\s*height/i],['cw',/crimp\s*width/i],['ih',/insulation\s*height/i],['iw',/insulation\s*width/i],['pt',/pull[\s\-–]*test/i]];
+      const wantT=[['product',/product/i],['lead',/lead/i],['qty',/quantit/i],['pull',/code/i],['date',/^date\b/i],['name',/^name\b/i]];
       for(let r=gridBot+1;r<=maxR;r++){
         for(let c=1;c<=Math.min(maxC,firstC+2);c++){
           const t=txt(r,c).trim(); if(!t) continue;
-          want.forEach(function(w){ if(tr[w[0]]==null && w[1].test(t)) tr[w[0]]=r; });
+          wantV.forEach(function(w){ if(vals[w[0]]==null && w[1].test(t) && !(w[0]==='pt'&&/code/i.test(t))) vals[w[0]]=r; });
+          wantT.forEach(function(w){ if(tr[w[0]]==null && w[1].test(t)) tr[w[0]]=r; });
         }
       }
-      return { hdrRow:hdrRow, cycles:cycles, scale:scale, scaleCol:best.col, trace:tr, firstC:firstC };
+      Object.keys(vals).forEach(function(k){ const t=txt(vals[k],best.col).trim(); if(t) noms[k]=t; });
+      return { hdrRow:hdrRow, cycles:cycles, scale:scale, scaleCol:best.col, trace:tr, vals:vals, noms:noms, firstC:firstC };
     },
 
     /** 🎯 Cellule RÉELLE cible : cycle + échantillon + valeur snappée sur l'échelle du fichier */
@@ -12409,7 +12433,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const c0=blk.cols[0].c; const self=this; let wrote=false;
       const put=function(key,val){ const r=self._map.trace[key]; if(!r||val==null||String(val).trim()==='') return; try{ const n=Number(String(val).replace(',','.')); self._ws.getCell(r,c0).value=(String(val).trim()!==''&&!isNaN(n)&&/^\s*-?\d+([.,]\d+)?\s*$/.test(String(val)))?n:val; wrote=true; }catch(e){} };
       put('product',m.product); put('lead',m.lead); put('qty',m.qty); put('pull',m.pull); put('name',m.name);
-      if(m.date && this._map.trace.date){ const d=String(m.date); const fr=/^\d{4}-\d{2}-\d{2}$/.test(d)? d.split('-').reverse().join('/') : d; try{ this._ws.getCell(this._map.trace.date,c0).value=fr; wrote=true; }catch(e){} }
+      if(m.date && this._map.trace.date){ const d=String(m.date); const fr=/^\d{4}-\d{2}-\d{2}$/.test(d)? d.split('-').reverse().join('.') : d; try{ this._ws.getCell(this._map.trace.date,c0).value=fr; wrote=true; }catch(e){} }
       if(wrote) this._renderWbSheet();
     },
     /** 🎯 Recharge le classeur d'ORIGINE (fiche vierge) après archivage / réinitialisation */

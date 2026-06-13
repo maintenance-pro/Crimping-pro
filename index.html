@@ -12701,35 +12701,40 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         try{ reader.releaseLock(); }catch(e){}
       }catch(e){ /* mode clavier (DATA) reste opérationnel */ }
     },
-    /** 📈 Relie les X de chaque cycle par une courbe — en lisant les X DIRECTEMENT dans les cellules (jamais via state.samples, pour rester toujours synchrone) */
+    /** 📈 Relie les X par une courbe — points calés PILE sur le centre de chaque cellule X (getBoundingClientRect, robuste au défilement) et lus DIRECTEMENT dans les cellules */
     _drawCurve(){
       const host=document.getElementById('pdcc-wbhost'); if(!host||!this._map) return;
+      const self=this;
       const old=host.querySelector('#pdcc-curve'); if(old) old.remove();
       host.style.position='relative';
       const m=this._map, NS='http://www.w3.org/2000/svg';
       const scaleRows=m.scale.map(function(s){return s.r;});
+      const hr=host.getBoundingClientRect();
+      const ox=host.scrollLeft - hr.left, oy=host.scrollTop - hr.top;   // viewport → coordonnées internes du host
       const svg=document.createElementNS(NS,'svg'); svg.id='pdcc-curve';
       svg.style.cssText='position:absolute;left:0;top:0;width:'+host.scrollWidth+'px;height:'+host.scrollHeight+'px;pointer-events:none;z-index:6;overflow:visible';
       let any=false;
       m.cycles.forEach(function(b){
         const pts=[];
         b.cols.forEach(function(o){
-          // 🔎 X lu DIRECTEMENT dans la cellule rendue (la vérité) — on cherche le X dans la colonne o.c parmi les lignes du graphique
           let xcell=null;
           for(let i=0;i<scaleRows.length;i++){ const cell=host.querySelector('td[data-rc="'+scaleRows[i]+'-'+o.c+'"]'); if(cell && cell.textContent.trim().toUpperCase()==='X'){ xcell=cell; break; } }
-          if(xcell){ pts.push([xcell.offsetLeft+xcell.offsetWidth/2, xcell.offsetTop+xcell.offsetHeight/2]); }
+          if(xcell){ const r=xcell.getBoundingClientRect(); pts.push([r.left+r.width/2+ox, r.top+r.height/2+oy]); }   // centre EXACT du X
         });
         if(pts.length>=2){
           any=true;
           const pl=document.createElementNS(NS,'polyline');
-          pl.setAttribute('points', pts.map(function(p){return p[0]+','+p[1];}).join(' '));
+          pl.setAttribute('points', pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' '));
           pl.setAttribute('fill','none'); pl.setAttribute('stroke','#0a4fd6'); pl.setAttribute('stroke-width','2.5'); pl.setAttribute('stroke-linejoin','round'); pl.setAttribute('stroke-linecap','round'); pl.setAttribute('opacity','.9');
           svg.appendChild(pl);
-          pts.forEach(function(p){ const ci=document.createElementNS(NS,'circle'); ci.setAttribute('cx',p[0]); ci.setAttribute('cy',p[1]); ci.setAttribute('r','3'); ci.setAttribute('fill','#0a4fd6'); svg.appendChild(ci); });
+          pts.forEach(function(p){ const ci=document.createElementNS(NS,'circle'); ci.setAttribute('cx',p[0].toFixed(1)); ci.setAttribute('cy',p[1].toFixed(1)); ci.setAttribute('r','3'); ci.setAttribute('fill','#0a4fd6'); svg.appendChild(ci); });
         }
       });
       if(any) host.appendChild(svg);
+      // 🔄 redessine au défilement du host (la courbe reste collée aux X)
+      if(!host._curveScroll){ host._curveScroll=function(){ self._drawCurveRAF(); }; host.addEventListener('scroll', host._curveScroll, {passive:true}); }
     },
+    _drawCurveRAF(){ const self=this; if(this._curveRAF) return; this._curveRAF=requestAnimationFrame(function(){ self._curveRAF=null; self._drawCurve(); }); },
     /** 📅 Écrit la DATE DU JOUR dans la case date de CE cycle (au 1er point mesuré) si encore vide */
     _fillCycleDate(cycle){
       const m=this._map; if(!m||!m.trace||!m.trace.date) return;

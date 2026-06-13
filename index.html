@@ -11529,16 +11529,30 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return null;
       };
       const argb = colorOf;
+      // 🔧 Applique le format de nombre d'Excel (numFmt) — ExcelJS renvoie la valeur BRUTE (6,6499999…) sans le formater
+      const fmtNum = (n, nf) => {
+        if (!isFinite(n)) return String(n);
+        let out;
+        if (nf && typeof nf === 'string' && nf !== 'General') {
+          const dec = nf.match(/[.,](0+)/);                                   // "0.00" → 2 décimales
+          if (dec) out = n.toFixed(dec[1].length);
+          else if (/%/.test(nf)) { const d = nf.match(/[.,](0+)\s*%/); out = (n * 100).toFixed(d ? d[1].length : 0) + '%'; }
+          else if (/^[#0\s,.\u00A0\-]+$/.test(nf)) out = String(Math.round(n)); // format entier
+        }
+        if (out == null) out = String(parseFloat(n.toPrecision(12)));         // sinon : enlève le bruit flottant (6.5600000005 → 6.56)
+        return out.indexOf('.') >= 0 ? out.replace('.', ',') : out;           // virgule comme dans l'Excel FR
+      };
       const valOf = (cell) => {
         let v = cell && cell.value; if (v == null) return '';
         if (typeof v === 'object') {
           if (Array.isArray(v.richText)) return v.richText.map(t => t.text).join('');
-          if (v.result != null) return v.result;
-          if (v.text != null) return v.text;
-          if (v instanceof Date) return v.toLocaleDateString('fr-FR');
-          if (v.formula != null) return '';
-          return '';
+          if (v.result != null) v = v.result;                                 // formule → résultat, puis formaté ci-dessous
+          else if (v.text != null) return v.text;
+          else if (v instanceof Date) return v.toLocaleDateString('fr-FR');
+          else if (v.formula != null) return '';
+          else return '';
         }
+        if (typeof v === 'number') return fmtNum(v, cell && cell.numFmt);      // 🆕 6,65 au lieu de 6,6499999999999999
         return v;
       };
       const styleOf = (cell) => {

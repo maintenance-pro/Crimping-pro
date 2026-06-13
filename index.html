@@ -11519,7 +11519,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!col) return null;
         if (col.argb) { let s = String(col.argb); if (s.length === 8) s = s.slice(2); return s.length === 6 ? '#' + s : null; }
         if (col.theme != null) { const base = THEME[col.theme] || '000000'; return '#' + applyTint(base, col.tint || 0); }
-        if (col.indexed != null) { const s = INDEXED[col.indexed]; return s ? '#' + s : null; }
+        if (col.indexed != null) {
+          if (col.indexed === 64) return null;        // premier plan « automatique »
+          if (col.indexed === 65) return '#FFFFFF';   // arrière-plan système = BLANC (et non noir !)
+          const s = INDEXED[col.indexed]; return s ? '#' + s : null;
+        }
         return null;
       };
       const argb = colorOf;
@@ -11547,7 +11551,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const fg = argb(fill.fgColor) || '#000000';
           const bg = argb(fill.bgColor) || '#FFFFFF';
           if (fill.pattern === 'solid') {
-            if (fg && !/^#ffffff$/i.test(fg)) s += `;background:${fg}`;
+            const fgc = argb(fill.fgColor);   // sans repli noir : un fond non résolu (système 65 = blanc) ne doit JAMAIS devenir noir
+            if (fgc && !/^#ffffff$/i.test(fgc)) s += `;background:${fgc}`;
           } else if (/gray|trellis|grid/i.test(fill.pattern)) {
             s += `;background:repeating-linear-gradient(45deg, ${fg} 0, ${fg} 1px, ${bg} 1px, ${bg} 3px)`;
           } else if (/down/i.test(fill.pattern)) {
@@ -12344,7 +12349,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     _zoneFromFill(col){
       let hex=null;
       if(col.argb){ let s=String(col.argb); if(s.length===8)s=s.slice(2); if(s.length===6) hex=s; }
-      else if(col.indexed!=null){ const I=['000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF','000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00']; hex=I[col.indexed]||null; }
+      else if(col.indexed!=null){ if(col.indexed===64||col.indexed===65) return ''; const I=['000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF','000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF','800000','008000','000080','808000','800080','008080','C0C0C0','808080','9999FF','993366','FFFFCC','CCFFFF','660066','FF8080','0066CC','CCCCFF','000080','FF00FF','FFFF00','00FFFF','800080','800000','008080','0000FF','00CCFF','CCFFFF','CCFFCC','FFFF99','99CCFF','FF99CC','CC99FF','FFCC99','3366FF','33CCCC','99CC00','FFCC00','FF9900','FF6600','666699','969696','003366','339966','003300','333300','993300','993366','333399','333333']; hex=I[col.indexed]||null; }
       else return '';
       if(!hex) return '';
       const n=parseInt(hex,16); const r=(n>>16)&255, g=(n>>8)&255, b=n&255;

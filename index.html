@@ -12221,17 +12221,27 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           wb=new ExcelJS.Workbook(); await wb.xlsx.load(bytes.buffer);
         }catch(e){ if(isXls(meta)) this._annexHasXls=true; continue; }   // .xls / non-xlsx → ExcelJS échoue : on passe au suivant
         const sheets=(wb.worksheets||[]).filter(function(s){return s&&s.name;});
+        sheets.sort(function(a,b){ return (/pdcc/i.test(b.name)?1:0)-(/pdcc/i.test(a.name)?1:0); });
+        // 🎯 MODE CLASSEUR si une feuille est cartographiable (échelle + colonnes Sample trouvées DANS le fichier)
+        let chosen=null, map=null;
+        for(const s of sheets){ let m=null; try{ m=this._mapSheet(s); }catch(e){} if(m && m.cycles && m.cycles.length && m.scale && m.scale.length){ chosen=s; map=m; break; } }
+        if(chosen){
+          this._ws=chosen; this._map=map; this._wbMode=true; this._wb=wb; this._origName=meta.name||'PDCC.xlsx';
+          try{ this._wbBytes=bytes.buffer.slice(0); }catch(e){ this._wbBytes=null; }
+          let sp=null; try{ sp=this._extractSpecFromSheet(chosen); }catch(e){}
+          this._fileSpec = sp || { rows:map.scale.map(function(e){return e.v;}), zones:{}, samples:map.cycles[0].cols.map(function(o){return {k:o.k,l:o.k};}), cycles:map.cycles.map(function(b){return b.n;}), header:{}, cross:'' };
+          this._fileSpec.label=(meta.category||meta.name||'PDCC')+' · '+chosen.name;
+          return;
+        }
+        // Sinon : tenter une extraction "telle quelle" pour la matrice reconstruite (mode dégradé)
         let ws=sheets.find(function(s){ return /pdcc/i.test(s.name); })||null;
         let fs2=ws?this._extractSpecFromSheet(ws):null;
-        if(!fs2){ for(const s of sheets){ const sp=this._extractSpecFromSheet(s); if(sp){ ws=s; fs2=sp; break; } } }
+        if(!fs2){ for(const s of sheets){ const sp2=this._extractSpecFromSheet(s); if(sp2){ ws=s; fs2=sp2; break; } } }
         if(fs2 && ws){
-          this._fileSpec=fs2;
-          this._fileSpec.label=(meta.category||meta.name||'PDCC')+' · '+ws.name;
+          this._fileSpec=fs2; this._fileSpec.label=(meta.category||meta.name||'PDCC')+' · '+ws.name;
           this._wb=wb; this._ws=ws; this._origName=meta.name||'PDCC.xlsx';
           try{ this._wbBytes=bytes.buffer.slice(0); }catch(e){ this._wbBytes=null; }
-          try{ this._map=this._mapSheet(ws); }catch(e){ console.warn('[pdcc map]',e); this._map=null; }
-          this._wbMode = !!(this._map && this._map.cycles && this._map.cycles.length && this._map.scale && this._map.scale.length);
-          if(this._wbMode||this._fileSpec) return;   // trouvé
+          return;
         }
       }
     },
@@ -12275,36 +12285,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if(!maxR||!maxC) return null;
         const txt=function(r,c){ try{ const v=ws.getCell(r,c).value; if(v==null) return ''; if(typeof v==='object'){ if(Array.isArray(v.richText)) return v.richText.map(function(t){return t.text;}).join(''); if(v.result!=null) return String(v.result); if(v.text!=null) return String(v.text); return ''; } return String(v); }catch(e){ return ''; } };
         const num=function(r,c){ const t=txt(r,c).replace(',','.').trim(); if(!/^-?\d+(\.\d+)?$/.test(t)) return null; const f=parseFloat(t); return isNaN(f)?null:f; };
-        // 1) Échelle verticale (pas constant 0.004–0.06, ≥5 valeurs)
-        let best=null;
-        for(let c=1;c<=Math.min(maxC,14);c++){
-          let r=1;
-          while(r<=maxR){
-            if(num(r,c)==null){ r++; continue; }
-            const start=r; const vals=[];
-            let rr=r;
-            while(rr<=maxR){ const v=num(rr,c); if(v==null) break; vals.push(v); rr++; }
-            let i=0;
-            while(i<vals.length-1){
-              const step=Math.abs(vals[i]-vals[i+1]);
-              let j=i+1;
-              while(j<vals.length-1 && Math.abs(Math.abs(vals[j]-vals[j+1])-step)<=0.0025) j++;
-              const seg=vals.slice(i,j+1);
-              if(step>=0.004 && step<=0.06 && seg.length>=5 && (!best||seg.length>best.vals.length)) best={col:c,row:start+i,vals:seg};
-              i=j;
-            }
-            r=(rr>r)?rr:(r+1);
-          }
-        }
-        if(!best) return null;
-        let rows=best.vals.slice();
+        // 1) Échelle verticale (gère l'espacement 1 ligne sur 2)
+        const sc=this._findScale(num, 1, Math.min(maxC,14), maxR);
+        if(!sc) return null;
+        const entries=sc.entries;   // [{r,v}] dans l'ordre des lignes
+        let rows=entries.map(function(e){return e.v;});
         if(rows[0]<rows[rows.length-1]) rows=rows.slice().reverse();
-        // 2) Zone couleur dominante par ligne (à droite de l'échelle)
+        // 2) Zone couleur dominante par ligne (à droite de l'échelle), sur les VRAIES lignes
         const self=this; const zones={};
-        best.vals.forEach(function(v,i){
-          const r=best.row+i; const count={};
-          for(let c=best.col+1;c<=Math.min(maxC,best.col+45);c++){
-            let cell; try{ cell=ws.getCell(r,c); }catch(e){ continue; }
+        entries.forEach(function(e){
+          const r=e.r; const count={};
+          for(let c=sc.col+1;c<=Math.min(maxC,sc.col+45);c++){
+            let cell; try{ cell=ws.getCell(r,c); }catch(e2){ continue; }
             const f=cell&&cell.fill;
             if(f&&f.type==='pattern'&&f.pattern==='solid'&&f.fgColor){
               const z=self._zoneFromFill(f.fgColor);
@@ -12312,7 +12304,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             }
           }
           let bz='',bn=0; Object.keys(count).forEach(function(k){ if(count[k]>bn){bn=count[k];bz=k;} });
-          zones[v.toFixed(2)]=bz;
+          zones[e.v.toFixed(2)]=bz;
         });
         // 3) Échantillons + cycles : ligne contenant plusieurs « Sample 1 »
         let samples=null, cycles=null;
@@ -12365,6 +12357,28 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       return '';
     },
 
+    /** 🔧 Détecteur d'échelle robuste : trouve la plus longue suite à PAS de valeur ET pas de ligne constants
+        (gère les échelles espacées d'1 ligne sur 2, comme dans les vraies Annexes LEONI) */
+    _findScale(numFn, c0, c1, maxR){
+      let best=null;
+      for(let c=c0;c<=c1;c++){
+        const E=[];
+        for(let r=1;r<=maxR;r++){ const v=numFn(r,c); if(v!=null) E.push({r:r,v:v}); }
+        if(E.length<5) continue;
+        let i=0;
+        while(i<E.length-1){
+          const vStep=E[i+1].v-E[i].v, rStep=E[i+1].r-E[i].r;
+          if(rStep<1||rStep>3||Math.abs(vStep)<0.004||Math.abs(vStep)>0.06){ i++; continue; }
+          let j=i+1;
+          while(j<E.length-1){ const vS=E[j+1].v-E[j].v, rS=E[j+1].r-E[j].r; if(Math.abs(vS-vStep)<=0.0025 && rS===rStep) j++; else break; }
+          const run=E.slice(i,j+1);
+          if(run.length>=5 && (!best||run.length>best.entries.length)) best={col:c,entries:run};
+          i=(j>i)?j:i+1;
+        }
+      }
+      return best;
+    },
+
     /** 🎯 CARTOGRAPHIE du classeur : repère les VRAIES cellules — échelle, colonnes Sample par cycle (fusions comprises), lignes de traçabilité */
     _mapSheet(ws){
       const maxR=Math.min(ws.rowCount||0,200), maxC=Math.min(ws.columnCount||0,140);
@@ -12379,7 +12393,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const s=A(p[0]), e=A(p[1]); if(!s||!e) return;
         for(let r=s.r;r<=e.r;r++) for(let c=s.c;c<=e.c;c++) master[r+'_'+c]=s.r+'-'+s.c;
       });
-      // 1) Ligne « Sample 1 … Last » → colonnes RÉELLES, groupées par cycle
+      // 1) Ligne « Sample 1 … Last » → colonnes RÉELLES, groupées par cycle (le texte peut contenir un saut de ligne « Sample\n1 »)
       let hdrRow=0, cycles=[];
       for(let r=1;r<=maxR && !cycles.length;r++){
         let firsts=0; const seq=[];
@@ -12397,44 +12411,26 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       }
       if(!cycles.length) return null;
       const firstC=cycles[0].cols[0].c;
-      // 2) Échelle verticale réelle (colonne à GAUCHE des Sample, pas constant, ≥5 valeurs)
-      let best=null;
-      for(let c=1;c<firstC;c++){
-        let r=1;
-        while(r<=maxR){
-          if(num(r,c)==null){ r++; continue; }
-          const start=r; const vals=[]; let rr=r;
-          while(rr<=maxR){ const v=num(rr,c); if(v==null) break; vals.push(v); rr++; }
-          // 🔧 Le plus long SEGMENT à pas constant dans la suite (les nominaux 6,60/9,10/… plus bas dans la même colonne ne cassent plus l'échelle)
-          let i=0;
-          while(i<vals.length-1){
-            const step=Math.abs(vals[i]-vals[i+1]);
-            let j=i+1;
-            while(j<vals.length-1 && Math.abs(Math.abs(vals[j]-vals[j+1])-step)<=0.0025) j++;
-            const seg=vals.slice(i,j+1);
-            if(step>=0.004 && step<=0.06 && seg.length>=5 && (!best||seg.length>best.vals.length)) best={col:c,row:start+i,vals:seg};
-            i=j;
-          }
-          r=(rr>r)?rr:(r+1);
-        }
-      }
-      if(!best) return null;
-      const scale=best.vals.map(function(v,i){ return { r:best.row+i, v:v }; });
+      // 2) Échelle verticale réelle (colonnes à GAUCHE des Sample) — gère l'espacement 1 ligne sur 2
+      const sc=this._findScale(num, 1, firstC-1, maxR);
+      if(!sc) return null;
+      const scale=sc.entries.map(function(e){ return { r:e.r, v:e.v }; });
       const gridBot=scale[scale.length-1].r;
       // 3) Lignes de VALEURS sous la grille (Crimp Height / Width, Insulation H/W, Pull-Test) + nominaux
       //    puis lignes de TRAÇABILITÉ (Product, Lead, Quantity, Code/Pull Test, Date, Name) — jamais l'en-tête du haut
       const tr={}, vals={}, noms={};
       const wantV=[['ch',/crimp\s*height/i],['cw',/crimp\s*width/i],['ih',/insulation\s*height/i],['iw',/insulation\s*width/i],['pt',/pull[\s\-–]*test/i]];
       const wantT=[['product',/product/i],['lead',/lead/i],['qty',/quantit/i],['pull',/code/i],['date',/^date\b/i],['name',/^name\b/i]];
-      for(let r=gridBot+1;r<=maxR;r++){
+      const vStart=Math.max(gridBot,hdrRow)+1;   // sous l'en-tête Sample (évite le titre vertical « Crimp Height Value » des lignes 4-31)
+      for(let r=vStart;r<=maxR;r++){
         for(let c=1;c<=Math.min(maxC,firstC+2);c++){
           const t=txt(r,c).trim(); if(!t) continue;
           wantV.forEach(function(w){ if(vals[w[0]]==null && w[1].test(t) && !(w[0]==='pt'&&/code/i.test(t))) vals[w[0]]=r; });
           wantT.forEach(function(w){ if(tr[w[0]]==null && w[1].test(t)) tr[w[0]]=r; });
         }
       }
-      Object.keys(vals).forEach(function(k){ const t=txt(vals[k],best.col).trim(); if(t) noms[k]=t; });
-      return { hdrRow:hdrRow, cycles:cycles, scale:scale, scaleCol:best.col, trace:tr, vals:vals, noms:noms, firstC:firstC };
+      Object.keys(vals).forEach(function(k){ const t=txt(vals[k],sc.col).trim(); if(t) noms[k]=t; });
+      return { hdrRow:hdrRow, cycles:cycles, scale:scale, scaleCol:sc.col, trace:tr, vals:vals, noms:noms, firstC:firstC };
     },
 
     /** 🎯 Cellule RÉELLE cible : cycle + échantillon + valeur snappée sur l'échelle du fichier */

@@ -12663,7 +12663,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
         // sinon : 🔒 verrouillé (graphique coloré, libellés, hachures, nominaux) — aucun handler, pas de saisie
       });
-      this._drawCurve();   // 📈 relie les X par une courbe
+      this._scheduleCurve();   // 📈 relie les X par une courbe (redessins après layout/polices pour un calage parfait)
     },
     /** 🖱️ Menu clic droit : saisir la valeur OU mesurer au micromètre Mitutoyo 341 (USB) */
     _wbCellMenu(e,td,r,c){
@@ -12735,6 +12735,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if(!host._curveScroll){ host._curveScroll=function(){ self._drawCurveRAF(); }; host.addEventListener('scroll', host._curveScroll, {passive:true}); }
     },
     _drawCurveRAF(){ const self=this; if(this._curveRAF) return; this._curveRAF=requestAnimationFrame(function(){ self._curveRAF=null; self._drawCurve(); }); },
+    /** 📈 Programme plusieurs redessins de la courbe pour un calage PARFAIT : immédiat + après layout + après chargement des polices + sur reflow (ResizeObserver) */
+    _scheduleCurve(){
+      const host=document.getElementById('pdcc-wbhost'); if(!host) return;
+      const self=this;
+      this._drawCurve();                                                  // immédiat
+      requestAnimationFrame(function(){ self._drawCurve(); });            // après le 1er layout
+      if(document.fonts&&document.fonts.ready&&document.fonts.ready.then){ document.fonts.ready.then(function(){ self._drawCurve(); }); }   // après les polices (cause du décalage)
+      [150,500].forEach(function(ms){ setTimeout(function(){ self._drawCurve(); }, ms); });   // filets de sécurité
+      // 🔄 ResizeObserver sur le TABLEAU : tout reflow (police, largeur de colonne…) redessine la courbe
+      const tbl=host.querySelector('table');
+      if(tbl && window.ResizeObserver){ if(host._curveRO){ try{ host._curveRO.disconnect(); }catch(e){} } host._curveRO=new ResizeObserver(function(){ self._drawCurveRAF(); }); host._curveRO.observe(tbl); }
+    },
     /** 📅 Écrit la DATE DU JOUR dans la case date de CE cycle (au 1er point mesuré) si encore vide */
     _fillCycleDate(cycle){
       const m=this._map; if(!m||!m.trace||!m.trace.date) return;

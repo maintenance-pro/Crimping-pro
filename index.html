@@ -11489,11 +11489,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
 
     /** 🆕 Rend une feuille ExcelJS TELLE QUELLE : couleurs de remplissage, polices, bordures, alignement, fusions, largeurs */
-    _exceljsSheetHtml(ws) {
+    _exceljsSheetHtml(ws, opts) {
+      opts = opts || {};
+      const BIG = !!opts.big;
       const EMPTY = `<div style="text-align:center;color:var(--text-muted);padding:2.5rem;font-size:.86rem">📭 Feuille vide.</div>`;
       if (!ws) return EMPTY;
-      const lastRow = Math.min(ws.rowCount || 0, 600);
-      const lastCol = Math.min(ws.columnCount || 0, 60);
+      const lastRow = Math.min(ws.rowCount || 0, opts.maxRow || 600);
+      const lastCol = Math.min(ws.columnCount || 0, opts.maxCol || 60);
       if (!lastRow || !lastCol) return EMPTY;
       const addrToRC = (a) => { const m = String(a).match(/^([A-Z]+)(\d+)$/i); if (!m) return { r: 1, c: 1 }; let col = 0; const L = m[1].toUpperCase(); for (let i = 0; i < L.length; i++) col = col * 26 + (L.charCodeAt(i) - 64); return { r: parseInt(m[2], 10), c: col }; };
       // Fusions
@@ -11504,8 +11506,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         anchor[s.r + '_' + s.c] = { rs: e.r - s.r + 1, cs: e.c - s.c + 1 };
         for (let r = s.r; r <= e.r; r++) for (let c = s.c; c <= e.c; c++) if (r !== s.r || c !== s.c) covered[r + '_' + c] = 1;
       });
-      const widthOf = (c) => { const col = ws.getColumn(c); if (col && col.hidden) return 0; const w = col && col.width; return w ? Math.round(w * 7 + 5) : 64; };
-      const heightOf = (r) => { const row = ws.getRow(r); if (row && row.hidden) return 0; return (row && row.height) ? Math.round(row.height * 1.33) : null; };
+      const widthOf = (c) => { const col = ws.getColumn(c); if (col && col.hidden) return 0; const w = col && col.width; let px = w ? Math.round(w * 7 + 5) : 64; if (BIG && px && px < 46) px = 46; return px; };
+      const heightOf = (r) => { const row = ws.getRow(r); if (row && row.hidden) return 0; let h = (row && row.height) ? Math.round(row.height * 1.33) : null; if (BIG && (!h || h < 24)) h = 24; return h; };
       // 🆕 Résolution COMPLÈTE des couleurs Excel : ARGB direct, couleurs de THÈME (+teinte), palette INDEXÉE
       const THEME = ['FFFFFF', '000000', 'E7E6E6', '44546A', '4472C4', 'ED7D31', 'A5A5A5', 'FFC000', '5B9BD5', '70AD47'];
       const INDEXED = ['000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF','000000','FFFFFF','FF0000','00FF00','0000FF','FFFF00','FF00FF','00FFFF','800000','008000','000080','808000','800080','008080','C0C0C0','808080','9999FF','993366','FFFFCC','CCFFFF','660066','FF8080','0066CC','CCCCFF','000080','FF00FF','FFFF00','00FFFF','800080','800000','008080','0000FF','00CCFF','CCFFFF','CCFFCC','FFFF99','99CCFF','FF99CC','CC99FF','FFCC99','3366FF','33CCCC','99CC00','FFCC00','FF9900','FF6600','666699','969696','003366','339966','003300','333300','993300','993366','333399','333333'];
@@ -11540,7 +11542,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return v;
       };
       const styleOf = (cell) => {
-        let s = 'padding:.14rem .35rem;white-space:pre-wrap;vertical-align:middle;overflow:hidden';
+        let s = (BIG ? 'padding:.32rem .5rem;' : 'padding:.14rem .35rem;') + 'white-space:pre-wrap;vertical-align:middle;overflow:hidden';
         let hasBorder = false;
         const bd = cell && cell.border;
         if (bd) { ['top', 'bottom', 'left', 'right'].forEach(side => { const b = bd[side]; if (b && b.style) { hasBorder = true; const w = /thick|medium|double/.test(b.style) ? 2 : 1; const col = argb(b.color) || '#555'; s += `;border-${side}:${w}px solid ${col}`; } }); }
@@ -11568,7 +11570,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           }
         }
         const fo = cell && cell.font;
-        if (fo) { if (fo.bold) s += ';font-weight:700'; if (fo.italic) s += ';font-style:italic'; const fc = argb(fo.color); if (fc && !/^#000000$/i.test(fc)) s += `;color:${fc}`; if (fo.size) s += `;font-size:${Math.max(8, Math.round(fo.size))}px`; }
+        if (fo) { if (fo.bold) s += ';font-weight:700'; if (fo.italic) s += ';font-style:italic'; const fc = argb(fo.color); if (fc && !/^#000000$/i.test(fc)) s += `;color:${fc}`; if (fo.size) s += `;font-size:${Math.max(BIG ? 11 : 8, Math.round(fo.size * (BIG ? 1.3 : 1)))}px`; }
         const al = cell && cell.alignment;
         if (al) {
           if (al.horizontal) s += `;text-align:${al.horizontal}`;
@@ -11584,7 +11586,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       let cg = '<colgroup>';
       for (let c = 1; c <= lastCol; c++) { const w = widthOf(c); cg += `<col style="width:${w}px${w === 0 ? ';display:none' : ''}">`; }
       cg += '</colgroup>';
-      let h = `<div style="overflow:auto;background:#fff;border:1px solid var(--border-soft);border-radius:8px;padding:.5rem"><table style="border-collapse:collapse;table-layout:fixed;font-size:.7rem;color:#0a1a2f;font-family:Calibri,Arial,sans-serif">${cg}<tbody>`;
+      let h = `<div style="overflow:auto;background:#fff;border:1px solid var(--border-soft);border-radius:8px;padding:.5rem"><table style="border-collapse:collapse;table-layout:fixed;font-size:${BIG ? '.86rem' : '.7rem'};color:#0a1a2f;font-family:Calibri,Arial,sans-serif">${cg}<tbody>`;
       let nonEmpty = false;
       for (let r = 1; r <= lastRow; r++) {
         const rh = heightOf(r); if (rh === 0) continue;
@@ -11602,7 +11604,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       }
       h += '</tbody></table></div>';
       if (!nonEmpty) return EMPTY;
-      if ((ws.rowCount || 0) > lastRow) h += `<div style="font-size:.68rem;color:var(--text-muted);margin-top:.4rem">⚠️ Affichage limité aux ${lastRow} premières lignes — ⬇️ Télécharger pour le fichier complet.</div>`;
+      if (!opts.maxRow && (ws.rowCount || 0) > lastRow) h += `<div style="font-size:.68rem;color:var(--text-muted);margin-top:.4rem">⚠️ Affichage limité aux ${lastRow} premières lignes — ⬇️ Télécharger pour le fichier complet.</div>`;
       return h;
     },
 
@@ -12464,7 +12466,16 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const sc=(tbl&&tbl.closest('.pd-scroll'))||document.querySelector('#pdcc-overlay .pd-scroll');
         if(sc) sc.appendChild(host); else document.querySelector('#pdcc-overlay .pd-panel')?.appendChild(host);
       }
-      try{ host.innerHTML=toolAttachments._exceljsSheetHtml(this._ws); }
+      // 🔍 Limiter l'affichage au CONTENU UTILE (fin = dernière ligne de traçabilité ; pas de colonnes vides ni la ligne « Codes: ») + AGRANDIR
+      let maxR=1, maxC=1; const m=this._map;
+      if(m){
+        m.scale.forEach(function(s){ if(s.r>maxR) maxR=s.r; });
+        m.cycles.forEach(function(b){ b.cols.forEach(function(o){ if(o.c>maxC) maxC=o.c; }); });
+        [m.vals,m.trace].forEach(function(obj){ if(obj) Object.keys(obj).forEach(function(k){ if(obj[k]>maxR) maxR=obj[k]; }); });
+        if(m.hdrRow>maxR) maxR=m.hdrRow;
+      }
+      const opts = m ? {maxRow:maxR, maxCol:maxC, big:true} : {big:true};
+      try{ host.innerHTML=toolAttachments._exceljsSheetHtml(this._ws, opts); }
       catch(e){ host.innerHTML='<div class="pd-hint" style="padding:1rem">Rendu impossible : '+(e.message||e)+'</div>'; }
       this._renderFileInfo();
       this._wbHighlight();

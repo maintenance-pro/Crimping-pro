@@ -12701,26 +12701,29 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         try{ reader.releaseLock(); }catch(e){}
       }catch(e){ /* mode clavier (DATA) reste opérationnel */ }
     },
-    /** 📈 Relie les X de chaque cycle par une courbe (superposition SVG par-dessus l'Annexe) */
+    /** 📈 Relie les X de chaque cycle par une courbe — en lisant les X DIRECTEMENT dans les cellules (jamais via state.samples, pour rester toujours synchrone) */
     _drawCurve(){
       const host=document.getElementById('pdcc-wbhost'); if(!host||!this._map) return;
       const old=host.querySelector('#pdcc-curve'); if(old) old.remove();
       host.style.position='relative';
-      const m=this._map, self=this, NS='http://www.w3.org/2000/svg';
+      const m=this._map, NS='http://www.w3.org/2000/svg';
+      const scaleRows=m.scale.map(function(s){return s.r;});
       const svg=document.createElementNS(NS,'svg'); svg.id='pdcc-curve';
       svg.style.cssText='position:absolute;left:0;top:0;width:'+host.scrollWidth+'px;height:'+host.scrollHeight+'px;pointer-events:none;z-index:6;overflow:visible';
       let any=false;
       m.cycles.forEach(function(b){
         const pts=[];
         b.cols.forEach(function(o){
-          const s=self.state.samples[b.n+'-'+o.k];
-          if(s&&s.r&&s.c){ const cell=host.querySelector('td[data-rc="'+s.r+'-'+s.c+'"]'); if(cell){ pts.push([cell.offsetLeft+cell.offsetWidth/2, cell.offsetTop+cell.offsetHeight/2]); } }
+          // 🔎 X lu DIRECTEMENT dans la cellule rendue (la vérité) — on cherche le X dans la colonne o.c parmi les lignes du graphique
+          let xcell=null;
+          for(let i=0;i<scaleRows.length;i++){ const cell=host.querySelector('td[data-rc="'+scaleRows[i]+'-'+o.c+'"]'); if(cell && cell.textContent.trim().toUpperCase()==='X'){ xcell=cell; break; } }
+          if(xcell){ pts.push([xcell.offsetLeft+xcell.offsetWidth/2, xcell.offsetTop+xcell.offsetHeight/2]); }
         });
         if(pts.length>=2){
           any=true;
           const pl=document.createElementNS(NS,'polyline');
           pl.setAttribute('points', pts.map(function(p){return p[0]+','+p[1];}).join(' '));
-          pl.setAttribute('fill','none'); pl.setAttribute('stroke','#0a4fd6'); pl.setAttribute('stroke-width','2.5'); pl.setAttribute('stroke-linejoin','round'); pl.setAttribute('opacity','.9');
+          pl.setAttribute('fill','none'); pl.setAttribute('stroke','#0a4fd6'); pl.setAttribute('stroke-width','2.5'); pl.setAttribute('stroke-linejoin','round'); pl.setAttribute('stroke-linecap','round'); pl.setAttribute('opacity','.9');
           svg.appendChild(pl);
           pts.forEach(function(p){ const ci=document.createElementNS(NS,'circle'); ci.setAttribute('cx',p[0]); ci.setAttribute('cy',p[1]); ci.setAttribute('r','3'); ci.setAttribute('fill','#0a4fd6'); svg.appendChild(ci); });
         }
@@ -12966,13 +12969,47 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
     _removeFallbackWarn(){ document.getElementById('pdcc-fallback-warn')?.remove(); },
 
+    /** 👁 Affiche une fiche PDCC archivée (copie Excel Firebase) en PLEIN ÉCRAN, avec onglets + téléchargement */
+    async _viewArchived(id){
+      try{
+        const snap=await fbDb.ref('preparations/'+this.toolId+'/pdccFiles/'+id).once('value'); const f=snap.val();
+        if(!f||!f.b64){ this._alert('Copie Excel introuvable pour '+id+'.','warn'); return; }
+        const bin=atob(f.b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+        const wb=new ExcelJS.Workbook(); await wb.xlsx.load(u8.buffer.slice(0));
+        const sheets=(wb.worksheets||[]).filter(function(s){return s&&s.name;});
+        sheets.sort(function(a,b){ return (/pdcc/i.test(b.name)?1:0)-(/pdcc/i.test(a.name)?1:0); });
+        document.getElementById('pdcc-archview')?.remove();
+        const ov=document.createElement('div'); ov.id='pdcc-archview';
+        ov.style.cssText='position:fixed;inset:0;background:rgba(2,6,12,.96);backdrop-filter:blur(8px);z-index:10050;display:flex;flex-direction:column';
+        ov.innerHTML='<div style="display:flex;align-items:center;gap:.8rem;padding:.8rem 1.2rem;border-bottom:1px solid #22344e">'
+          +'<span style="font-size:1.25rem">📄</span><div style="flex:1;min-width:0"><div style="font-weight:800;color:#00d4ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+ui.escape(f.name||id)+'</div><div style="font-size:.7rem;color:#8aa">Fiche archivée — affichage dans la page</div></div>'
+          +'<button id="pdcc-av-dl" class="pd-btn pd-btn--g">⬇️ Télécharger</button><button id="pdcc-av-close" class="pd-btn pd-btn--x">✕ Fermer</button></div>'
+          +'<div id="pdcc-av-tabs" style="display:flex;gap:.35rem;padding:.55rem 1.2rem 0;flex-wrap:wrap"></div>'
+          +'<div id="pdcc-av-body" style="flex:1;overflow:auto;padding:1rem"></div>';
+        document.body.appendChild(ov);
+        const body=ov.querySelector('#pdcc-av-body'), tabs=ov.querySelector('#pdcc-av-tabs'), self=this;
+        const renderSheet=function(ws){
+          let mp=null; try{ mp=self._mapSheet(ws); }catch(e){}
+          let opts={big:true};
+          if(mp){ let maxR=1,maxC=1; mp.scale.forEach(function(s){if(s.r>maxR)maxR=s.r;}); mp.cycles.forEach(function(b){b.cols.forEach(function(o){if(o.c>maxC)maxC=o.c;});}); [mp.vals,mp.trace].forEach(function(o){if(o)Object.keys(o).forEach(function(k){if(o[k]>maxR)maxR=o[k];});}); if(mp.hdrRow>maxR)maxR=mp.hdrRow; opts={maxRow:maxR,maxCol:maxC,big:true}; }
+          try{ body.innerHTML=toolAttachments._exceljsSheetHtml(ws,opts); }catch(e){ body.innerHTML='<div style="color:#f88;padding:1rem">Rendu impossible : '+(e.message||e)+'</div>'; }
+        };
+        const setActive=function(i){ tabs.querySelectorAll('[data-avtab]').forEach(function(x,j){ x.className='pd-btn '+(j===i?'pd-btn--p':'pd-btn--x'); x.style.cssText='padding:.35rem .7rem;font-size:.75rem'; }); renderSheet(sheets[i]); };
+        tabs.innerHTML=sheets.map(function(s,i){ return '<button data-avtab="'+i+'" class="pd-btn '+(i===0?'pd-btn--p':'pd-btn--x')+'" style="padding:.35rem .7rem;font-size:.75rem">'+ui.escape(s.name)+'</button>'; }).join('');
+        tabs.querySelectorAll('[data-avtab]').forEach(function(b,i){ b.onclick=function(){ setActive(i); }; });
+        renderSheet(sheets[0]);
+        ov.querySelector('#pdcc-av-close').onclick=function(){ ov.remove(); };
+        ov.querySelector('#pdcc-av-dl').onclick=function(){ const blob=new Blob([u8],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=f.name||(id+'.xlsx'); document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },4000); };
+      }catch(e){ this._alert('Affichage impossible : '+(e.message||e),'danger'); }
+    },
     async _loadHistory(){
       const self=this;
       const host=document.getElementById('pdcc-hist'); if(!host) return;
       let v={}; try{ const snap=await fbDb.ref('preparations/'+this.toolId+'/pdcc').once('value'); v=snap.val()||{}; }catch(e){}
       const arr=Object.values(v).sort(function(a,b){return (b.archivedAt||0)-(a.archivedAt||0);});
       if(!arr.length){ host.innerHTML='<div class="pd-hint" style="padding:1rem;text-align:center">Aucune fiche archivée pour cet outil.</div>'; return; }
-      host.innerHTML=arr.map(function(p){ const when=p.archivedAt?new Date(p.archivedAt).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''; const dl=p.hasFile?'<button class="pd-btn pd-btn--x" data-pdccdl="'+ui.escape(p.id||'')+'" style="padding:.3rem .55rem;font-size:.7rem">⬇️ Excel</button>':''; const noF=p.hasFile?'':' · <span style="color:#ffb547">sans copie Excel (modèle générique)</span>'; return '<div class="pd-hist"><span style="font-size:1.1rem">📄</span><div style="flex:1;min-width:0"><div class="hid">'+ui.escape(p.id||'')+'</div><div style="font-size:.72rem;color:var(--text-muted)">Section '+ui.escape(p.section||'—')+' · '+when+' · '+ui.escape(p.by||'')+noF+'</div></div>'+dl+'<span class="pd-pill">'+(p.sampleCount||0)+' éch.</span></div>'; }).join('');
+      host.innerHTML=arr.map(function(p){ const id=ui.escape(p.id||''); const when=p.archivedAt?new Date(p.archivedAt).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''; const btns=p.hasFile?('<button class="pd-btn pd-btn--p" data-pdccview="'+id+'" style="padding:.34rem .6rem;font-size:.72rem">👁 Voir</button> <button class="pd-btn pd-btn--g" data-pdccdl="'+id+'" style="padding:.34rem .6rem;font-size:.72rem">⬇️ Télécharger</button>'):''; const noF=p.hasFile?'':' · <span style="color:#ffb547">sans copie Excel (modèle générique)</span>'; return '<div class="pd-hist"><span style="font-size:1.1rem">📄</span><div style="flex:1;min-width:0"><div class="hid">'+id+'</div><div style="font-size:.72rem;color:var(--text-muted)">Section '+ui.escape(p.section||'—')+' · '+when+' · '+ui.escape(p.by||'')+noF+'</div></div><div style="display:flex;gap:.4rem;align-items:center">'+btns+'<span class="pd-pill">'+(p.sampleCount||0)+' éch.</span></div></div>'; }).join('');
+      host.querySelectorAll('[data-pdccview]').forEach(function(btn){ btn.onclick=function(){ self._viewArchived(btn.getAttribute('data-pdccview')); }; });
       host.querySelectorAll('[data-pdccdl]').forEach(function(btn){ btn.onclick=async function(){
         const id=btn.getAttribute('data-pdccdl'); btn.disabled=true;
         try{

@@ -232,7 +232,7 @@
   --z-sidebar: 150;
   --z-panel:   400;
   --z-modal:   500;
-  --z-toast:   600;
+  --z-toast:   10060;
   --z-loader:  700;
 }
 
@@ -11727,7 +11727,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
      Stockage : preparations/{toolId}/pdcc/{ficheId}
      ══════════════════════════════════════════════════════════════════ */
   const pdcc = {
-    toolId: null, toolName: '', counter: 1, state: null, _escHandler: null, _ci: 0, _si: 0, _phase: 'measure', _serialPort: null, _serialReader: null, _serialBuf: '', _fileSpec: null, _wb: null, _ws: null, _wbBytes: null, _map: null, _wbMode: false, _origName: '', _wbSheets: null, _sheetStates: null, _edits: null, _saveTimer: null,
+    toolId: null, toolName: '', counter: 1, state: null, _escHandler: null, _ci: 0, _si: 0, _phase: 'measure', _serialPort: null, _serialReader: null, _serialBuf: '', _fileSpec: null, _wb: null, _ws: null, _wbBytes: null, _map: null, _wbMode: false, _origName: '', _wbSheets: null, _sheetStates: null, _edits: null, _saveTimer: null, _archiving: false, _alertT: null,
     sectionsSpecs: {
       '1.5²': { nominal:{DCH:1.52,CB:2.18,ICH:3.10,ICB:3.11}, rows:[1.56,1.55,1.54,1.53,1.52,1.51,1.50,1.49,1.48], colors:{red:[1.56,1.48],yellow:[1.55,1.54,1.50,1.49],green:[1.53,1.52,1.51]} },
       '2.0²': { nominal:{DCH:1.60,CB:2.18,ICH:3.35,ICB:3.11}, rows:[1.64,1.63,1.62,1.61,1.60,1.59,1.58,1.57,1.56], colors:{red:[1.64,1.56],yellow:[1.63,1.62,1.58,1.57],green:[1.61,1.60,1.59]} }
@@ -11761,11 +11761,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         + '#pdcc-overlay .pd-f label{font-size:.66rem;font-weight:700;color:var(--text-muted);text-transform:uppercase}'
         + '#pdcc-overlay .pd-f input,#pdcc-overlay .pd-f select{background:var(--bg-elevated,#16223a);border:1px solid var(--border-strong);border-radius:8px;color:var(--text-primary);padding:.45rem .55rem;font-size:.83rem;font-family:var(--font-mono);outline:none}'
         + '#pdcc-overlay .pd-f input:focus,#pdcc-overlay .pd-f select:focus{border-color:#00d4ff;box-shadow:0 0 0 3px rgba(0,212,255,.15)}'
-        + '#pdcc-overlay .pd-btn{cursor:pointer;border:none;border-radius:9px;font-weight:800;font-size:.82rem;padding:.55rem 1rem}'
+        + '#pdcc-overlay .pd-btn{cursor:pointer;border:none;border-radius:9px;font-weight:800;font-size:.84rem;padding:.6rem 1.1rem;box-shadow:0 3px 10px rgba(0,0,0,.35);transition:transform .08s,box-shadow .15s}'
+        + '#pdcc-overlay .pd-btn:hover{transform:translateY(-1px);box-shadow:0 5px 16px rgba(0,0,0,.45)}'
+        + '#pdcc-overlay .pd-btn:active{transform:translateY(0)}'
         + '#pdcc-overlay .pd-btn--p{background:linear-gradient(135deg,#00d4ff,#0096d6);color:#04121f}'
         + '#pdcc-overlay .pd-btn--g{background:linear-gradient(135deg,#00e5a0,#00b37e);color:#04201a}'
         + '#pdcc-overlay .pd-btn--a{background:linear-gradient(135deg,#ffb547,#ff7a45);color:#2a1402}'
-        + '#pdcc-overlay .pd-btn--x{background:transparent;border:1px solid var(--border-strong);color:var(--text-primary)}'
+        + '#pdcc-overlay .pd-btn--x{background:#33486a;border:2px solid #6f93c4;color:#fff}'
+        + '#pdcc-overlay .pd-alert{display:none;margin:.5rem 0;padding:.85rem 1.1rem;border-radius:12px;font-weight:800;font-size:1rem;text-align:center;animation:pdpulse 1s ease}'
+        + '@keyframes pdpulse{0%{transform:scale(.96)}50%{transform:scale(1.02)}100%{transform:scale(1)}}'
         + '#pdcc-overlay .pd-actions{display:flex;gap:.55rem;flex-wrap:wrap;margin-top:.9rem;align-items:center}'
         + '#pdcc-overlay .pd-hint{font-size:.72rem;color:var(--text-muted)}'
         + '#pdcc-overlay .pd-scroll{overflow-x:auto;border:1px solid var(--border-strong);border-radius:12px;background:#fff;padding:2px}'
@@ -11815,17 +11819,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._renderShell();
       if (this._wbMode) {
         // 🎯 MODE CLASSEUR : VOTRE Excel est affiché TEL QUEL, rempli DANS ses cellules — diamètres & architecture INTACTS
-        // 🖱️ Saisie 100% par clic sur l'Annexe → on masque les formulaires « Saisie » et « Traçabilité » (redondants)
-        ['pdcc-card-saisie','pdcc-card-trace'].forEach(function(id){ const el=document.getElementById(id); if(el) el.style.display='none'; });
-        const xb=document.getElementById('pdcc-btnXls'); if(xb) xb.style.display='';
-        { const fb=document.getElementById('pdcc-btnFull'); if(fb) fb.style.display=''; }
+        // 🖱️ Saisie 100% par clic sur l'Annexe → on masque les formulaires + on supprime les boutons devenus inutiles
+        ['pdcc-card-saisie','pdcc-card-trace','pdcc-card-actions'].forEach(function(id){ const el=document.getElementById(id); if(el) el.style.display='none'; });
+        const lo=document.getElementById('pdcc-btnLoad'); if(lo) lo.style.display='none';   // ❌ « Charger l'Annexe » supprimé
+        const da=document.getElementById('pdcc-btnDlArch'); if(da) da.style.display='';     // ⬇️ Télécharger la fiche archivée
+        // ⛶ Plein écran PERMANENT
+        const ov=document.getElementById('pdcc-overlay'); if(ov) ov.classList.add('pd-full');
         this.state.section=(this._fileSpec&&(this._fileSpec.cross||this._fileSpec.label))||'fichier';
         this._removeFallbackWarn();
         this._edits={};
         this._renderSectionPicker();
         this._renderWbSheet();
         this._restoreDraft();
-        const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Annexe affichée telle quelle — <b>'+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons</b>. 🖱️ <b>Cliquez une case du graphique</b> pour y tracer le X (zone rouge refusée) · cliquez une valeur (Crimp Width, Insulation, Pull-Test, traçabilité…) pour la saisir. 💾 Sauvegarde auto.';
+        this._autoFillDate();   // 📅 date du jour pré-remplie dans la traçabilité
+        const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Annexe affichée telle quelle — <b>'+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons</b>. 🖱️ <b>Cliquez une case du graphique</b> pour tracer le X (zone rouge refusée) · cliquez une valeur pour la saisir. 💾 Sauvegarde auto · 📦 archivage auto quand la fiche est complète.';
       } else if (this._fileSpec) {
         // Dimensions = celles du fichier → INTERDIT de les changer : on masque seulement le choix de Section
         const sf=document.getElementById('pdcc-selSection'); const sfp=sf&&sf.closest('.pd-f'); if(sfp) sfp.style.display='none';
@@ -11842,6 +11849,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           : 'Aucune Annexe <b>.xlsx</b> exploitable n\'est attachée à cet outil.';
         if(h) h.innerHTML='⚠ '+why;
         this._showFallbackWarn(why);
+        const lo=document.getElementById('pdcc-btnLoad'); if(lo) lo.style.display='';   // mode dégradé : on garde le bouton Charger
       }
       this._loadHistory();
     },
@@ -11857,9 +11865,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           + '<span class="pd-id" id="pdcc-sheetId">FICHE : '+this.state.id+'</span></div>'
           + '<span class="pd-badge"><span class="dot"></span> En cours de saisie</span>'
           + '<span id="pdcc-saveind" style="font-size:.75rem;color:#7fe0b0;font-family:var(--font-mono)"></span>'
-          + '<button class="pd-btn pd-btn--g" id="pdcc-btnLoad" style="margin-left:auto">📂 Charger l\'Annexe PDCC (.xlsx)</button>'
-          + '<button class="pd-btn pd-btn--p" id="pdcc-btnFull" style="display:none">⛶ Plein écran</button>'
-          + '<button class="pd-btn pd-btn--x" id="pdcc-close">← Fermer</button></div>'
+          + '<div style="flex:1 1 auto"></div>'
+          + '<button class="pd-btn pd-btn--g" id="pdcc-btnLoad" style="display:none">📂 Charger l\'Annexe</button>'
+          + '<button class="pd-btn pd-btn--g" id="pdcc-btnDlArch" style="display:none">⬇️ Télécharger la fiche archivée</button>'
+          + '<button class="pd-btn pd-btn--x" id="pdcc-close">✕ Fermer</button></div>'
+        + '<div class="pd-alert" id="pdcc-alert"></div>'
         + '<div class="pd-card" id="pdcc-card-sections" style="display:none"><div class="pd-ct">🗂️ Choisir la section</div><div id="pdcc-sections" style="display:flex;gap:.5rem;flex-wrap:wrap"></div></div>'
         + '<div class="pd-card" id="pdcc-card-saisie"><div class="pd-ct">📝 Saisie d\'un point de mesure</div>'
           + '<div id="pdcc-ask" style="font-size:.95rem;font-weight:700;background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.5);border-radius:10px;padding:.6rem .8rem;margin-bottom:.8rem">📏 <b>MESURE DEMANDÉE</b> — Cycle 1 · Sample 1</div>'
@@ -11883,7 +11893,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           + '<div class="pd-f"><label>Name</label><input type="text" id="pdcc-mName"></div>'
           + '</div><div class="pd-actions"><button class="pd-btn pd-btn--g" id="pdcc-btnMeta">💾 Enregistrer la traçabilité du cycle</button></div></div>'
         + '<div class="pd-card"><div class="pd-ct">📊 Matrice PDCC</div><div id="pdcc-fileinfo"></div><div class="pd-scroll"><table class="pd-grid" id="pdcc-grid"><tbody><tr><td style="padding:2rem;color:#0a1a2f;background:#fff">Choisissez une section.</td></tr></tbody></table><table class="pd-trace" id="pdcc-trace"></table></div></div>'
-        + '<div class="pd-card" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap"><button class="pd-btn pd-btn--a" id="pdcc-btnArchive">📦 Archiver la Fiche</button><button class="pd-btn pd-btn--g" id="pdcc-btnXls" style="display:none">⬇️ Télécharger l\'Excel rempli</button><button class="pd-btn pd-btn--x" id="pdcc-btnReset">🧹 Réinitialiser</button><span class="pd-hint">Archive → Firebase + copie Excel remplie, puis fiche vierge.</span></div>'
+        + '<div class="pd-card" id="pdcc-card-actions" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap"><button class="pd-btn pd-btn--a" id="pdcc-btnArchive">📦 Archiver la Fiche</button><button class="pd-btn pd-btn--g" id="pdcc-btnXls" style="display:none">⬇️ Télécharger l\'Excel rempli</button><button class="pd-btn pd-btn--x" id="pdcc-btnReset">🧹 Réinitialiser</button><span class="pd-hint" id="pdcc-actionshint">Archive → Firebase + copie Excel remplie, puis fiche vierge.</span></div>'
         + '<div class="pd-card"><div class="pd-ct">🗂️ Historique des fiches archivées (cet outil)</div><div id="pdcc-hist"><div class="pd-hint" style="padding:1rem;text-align:center">Chargement…</div></div></div>'
         + '</div>';
       document.body.appendChild(ov);
@@ -11891,7 +11901,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const g=(id)=>document.getElementById(id);
       g('pdcc-close').onclick=()=>this.close();
       g('pdcc-btnLoad').onclick=()=>this.loadAnnexFile();
-      const fb=g('pdcc-btnFull'); if(fb) fb.onclick=()=>this._toggleFull();
       g('pdcc-selSection').onchange=()=>{ this._updatePlaceholders(); this._buildMatrix(); };
       g('pdcc-selCycle').onchange=()=>{ const v=parseInt(g('pdcc-selCycle').value,10); const i=this.CYCLES.indexOf(v); this._ci=(i>=0?i:0); this._highlightPos(); this._setPhase('measure'); };
       g('pdcc-selSample').onchange=()=>{ const k=g('pdcc-selSample').value; const i=this.SAMPLES.findIndex(function(s){return s.k===k;}); this._si=(i>=0?i:0); this._highlightPos(); this._setPhase('measure'); };
@@ -11908,6 +11917,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       g('pdcc-btnArchive').onclick=()=>this._archive();
       g('pdcc-btnReset').onclick=()=>{ if(confirm('Réinitialiser la fiche sans archiver ?')) this._reset(false); };
       g('pdcc-btnXls').onclick=()=>this._downloadWb();
+      { const d=g('pdcc-btnDlArch'); if(d) d.onclick=()=>this._downloadArchived(); }
       this._escHandler=(e)=>{ if(e.key==='Escape') this.close(); };
       document.addEventListener('keydown', this._escHandler);
       this._setPhase('measure');
@@ -12547,6 +12557,62 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._restoreDraft();   // restaure une éventuelle saisie locale de CETTE section
       const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Section <b>'+ui.escape(s.name)+'</b> — '+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons. 🖱️ Cliquez les cases du graphique / les valeurs.';
     },
+    /** 📅 Pré-remplit la DATE DU JOUR dans la traçabilité (toutes les colonnes de cycle) */
+    /** ⬇️ Télécharge la DERNIÈRE fiche PDCC archivée de cet outil (copie Excel stockée dans Firebase) */
+    async _downloadArchived(){
+      if(typeof fbDb==='undefined' || !fbDb || !this.toolId){ this._alert('Aucune fiche archivée à télécharger.','warn'); return; }
+      try{
+        const snap=await fbDb.ref('preparations/'+this.toolId+'/pdccFiles').once('value');
+        const all=snap.val()||{}; const ids=Object.keys(all);
+        if(!ids.length){ this._alert('Aucune fiche archivée pour cet outil — complétez d\'abord une PDCC.','warn'); return; }
+        ids.sort(function(a,b){ return (all[b].at||0)-(all[a].at||0); });   // la plus récente
+        const f=all[ids[0]];
+        if(!f||!f.b64){ this._alert('Copie Excel introuvable pour la dernière fiche.','warn'); return; }
+        const bin=atob(f.b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+        const blob=new Blob([u8],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=f.name||(ids[0]+'.xlsx');
+        document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
+        this._alert('⬇️ Dernière fiche archivée téléchargée : '+(f.name||ids[0]),'success');
+      }catch(e){ this._alert('Téléchargement impossible : '+(e.message||e),'danger'); }
+    },
+    _autoFillDate(force){
+      if(!this._wbMode||!this._map||!this._map.trace||!this._map.trace.date) return;
+      const d=new Date(); const today=('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2)+'.'+d.getFullYear();
+      const dr=this._map.trace.date; const self=this;
+      this._map.cycles.forEach(function(b){ const c0=b.cols[0].c; let cur=null; try{ cur=self._ws.getCell(dr,c0).value; }catch(e){} if(force || cur==null || String(cur).trim()===''){ self._setCell(dr,c0,today); } });
+      if(this._wbMode) this._renderWbSheet();
+    },
+    /** 🔔 Bannière d'alerte VISIBLE au-dessus de l'overlay (les toasts passaient derrière) */
+    _alert(msg, type){
+      let el=document.getElementById('pdcc-alert'); const ov=document.getElementById('pdcc-overlay');
+      if(!el && ov){ el=document.createElement('div'); el.id='pdcc-alert'; el.className='pd-alert'; ov.appendChild(el); }
+      if(!el) return;
+      const C={danger:['#ff5a5a','rgba(120,12,12,.96)'],warn:['#ffcf6b','rgba(120,80,8,.96)'],success:['#00e5a0','rgba(8,90,64,.96)']};
+      const c=C[type]||C.danger;
+      el.style.cssText='position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:10040;max-width:92vw;padding:.9rem 1.5rem;border-radius:14px;border:2px solid '+c[0]+';background:'+c[1]+';color:#fff;font-weight:800;font-size:1.05rem;box-shadow:0 12px 48px rgba(0,0,0,.6);text-align:center;display:block';
+      el.innerHTML=msg;
+      clearTimeout(this._alertT); const self=this;
+      this._alertT=setTimeout(function(){ if(el) el.style.display='none'; }, type==='danger'?6000:3500);
+    },
+    /** ✅ La PDCC est-elle complète ? (toutes les cases Sample de tous les cycles ont un X) */
+    _pdccComplete(){
+      if(!this._map) return false;
+      const self=this; let need=0, have=0; this.state.samples=this.state.samples||{};
+      this._map.cycles.forEach(function(b){ b.cols.forEach(function(o){ need++; if(self.state.samples[b.n+'-'+o.k]) have++; }); });
+      return need>0 && have>=need;
+    },
+    /** 📦 Archivage AUTOMATIQUE quand la fiche est complète : date du jour + sauvegarde + téléchargement, puis fiche vierge */
+    async _autoArchive(){
+      if(this._archiving) return; this._archiving=true;
+      try{
+        this._autoFillDate(true);                 // 📅 date du jour partout
+        this._alert('📦 PDCC complète — archivage automatique en cours…','success');
+        try{ await this._downloadWb(); }catch(e){}  // ⬇️ télécharge l'Excel rempli
+        await this._archive();                     // 💾 Firebase + copie Excel + remise à zéro
+        this._alert('✅ Fiche archivée et téléchargée. Nouvelle fiche prête.','success');
+      }catch(e){ this._alert('⚠ Archivage auto impossible : '+(e.message||e),'danger'); }
+      finally{ this._archiving=false; }
+    },
     /** ⛶ Bascule l'Annexe en PLEIN ÉCRAN (toute la largeur/hauteur) pour gagner de la place */
     _toggleFull(){
       const ov=document.getElementById('pdcc-overlay'); if(!ov) return;
@@ -12600,7 +12666,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this.state.samples[key]={ value:height, row:height.toFixed(2), r:r, c:c, cb:(prev&&prev.cb)||null, ich:(prev&&prev.ich)||null, icb:(prev&&prev.icb)||null, pt:(prev&&prev.pt)||null };
       this._renderWbSheet();
       const zone=this._wbZoneAt(r,c);
-      const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ X tracé — Cycle '+cycle+' · '+sample+' à <b>'+height.toFixed(2)+'</b>'+(zone==='yellow'?' · <b style="color:#d98a00">⚠ zone jaune (limite)</b>':'');
+      if(zone==='yellow') this._alert('⚠ '+height.toFixed(2)+' en zone JAUNE (limite) — enregistré.','warn');
+      const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ X tracé — Cycle '+cycle+' · '+sample+' à <b>'+height.toFixed(2)+'</b>'+(zone==='yellow'?' · <b style="color:#d98a00">⚠ zone jaune</b>':'');
+      if(this._pdccComplete()) this._autoArchive();   // 📦 fiche complète → archivage auto
     },
     /** ⛔ Valeur hors spec (zone rouge / hors plage) : message trop haute / trop basse, pas d'enregistrement */
     _rejectRed(value, dir){
@@ -12608,7 +12676,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const mid=vs[Math.floor(vs.length/2)];
       const tooHigh = (dir==='high') ? true : (dir==='low') ? false : (value>=mid);
       const msg='⛔ HORS SPEC : '+Number(value).toFixed(2)+' — valeur TROP '+(tooHigh?'HAUTE ⬆':'BASSE ⬇')+' (zone rouge). Refaites la mesure.';
-      ui.toast(msg,'danger');
+      this._alert(msg,'danger');
       const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='<b style="color:#ff5a5a;font-size:.95rem">'+msg+'</b>';
     },
     /** 🆕 Tracer le X dans la zone colorée à partir d'une valeur saisie (colonne = sample, valeur snappée sur l'échelle) */
@@ -12633,6 +12701,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if(prev&&prev.r&&prev.c){ this._setCell(prev.r,prev.c,null); }   // retire l'ancien X
       this._setCell(best.r,c,'X');                                      // X à la hauteur snappée
       this.state.samples[key]={ value:value, row:best.v.toFixed(2), r:best.r, c:c, cb:(prev&&prev.cb)||null, ich:(prev&&prev.ich)||null, icb:(prev&&prev.icb)||null, pt:(prev&&prev.pt)||null };
+      const zz=this._wbZoneAt(best.r,c); if(zz==='yellow') this._alert('⚠ '+value+' en zone JAUNE (limite) — enregistré.','warn');
+      if(this._pdccComplete()) this._autoArchive();   // 📦 fiche complète → archivage auto
     },
     /** Zone colorée d'une case du graphique : 'red' | 'yellow' | 'green' | '' */
     _wbZoneAt(r,c){
@@ -12695,6 +12765,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         // 🆕 Valeur saisie dans la ligne Crimp Height → tracer le X dans la zone colorée à cette hauteur
         if(isNum && self._map && self._map.vals && r===self._map.vals.ch){ self._wbPlotFromValue(c, n); }
         self._renderWbSheet();
+        if(self._pdccComplete && self._pdccComplete()) self._autoArchive();   // 📦 fiche complète → archivage auto
       };
       inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); commit(); } else if(e.key==='Escape'){ done=true; self._renderWbSheet(); } });
       inp.addEventListener('blur',commit);
@@ -12768,7 +12839,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           self._initSelectors();
           ['pdcc-card-saisie','pdcc-card-trace'].forEach(function(id){ const el=document.getElementById(id); if(el) el.style.display='none'; });
           const xb=document.getElementById('pdcc-btnXls'); if(xb) xb.style.display='';
-          { const fb=document.getElementById('pdcc-btnFull'); if(fb) fb.style.display=''; }
+          { const da=document.getElementById('pdcc-btnDlArch'); if(da) da.style.display=''; const ov=document.getElementById('pdcc-overlay'); if(ov) ov.classList.add('pd-full'); }
           const N=map.noms||{};
           [['pdcc-inDCH',N.ch],['pdcc-inCB',N.cw],['pdcc-inICH',N.ih],['pdcc-inICB',N.iw],['pdcc-inPT',N.pt]].forEach(function(p){ const el=document.getElementById(p[0]); if(el&&p[1]) el.placeholder='nominal '+p[1]; });
           self.state.section=(self._fileSpec&&(self._fileSpec.cross||self._fileSpec.label))||file.name;

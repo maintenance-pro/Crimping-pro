@@ -11727,7 +11727,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
      Stockage : preparations/{toolId}/pdcc/{ficheId}
      ══════════════════════════════════════════════════════════════════ */
   const pdcc = {
-    toolId: null, toolName: '', counter: 1, state: null, _escHandler: null, _ci: 0, _si: 0, _phase: 'measure', _serialPort: null, _serialReader: null, _serialBuf: '', _fileSpec: null, _wb: null, _ws: null, _wbBytes: null, _map: null, _wbMode: false, _origName: '', _wbSheets: null, _sheetStates: null,
+    toolId: null, toolName: '', counter: 1, state: null, _escHandler: null, _ci: 0, _si: 0, _phase: 'measure', _serialPort: null, _serialReader: null, _serialBuf: '', _fileSpec: null, _wb: null, _ws: null, _wbBytes: null, _map: null, _wbMode: false, _origName: '', _wbSheets: null, _sheetStates: null, _edits: null, _saveTimer: null,
     sectionsSpecs: {
       '1.5²': { nominal:{DCH:1.52,CB:2.18,ICH:3.10,ICB:3.11}, rows:[1.56,1.55,1.54,1.53,1.52,1.51,1.50,1.49,1.48], colors:{red:[1.56,1.48],yellow:[1.55,1.54,1.50,1.49],green:[1.53,1.52,1.51]} },
       '2.0²': { nominal:{DCH:1.60,CB:2.18,ICH:3.35,ICB:3.11}, rows:[1.64,1.63,1.62,1.61,1.60,1.59,1.58,1.57,1.56], colors:{red:[1.64,1.56],yellow:[1.63,1.62,1.58,1.57],green:[1.61,1.60,1.59]} }
@@ -11746,6 +11746,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const s=document.createElement('style'); s.id='pdcc-styles';
       s.textContent = '#pdcc-overlay{position:fixed;inset:0;background:rgba(4,8,16,.93);backdrop-filter:blur(8px);z-index:10014;overflow:auto}'
         + '#pdcc-overlay .pd-panel{max-width:1280px;width:100%;margin:0 auto;padding:1rem 1.1rem 3rem}'
+        + '#pdcc-overlay.pd-full .pd-panel{max-width:100%;padding:.4rem .5rem 1rem}'
+        + '#pdcc-overlay.pd-full .pd-card{margin-bottom:.5rem;padding:.4rem}'
+        + '#pdcc-overlay.pd-full #pdcc-card-sections{display:block!important}'
+        + '#pdcc-overlay.pd-full #pdcc-card-saisie,#pdcc-overlay.pd-full #pdcc-card-trace{display:none!important}'
         + '#pdcc-overlay .pd-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;background:linear-gradient(135deg,#102136,#111c30);border:1px solid var(--border-soft);border-radius:14px;padding:.85rem 1.1rem;margin-bottom:1rem}'
         + '#pdcc-overlay .pd-id{font-family:var(--font-mono);font-weight:800;font-size:.95rem;color:var(--text-primary);background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.35);border-radius:8px;padding:.3rem .65rem}'
         + '#pdcc-overlay .pd-badge{display:inline-flex;align-items:center;gap:.45rem;font-size:.76rem;font-weight:700;color:#ffb547;background:rgba(255,181,71,.12);border:1px solid rgba(255,181,71,.35);border-radius:20px;padding:.3rem .75rem}'
@@ -11814,11 +11818,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         // 🖱️ Saisie 100% par clic sur l'Annexe → on masque les formulaires « Saisie » et « Traçabilité » (redondants)
         ['pdcc-card-saisie','pdcc-card-trace'].forEach(function(id){ const el=document.getElementById(id); if(el) el.style.display='none'; });
         const xb=document.getElementById('pdcc-btnXls'); if(xb) xb.style.display='';
+        { const fb=document.getElementById('pdcc-btnFull'); if(fb) fb.style.display=''; }
         this.state.section=(this._fileSpec&&(this._fileSpec.cross||this._fileSpec.label))||'fichier';
         this._removeFallbackWarn();
+        this._edits={};
         this._renderSectionPicker();
         this._renderWbSheet();
-        const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Annexe affichée telle quelle — <b>'+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons</b>. 🖱️ <b>Cliquez une case du graphique</b> pour y tracer le X · cliquez une valeur (Crimp Width, Insulation, Pull-Test, traçabilité…) pour la saisir directement.';
+        this._restoreDraft();
+        const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Annexe affichée telle quelle — <b>'+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons</b>. 🖱️ <b>Cliquez une case du graphique</b> pour y tracer le X (zone rouge refusée) · cliquez une valeur (Crimp Width, Insulation, Pull-Test, traçabilité…) pour la saisir. 💾 Sauvegarde auto.';
       } else if (this._fileSpec) {
         // Dimensions = celles du fichier → INTERDIT de les changer : on masque seulement le choix de Section
         const sf=document.getElementById('pdcc-selSection'); const sfp=sf&&sf.closest('.pd-f'); if(sfp) sfp.style.display='none';
@@ -11849,7 +11856,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         + '<div class="pd-bar"><div><div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.07em">PDCC — Annexe 4 · '+ui.escape(this.toolName)+'</div>'
           + '<span class="pd-id" id="pdcc-sheetId">FICHE : '+this.state.id+'</span></div>'
           + '<span class="pd-badge"><span class="dot"></span> En cours de saisie</span>'
+          + '<span id="pdcc-saveind" style="font-size:.75rem;color:#7fe0b0;font-family:var(--font-mono)"></span>'
           + '<button class="pd-btn pd-btn--g" id="pdcc-btnLoad" style="margin-left:auto">📂 Charger l\'Annexe PDCC (.xlsx)</button>'
+          + '<button class="pd-btn pd-btn--p" id="pdcc-btnFull" style="display:none">⛶ Plein écran</button>'
           + '<button class="pd-btn pd-btn--x" id="pdcc-close">← Fermer</button></div>'
         + '<div class="pd-card" id="pdcc-card-sections" style="display:none"><div class="pd-ct">🗂️ Choisir la section</div><div id="pdcc-sections" style="display:flex;gap:.5rem;flex-wrap:wrap"></div></div>'
         + '<div class="pd-card" id="pdcc-card-saisie"><div class="pd-ct">📝 Saisie d\'un point de mesure</div>'
@@ -11882,6 +11891,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const g=(id)=>document.getElementById(id);
       g('pdcc-close').onclick=()=>this.close();
       g('pdcc-btnLoad').onclick=()=>this.loadAnnexFile();
+      const fb=g('pdcc-btnFull'); if(fb) fb.onclick=()=>this._toggleFull();
       g('pdcc-selSection').onchange=()=>{ this._updatePlaceholders(); this._buildMatrix(); };
       g('pdcc-selCycle').onchange=()=>{ const v=parseInt(g('pdcc-selCycle').value,10); const i=this.CYCLES.indexOf(v); this._ci=(i>=0?i:0); this._highlightPos(); this._setPhase('measure'); };
       g('pdcc-selSample').onchange=()=>{ const k=g('pdcc-selSample').value; const i=this.SAMPLES.findIndex(function(s){return s.k===k;}); this._si=(i>=0?i:0); this._highlightPos(); this._setPhase('measure'); };
@@ -12088,6 +12098,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       }
       try{ if(typeof db!=='undefined'&&db.audit) db.audit('pdcc.archive', this.toolId, {fiche:this.state.id}); }catch(e){}
       if(!this._wbMode) ui.toast('⚠ Archivée SANS copie Excel (modèle générique). Chargez l\'Annexe .xlsx (📂) pour des fiches téléchargeables.','warn');
+      this._clearDraft();   // saisie archivée → on efface le brouillon local
       this._reset(true);
       this._loadHistory();
     },
@@ -12521,18 +12532,28 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     _selectSection(i){
       if(!this._wbSheets) return;
       const s=this._wbSheets[i]; if(!s||s.ws===this._ws) return;
-      // sauvegarder l'état (X tracés) de la section courante
-      if(this._ws){ this._sheetStates[this._ws.name]=this.state.samples; }
+      // sauvegarder l'état (X tracés + modifs) de la section courante
+      if(this._ws){ this._sheetStates[this._ws.name]={ samples:this.state.samples, edits:this._edits||{} }; }
       this._ws=s.ws; this._map=s.map;
       this.CYCLES=s.map.cycles.map(function(b){return b.n;});
       this.SAMPLES=s.map.cycles[0].cols.map(function(o){return {k:o.k,l:o.k};});
-      this.state.samples=this._sheetStates[s.name]||{};
+      const st=this._sheetStates[s.name]||{};
+      this.state.samples=st.samples||{}; this._edits=st.edits||{};
       let sp=null; try{ sp=this._extractSpecFromSheet(s.ws); }catch(e){}
       if(sp){ sp.label=(this._origName||'PDCC')+' · '+s.name; this._fileSpec=sp; }
       this.state.section=(this._fileSpec&&(this._fileSpec.cross||this._fileSpec.label))||s.name;
       this._renderSectionPicker();
       this._renderWbSheet();
+      this._restoreDraft();   // restaure une éventuelle saisie locale de CETTE section
       const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Section <b>'+ui.escape(s.name)+'</b> — '+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons. 🖱️ Cliquez les cases du graphique / les valeurs.';
+    },
+    /** ⛶ Bascule l'Annexe en PLEIN ÉCRAN (toute la largeur/hauteur) pour gagner de la place */
+    _toggleFull(){
+      const ov=document.getElementById('pdcc-overlay'); if(!ov) return;
+      const on=!ov.classList.contains('pd-full');
+      ov.classList.toggle('pd-full', on);
+      const fb=document.getElementById('pdcc-btnFull'); if(fb) fb.textContent= on ? '⛶ Quitter le plein écran' : '⛶ Plein écran';
+      this._renderWbSheet();
     },
     /** 🖱️ CLIC DIRECT SUR L'ANNEXE : cases du graphique cliquables (X) + valeurs/traçabilité éditables sur place */
     _wbAttachClicks(){
@@ -12563,22 +12584,32 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
     /** 🖱️ Clic sur une case du graphique : place le X (et la hauteur dans la ligne Crimp Height), re-clic = efface */
     _wbClickChart(r,c,cycle,sample,height){
+      // ⛔ Zone ROUGE = hors spec → on n'enregistre pas, on demande de refaire
+      if(this._wbZoneAt(r,c)==='red'){ this._rejectRed(height); return; }
       const key=cycle+'-'+sample; const prev=this.state.samples[key];
-      // efface l'ancien X de ce sample
-      if(prev&&prev.r&&prev.c){ try{ this._ws.getCell(prev.r,prev.c).value=null; }catch(e){} }
-      // re-clic sur la MÊME case = on efface (toggle)
-      if(prev&&prev.r===r&&prev.c===c){
+      if(prev&&prev.r&&prev.c){ this._setCell(prev.r,prev.c,null); }   // efface l'ancien X
+      if(prev&&prev.r===r&&prev.c===c){                                 // re-clic même case = efface (toggle)
         delete this.state.samples[key];
-        if(this._map.vals&&this._map.vals.ch){ try{ this._ws.getCell(this._map.vals.ch,c).value=null; }catch(e){} }
+        if(this._map.vals&&this._map.vals.ch){ this._setCell(this._map.vals.ch,c,null); }
         this._renderWbSheet();
         const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✖ X retiré — Cycle '+cycle+' · '+sample;
         return;
       }
-      try{ this._ws.getCell(r,c).value='X'; }catch(e){ ui.toast('Écriture impossible.','danger'); return; }
-      if(this._map.vals&&this._map.vals.ch){ try{ this._ws.getCell(this._map.vals.ch,c).value=height; }catch(e){} }
+      this._setCell(r,c,'X');
+      if(this._map.vals&&this._map.vals.ch){ this._setCell(this._map.vals.ch,c,height); }
       this.state.samples[key]={ value:height, row:height.toFixed(2), r:r, c:c, cb:(prev&&prev.cb)||null, ich:(prev&&prev.ich)||null, icb:(prev&&prev.icb)||null, pt:(prev&&prev.pt)||null };
       this._renderWbSheet();
-      const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ X tracé dans l\'Annexe — Cycle '+cycle+' · '+sample+' à <b>'+height.toFixed(2)+'</b>';
+      const zone=this._wbZoneAt(r,c);
+      const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ X tracé — Cycle '+cycle+' · '+sample+' à <b>'+height.toFixed(2)+'</b>'+(zone==='yellow'?' · <b style="color:#d98a00">⚠ zone jaune (limite)</b>':'');
+    },
+    /** ⛔ Valeur hors spec (zone rouge / hors plage) : message trop haute / trop basse, pas d'enregistrement */
+    _rejectRed(value, dir){
+      const vs=this._map.scale.map(function(s){return s.v;});
+      const mid=vs[Math.floor(vs.length/2)];
+      const tooHigh = (dir==='high') ? true : (dir==='low') ? false : (value>=mid);
+      const msg='⛔ HORS SPEC : '+Number(value).toFixed(2)+' — valeur TROP '+(tooHigh?'HAUTE ⬆':'BASSE ⬇')+' (zone rouge). Refaites la mesure.';
+      ui.toast(msg,'danger');
+      const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='<b style="color:#ff5a5a;font-size:.95rem">'+msg+'</b>';
     },
     /** 🆕 Tracer le X dans la zone colorée à partir d'une valeur saisie (colonne = sample, valeur snappée sur l'échelle) */
     _wbPlotFromValue(c, value){
@@ -12588,10 +12619,64 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if(cycle==null) return;
       let best=m.scale[0], df=Infinity;
       m.scale.forEach(function(s){ const d=Math.abs(s.v-value); if(d<df){ df=d; best=s; } });
+      // ⛔ Hors spec : au-dessus du MAX, sous le MIN, ou case ROUGE → refus + message trop haut / trop bas
+      const vs=m.scale.map(function(s){return s.v;}); const hi=Math.max.apply(null,vs), lo=Math.min.apply(null,vs);
+      const outHigh=value>hi+1e-9, outLow=value<lo-1e-9;
+      if(outHigh || outLow || this._wbZoneAt(best.r,c)==='red'){
+        if(m.vals&&m.vals.ch){ this._setCell(m.vals.ch,c,null); }
+        const key0=cycle+'-'+sample; const pv=this.state.samples[key0];
+        if(pv&&pv.r&&pv.c){ this._setCell(pv.r,pv.c,null); delete this.state.samples[key0]; }
+        this._rejectRed(value, outHigh?'high':(outLow?'low':null));
+        return;
+      }
       const key=cycle+'-'+sample; const prev=this.state.samples[key];
-      if(prev&&prev.r&&prev.c){ try{ this._ws.getCell(prev.r,prev.c).value=null; }catch(e){} }   // retire l'ancien X
-      try{ this._ws.getCell(best.r,c).value='X'; }catch(e){}                                          // X à la hauteur snappée
+      if(prev&&prev.r&&prev.c){ this._setCell(prev.r,prev.c,null); }   // retire l'ancien X
+      this._setCell(best.r,c,'X');                                      // X à la hauteur snappée
       this.state.samples[key]={ value:value, row:best.v.toFixed(2), r:best.r, c:c, cb:(prev&&prev.cb)||null, ich:(prev&&prev.ich)||null, icb:(prev&&prev.icb)||null, pt:(prev&&prev.pt)||null };
+    },
+    /** Zone colorée d'une case du graphique : 'red' | 'yellow' | 'green' | '' */
+    _wbZoneAt(r,c){
+      try{ const f=this._ws.getCell(r,c).fill; if(f&&f.type==='pattern'&&f.pattern==='solid'&&f.fgColor) return this._zoneFromFill(f.fgColor)||''; }catch(e){}
+      return '';
+    },
+    /** 💾 Écrit une cellule + mémorise la modif + déclenche la sauvegarde instantanée (anti-perte de données) */
+    _setCell(r,c,v){
+      try{ this._ws.getCell(r,c).value=v; }catch(e){ return; }
+      if(!this._edits) this._edits={};
+      const k=r+'-'+c; if(v==null) delete this._edits[k]; else this._edits[k]=v;
+      this._autosave();
+    },
+    /** 💾 Sauvegarde locale instantanée (débfoncée) — survit au rafraîchissement / coupure */
+    _autosave(){
+      const self=this; clearTimeout(this._saveTimer);
+      const ind=document.getElementById('pdcc-saveind'); if(ind) ind.textContent='💾 enregistrement…';
+      this._saveTimer=setTimeout(function(){ self._saveDraft(); }, 600);
+    },
+    _saveDraft(){
+      try{
+        const key='pdccDraft::'+this.toolId+'::'+((this._ws&&this._ws.name)||'');
+        localStorage.setItem(key, JSON.stringify({ fiche:this.state&&this.state.id, sheet:(this._ws&&this._ws.name)||'', edits:this._edits||{}, samples:(this.state&&this.state.samples)||{}, at:Date.now() }));
+        const ind=document.getElementById('pdcc-saveind'); if(ind) ind.textContent='✔ enregistré '+new Date().toLocaleTimeString('fr-FR');
+      }catch(e){ const ind=document.getElementById('pdcc-saveind'); if(ind) ind.textContent='⚠ sauvegarde locale indisponible'; }
+    },
+    _clearDraft(){
+      try{ if(this._wbSheets){ this._wbSheets.forEach(function(s){ localStorage.removeItem('pdccDraft::'+this.toolId+'::'+s.name); },this); } else { localStorage.removeItem('pdccDraft::'+this.toolId+'::'+((this._ws&&this._ws.name)||'')); } }catch(e){}
+    },
+    /** 💾 Restaure une saisie non archivée (au ré-ouverture de la même section) */
+    _restoreDraft(){
+      try{
+        if(this._edits && Object.keys(this._edits).length) return false;   // modifs déjà en session → pas de restauration
+        const key='pdccDraft::'+this.toolId+'::'+((this._ws&&this._ws.name)||'');
+        const raw=localStorage.getItem(key); if(!raw) return false;
+        const d=JSON.parse(raw); if(!d||!d.edits||!Object.keys(d.edits).length) return false;
+        if(!confirm('Une saisie NON archivée existe pour cette section ('+(d.at?new Date(d.at).toLocaleString('fr-FR'):'')+').\nLa restaurer ?')){ localStorage.removeItem(key); return false; }
+        const self=this;
+        Object.keys(d.edits).forEach(function(rc){ const p=rc.split('-'); try{ self._ws.getCell(parseInt(p[0],10),parseInt(p[1],10)).value=d.edits[rc]; }catch(e){} });
+        this._edits=d.edits; this.state.samples=d.samples||{};
+        this._renderWbSheet();
+        ui.toast('💾 Saisie restaurée.','success');
+        return true;
+      }catch(e){ return false; }
     },
     /** 🖱️ Édition sur place d'une cellule (valeur / traçabilité) directement dans l'Annexe rendue */
     _wbInlineEdit(td,r,c){
@@ -12606,7 +12691,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if(done) return; done=true;
         const v=inp.value.trim(); const n=Number(v.replace(',','.'));
         const isNum=(v!==''&&!isNaN(n)&&/^-?\d+([.,]\d+)?$/.test(v));
-        try{ self._ws.getCell(r,c).value= isNum ? n : (v||null); }catch(e){}
+        self._setCell(r,c, isNum ? n : (v||null));
         // 🆕 Valeur saisie dans la ligne Crimp Height → tracer le X dans la zone colorée à cette hauteur
         if(isNum && self._map && self._map.vals && r===self._map.vals.ch){ self._wbPlotFromValue(c, n); }
         self._renderWbSheet();
@@ -12619,9 +12704,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if(!this._wbMode||!this._map||!this._map.trace) return;
       const blk=this._map.cycles.find(function(b){return String(b.n)===String(cycle);}); if(!blk) return;
       const c0=blk.cols[0].c; const self=this; let wrote=false;
-      const put=function(key,val){ const r=self._map.trace[key]; if(!r||val==null||String(val).trim()==='') return; try{ const n=Number(String(val).replace(',','.')); self._ws.getCell(r,c0).value=(String(val).trim()!==''&&!isNaN(n)&&/^\s*-?\d+([.,]\d+)?\s*$/.test(String(val)))?n:val; wrote=true; }catch(e){} };
+      const put=function(key,val){ const r=self._map.trace[key]; if(!r||val==null||String(val).trim()==='') return; const n=Number(String(val).replace(',','.')); self._setCell(r,c0,(String(val).trim()!==''&&!isNaN(n)&&/^\s*-?\d+([.,]\d+)?\s*$/.test(String(val)))?n:val); wrote=true; };
       put('product',m.product); put('lead',m.lead); put('qty',m.qty); put('pull',m.pull); put('name',m.name);
-      if(m.date && this._map.trace.date){ const d=String(m.date); const fr=/^\d{4}-\d{2}-\d{2}$/.test(d)? d.split('-').reverse().join('.') : d; try{ this._ws.getCell(this._map.trace.date,c0).value=fr; wrote=true; }catch(e){} }
+      if(m.date && this._map.trace.date){ const d=String(m.date); const fr=/^\d{4}-\d{2}-\d{2}$/.test(d)? d.split('-').reverse().join('.') : d; this._setCell(this._map.trace.date,c0,fr); wrote=true; }
       if(wrote) this._renderWbSheet();
     },
     /** 🎯 Recharge le classeur d'ORIGINE (fiche vierge) après archivage / réinitialisation */
@@ -12683,12 +12768,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           self._initSelectors();
           ['pdcc-card-saisie','pdcc-card-trace'].forEach(function(id){ const el=document.getElementById(id); if(el) el.style.display='none'; });
           const xb=document.getElementById('pdcc-btnXls'); if(xb) xb.style.display='';
+          { const fb=document.getElementById('pdcc-btnFull'); if(fb) fb.style.display=''; }
           const N=map.noms||{};
           [['pdcc-inDCH',N.ch],['pdcc-inCB',N.cw],['pdcc-inICH',N.ih],['pdcc-inICB',N.iw],['pdcc-inPT',N.pt]].forEach(function(p){ const el=document.getElementById(p[0]); if(el&&p[1]) el.placeholder='nominal '+p[1]; });
           self.state.section=(self._fileSpec&&(self._fileSpec.cross||self._fileSpec.label))||file.name;
           self._removeFallbackWarn();
+          self._edits={};
           self._renderSectionPicker();
           self._renderWbSheet();
+          self._restoreDraft();
           self._syncSelects(); self._highlightPos(); self._setPhase('measure');
           ui.hideLoader();
           const sl=self.SAMPLES.map(function(s){return s.k;}).join(' · ');

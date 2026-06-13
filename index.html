@@ -11785,6 +11785,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         + '#pdcc-wbhost td.pd-ch-cell:hover{outline:2px solid #00d4ff;outline-offset:-2px;box-shadow:inset 0 0 0 100px rgba(0,212,255,.18)}'
         + '#pdcc-wbhost td.pd-ed-cell{cursor:cell}'
         + '#pdcc-wbhost td.pd-ed-cell:hover{outline:2px dashed #00d4ff;outline-offset:-2px;background:rgba(0,212,255,.08)}'
+        + '#pdcc-wbhost td.pd-locked{cursor:not-allowed}'
+        + '#pdcc-wbhost td.pd-locked:hover{outline:2px solid rgba(255,180,71,.5);outline-offset:-2px}'
         + '#pdcc-overlay .pd-cell{width:30px;height:24px;position:relative}'
         + '#pdcc-overlay .pd-cell.z-red{background:#ff3333}#pdcc-overlay .pd-cell.z-yellow{background:#ffff00}#pdcc-overlay .pd-cell.z-green{background:#99ff99}'
         + "#pdcc-overlay .pd-cell.mark::after{content:'X';color:#000;font-weight:900;font-size:1rem;line-height:24px;display:block;font-family:Inter,sans-serif}"
@@ -12646,10 +12648,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       host.querySelectorAll('td[data-rc]').forEach(function(td){
         const rc=td.getAttribute('data-rc').split('-'); const r=+rc[0], c=+rc[1];
         const ci=colInfo[c]; const vk=valRow[r];
+        // 🔒 Valeur DÉJÀ enregistrée → verrouillée (interdit de changer)
+        let hasVal=false; try{ const cv=self._ws.getCell(r,c).value; hasVal=(cv!=null && String(cv).trim()!==''); }catch(e){}
         if(vk && ci && self._isWhiteCell(r,c)){
+          if(hasVal){ td.classList.add('pd-locked'); td.title='🔒 Valeur enregistrée — non modifiable'; return; }   // verrouillé
           td.classList.add('pd-ed-cell');
           if(r===m.vals.ch){
-            // Crimp Height : la valeur trace le X. Clic gauche = saisir · clic DROIT = choisir (valeur / micromètre)
             td.title='Crimp Height — clic : saisir · clic droit : micromètre Mitutoyo';
             td.onclick=function(){ self._wbInlineEdit(td,r,c); };
             td.oncontextmenu=function(e){ e.preventDefault(); self._wbCellMenu(e,td,r,c); };
@@ -12663,7 +12667,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
         // sinon : 🔒 verrouillé (graphique coloré, libellés, hachures, nominaux) — aucun handler, pas de saisie
       });
-      this._scheduleCurve();   // 📈 relie les X par une courbe (redessins après layout/polices pour un calage parfait)
     },
     /** 🖱️ Menu clic droit : saisir la valeur OU mesurer au micromètre Mitutoyo 341 (USB) */
     _wbCellMenu(e,td,r,c){
@@ -12700,52 +12703,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
         try{ reader.releaseLock(); }catch(e){}
       }catch(e){ /* mode clavier (DATA) reste opérationnel */ }
-    },
-    /** 📈 Relie les X par une courbe — points calés PILE sur le centre de chaque cellule X (getBoundingClientRect, robuste au défilement) et lus DIRECTEMENT dans les cellules */
-    _drawCurve(){
-      const host=document.getElementById('pdcc-wbhost'); if(!host||!this._map) return;
-      const self=this;
-      const old=host.querySelector('#pdcc-curve'); if(old) old.remove();
-      host.style.position='relative';
-      const m=this._map, NS='http://www.w3.org/2000/svg';
-      const scaleRows=m.scale.map(function(s){return s.r;});
-      const svg=document.createElementNS(NS,'svg'); svg.id='pdcc-curve';
-      svg.style.cssText='position:absolute;left:0;top:0;width:'+host.scrollWidth+'px;height:'+host.scrollHeight+'px;pointer-events:none;z-index:6;overflow:visible';
-      host.appendChild(svg);                          // ✅ on l'ajoute d'abord → on mesure tout PAR RAPPORT au SVG (robuste au défilement)
-      const sr=svg.getBoundingClientRect();
-      let any=false;
-      m.cycles.forEach(function(b){
-        const pts=[];
-        b.cols.forEach(function(o){
-          let xcell=null;
-          for(let i=0;i<scaleRows.length;i++){ const cell=host.querySelector('td[data-rc="'+scaleRows[i]+'-'+o.c+'"]'); if(cell && cell.textContent.trim().toUpperCase()==='X'){ xcell=cell; break; } }
-          if(xcell){ const r=xcell.getBoundingClientRect(); pts.push([r.left-sr.left+r.width/2, r.top-sr.top+r.height/2]); }   // centre du X, relatif au SVG
-        });
-        if(pts.length>=2){
-          any=true;
-          const pl=document.createElementNS(NS,'polyline');
-          pl.setAttribute('points', pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' '));
-          pl.setAttribute('fill','none'); pl.setAttribute('stroke','#0a4fd6'); pl.setAttribute('stroke-width','2.5'); pl.setAttribute('stroke-linejoin','round'); pl.setAttribute('stroke-linecap','round'); pl.setAttribute('opacity','.9');
-          svg.appendChild(pl);
-          pts.forEach(function(p){ const ci=document.createElementNS(NS,'circle'); ci.setAttribute('cx',p[0].toFixed(1)); ci.setAttribute('cy',p[1].toFixed(1)); ci.setAttribute('r','3'); ci.setAttribute('fill','#0a4fd6'); svg.appendChild(ci); });
-        }
-      });
-      if(!any){ svg.remove(); }
-      // 🔄 redessine au défilement du host (la courbe reste collée aux X)
-      if(!host._curveScroll){ host._curveScroll=function(){ self._drawCurveRAF(); }; host.addEventListener('scroll', host._curveScroll, {passive:true}); }
-    },
-    _drawCurveRAF(){ const self=this; if(this._curveRAF) return; this._curveRAF=requestAnimationFrame(function(){ self._curveRAF=null; self._drawCurve(); }); },
-    /** 📈 Programme plusieurs redessins de la courbe pour un calage PARFAIT : immédiat + après layout + après chargement des polices + sur reflow (ResizeObserver) */
-    _scheduleCurve(){
-      const host=document.getElementById('pdcc-wbhost'); if(!host) return;
-      const self=this;
-      this._drawCurve();                                                  // immédiat
-      requestAnimationFrame(function(){ self._drawCurve(); });            // après le 1er layout
-      if(document.fonts&&document.fonts.ready&&document.fonts.ready.then){ document.fonts.ready.then(function(){ self._drawCurve(); }); }   // après les polices (cause du décalage)
-      [150,500].forEach(function(ms){ setTimeout(function(){ self._drawCurve(); }, ms); });   // filets de sécurité
-      // 🔄 ResizeObserver sur le TABLEAU : tout reflow (police, largeur de colonne…) redessine la courbe
-      const tbl=host.querySelector('table');
-      if(tbl && window.ResizeObserver){ if(host._curveRO){ try{ host._curveRO.disconnect(); }catch(e){} } host._curveRO=new ResizeObserver(function(){ self._drawCurveRAF(); }); host._curveRO.observe(tbl); }
     },
     /** 📅 Écrit la DATE DU JOUR dans la case date de CE cycle (au 1er point mesuré) si encore vide */
     _fillCycleDate(cycle){

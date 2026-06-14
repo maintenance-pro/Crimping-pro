@@ -12926,7 +12926,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const ind=document.getElementById('pdcc-saveind'); if(ind) ind.textContent='💾 enregistrement…';
       this._saveTimer=setTimeout(function(){ self._saveDraft(); }, 600);
     },
+    /** 📱 Appareil de type TÉLÉPHONE ? (sur téléphone, on n'enregistre PAS le brouillon des valeurs) */
+    _isPhone(){ try{ return /Mobi|Android|iPhone|iPod/i.test(navigator.userAgent||'') || (window.innerWidth||9999)<=768; }catch(e){ return false; } },
     _saveDraft(){
+      // 📱 Sur TÉLÉPHONE : ne rien enregistrer (ni local ni Firebase) — les valeurs saisies au téléphone ne sont pas persistées/synchronisées
+      if(this._isPhone()){ const ind=document.getElementById('pdcc-saveind'); if(ind) ind.textContent='📱 Téléphone — valeurs NON enregistrées (consultation)'; return; }
       const data={ fiche:this.state&&this.state.id, sheet:(this._ws&&this._ws.name)||'', edits:this._edits||{}, samples:(this.state&&this.state.samples)||{}, at:Date.now() };
       try{
         const key='pdccDraft::'+this.toolId+'::'+((this._ws&&this._ws.name)||'');
@@ -22932,33 +22936,59 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!preps.length) {
           listEl.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:2rem;font-style:italic">Aucun résultat${q ? ' pour « ' + ui.escape(self._q) + ' »' : ''}.</div>`;
         } else {
-          listEl.innerHTML = preps.map(p => {
+          listEl.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.8rem">' + preps.map(p => {
+            const t = (state.tools && state.tools[p.toolId]) || p;
             const xls = hasXls(p);
             const nArch = archCount(p);
-            const when = p.addedAt ? new Date(p.addedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '';
-            const statusBadge = xls.length
-              ? `<span style="display:inline-flex;align-items:center;gap:.3rem;background:rgba(0,229,160,.14);color:#00e5a0;border:1px solid rgba(0,229,160,.4);border-radius:20px;padding:.18rem .6rem;font-size:.68rem;font-weight:800">✅ Annexe PDCC prête</span>`
-              : `<span style="display:inline-flex;align-items:center;gap:.3rem;background:rgba(255,181,71,.14);color:#ffb547;border:1px solid rgba(255,181,71,.4);border-radius:20px;padding:.18rem .6rem;font-size:.68rem;font-weight:800">⚠️ Annexe manquante</span>`;
-            const archBadge = nArch ? `<span style="display:inline-flex;align-items:center;gap:.3rem;background:rgba(167,139,250,.14);color:#a78bfa;border:1px solid rgba(167,139,250,.4);border-radius:20px;padding:.18rem .6rem;font-size:.68rem;font-weight:800">📦 ${nArch} archivée${nArch > 1 ? 's' : ''}</span>` : '';
-            const xlBtns = xls.length
-              ? xls.map(([fid, m]) => `<button data-prep-xl="${p.toolId}::${fid}" style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(0,212,255,.12);color:#00d4ff;border:1px solid rgba(0,212,255,.35);border-radius:8px;padding:.42rem .75rem;font-size:.75rem;font-weight:700;cursor:pointer">📄 ${ui.escape(m.category || m.name || 'Annexe')}</button>`).join('')
-              : '';
-            return `<div style="padding:.95rem 1.1rem;border:1px solid var(--border-soft);border-left:4px solid ${xls.length ? '#00e5a0' : '#ffb547'};border-radius:13px;margin-bottom:.7rem;background:var(--bg-elevated);transition:border-color .2s,transform .1s" onmouseover="this.style.borderColor='rgba(0,212,255,.5)'" onmouseout="this.style.borderColor='var(--border-soft)'">
-              <div style="display:flex;align-items:flex-start;gap:.7rem">
-                <span style="font-size:1.5rem;line-height:1">🔧</span>
-                <div style="flex:1;min-width:0">
-                  <div style="font-weight:800;font-size:1rem;color:var(--text-primary);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ui.escape(p.doutils || p.toolId)}</div>
-                  <div style="font-size:.76rem;color:var(--text-muted);margin-top:.2rem">🔌 <b style="color:var(--text-secondary)">${ui.escape(p.connection || '—')}</b>${when ? ' · 📅 ajouté le ' + when : ''}</div>
-                  <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem">${statusBadge}${archBadge}</div>
-                </div>
-                ${canManage ? `<button data-prep-del="${p.toolId}" title="Retirer des préparations" style="background:rgba(255,61,90,.1);color:#ff3d5a;border:1px solid rgba(255,61,90,.3);border-radius:8px;padding:.35rem .55rem;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">🗑️</button>` : ''}
+            const title = t.designation || t.doutils || p.doutils || t.serial || p.toolId;
+            // Badges (réutilise les helpers du Catalogue)
+            const fabBadge = `<span class="badge badge--auto">${ui.escape(t.fabricant || t.fournisseur || '—')}</span>`;
+            let statusB = ''; try { statusB = (views.catalog && views.catalog._renderStatusBadge) ? views.catalog._renderStatusBadge(t, { clickable: false, size: 'small' }) : ''; } catch (e) {}
+            let client = null; try { if (views.catalog && views.catalog._getClientForProject && t.projet) client = views.catalog._getClientForProject(t.projet); } catch (e) {}
+            const clientBadge = client ? `<span style="background:${client.color}1a;color:${client.color};font-size:.62rem;padding:.12rem .45rem;border-radius:5px;font-weight:800;letter-spacing:.04em;border:1px solid ${client.color}40">${client.icon} ${ui.escape(String(client.name).toUpperCase())}</span>` : '';
+            const annexeBadge = xls.length
+              ? `<span style="background:rgba(0,229,160,.14);color:#00e5a0;font-size:.62rem;padding:.12rem .45rem;border-radius:5px;font-weight:800;border:1px solid rgba(0,229,160,.4)">📊 Annexe${xls.length > 1 ? ' ×' + xls.length : ''} prête</span>`
+              : `<span style="background:rgba(255,181,71,.14);color:#ffb547;font-size:.62rem;padding:.12rem .45rem;border-radius:5px;font-weight:800;border:1px solid rgba(255,181,71,.4)">⚠️ Annexe manquante</span>`;
+            const archBadge = nArch ? `<span style="background:rgba(167,139,250,.14);color:#a78bfa;font-size:.62rem;padding:.12rem .45rem;border-radius:5px;font-weight:800;border:1px solid rgba(167,139,250,.4)">📦 ${nArch} fiche${nArch > 1 ? 's' : ''}</span>` : '';
+            // Cellule de spécification
+            const specCell = (icon, lbl, val) => `<div style="display:flex;align-items:center;gap:.25rem;min-width:0"><span style="opacity:.55">${icon}</span><span style="opacity:.5;font-size:.6rem;text-transform:uppercase;letter-spacing:.03em">${lbl}</span>${val != null && String(val).trim() !== '' ? `<b style="color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ui.escape(String(val))}</b>` : '<span style="color:#ff6b6b;opacity:.55">—</span>'}</div>`;
+            // Complétude
+            const keyFields = ['doutils', 'serial', 'connection', 'terminal', 'fournisseur', 'fabricant', 'refOutil', 'projet', 'groupe'];
+            const filled = keyFields.filter(f => t[f] != null && String(t[f]).trim() !== '').length;
+            const pct = Math.round(filled / keyFields.length * 100);
+            const pctColor = pct >= 80 ? '#00e5a0' : pct >= 50 ? '#ffb547' : '#ff3d5a';
+            const cycles = (typeof fmt !== 'undefined' && fmt.number) ? fmt.number(t.totalCounter || t.frequenceCycle || 0) : (t.totalCounter || 0);
+            const xlBtns = xls.map(([fid, m]) => `<button data-prep-xl="${p.toolId}::${fid}" style="display:inline-flex;align-items:center;gap:.35rem;background:rgba(0,212,255,.12);color:#00d4ff;border:1px solid rgba(0,212,255,.35);border-radius:7px;padding:.4rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer">📄 ${ui.escape(m.category || m.name || 'Annexe')}</button>`).join('');
+            const accent = xls.length ? '#00e5a0' : '#ffb547';
+            return `<article style="padding:1rem;border:1px solid var(--border-soft);border-left:3px solid ${accent};border-radius:12px;background:var(--bg-elevated);display:flex;flex-direction:column;gap:.45rem;transition:border-color .15s" onmouseover="this.style.borderColor='rgba(0,212,255,.5)'" onmouseout="this.style.borderColor='var(--border-soft)'">
+              <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
+                <strong style="font-size:.95rem;color:var(--text-primary);font-family:var(--font-mono);word-break:break-word">${ui.escape(title)}</strong>
+                ${fabBadge}
+              </header>
+              <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">${statusB}${annexeBadge}${clientBadge}${archBadge}</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.2rem .55rem;font-size:.7rem;font-family:var(--font-mono);color:var(--text-secondary)">
+                ${specCell('🔌', 'Conn', t.connection || p.connection)}
+                ${specCell('🔗', 'Term', t.terminal)}
+                ${specCell('🆔', 'Serial', t.serial)}
+                ${specCell('🏭', 'Fourn', t.fournisseur)}
+                ${specCell('📐', 'Réf', t.refOutil)}
+                ${specCell('🏷', 'Fab', t.refFabricant)}
               </div>
-              <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem;padding-top:.7rem;border-top:1px dashed var(--border-soft)">
-                <button data-prep-pdcc="${p.toolId}::${ui.escape(p.doutils || p.toolId)}" style="display:inline-flex;align-items:center;gap:.4rem;background:linear-gradient(135deg,#00e5a0,#00b37e);color:#04201a;border:none;border-radius:8px;padding:.5rem .9rem;font-size:.78rem;font-weight:800;cursor:pointer;box-shadow:0 2px 10px rgba(0,229,160,.25)">📝 Remplir la PDCC</button>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:.68rem;font-family:var(--font-mono);color:var(--text-muted)">
+                <span>🔄 ${cycles} cycles</span>
+                <span style="color:${xls.length ? '#00e5a0' : '#94a3b8'}">${xls.length ? '📊 Annexe 4' : '📭 sans Annexe'}</span>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:.6rem;color:var(--text-muted);margin-bottom:.18rem"><span>Complétude fiche</span><span style="color:${pctColor};font-weight:700">${filled}/${keyFields.length} · ${pct}%</span></div>
+                <div style="height:5px;border-radius:3px;background:rgba(148,163,184,.15);overflow:hidden"><div style="height:100%;width:${pct}%;background:${pctColor};border-radius:3px"></div></div>
+              </div>
+              <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.2rem;padding-top:.55rem;border-top:1px dashed var(--border-soft)">
+                <button data-prep-pdcc="${p.toolId}::${ui.escape(t.doutils || p.doutils || p.toolId)}" style="display:inline-flex;align-items:center;gap:.4rem;background:linear-gradient(135deg,#00e5a0,#00b37e);color:#04201a;border:none;border-radius:8px;padding:.45rem .8rem;font-size:.76rem;font-weight:800;cursor:pointer;box-shadow:0 2px 10px rgba(0,229,160,.25)">📝 Remplir PDCC</button>
                 ${xlBtns}
+                ${canManage ? `<button data-prep-del="${p.toolId}" title="Retirer des préparations" style="margin-left:auto;background:rgba(255,61,90,.1);color:#ff3d5a;border:1px solid rgba(255,61,90,.3);border-radius:8px;padding:.4rem .55rem;font-size:.72rem;font-weight:700;cursor:pointer">🗑️</button>` : ''}
               </div>
-            </div>`;
-          }).join('');
+            </article>`;
+          }).join('') + '</div>';
         }
 
         // ===== Recherche + tri (branchement une seule fois) =====
@@ -25792,7 +25822,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const canEdit   = ['admin','super_admin','responsable'].includes(state.role);
         const canDelete = ['admin','super_admin'].includes(state.role);
         const items = [];
-        items.push({ icon:'📋', label:'Dupliquer cet outil', color:'#22d3ee', act: () => this.duplicateTool(tool) });
+        if (canDelete) items.push({ icon:'📋', label:'Dupliquer cet outil', color:'#22d3ee', act: () => this.duplicateTool(tool) });   // 🔒 admin uniquement
         items.push({ icon:'👁', label:'Voir les détails',    color:'var(--text-primary)', act: () => this.showDetails(tool) });
         // 🆕 Ajouter l'outil à la file de Préparations (visible par l'opérateur)
         items.push({ icon:'➕', label:'Ajouter à préparation', color:'#00e5a0', act: () => this.addToPreparation(tool) });
@@ -25838,6 +25868,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       //    (La bannière "héritage de famille" proposera ensuite de copier les documents adaptés.)
       duplicateTool(tool) {
         if (!tool) return;
+        if (!['admin','super_admin'].includes(state.role)) { ui.toast('Duplication réservée aux administrateurs.','warn'); return; }   // 🔒 admin uniquement
         const oldFournisseur = (tool.fournisseur || '').trim();
         // 🆕 On demande D'ABORD le fournisseur du nouvel outil
         const typed = prompt(

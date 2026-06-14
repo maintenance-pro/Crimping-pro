@@ -11833,6 +11833,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         this._renderWbSheet();
         this._restoreDraft();
         this._restoreDraftRemote();   // ☁️ sinon, récupère le remplissage fait sur un autre appareil
+        this._skipRestoreOnce=false;  // le saut "post-archivage" n'était valable que pour cette ouverture
         const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Annexe affichée telle quelle — <b>'+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons</b>. ✍️ <b>Cliquez une case BLANCHE</b> (Crimp Height) pour saisir la valeur → le X se trace tout seul · <b>clic droit</b> = micromètre. 💾 Sauvegarde auto (PC + téléphone) · 📦 archivage auto quand complet.';
       } else if (this._fileSpec) {
         // Dimensions = celles du fichier → INTERDIT de les changer : on masque seulement le choix de Section
@@ -12112,11 +12113,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       try{ if(typeof db!=='undefined'&&db.audit) db.audit('pdcc.archive', this.toolId, {fiche:this.state.id}); }catch(e){}
       if(!this._wbMode) ui.toast('⚠ Archivée SANS copie Excel (modèle générique). Chargez l\'Annexe .xlsx (📂) pour des fiches téléchargeables.','warn');
       this._clearDraft();   // saisie archivée → on efface le brouillon local
+      this._skipRestoreOnce=true;   // 🚫 à la prochaine ouverture : NE PAS restaurer l'ancienne fiche (même si la suppression Firebase n'a pas encore propagé)
       this._reset(true);
       this._loadHistory();
     },
     _reset(advance){
       if(advance) this.counter++;
+      if(this._saveTimer){ try{ clearTimeout(this._saveTimer); }catch(e){} this._saveTimer=null; }   // 🛑 stoppe toute sauvegarde en attente
+      this._edits={};   // 🆕 repart d'une fiche vierge (aucune valeur héritée)
       this.state=this._newState();
       this._ci = 0; this._si = 0;
       this._syncSelects();
@@ -12824,6 +12828,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     /** 💾 Écrit une cellule + mémorise la modif + déclenche la sauvegarde instantanée (anti-perte de données) */
     _setCell(r,c,v){
       try{ this._ws.getCell(r,c).value=v; }catch(e){ return; }
+      this._skipRestoreOnce=false;   // une vraie saisie → ce remplissage doit être restaurable
       if(!this._edits) this._edits={};
       const k=r+'-'+c; if(v==null) delete this._edits[k]; else this._edits[k]=v;
       this._autosave();
@@ -12846,6 +12851,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
     _fbDraftKey(){ return ((this._ws&&this._ws.name)||'sheet').replace(/[.#$/\[\]]/g,'_'); },
     _clearDraft(){
+      if(this._saveTimer){ try{ clearTimeout(this._saveTimer); }catch(e){} this._saveTimer=null; }   // 🛑 annule une sauvegarde en attente (sinon elle recrée le brouillon)
+      this._edits={};   // 🆕 plus aucune modif héritée → la prochaine sauvegarde éventuelle sera vide
       const self=this;
       const names = this._wbSheets ? this._wbSheets.map(function(s){return s.name;}) : [(this._ws&&this._ws.name)||''];
       names.forEach(function(nm){
@@ -12856,6 +12863,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     /** ☁️ Restaure depuis Firebase si rien en local (remplissage fait sur un autre appareil) */
     async _restoreDraftRemote(){
       try{
+        if(this._skipRestoreOnce) return false;   // 🚫 fiche fraîchement archivée → pas de restauration distante
         if(this._edits && Object.keys(this._edits).length) return false;   // déjà des modifs (local ou en session)
         if(typeof fbDb==='undefined'||!fbDb||!this.toolId||!this._ws) return false;
         const snap=await fbDb.ref('pdccDrafts/'+this.toolId+'/'+this._fbDraftKey()).once('value');
@@ -12871,6 +12879,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     /** 💾 Restaure TOUJOURS une saisie non archivée (au ré-ouverture de la même section) — sans demander */
     _restoreDraft(){
       try{
+        if(this._skipRestoreOnce) return false;   // 🚫 fiche fraîchement archivée → pas de restauration
         if(this._edits && Object.keys(this._edits).length) return false;   // modifs déjà en session → pas de restauration
         const key='pdccDraft::'+this.toolId+'::'+((this._ws&&this._ws.name)||'');
         const raw=localStorage.getItem(key); if(!raw) return false;
@@ -12923,6 +12932,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const name=this._ws&&this._ws.name;
         this._wb=wb; this._ws=(name&&wb.getWorksheet(name))||wb.worksheets[0];
         const mp=this._mapSheet(this._ws); if(mp) this._map=mp;
+        this._edits={};   // 🆕 fiche VIERGE → aucune modif héritée de la fiche précédente
         this._renderWbSheet();
       }catch(e){ console.warn('[pdcc reload]',e); }
     },

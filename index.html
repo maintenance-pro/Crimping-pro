@@ -12106,7 +12106,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         // 🎯 Copie EXACTE de l'Excel rempli, stockée à part (nœud séparé pour ne pas alourdir l'historique)
         try{
           const b64=await this._wbB64();
-          await fbDb.ref('preparations/'+this.toolId+'/pdccFiles/'+this.state.id).set({ name:(this._origName||'PDCC.xlsx').replace(/\.xlsx$/i,'')+'_'+this.state.id+'.xlsx', b64:b64, size:b64.length, at:Date.now() });
+          await fbDb.ref('pdccFiles/'+this.toolId+'/'+this.state.id).set({ name:(this._origName||'PDCC.xlsx').replace(/\.xlsx$/i,'')+'_'+this.state.id+'.xlsx', b64:b64, size:b64.length, at:Date.now() });
         }catch(e){ console.warn('[pdcc file save]',e); ui.toast('Fiche archivée, mais copie Excel non sauvegardée ('+(e.message||e)+').','warn'); }
       }
       try{ if(typeof db!=='undefined'&&db.audit) db.audit('pdcc.archive', this.toolId, {fiche:this.state.id}); }catch(e){}
@@ -12566,7 +12566,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     async _downloadArchived(){
       if(typeof fbDb==='undefined' || !fbDb || !this.toolId){ this._alert('Aucune fiche archivée à télécharger.','warn'); return; }
       try{
-        const snap=await fbDb.ref('preparations/'+this.toolId+'/pdccFiles').once('value');
+        const snap=await fbDb.ref('pdccFiles/'+this.toolId+'').once('value');
         const all=snap.val()||{}; const ids=Object.keys(all);
         if(!ids.length){ this._alert('Aucune fiche archivée pour cet outil — complétez d\'abord une PDCC.','warn'); return; }
         ids.sort(function(a,b){ return (all[b].at||0)-(all[a].at||0); });   // la plus récente
@@ -12842,7 +12842,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const ind=document.getElementById('pdcc-saveind'); if(ind) ind.textContent='✔ enregistré '+new Date().toLocaleTimeString('fr-FR');
       }catch(e){ const ind=document.getElementById('pdcc-saveind'); if(ind) ind.textContent='⚠ sauvegarde locale indisponible'; }
       // ☁️ + Firebase → le remplissage est visible sur tous les appareils (PC, téléphone)
-      try{ if(typeof fbDb!=='undefined'&&fbDb&&this.toolId&&this._ws){ fbDb.ref('preparations/'+this.toolId+'/pdccDraft/'+this._fbDraftKey()).set(data); } }catch(e){}
+      try{ if(typeof fbDb!=='undefined'&&fbDb&&this.toolId&&this._ws){ fbDb.ref('pdccDrafts/'+this.toolId+'/'+this._fbDraftKey()).set(data); } }catch(e){}
     },
     _fbDraftKey(){ return ((this._ws&&this._ws.name)||'sheet').replace(/[.#$/\[\]]/g,'_'); },
     _clearDraft(){
@@ -12850,7 +12850,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const names = this._wbSheets ? this._wbSheets.map(function(s){return s.name;}) : [(this._ws&&this._ws.name)||''];
       names.forEach(function(nm){
         try{ localStorage.removeItem('pdccDraft::'+self.toolId+'::'+nm); }catch(e){}
-        try{ if(typeof fbDb!=='undefined'&&fbDb&&self.toolId){ fbDb.ref('preparations/'+self.toolId+'/pdccDraft/'+nm.replace(/[.#$/\[\]]/g,'_')).remove(); } }catch(e){}
+        try{ if(typeof fbDb!=='undefined'&&fbDb&&self.toolId){ fbDb.ref('pdccDrafts/'+self.toolId+'/'+nm.replace(/[.#$/\[\]]/g,'_')).remove(); } }catch(e){}
       });
     },
     /** ☁️ Restaure depuis Firebase si rien en local (remplissage fait sur un autre appareil) */
@@ -12858,7 +12858,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       try{
         if(this._edits && Object.keys(this._edits).length) return false;   // déjà des modifs (local ou en session)
         if(typeof fbDb==='undefined'||!fbDb||!this.toolId||!this._ws) return false;
-        const snap=await fbDb.ref('preparations/'+this.toolId+'/pdccDraft/'+this._fbDraftKey()).once('value');
+        const snap=await fbDb.ref('pdccDrafts/'+this.toolId+'/'+this._fbDraftKey()).once('value');
         const d=snap.val(); if(!d||!d.edits||!Object.keys(d.edits).length) return false;
         const self=this;
         Object.keys(d.edits).forEach(function(rc){ const p=rc.split('-'); try{ self._ws.getCell(parseInt(p[0],10),parseInt(p[1],10)).value=d.edits[rc]; }catch(e){} });
@@ -13015,9 +13015,63 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     _removeFallbackWarn(){ document.getElementById('pdcc-fallback-warn')?.remove(); },
 
     /** 👁 Affiche une fiche PDCC archivée (copie Excel Firebase) en PLEIN ÉCRAN, avec onglets + téléchargement */
+    /** Charge html2canvas + jsPDF depuis CDN (à la demande) */
+    _loadPdfLibs(){
+      const load=function(src,check){ return new Promise(function(res,rej){ if(check()) return res(); const s=document.createElement('script'); s.src=src; s.onload=function(){ res(); }; s.onerror=function(){ rej(new Error('Chargement impossible : '+src)); }; document.head.appendChild(s); }); };
+      return load('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', function(){ return !!window.html2canvas; })
+        .then(function(){ return load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', function(){ return !!(window.jspdf&&window.jspdf.jsPDF)||!!window.jsPDF; }); });
+    },
+    /** 📈 Dessine la courbe (relie les X) DIRECTEMENT sur le canvas capturé */
+    _drawCurveOnCanvas(canvas, table, container, mp, scale){
+      const ctx=canvas.getContext('2d'); if(!ctx||!mp) return;
+      const tr=table.getBoundingClientRect();
+      const scaleRows=mp.scale.map(function(s){return s.r;});
+      ctx.strokeStyle='#0a4fd6'; ctx.lineWidth=2.5*scale; ctx.lineJoin='round'; ctx.lineCap='round';
+      mp.cycles.forEach(function(b){
+        const pts=[];
+        b.cols.forEach(function(o){
+          let xcell=null;
+          for(let i=0;i<scaleRows.length;i++){ const cell=container.querySelector('td[data-rc="'+scaleRows[i]+'-'+o.c+'"]'); if(cell && cell.textContent.trim().toUpperCase()==='X'){ xcell=cell; break; } }
+          if(xcell){ const r=xcell.getBoundingClientRect(); pts.push([ (r.left-tr.left+r.width/2)*scale, (r.top-tr.top+r.height/2)*scale ]); }
+        });
+        if(pts.length>=2){
+          ctx.beginPath(); pts.forEach(function(p,i){ if(i) ctx.lineTo(p[0],p[1]); else ctx.moveTo(p[0],p[1]); }); ctx.stroke();
+          ctx.fillStyle='#0a4fd6'; pts.forEach(function(p){ ctx.beginPath(); ctx.arc(p[0],p[1],3.2*scale,0,2*Math.PI); ctx.fill(); });
+        }
+      });
+    },
+    /** 🧾 Exporte la PDCC remplie en PDF, AVEC la courbe reliant les X */
+    async _exportPdccPdf(ws, fname){
+      try{
+        this._alert('🖨️ Génération du PDF en cours…','success');
+        await this._loadPdfLibs();
+        const holder=document.createElement('div');
+        holder.style.cssText='position:fixed;left:-99999px;top:0;background:#ffffff;padding:14px';
+        let mp=null; try{ mp=this._mapSheet(ws); }catch(e){}
+        let opts={big:true};
+        if(mp){ let maxR=1,maxC=1; mp.scale.forEach(function(s){if(s.r>maxR)maxR=s.r;}); mp.cycles.forEach(function(b){b.cols.forEach(function(o){if(o.c>maxC)maxC=o.c;});}); [mp.vals,mp.trace].forEach(function(o){if(o)Object.keys(o).forEach(function(k){if(o[k]>maxR)maxR=o[k];});}); if(mp.hdrRow>maxR)maxR=mp.hdrRow; opts={maxRow:maxR,maxCol:maxC,big:true}; }
+        holder.innerHTML=toolAttachments._exceljsSheetHtml(ws,opts);
+        document.body.appendChild(holder);
+        const table=holder.querySelector('table');
+        if(!table){ holder.remove(); this._alert('Rien à exporter.','warn'); return; }
+        await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });   // attendre le layout
+        const scale=2;
+        const canvas=await html2canvas(table,{scale:scale,backgroundColor:'#ffffff',logging:false,useCORS:true});
+        if(mp) this._drawCurveOnCanvas(canvas, table, holder, mp, scale);   // 📈 courbe
+        holder.remove();
+        const JsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+        const w=canvas.width, h=canvas.height, landscape=(w>=h);
+        const pdf=new JsPDFCtor({orientation:landscape?'landscape':'portrait',unit:'pt',format:'a4'});
+        const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight(), margin=18;
+        const ratio=Math.min((pw-margin*2)/w,(ph-margin*2)/h), iw=w*ratio, ih=h*ratio;
+        pdf.addImage(canvas.toDataURL('image/png'),'PNG',(pw-iw)/2,(ph-ih)/2,iw,ih,'','FAST');
+        pdf.save((fname||'PDCC').replace(/\.xlsx$/i,'')+'.pdf');
+        this._alert('✅ PDF téléchargé (PDCC remplie + courbe).','success');
+      }catch(e){ this._alert('⚠ PDF impossible : '+(e.message||e),'danger'); }
+    },
     async _viewArchived(id){
       try{
-        const snap=await fbDb.ref('preparations/'+this.toolId+'/pdccFiles/'+id).once('value'); const f=snap.val();
+        const snap=await fbDb.ref('pdccFiles/'+this.toolId+'/'+id).once('value'); const f=snap.val();
         if(!f||!f.b64){ this._alert('Copie Excel introuvable pour '+id+'.','warn'); return; }
         const bin=atob(f.b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
         const wb=new ExcelJS.Workbook(); await wb.xlsx.load(u8.buffer.slice(0));
@@ -13028,23 +13082,26 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         ov.style.cssText='position:fixed;inset:0;background:rgba(2,6,12,.96);backdrop-filter:blur(8px);z-index:10050;display:flex;flex-direction:column';
         ov.innerHTML='<div style="display:flex;align-items:center;gap:.8rem;padding:.8rem 1.2rem;border-bottom:1px solid #22344e">'
           +'<span style="font-size:1.25rem">📄</span><div style="flex:1;min-width:0"><div style="font-weight:800;color:#00d4ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+ui.escape(f.name||id)+'</div><div style="font-size:.7rem;color:#8aa">Fiche archivée — affichage dans la page</div></div>'
-          +'<button id="pdcc-av-dl" class="pd-btn pd-btn--g">⬇️ Télécharger</button><button id="pdcc-av-close" class="pd-btn pd-btn--x">✕ Fermer</button></div>'
+          +'<button id="pdcc-av-dl" style="padding:.5rem .95rem;background:#00e5a0;color:#012;border:none;border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:800;box-shadow:0 2px 10px rgba(0,229,160,.35)">🧾 Télécharger PDF</button>'
+          +'<button id="pdcc-av-close" style="padding:.5rem .95rem;background:rgba(255,255,255,.1);color:#fff;border:1px solid #33486a;border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700">✕ Fermer</button></div>'
           +'<div id="pdcc-av-tabs" style="display:flex;gap:.35rem;padding:.55rem 1.2rem 0;flex-wrap:wrap"></div>'
           +'<div id="pdcc-av-body" style="flex:1;overflow:auto;padding:1rem"></div>';
         document.body.appendChild(ov);
         const body=ov.querySelector('#pdcc-av-body'), tabs=ov.querySelector('#pdcc-av-tabs'), self=this;
+        let activeIdx=0;
+        const tabStyle=function(on){ return 'padding:.4rem .85rem;font-size:.75rem;border-radius:7px;cursor:pointer;font-weight:700;border:1px solid #33486a;'+(on?'background:#00d4ff;color:#012':'background:rgba(255,255,255,.07);color:#cfe'); };
         const renderSheet=function(ws){
           let mp=null; try{ mp=self._mapSheet(ws); }catch(e){}
           let opts={big:true};
           if(mp){ let maxR=1,maxC=1; mp.scale.forEach(function(s){if(s.r>maxR)maxR=s.r;}); mp.cycles.forEach(function(b){b.cols.forEach(function(o){if(o.c>maxC)maxC=o.c;});}); [mp.vals,mp.trace].forEach(function(o){if(o)Object.keys(o).forEach(function(k){if(o[k]>maxR)maxR=o[k];});}); if(mp.hdrRow>maxR)maxR=mp.hdrRow; opts={maxRow:maxR,maxCol:maxC,big:true}; }
           try{ body.innerHTML=toolAttachments._exceljsSheetHtml(ws,opts); }catch(e){ body.innerHTML='<div style="color:#f88;padding:1rem">Rendu impossible : '+(e.message||e)+'</div>'; }
         };
-        const setActive=function(i){ tabs.querySelectorAll('[data-avtab]').forEach(function(x,j){ x.className='pd-btn '+(j===i?'pd-btn--p':'pd-btn--x'); x.style.cssText='padding:.35rem .7rem;font-size:.75rem'; }); renderSheet(sheets[i]); };
-        tabs.innerHTML=sheets.map(function(s,i){ return '<button data-avtab="'+i+'" class="pd-btn '+(i===0?'pd-btn--p':'pd-btn--x')+'" style="padding:.35rem .7rem;font-size:.75rem">'+ui.escape(s.name)+'</button>'; }).join('');
+        const setActive=function(i){ activeIdx=i; tabs.querySelectorAll('[data-avtab]').forEach(function(x,j){ x.style.cssText=tabStyle(j===i); }); renderSheet(sheets[i]); };
+        tabs.innerHTML=sheets.map(function(s,i){ return '<button data-avtab="'+i+'" style="'+tabStyle(i===0)+'">'+ui.escape(s.name)+'</button>'; }).join('');
         tabs.querySelectorAll('[data-avtab]').forEach(function(b,i){ b.onclick=function(){ setActive(i); }; });
         renderSheet(sheets[0]);
         ov.querySelector('#pdcc-av-close').onclick=function(){ ov.remove(); };
-        ov.querySelector('#pdcc-av-dl').onclick=function(){ const blob=new Blob([u8],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=f.name||(id+'.xlsx'); document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },4000); };
+        ov.querySelector('#pdcc-av-dl').onclick=function(){ self._exportPdccPdf(sheets[activeIdx], f.name||id); };
       }catch(e){ this._alert('Affichage impossible : '+(e.message||e),'danger'); }
     },
     async _loadHistory(){
@@ -13058,7 +13115,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       host.querySelectorAll('[data-pdccdl]').forEach(function(btn){ btn.onclick=async function(){
         const id=btn.getAttribute('data-pdccdl'); btn.disabled=true;
         try{
-          const snap=await fbDb.ref('preparations/'+self.toolId+'/pdccFiles/'+id).once('value'); const f=snap.val();
+          const snap=await fbDb.ref('pdccFiles/'+self.toolId+'/'+id).once('value'); const f=snap.val();
           if(!f||!f.b64){ ui.toast('Copie Excel introuvable pour '+id+'.','warn'); return; }
           const bin=atob(f.b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
           const blob=new Blob([u8],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});

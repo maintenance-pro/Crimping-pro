@@ -7889,13 +7889,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <button id="btn-prep-add" hidden style="background:rgba(0,229,160,.15);color:#00e5a0;border:1px solid rgba(0,229,160,.35);border-radius:8px;padding:.5rem .9rem;font-size:.8rem;font-weight:700;cursor:pointer">＋ Nouvelle préparation</button>
         </header>
         <div id="prep-kpis" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.9rem"></div>
-        <div id="prep-toolbar" style="display:none;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.8rem">
-          <div style="position:relative;flex:1;min-width:220px">
+        <div id="prep-toolbar" style="display:none;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.7rem">
+          <div style="position:relative;flex:1;min-width:200px">
             <span style="position:absolute;left:.7rem;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:.85rem">🔍</span>
             <input id="prep-search" type="text" placeholder="Rechercher un outil, une connexion…" style="width:100%;box-sizing:border-box;padding:.55rem .7rem .55rem 2rem;background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:9px;color:var(--text-primary);font-size:.82rem">
           </div>
+          <select id="prep-sort" style="padding:.55rem .7rem;background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:9px;color:var(--text-primary);font-size:.78rem;cursor:pointer">
+            <option value="recent">⏱️ Plus récent</option>
+            <option value="name">🔤 Nom (A→Z)</option>
+            <option value="arch">📦 Plus de fiches</option>
+          </select>
           <div id="prep-count" style="font-size:.74rem;color:var(--text-muted);white-space:nowrap"></div>
         </div>
+        <div id="prep-chips" style="display:none;gap:.4rem;flex-wrap:wrap;margin-bottom:.85rem"></div>
         <div id="prep-list"></div>
       </section>
 
@@ -11792,6 +11798,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         + '#pdcc-wbhost td.pd-ed-cell{cursor:cell}'
         + '#pdcc-wbhost td.pd-ed-cell:hover{outline:2px dashed #00d4ff;outline-offset:-2px;background:rgba(0,212,255,.08)}'
         + '#pdcc-wbhost td.pd-locked{cursor:not-allowed}'
+        + '#pdcc-wbhost td.pd-micro{box-shadow:inset 0 0 0 2px rgba(0,229,160,.55)!important;cursor:cell}'
+        + '#pdcc-wbhost td.pd-micro:hover{background:rgba(0,229,160,.12)!important}'
         + '#pdcc-wbhost td.pd-locked:hover{outline:2px solid rgba(255,180,71,.5);outline-offset:-2px}'
         + '#pdcc-overlay .pd-cell{width:30px;height:24px;position:relative}'
         + '#pdcc-overlay .pd-cell.z-red{background:#ff3333}#pdcc-overlay .pd-cell.z-yellow{background:#ffff00}#pdcc-overlay .pd-cell.z-green{background:#99ff99}'
@@ -11831,6 +11839,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         ['pdcc-card-saisie','pdcc-card-trace','pdcc-card-actions'].forEach(function(id){ const el=document.getElementById(id); if(el) el.style.display='none'; });
         const lo=document.getElementById('pdcc-btnLoad'); if(lo) lo.style.display='none';   // ❌ « Charger l'Annexe » supprimé
         const da=document.getElementById('pdcc-btnDlArch'); if(da) da.style.display='';     // ⬇️ Télécharger la fiche archivée
+        const mb=document.getElementById('pdcc-btnMicro'); if(mb){ mb.style.display=''; this._updateMicroBtn(); }   // 🔌 Micromètre
         // ⛶ Plein écran PERMANENT
         const ov=document.getElementById('pdcc-overlay'); if(ov) ov.classList.add('pd-full');
         this.state.section=(this._fileSpec&&(this._fileSpec.cross||this._fileSpec.label))||'fichier';
@@ -11871,7 +11880,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         try{
           this._autoFillDate(true);
           ui.toast('📦 Dernier cycle rempli — archivage de la PDCC à la fermeture…','success');
-          try{ await this._downloadWb(); }catch(e){}
           const ok=await this._archive({skipReset:true, silent:true});
           if(ok) ui.toast('✅ PDCC archivée. À la réouverture : nouvelle fiche vierge.','success');
         }catch(e){ ui.toast('⚠ Archivage à la fermeture impossible : '+(e.message||e),'danger'); }
@@ -11891,6 +11899,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           + '<span id="pdcc-saveind" style="font-size:.75rem;color:#7fe0b0;font-family:var(--font-mono)"></span>'
           + '<div style="flex:1 1 auto"></div>'
           + '<button class="pd-btn pd-btn--g" id="pdcc-btnLoad" style="display:none">📂 Charger l\'Annexe</button>'
+          + '<button class="pd-btn pd-btn--p" id="pdcc-btnMicro" style="display:none">🔌 Micromètre</button>'
           + '<button class="pd-btn pd-btn--a" id="pdcc-btnArchiveNow" style="display:none">📦 Archiver la fiche</button>'
           + '<button class="pd-btn pd-btn--g" id="pdcc-btnDlArch" style="display:none">🧾 Dernière fiche en PDF</button>'
           + '<button class="pd-btn pd-btn--x" id="pdcc-close">✕ Fermer</button></div>'
@@ -11944,6 +11953,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       g('pdcc-btnXls').onclick=()=>this._downloadWb();
       { const d=g('pdcc-btnDlArch'); if(d) d.onclick=()=>this._downloadArchived(); }
       { const a=g('pdcc-btnArchiveNow'); if(a) a.onclick=()=>this._archiveNow(); }
+      { const mb=g('pdcc-btnMicro'); if(mb) mb.onclick=()=>this._toggleMicro(); }
       this._escHandler=(e)=>{ if(e.key==='Escape') this.close(); };
       document.addEventListener('keydown', this._escHandler);
       this._setPhase('measure');
@@ -12212,6 +12222,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       try{ wrap.querySelector('#pmm-product').focus(); }catch(e){}
     },
 
+    /** 🔌 Bouton Micromètre (mode classeur) : connecte / déconnecte + met à jour l'apparence et les cases */
+    async _toggleMicro(){
+      if(this._serialPort){ await this._disconnectSerial(); this._wbPendingCell=null; ui.toast('🔌 Micromètre déconnecté.','warn'); }
+      else { await this.connectSerial(); }
+      this._updateMicroBtn();
+      if(this._wbMode) this._renderWbSheet();   // ♻️ les cases Crimp Height passent en mode micromètre (repère + clic direct)
+    },
+    _updateMicroBtn(){
+      const mb=document.getElementById('pdcc-btnMicro'); if(!mb) return;
+      const on=!!this._serialPort;
+      mb.innerHTML = on ? '📐 Micromètre connecté' : '🔌 Micromètre';
+      mb.className = 'pd-btn '+(on?'pd-btn--g':'pd-btn--p');
+      mb.title = on ? 'Micromètre relié — un clic sur une case Crimp Height lance la mesure (DATA). Cliquez pour déconnecter.' : 'Relier le micromètre (Mitutoyo). Une fois connecté, un clic sur Crimp Height mesure directement.';
+    },
     /** 🆕 Micromètre relié au PC — port série (Web Serial).
         Le mode CLAVIER (interfaces USB type Mitutoyo) marche sans rien : la touche DATA tape la valeur + Entrée dans le champ. */
     async connectSerial(){
@@ -12226,6 +12250,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         this._serialBuf='';
         if(stat){ stat.textContent='🟢 micromètre connecté (série)'; stat.style.color='#00e5a0'; }
         ui.toast('🔌 Micromètre connecté — chaque envoi DATA remplit la mesure demandée.','success');
+        this._updateMicroBtn();
         this._serialLoop();
       }catch(e){ console.warn('[pdcc série]',e); ui.toast('Connexion micromètre annulée ou échouée.','warn'); }
     },
@@ -12241,10 +12266,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             this._serialBuf=this._serialBuf.slice(idx+1);
             if(!line) continue;
             const m=line.match(/-?\d+[.,]\d+|-?\d+/);
-            if(m && this._phase!=='manual'){
+            if(m){
               const v=parseFloat(m[0].replace(',','.'));
-              const el=document.getElementById('pdcc-inDCH');
-              if(el && !isNaN(v)){ el.value=v; this._validate(); }
+              if(!isNaN(v)){
+                if(this._wbMode && this._wbPendingCell){
+                  // 📐 MODE CLASSEUR : la valeur va dans la case Crimp Height cliquée → trace le X
+                  const pc=this._wbPendingCell; this._wbPendingCell=null;
+                  const inp=pc.td&&pc.td.querySelector&&pc.td.querySelector('input');
+                  if(inp){ inp.value=v; inp.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'})); }
+                  else { this._setCell(pc.r,pc.c,v); if(this._map&&this._map.vals&&pc.r===this._map.vals.ch) this._wbPlotFromValue(pc.c,v); this._renderWbSheet(); if(this._pdccComplete&&this._pdccComplete()) this._autoArchive(); }
+                } else if(this._phase!=='manual'){
+                  const el=document.getElementById('pdcc-inDCH');
+                  if(el){ el.value=v; this._validate(); }
+                }
+              }
             }
           }
         }
@@ -12254,6 +12289,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       try{ if(this._serialReader){ await this._serialReader.cancel().catch(function(){}); this._serialReader=null; } }catch(e){}
       try{ if(this._serialPort){ await this._serialPort.close().catch(function(){}); this._serialPort=null; } }catch(e){}
       const stat=document.getElementById('pdcc-serialStat'); if(stat){ stat.textContent='⌨️ mode clavier prêt'; stat.style.color=''; }
+      this._updateMicroBtn();
     },
 
     /** 🆕 Bandeau des infos extraites de l'Annexe */
@@ -12543,8 +12579,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if(m.hdrRow>maxR) maxR=m.hdrRow;
       }
       const opts = m ? {maxRow:maxR, maxCol:maxC, big:true} : {big:true};
+      // 💾 mémoriser le défilement (host + parents) pour RESTER sur la même case après re-rendu
+      const savedScroll=[]; { let n=host; while(n && n.id!=='pdcc-overlay' && n!==document.body){ savedScroll.push([n, n.scrollLeft, n.scrollTop]); n=n.parentElement; } }
       try{ host.innerHTML=toolAttachments._exceljsSheetHtml(this._ws, opts); }
       catch(e){ host.innerHTML='<div class="pd-hint" style="padding:1rem">Rendu impossible : '+(e.message||e)+'</div>'; }
+      // ♻️ restaurer le défilement → on ne revient PAS à la 1ère case
+      savedScroll.forEach(function(s){ try{ s[0].scrollLeft=s[1]; s[0].scrollTop=s[2]; }catch(e){} });
       this._renderFileInfo();
       this._wbHighlight();
       this._wbAttachClicks();
@@ -12645,7 +12685,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       try{
         this._autoFillDate(true);
         this._alert('📦 Archivage en cours…','success');
-        try{ await this._downloadWb(); }catch(e){}
         const ok=await this._archive();
         if(ok) this._newFicheNotice();
       }catch(e){ this._alert('⚠ Archivage impossible : '+(e.message||e),'danger'); }
@@ -12664,8 +12703,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       try{
         this._autoFillDate(true);                 // 📅 date du jour partout
         this._alert('📦 PDCC complète — archivage automatique en cours…','success');
-        try{ await this._downloadWb(); }catch(e){}  // ⬇️ télécharge l'Excel rempli
-        const ok=await this._archive({silent:true});// 💾 Firebase + copie Excel + remise à zéro
+        const ok=await this._archive({silent:true});// 💾 Firebase + copie Excel + remise à zéro (PAS de téléchargement)
         if(ok) this._newFicheNotice();
       }catch(e){ this._alert('⚠ Archivage auto impossible : '+(e.message||e),'danger'); }
       finally{ this._archiving=false; }
@@ -12725,8 +12763,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if(hasVal){ td.classList.add('pd-locked'); td.title='🔒 Valeur enregistrée — non modifiable'; return; }   // verrouillé
           td.classList.add('pd-ed-cell');
           if(r===m.vals.ch){
-            td.title='Crimp Height — clic : saisir · clic droit : micromètre Mitutoyo';
-            td.onclick=function(){ self._wbInlineEdit(td,r,c); };
+            const micro=!!self._serialPort;
+            if(micro) td.classList.add('pd-micro');
+            td.title = micro ? '📐 Crimp Height — clic : MESURER au micromètre (connecté) · clic droit : autres options' : 'Crimp Height — clic : saisir · clic droit : micromètre Mitutoyo';
+            td.onclick=function(){ if(self._serialPort) self._wbMicroMeasure(td,r,c); else self._wbInlineEdit(td,r,c); };   // 🎯 micromètre prioritaire s'il est connecté
             td.oncontextmenu=function(e){ e.preventDefault(); self._wbCellMenu(e,td,r,c); };
           } else {
             td.title='Cliquer pour saisir la valeur';
@@ -12769,10 +12809,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
     _closeCellMenu(){ const m=document.getElementById('pdcc-cellmenu'); if(m) m.remove(); if(this._cmClose){ document.removeEventListener('mousedown', this._cmClose); this._cmClose=null; } },
     /** 📐 Mesure au micromètre Mitutoyo 341 (USB) : ouvre le champ et attend la donnée (touche DATA = saisie clavier) */
-    _wbMicroMeasure(td,r,c){
-      this._wbInlineEdit(td,r,c);                       // ouvre + focus le champ
-      this._alert('📐 Mitutoyo 341 : approchez la pièce puis appuyez sur <b>DATA</b> — la valeur s\'inscrit et trace le X.','warn');
-      this._tryMitutoyoSerial(td,r,c);                  // + tentative lecture série si dispo
+    async _wbMicroMeasure(td,r,c){
+      this._wbInlineEdit(td,r,c);                       // ouvre + focus le champ (retour visuel + saisie manuelle possible)
+      if(!this._serialPort){ try{ await this.connectSerial(); }catch(e){} }   // connecte si pas déjà fait
+      if(this._serialPort){
+        this._wbPendingCell={td:td, r:r, c:c};           // 📐 la prochaine valeur DATA ira dans CETTE case
+        this._alert('📐 Micromètre prêt — approchez la pièce puis appuyez sur <b>DATA</b>. La valeur s\'inscrit et trace le X.','warn');
+      } else {
+        this._alert('⌨️ Saisissez la valeur (ou appuyez sur <b>DATA</b> si le micromètre est en mode clavier USB).','warn');
+      }
     },
     /** Tentative de lecture directe via Web Serial (si le Mitutoyo est exposé en port série) — sinon le mode clavier (DATA) fonctionne */
     async _tryMitutoyoSerial(td,r,c){
@@ -12940,13 +12985,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if(done) return; done=true;
         const v=inp.value.trim(); const n=Number(v.replace(',','.'));
         const isNum=(v!==''&&!isNaN(n)&&/^-?\d+([.,]\d+)?$/.test(v));
+        if(v!=='') self._wbPendingCell=null;   // 📐 valeur entrée → on n'attend plus le DATA du micromètre pour cette case
         self._setCell(r,c, isNum ? n : (v||null));
         // 🆕 Valeur saisie dans la ligne Crimp Height → tracer le X dans la zone colorée à cette hauteur
         if(isNum && self._map && self._map.vals && r===self._map.vals.ch){ self._wbPlotFromValue(c, n); }
         self._renderWbSheet();
         if(self._pdccComplete && self._pdccComplete()) self._autoArchive();   // 📦 fiche complète → archivage auto
       };
-      inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); commit(); } else if(e.key==='Escape'){ done=true; self._renderWbSheet(); } });
+      inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); commit(); } else if(e.key==='Escape'){ done=true; self._wbPendingCell=null; self._renderWbSheet(); } });
       inp.addEventListener('blur',commit);
     },
     /** 🎯 Écrit la traçabilité dans les VRAIES lignes du fichier (si repérées), colonne du cycle, sans toucher au reste */
@@ -22795,8 +22841,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const toolbar = document.getElementById('prep-toolbar');
         const search = document.getElementById('prep-search');
         const countEl = document.getElementById('prep-count');
+        const sortSel = document.getElementById('prep-sort');
+        const chipsEl = document.getElementById('prep-chips');
         if (toolbar) toolbar.style.display = all.length ? 'flex' : 'none';
+        if (chipsEl) chipsEl.style.display = all.length ? 'flex' : 'none';
         const q = (self._q || '').trim().toLowerCase();
+        const filter = self._filter || 'all';
+        const sort = self._sort || 'recent';
 
         // ===== Empty state soigné =====
         if (!all.length) {
@@ -22808,12 +22859,32 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           return;
         }
 
-        // ===== Filtrage =====
-        const preps = q ? all.filter(p => ((p.doutils || p.toolId || '') + ' ' + (p.connection || '')).toLowerCase().includes(q)) : all;
-        if (countEl) countEl.textContent = (q ? preps.length + ' / ' + all.length : all.length + ' outil' + (all.length > 1 ? 's' : '')) + ' · 🟢 en ligne';
+        // ===== Chips de filtre par statut =====
+        const nReady = all.filter(p => hasXls(p).length).length;
+        const nMissing = all.length - nReady;
+        if (chipsEl) {
+          const chip = (key, label, n, color) => `<button data-prep-chip="${key}" style="display:inline-flex;align-items:center;gap:.35rem;border-radius:20px;padding:.32rem .8rem;font-size:.73rem;font-weight:800;cursor:pointer;border:1px solid ${filter === key ? color : 'var(--border-soft)'};background:${filter === key ? color + '22' : 'var(--bg-elevated)'};color:${filter === key ? color : 'var(--text-muted)'}">${label} <span style="opacity:.8">${n}</span></button>`;
+          chipsEl.innerHTML = chip('all', '🗂️ Tous', all.length, '#00d4ff') + chip('ready', '✅ Annexe prête', nReady, '#00e5a0') + chip('missing', '⚠️ Sans Annexe', nMissing, '#ffb547');
+          chipsEl.querySelectorAll('[data-prep-chip]').forEach(b => b.onclick = () => { self._filter = b.dataset.prepChip; self.render(); });
+        }
+
+        // ===== Filtrage (recherche + statut) =====
+        let preps = all.filter(p => {
+          if (filter === 'ready' && !hasXls(p).length) return false;
+          if (filter === 'missing' && hasXls(p).length) return false;
+          if (q && !((p.doutils || p.toolId || '') + ' ' + (p.connection || '')).toLowerCase().includes(q)) return false;
+          return true;
+        });
+        // ===== Tri =====
+        preps.sort((a, b) => {
+          if (sort === 'name') return String(a.doutils || a.toolId).localeCompare(String(b.doutils || b.toolId));
+          if (sort === 'arch') return archCount(b) - archCount(a);
+          return (b.addedAt || 0) - (a.addedAt || 0);
+        });
+        if (countEl) countEl.textContent = (preps.length === all.length ? all.length + ' outil' + (all.length > 1 ? 's' : '') : preps.length + ' / ' + all.length) + ' · 🟢 en ligne';
 
         if (!preps.length) {
-          listEl.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:2rem;font-style:italic">Aucun résultat pour « ${ui.escape(self._q)} ».</div>`;
+          listEl.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:2rem;font-style:italic">Aucun résultat${q ? ' pour « ' + ui.escape(self._q) + ' »' : ''}.</div>`;
         } else {
           listEl.innerHTML = preps.map(p => {
             const xls = hasXls(p);
@@ -22844,12 +22915,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           }).join('');
         }
 
-        // ===== Recherche (branchement une seule fois) =====
+        // ===== Recherche + tri (branchement une seule fois) =====
         if (search && !search._wired) {
           search._wired = true;
           search.addEventListener('input', () => { self._q = search.value; self.render(); });
         }
         if (search) search.value = self._q || '';
+        if (sortSel && !sortSel._wired) {
+          sortSel._wired = true;
+          sortSel.addEventListener('change', () => { self._sort = sortSel.value; self.render(); });
+        }
+        if (sortSel) sortSel.value = sort;
 
         // ===== Actions =====
         listEl.querySelectorAll('[data-prep-pdcc]').forEach(b => b.onclick = () => {

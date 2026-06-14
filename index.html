@@ -7889,6 +7889,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <button id="btn-prep-add" hidden style="background:rgba(0,229,160,.15);color:#00e5a0;border:1px solid rgba(0,229,160,.35);border-radius:8px;padding:.5rem .9rem;font-size:.8rem;font-weight:700;cursor:pointer">＋ Nouvelle préparation</button>
         </header>
         <div id="prep-kpis" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.9rem"></div>
+        <div id="prep-toolbar" style="display:none;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.8rem">
+          <div style="position:relative;flex:1;min-width:220px">
+            <span style="position:absolute;left:.7rem;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:.85rem">🔍</span>
+            <input id="prep-search" type="text" placeholder="Rechercher un outil, une connexion…" style="width:100%;box-sizing:border-box;padding:.55rem .7rem .55rem 2rem;background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:9px;color:var(--text-primary);font-size:.82rem">
+          </div>
+          <div id="prep-count" style="font-size:.74rem;color:var(--text-muted);white-space:nowrap"></div>
+        </div>
         <div id="prep-list"></div>
       </section>
 
@@ -11834,6 +11841,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         this._restoreDraft();
         this._restoreDraftRemote();   // ☁️ sinon, récupère le remplissage fait sur un autre appareil
         this._skipRestoreOnce=false;  // le saut "post-archivage" n'était valable que pour cette ouverture
+        if(this._archivedJustNow){ const prev=this._archivedJustNow; this._archivedJustNow=null; const hh=document.getElementById('pdcc-hint'); if(hh) hh.innerHTML='🆕 <b style="color:#00e5a0">NOUVELLE FICHE '+ui.escape(this.state.id)+'</b> — la précédente (<b>'+ui.escape(prev)+'</b>) a été archivée à la fermeture. Page vierge prête.'; this._alert('🆕 Nouvelle fiche '+this.state.id+' — la précédente a bien été archivée.','success'); }
         const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Annexe affichée telle quelle — <b>'+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons</b>. ✍️ <b>Cliquez une case BLANCHE</b> (Crimp Height) pour saisir la valeur → le X se trace tout seul · <b>clic droit</b> = micromètre. 💾 Sauvegarde auto (PC + téléphone) · 📦 archivage auto quand complet.';
       } else if (this._fileSpec) {
         // Dimensions = celles du fichier → INTERDIT de les changer : on masque seulement le choix de Section
@@ -11856,7 +11864,21 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._loadHistory();
     },
 
-    close(){ this._disconnectSerial(); document.getElementById('pdcc-meta-modal')?.remove(); document.getElementById('pdcc-overlay')?.remove(); if(this._escHandler){ document.removeEventListener('keydown', this._escHandler); this._escHandler=null; } },
+    async close(){
+      // 📦 Si le DERNIER cycle (ex. cycle 8) est entamé → on archive AVANT de fermer (sans réinitialiser, on ferme)
+      if(this._wbMode && !this._archiving && this._lastCycleStarted()){
+        this._archiving=true;
+        try{
+          this._autoFillDate(true);
+          ui.toast('📦 Dernier cycle rempli — archivage de la PDCC à la fermeture…','success');
+          try{ await this._downloadWb(); }catch(e){}
+          const ok=await this._archive({skipReset:true, silent:true});
+          if(ok) ui.toast('✅ PDCC archivée. À la réouverture : nouvelle fiche vierge.','success');
+        }catch(e){ ui.toast('⚠ Archivage à la fermeture impossible : '+(e.message||e),'danger'); }
+        this._archiving=false;
+      }
+      this._disconnectSerial(); document.getElementById('pdcc-meta-modal')?.remove(); document.getElementById('pdcc-overlay')?.remove(); if(this._escHandler){ document.removeEventListener('keydown', this._escHandler); this._escHandler=null; }
+    },
 
     _renderShell(){
       document.getElementById('pdcc-overlay')?.remove();
@@ -11870,7 +11892,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           + '<div style="flex:1 1 auto"></div>'
           + '<button class="pd-btn pd-btn--g" id="pdcc-btnLoad" style="display:none">📂 Charger l\'Annexe</button>'
           + '<button class="pd-btn pd-btn--a" id="pdcc-btnArchiveNow" style="display:none">📦 Archiver la fiche</button>'
-          + '<button class="pd-btn pd-btn--g" id="pdcc-btnDlArch" style="display:none">⬇️ Télécharger la fiche archivée</button>'
+          + '<button class="pd-btn pd-btn--g" id="pdcc-btnDlArch" style="display:none">🧾 Dernière fiche en PDF</button>'
           + '<button class="pd-btn pd-btn--x" id="pdcc-close">✕ Fermer</button></div>'
         + '<div class="pd-alert" id="pdcc-alert"></div>'
         + '<div class="pd-card" id="pdcc-card-sections" style="display:none"><div class="pd-ct">🗂️ Choisir la section</div><div id="pdcc-sections" style="display:flex;gap:.5rem;flex-wrap:wrap"></div></div>'
@@ -12096,13 +12118,16 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this.META_FIELDS.forEach(function(f){ const el=document.getElementById('pdcc-meta-'+f.k+'-'+cycle); if(el) el.textContent=m[f.k]||'-'; });
       document.getElementById('pdcc-hint').textContent='💾 Traçabilité enregistrée pour le Cycle '+cycle+'.';
     },
-    async _archive(){
-      const nbSamples=Object.keys(this.state.samples).length, nbMeta=Object.keys(this.state.metadata).length;
-      if(nbSamples===0&&nbMeta===0){ ui.toast('Fiche vide : rien à archiver.','warn'); return; }
+    async _archive(opts){
+      opts=opts||{};
+      const nbSamples=Object.keys(this.state.samples||{}).length, nbMeta=Object.keys(this.state.metadata||{}).length;
+      const nbEdits=Object.keys(this._edits||{}).length;   // mode classeur : valeurs écrites dans les cellules
+      if(nbSamples===0&&nbMeta===0&&nbEdits===0){ if(!opts.silent) ui.toast('Fiche vide : rien à archiver.','warn'); return false; }
+      const archivedId=this.state.id;
       const spec=this.sectionsSpecs[this.state.section]||{};
-      const payload={ id:this.state.id, toolId:this.toolId, toolName:this.toolName, section:this.state.section, annexe:(this._fileSpec&&this._fileSpec.label)||null, header:(this._fileSpec&&this._fileSpec.header)||null, nominal:spec.nominal||null, createdAt:this.state.createdAt, archivedAt:Date.now(), sampleCount:nbSamples, samples:this.state.samples, metadata:this.state.metadata, mode:(this._wbMode?'fichier':'matrice'), hasFile:!!this._wbMode, fileName:(this._wbMode?this._origName:null), by:(state.profile&&(state.profile.displayName||state.profile.email))||state.role||'' };
+      const payload={ id:this.state.id, toolId:this.toolId, toolName:this.toolName, section:this.state.section, annexe:(this._fileSpec&&this._fileSpec.label)||null, header:(this._fileSpec&&this._fileSpec.header)||null, nominal:spec.nominal||null, createdAt:this.state.createdAt, archivedAt:Date.now(), sampleCount:(nbSamples||nbEdits), samples:this.state.samples, metadata:this.state.metadata, mode:(this._wbMode?'fichier':'matrice'), hasFile:!!this._wbMode, fileName:(this._wbMode?this._origName:null), by:(state.profile&&(state.profile.displayName||state.profile.email))||state.role||'' };
       try{ await fbDb.ref('preparations/'+this.toolId+'/pdcc/'+this.state.id).set(payload); ui.toast('📦 Fiche '+this.state.id+' archivée.','success'); }
-      catch(e){ console.error('[pdcc archive]',e); ui.toast('Erreur archivage : '+(e.message||e),'danger'); return; }
+      catch(e){ console.error('[pdcc archive]',e); ui.toast('Erreur archivage : '+(e.message||e),'danger'); return false; }
       if(this._wbMode){
         // 🎯 Copie EXACTE de l'Excel rempli, stockée à part (nœud séparé pour ne pas alourdir l'historique)
         try{
@@ -12113,9 +12138,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       try{ if(typeof db!=='undefined'&&db.audit) db.audit('pdcc.archive', this.toolId, {fiche:this.state.id}); }catch(e){}
       if(!this._wbMode) ui.toast('⚠ Archivée SANS copie Excel (modèle générique). Chargez l\'Annexe .xlsx (📂) pour des fiches téléchargeables.','warn');
       this._clearDraft();   // saisie archivée → on efface le brouillon local
-      this._skipRestoreOnce=true;   // 🚫 à la prochaine ouverture : NE PAS restaurer l'ancienne fiche (même si la suppression Firebase n'a pas encore propagé)
-      this._reset(true);
-      this._loadHistory();
+      this._skipRestoreOnce=true;   // 🚫 à la prochaine ouverture : NE PAS restaurer l'ancienne fiche
+      this._archivedJustNow=archivedId;   // 🆕 pour la notice « nouvelle fiche »
+      if(!opts.skipReset){ this._reset(true); this._loadHistory(); }
+      return true;
     },
     _reset(advance){
       if(advance) this.counter++;
@@ -12566,21 +12592,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Section <b>'+ui.escape(s.name)+'</b> — '+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons. 🖱️ Cliquez les cases du graphique / les valeurs.';
     },
     /** 📅 Pré-remplit la DATE DU JOUR dans la traçabilité (toutes les colonnes de cycle) */
-    /** ⬇️ Télécharge la DERNIÈRE fiche PDCC archivée de cet outil (copie Excel stockée dans Firebase) */
+    /** 🧾 Télécharge la DERNIÈRE fiche PDCC archivée de cet outil, en PDF (PDCC remplie + courbe) */
     async _downloadArchived(){
       if(typeof fbDb==='undefined' || !fbDb || !this.toolId){ this._alert('Aucune fiche archivée à télécharger.','warn'); return; }
       try{
-        const snap=await fbDb.ref('pdccFiles/'+this.toolId+'').once('value');
-        const all=snap.val()||{}; const ids=Object.keys(all);
+        let all={};
+        try{ const s=await fbDb.ref('pdccFiles/'+this.toolId+'').once('value'); all=s.val()||{}; }catch(e){}
+        if(!Object.keys(all).length){ try{ const s=await fbDb.ref('preparations/'+this.toolId+'/pdccFiles').once('value'); all=s.val()||{}; }catch(e){} }   // repli ancien chemin
+        const ids=Object.keys(all);
         if(!ids.length){ this._alert('Aucune fiche archivée pour cet outil — complétez d\'abord une PDCC.','warn'); return; }
         ids.sort(function(a,b){ return (all[b].at||0)-(all[a].at||0); });   // la plus récente
-        const f=all[ids[0]];
-        if(!f||!f.b64){ this._alert('Copie Excel introuvable pour la dernière fiche.','warn'); return; }
-        const bin=atob(f.b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
-        const blob=new Blob([u8],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-        const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=f.name||(ids[0]+'.xlsx');
-        document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
-        this._alert('⬇️ Dernière fiche archivée téléchargée : '+(f.name||ids[0]),'success');
+        await this._downloadArchivedPdf(ids[0]);
       }catch(e){ this._alert('Téléchargement impossible : '+(e.message||e),'danger'); }
     },
     _autoFillDate(force){
@@ -12602,13 +12624,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       clearTimeout(this._alertT); const self=this;
       this._alertT=setTimeout(function(){ if(el) el.style.display='none'; }, type==='danger'?6000:3500);
     },
+    /** 📦 Le DERNIER cycle (ex. cycle 8) est-il entamé ? (au moins une valeur Crimp Height) */
+    _lastCycleStarted(){
+      if(!this._map||!this._map.cycles||!this._map.cycles.length||!this._ws) return false;
+      const last=this._map.cycles[this._map.cycles.length-1]; const chRow=this._map.vals&&this._map.vals.ch;
+      if(!chRow) return false;
+      for(let i=0;i<last.cols.length;i++){ try{ const v=this._ws.getCell(chRow,last.cols[i].c).value; if(v!=null&&String(v).trim()!=='') return true; }catch(e){} }
+      return false;
+    },
     /** 📦 Affiche le bouton « Archiver » dès qu'on commence le DERNIER cycle (ex. cycle 8) */
     _updateArchiveBtn(){
       const btn=document.getElementById('pdcc-btnArchiveNow'); if(!btn||!this._map||!this._wbMode) return;
-      const last=this._map.cycles[this._map.cycles.length-1]; const chRow=this._map.vals&&this._map.vals.ch;
-      let started=false;
-      if(chRow){ for(let i=0;i<last.cols.length;i++){ try{ const v=this._ws.getCell(chRow,last.cols[i].c).value; if(v!=null&&String(v).trim()!==''){ started=true; break; } }catch(e){} } }
-      btn.style.display = started ? 'inline-flex' : 'none';
+      btn.style.display = this._lastCycleStarted() ? 'inline-flex' : 'none';
     },
     /** 📦 Archivage MANUEL (bouton) : date du jour + téléchargement + sauvegarde, puis fiche vierge */
     async _archiveNow(){
@@ -12619,8 +12646,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         this._autoFillDate(true);
         this._alert('📦 Archivage en cours…','success');
         try{ await this._downloadWb(); }catch(e){}
-        await this._archive();
-        this._alert('✅ Fiche archivée et téléchargée. Nouvelle fiche prête.','success');
+        const ok=await this._archive();
+        if(ok) this._newFicheNotice();
       }catch(e){ this._alert('⚠ Archivage impossible : '+(e.message||e),'danger'); }
       finally{ this._archiving=false; }
     },
@@ -12638,10 +12665,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         this._autoFillDate(true);                 // 📅 date du jour partout
         this._alert('📦 PDCC complète — archivage automatique en cours…','success');
         try{ await this._downloadWb(); }catch(e){}  // ⬇️ télécharge l'Excel rempli
-        await this._archive();                     // 💾 Firebase + copie Excel + remise à zéro
-        this._alert('✅ Fiche archivée et téléchargée. Nouvelle fiche prête.','success');
+        const ok=await this._archive({silent:true});// 💾 Firebase + copie Excel + remise à zéro
+        if(ok) this._newFicheNotice();
       }catch(e){ this._alert('⚠ Archivage auto impossible : '+(e.message||e),'danger'); }
       finally{ this._archiving=false; }
+    },
+    /** 🎉 Notice bien visible : la fiche est archivée, une page VIERGE est prête */
+    _newFicheNotice(){
+      const prev=this._archivedJustNow||''; const now=(this.state&&this.state.id)||''; this._archivedJustNow=null;
+      this._alert('🎉 Fiche '+prev+' ARCHIVÉE. Nouvelle fiche VIERGE '+now+' prête — vous pouvez recommencer.','success');
+      const h=document.getElementById('pdcc-hint');
+      if(h) h.innerHTML='🆕 <b style="color:#00e5a0">NOUVELLE FICHE '+ui.escape(now)+'</b> — la précédente a été archivée et téléchargée. Page vierge prête pour une nouvelle PDCC.';
+      const sid=document.getElementById('pdcc-sheetId'); if(sid){ sid.style.transition='background .4s'; sid.style.background='rgba(0,229,160,.25)'; setTimeout(function(){ sid.style.background=''; },2500); }
     },
     /** ⛶ Bascule l'Annexe en PLEIN ÉCRAN (toute la largeur/hauteur) pour gagner de la place */
     _toggleFull(){
@@ -13050,6 +13085,23 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
       });
     },
+    /** 📥 Lit la copie Excel d'une fiche : nouveau chemin pdccFiles/{outil}/{id}, sinon ANCIEN chemin preparations/{outil}/pdccFiles/{id} (fiches archivées avant la migration) */
+    async _readArchivedFile(id){
+      try{ const s=await fbDb.ref('pdccFiles/'+this.toolId+'/'+id).once('value'); const f=s.val(); if(f&&f.b64) return f; }catch(e){}
+      try{ const s=await fbDb.ref('preparations/'+this.toolId+'/pdccFiles/'+id).once('value'); const f=s.val(); if(f&&f.b64) return f; }catch(e){}
+      return null;
+    },
+    /** 🧾 Télécharge une fiche archivée (par id) en PDF de la PDCC remplie + courbe */
+    async _downloadArchivedPdf(id){
+      const f=await this._readArchivedFile(id);
+      if(!f||!f.b64){ this._alert('Copie Excel introuvable pour '+id+'. (Si vos règles Firebase sont restrictives, autorisez le nœud « pdccFiles ».)','warn'); return; }
+      const bin=atob(f.b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+      const wb=new ExcelJS.Workbook(); await wb.xlsx.load(u8.buffer.slice(0));
+      const sheets=(wb.worksheets||[]).filter(function(s){return s&&s.name;});
+      const self=this;
+      let target=sheets.find(function(s){ try{ return !!self._mapSheet(s); }catch(e){ return false; } }) || sheets[0];
+      await this._exportPdccPdf(target, f.name||id);
+    },
     /** 🧾 Exporte la PDCC remplie en PDF, AVEC la courbe reliant les X */
     async _exportPdccPdf(ws, fname){
       try{
@@ -13081,8 +13133,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
     async _viewArchived(id){
       try{
-        const snap=await fbDb.ref('pdccFiles/'+this.toolId+'/'+id).once('value'); const f=snap.val();
-        if(!f||!f.b64){ this._alert('Copie Excel introuvable pour '+id+'.','warn'); return; }
+        const f=await this._readArchivedFile(id);
+        if(!f||!f.b64){ this._alert('Copie Excel introuvable pour '+id+'. (Si vos règles Firebase sont restrictives, autorisez le nœud « pdccFiles ».)','warn'); return; }
         const bin=atob(f.b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
         const wb=new ExcelJS.Workbook(); await wb.xlsx.load(u8.buffer.slice(0));
         const sheets=(wb.worksheets||[]).filter(function(s){return s&&s.name;});
@@ -13120,18 +13172,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       let v={}; try{ const snap=await fbDb.ref('preparations/'+this.toolId+'/pdcc').once('value'); v=snap.val()||{}; }catch(e){}
       const arr=Object.values(v).sort(function(a,b){return (b.archivedAt||0)-(a.archivedAt||0);});
       if(!arr.length){ host.innerHTML='<div class="pd-hint" style="padding:1rem;text-align:center">Aucune fiche archivée pour cet outil.</div>'; return; }
-      host.innerHTML=arr.map(function(p){ const id=ui.escape(p.id||''); const when=p.archivedAt?new Date(p.archivedAt).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''; const btns=p.hasFile?('<button class="pd-btn pd-btn--p" data-pdccview="'+id+'" style="padding:.34rem .6rem;font-size:.72rem">👁 Voir</button> <button class="pd-btn pd-btn--g" data-pdccdl="'+id+'" style="padding:.34rem .6rem;font-size:.72rem">⬇️ Télécharger</button>'):''; const noF=p.hasFile?'':' · <span style="color:#ffb547">sans copie Excel (modèle générique)</span>'; return '<div class="pd-hist"><span style="font-size:1.1rem">📄</span><div style="flex:1;min-width:0"><div class="hid">'+id+'</div><div style="font-size:.72rem;color:var(--text-muted)">Section '+ui.escape(p.section||'—')+' · '+when+' · '+ui.escape(p.by||'')+noF+'</div></div><div style="display:flex;gap:.4rem;align-items:center">'+btns+'<span class="pd-pill">'+(p.sampleCount||0)+' éch.</span></div></div>'; }).join('');
+      host.innerHTML=arr.map(function(p){ const id=ui.escape(p.id||''); const when=p.archivedAt?new Date(p.archivedAt).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''; const btns=p.hasFile?('<button class="pd-btn pd-btn--p" data-pdccview="'+id+'" style="padding:.34rem .6rem;font-size:.72rem">👁 Voir</button> <button class="pd-btn pd-btn--g" data-pdccdl="'+id+'" style="padding:.34rem .6rem;font-size:.72rem">🧾 PDF</button>'):''; const noF=p.hasFile?'':' · <span style="color:#ffb547">sans copie Excel (modèle générique)</span>'; return '<div class="pd-hist"><span style="font-size:1.1rem">📄</span><div style="flex:1;min-width:0"><div class="hid">'+id+'</div><div style="font-size:.72rem;color:var(--text-muted)">Section '+ui.escape(p.section||'—')+' · '+when+' · '+ui.escape(p.by||'')+noF+'</div></div><div style="display:flex;gap:.4rem;align-items:center">'+btns+'<span class="pd-pill">'+(p.sampleCount||0)+' éch.</span></div></div>'; }).join('');
       host.querySelectorAll('[data-pdccview]').forEach(function(btn){ btn.onclick=function(){ self._viewArchived(btn.getAttribute('data-pdccview')); }; });
       host.querySelectorAll('[data-pdccdl]').forEach(function(btn){ btn.onclick=async function(){
         const id=btn.getAttribute('data-pdccdl'); btn.disabled=true;
         try{
-          const snap=await fbDb.ref('pdccFiles/'+self.toolId+'/'+id).once('value'); const f=snap.val();
-          if(!f||!f.b64){ ui.toast('Copie Excel introuvable pour '+id+'.','warn'); return; }
-          const bin=atob(f.b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
-          const blob=new Blob([u8],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-          const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=f.name||(id+'.xlsx');
-          document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
-        }catch(e){ ui.toast('Téléchargement impossible : '+(e.message||e),'danger'); }
+          await self._downloadArchivedPdf(id);   // 🧾 PDF de la PDCC remplie + courbe
+        }catch(e){ ui.toast('PDF impossible : '+(e.message||e),'danger'); }
         finally{ btn.disabled=false; }
       }; });
     }
@@ -22728,50 +22775,91 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const kpiEl = document.getElementById('prep-kpis');
         const listEl = document.getElementById('prep-list');
         if (!kpiEl || !listEl) return;
-        const preps = Object.values(state.preparations || {}).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+        const all = Object.values(state.preparations || {}).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
         const canManage = ['admin', 'super_admin', 'responsable'].includes(state.role);
-        const kpi = (icon, label, val, color) => `<div style="flex:1;min-width:150px;background:linear-gradient(135deg,${color}1a,var(--bg-elevated));border:1px solid ${color}44;border-radius:10px;padding:.7rem .85rem">
-          <div style="font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700">${icon} ${label}</div>
-          <div style="font-size:1.5rem;font-weight:800;color:${color};font-family:var(--font-mono)">${val}</div></div>`;
-        kpiEl.innerHTML = kpi('🧰', 'Outils à préparer', preps.length, '#00d4ff');
+        const self = this;
+        const hasXls = (p) => { const atts = (typeof toolAttachments !== 'undefined' && toolAttachments._all && toolAttachments._all[p.toolId]) || {}; return Object.entries(atts).filter(([fid, m]) => ((m.mime || '').includes('spreadsheet')) || /\.xlsx?$/i.test(m.name || '')); };
+        const archCount = (p) => Object.keys(p.pdcc || {}).length;
 
-        if (!preps.length) {
-          listEl.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:2.5rem;font-style:italic">Aucun outil en préparation.<br><span style="font-size:.74rem">Un responsable peut en ajouter via le catalogue → clic droit sur un outil → « ➕ Ajouter à préparation ».</span></div>`;
+        // ===== KPIs =====
+        const ready = all.filter(p => hasXls(p).length).length;
+        const totalArch = all.reduce((s, p) => s + archCount(p), 0);
+        const kpi = (icon, label, val, color) => `<div style="flex:1;min-width:150px;background:linear-gradient(135deg,${color}1a,var(--bg-elevated));border:1px solid ${color}44;border-radius:12px;padding:.75rem .9rem">
+          <div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);font-weight:800">${icon} ${label}</div>
+          <div style="font-size:1.6rem;font-weight:800;color:${color};font-family:var(--font-mono);line-height:1.1;margin-top:.15rem">${val}</div></div>`;
+        kpiEl.innerHTML = kpi('🧰', 'Outils à préparer', all.length, '#00d4ff')
+          + kpi('📊', 'Annexes PDCC prêtes', ready, '#00e5a0')
+          + kpi('📦', 'Fiches archivées', totalArch, '#a78bfa');
+
+        // ===== Barre d'outils (recherche) =====
+        const toolbar = document.getElementById('prep-toolbar');
+        const search = document.getElementById('prep-search');
+        const countEl = document.getElementById('prep-count');
+        if (toolbar) toolbar.style.display = all.length ? 'flex' : 'none';
+        const q = (self._q || '').trim().toLowerCase();
+
+        // ===== Empty state soigné =====
+        if (!all.length) {
+          listEl.innerHTML = `<div style="text-align:center;padding:3rem 1.5rem;border:1px dashed var(--border-soft);border-radius:14px;background:var(--bg-elevated)">
+            <div style="font-size:2.6rem;opacity:.5">🧰</div>
+            <div style="font-weight:800;font-size:1rem;color:var(--text-primary);margin-top:.5rem">Aucun outil en préparation</div>
+            <div style="font-size:.78rem;color:var(--text-muted);margin-top:.35rem;max-width:460px;margin-left:auto;margin-right:auto">Un responsable ajoute un outil depuis le <b>Catalogue outils</b> → clic droit sur un outil → « ➕ Ajouter à préparation ». Il apparaîtra ici, prêt à mesurer.</div>
+          </div>`;
           return;
         }
-        listEl.innerHTML = preps.map(p => {
-          const atts = (typeof toolAttachments !== 'undefined' && toolAttachments._all && toolAttachments._all[p.toolId]) || {};
-          const xls = Object.entries(atts).filter(([fid, m]) => ((m.mime || '').includes('spreadsheet')) || /\.xlsx?$/i.test(m.name || ''));
-          const xlBtns = xls.length
-            ? xls.map(([fid, m]) => `<button data-prep-xl="${p.toolId}::${fid}" style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(0,212,255,.14);color:#00d4ff;border:1px solid rgba(0,212,255,.4);border-radius:7px;padding:.4rem .7rem;font-size:.76rem;font-weight:700;cursor:pointer">📊 ${ui.escape(m.category || m.name || 'Annexe (PDCC)')}</button>`).join('')
-            : `<span style="color:var(--text-muted);font-size:.72rem;font-style:italic">Aucune Annexe jointe à cet outil</span>`;
-          return `<div style="padding:.85rem 1rem;border:1px solid var(--border-soft);border-left:3px solid #00e5a0;border-radius:10px;margin-bottom:.6rem;background:var(--bg-elevated)">
-            <div style="display:flex;align-items:center;gap:.6rem">
-              <span style="font-size:1.4rem">🔧</span>
-              <div style="flex:1;min-width:0">
-                <div style="font-weight:800;font-size:.95rem;color:var(--text-primary);font-family:var(--font-mono)">${ui.escape(p.doutils || p.toolId)}</div>
-                <div style="font-size:.78rem;color:var(--text-muted);margin-top:.1rem">🔌 Connexion : <b style="color:var(--text-primary)">${ui.escape(p.connection || '—')}</b></div>
-              </div>
-              ${canManage ? `<button data-prep-del="${p.toolId}" title="Retirer des préparations" style="background:rgba(255,61,90,.12);color:#ff3d5a;border:1px solid rgba(255,61,90,.35);border-radius:7px;padding:.35rem .6rem;font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap">🗑️ Retirer</button>` : ''}
-            </div>
-            <div style="display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.6rem;padding-top:.6rem;border-top:1px dashed var(--border-soft)">
-              <button data-prep-pdcc="${p.toolId}::${ui.escape(p.doutils || p.toolId)}" style="display:inline-flex;align-items:center;gap:.4rem;background:linear-gradient(135deg,#00e5a0,#00b37e);color:#04201a;border:none;border-radius:7px;padding:.4rem .8rem;font-size:.76rem;font-weight:800;cursor:pointer">📝 Remplir PDCC (Annexe 4)</button>
-              ${xlBtns}
-            </div>
-          </div>`;
-        }).join('');
 
-        // Ouvrir le PDCC interactif (Annexe 4) — saisie native + archivage Firebase
+        // ===== Filtrage =====
+        const preps = q ? all.filter(p => ((p.doutils || p.toolId || '') + ' ' + (p.connection || '')).toLowerCase().includes(q)) : all;
+        if (countEl) countEl.textContent = (q ? preps.length + ' / ' + all.length : all.length + ' outil' + (all.length > 1 ? 's' : '')) + ' · 🟢 en ligne';
+
+        if (!preps.length) {
+          listEl.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:2rem;font-style:italic">Aucun résultat pour « ${ui.escape(self._q)} ».</div>`;
+        } else {
+          listEl.innerHTML = preps.map(p => {
+            const xls = hasXls(p);
+            const nArch = archCount(p);
+            const when = p.addedAt ? new Date(p.addedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '';
+            const statusBadge = xls.length
+              ? `<span style="display:inline-flex;align-items:center;gap:.3rem;background:rgba(0,229,160,.14);color:#00e5a0;border:1px solid rgba(0,229,160,.4);border-radius:20px;padding:.18rem .6rem;font-size:.68rem;font-weight:800">✅ Annexe PDCC prête</span>`
+              : `<span style="display:inline-flex;align-items:center;gap:.3rem;background:rgba(255,181,71,.14);color:#ffb547;border:1px solid rgba(255,181,71,.4);border-radius:20px;padding:.18rem .6rem;font-size:.68rem;font-weight:800">⚠️ Annexe manquante</span>`;
+            const archBadge = nArch ? `<span style="display:inline-flex;align-items:center;gap:.3rem;background:rgba(167,139,250,.14);color:#a78bfa;border:1px solid rgba(167,139,250,.4);border-radius:20px;padding:.18rem .6rem;font-size:.68rem;font-weight:800">📦 ${nArch} archivée${nArch > 1 ? 's' : ''}</span>` : '';
+            const xlBtns = xls.length
+              ? xls.map(([fid, m]) => `<button data-prep-xl="${p.toolId}::${fid}" style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(0,212,255,.12);color:#00d4ff;border:1px solid rgba(0,212,255,.35);border-radius:8px;padding:.42rem .75rem;font-size:.75rem;font-weight:700;cursor:pointer">📄 ${ui.escape(m.category || m.name || 'Annexe')}</button>`).join('')
+              : '';
+            return `<div style="padding:.95rem 1.1rem;border:1px solid var(--border-soft);border-left:4px solid ${xls.length ? '#00e5a0' : '#ffb547'};border-radius:13px;margin-bottom:.7rem;background:var(--bg-elevated);transition:border-color .2s,transform .1s" onmouseover="this.style.borderColor='rgba(0,212,255,.5)'" onmouseout="this.style.borderColor='var(--border-soft)'">
+              <div style="display:flex;align-items:flex-start;gap:.7rem">
+                <span style="font-size:1.5rem;line-height:1">🔧</span>
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:800;font-size:1rem;color:var(--text-primary);font-family:var(--font-mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ui.escape(p.doutils || p.toolId)}</div>
+                  <div style="font-size:.76rem;color:var(--text-muted);margin-top:.2rem">🔌 <b style="color:var(--text-secondary)">${ui.escape(p.connection || '—')}</b>${when ? ' · 📅 ajouté le ' + when : ''}</div>
+                  <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem">${statusBadge}${archBadge}</div>
+                </div>
+                ${canManage ? `<button data-prep-del="${p.toolId}" title="Retirer des préparations" style="background:rgba(255,61,90,.1);color:#ff3d5a;border:1px solid rgba(255,61,90,.3);border-radius:8px;padding:.35rem .55rem;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap">🗑️</button>` : ''}
+              </div>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem;padding-top:.7rem;border-top:1px dashed var(--border-soft)">
+                <button data-prep-pdcc="${p.toolId}::${ui.escape(p.doutils || p.toolId)}" style="display:inline-flex;align-items:center;gap:.4rem;background:linear-gradient(135deg,#00e5a0,#00b37e);color:#04201a;border:none;border-radius:8px;padding:.5rem .9rem;font-size:.78rem;font-weight:800;cursor:pointer;box-shadow:0 2px 10px rgba(0,229,160,.25)">📝 Remplir la PDCC</button>
+                ${xlBtns}
+              </div>
+            </div>`;
+          }).join('');
+        }
+
+        // ===== Recherche (branchement une seule fois) =====
+        if (search && !search._wired) {
+          search._wired = true;
+          search.addEventListener('input', () => { self._q = search.value; self.render(); });
+        }
+        if (search) search.value = self._q || '';
+
+        // ===== Actions =====
         listEl.querySelectorAll('[data-prep-pdcc]').forEach(b => b.onclick = () => {
           const sep = b.dataset.prepPdcc.split('::');
           if (typeof pdcc !== 'undefined' && pdcc.open) pdcc.open(sep[0], sep[1]);
         });
-        // Ouvrir l'Annexe / PDCC dans le visualiseur (lecture + téléchargement pour remplir)
         listEl.querySelectorAll('[data-prep-xl]').forEach(b => b.onclick = () => {
           const [tid, fid] = b.dataset.prepXl.split('::');
           if (typeof toolAttachments !== 'undefined' && toolAttachments.viewExcel) toolAttachments.viewExcel(tid, fid);
         });
-        // Retrait (responsables/admins)
         listEl.querySelectorAll('[data-prep-del]').forEach(b => b.onclick = async () => {
           const tid = b.dataset.prepDel;
           if (!confirm('Retirer cet outil des préparations ?')) return;

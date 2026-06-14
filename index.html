@@ -11405,7 +11405,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 <div style="font-weight:800;color:#00d4ff;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ui.escape(f.name || 'Fichier Excel')}</div>
                 <div style="font-size:.68rem;color:var(--text-muted)">Contenu affiché dans la page — sans ouvrir Excel</div>
               </div>
-              <button data-xlv-download title="Télécharger le fichier" style="padding:.4rem .7rem;background:rgba(0,212,255,.12);color:var(--accent-500);border:1px solid rgba(0,212,255,.3);border-radius:6px;cursor:pointer;font-size:.74rem;font-weight:700">⬇️ Télécharger</button>
               <button data-xlv-close style="padding:.4rem .7rem;background:rgba(255,255,255,.06);color:var(--text-primary);border:1px solid var(--border-soft);border-radius:6px;cursor:pointer;font-size:.74rem;font-weight:700">← Retour</button>
             </header>
             <div id="excel-viewer-tabs" style="display:flex;gap:.3rem;padding:.55rem 1rem 0;flex-wrap:wrap"></div>
@@ -11420,7 +11419,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       document.addEventListener('keydown', escFn);
       ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
       ov.querySelector('[data-xlv-close]').onclick = close;
-      ov.querySelector('[data-xlv-download]').onclick = () => this.download(toolId, fileId);
+      { const dl=ov.querySelector('[data-xlv-download]'); if(dl) dl.onclick = () => this.download(toolId, fileId); }
       const bodyEl = ov.querySelector('#excel-viewer-body');
       const tabsEl = ov.querySelector('#excel-viewer-tabs');
       const msg = (txt, color) => `<div style="text-align:center;padding:2.5rem;color:${color || 'var(--text-muted)'};font-size:.86rem">${txt}</div>`;
@@ -11833,7 +11832,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         this._renderSectionPicker();
         this._renderWbSheet();
         this._restoreDraft();
-        const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Annexe affichée telle quelle — <b>'+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons</b>. ✍️ <b>Cliquez une case BLANCHE</b> (Crimp Height) pour saisir la valeur → le X se trace tout seul · <b>clic droit</b> = micromètre. 💾 Sauvegarde auto · 📦 archivage auto quand complet.';
+        this._restoreDraftRemote();   // ☁️ sinon, récupère le remplissage fait sur un autre appareil
+        const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Annexe affichée telle quelle — <b>'+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons</b>. ✍️ <b>Cliquez une case BLANCHE</b> (Crimp Height) pour saisir la valeur → le X se trace tout seul · <b>clic droit</b> = micromètre. 💾 Sauvegarde auto (PC + téléphone) · 📦 archivage auto quand complet.';
       } else if (this._fileSpec) {
         // Dimensions = celles du fichier → INTERDIT de les changer : on masque seulement le choix de Section
         const sf=document.getElementById('pdcc-selSection'); const sfp=sf&&sf.closest('.pd-f'); if(sfp) sfp.style.display='none';
@@ -11868,6 +11868,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           + '<span id="pdcc-saveind" style="font-size:.75rem;color:#7fe0b0;font-family:var(--font-mono)"></span>'
           + '<div style="flex:1 1 auto"></div>'
           + '<button class="pd-btn pd-btn--g" id="pdcc-btnLoad" style="display:none">📂 Charger l\'Annexe</button>'
+          + '<button class="pd-btn pd-btn--a" id="pdcc-btnArchiveNow" style="display:none">📦 Archiver la fiche</button>'
           + '<button class="pd-btn pd-btn--g" id="pdcc-btnDlArch" style="display:none">⬇️ Télécharger la fiche archivée</button>'
           + '<button class="pd-btn pd-btn--x" id="pdcc-close">✕ Fermer</button></div>'
         + '<div class="pd-alert" id="pdcc-alert"></div>'
@@ -11919,6 +11920,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       g('pdcc-btnReset').onclick=()=>{ if(confirm('Réinitialiser la fiche sans archiver ?')) this._reset(false); };
       g('pdcc-btnXls').onclick=()=>this._downloadWb();
       { const d=g('pdcc-btnDlArch'); if(d) d.onclick=()=>this._downloadArchived(); }
+      { const a=g('pdcc-btnArchiveNow'); if(a) a.onclick=()=>this._archiveNow(); }
       this._escHandler=(e)=>{ if(e.key==='Escape') this.close(); };
       document.addEventListener('keydown', this._escHandler);
       this._setPhase('measure');
@@ -12516,6 +12518,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._renderFileInfo();
       this._wbHighlight();
       this._wbAttachClicks();
+      this._updateArchiveBtn();
     },
     /** 🎯 Surligne dans le classeur la colonne (en-tête Sample) en cours de mesure */
     _wbHighlight(){
@@ -12595,6 +12598,28 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       clearTimeout(this._alertT); const self=this;
       this._alertT=setTimeout(function(){ if(el) el.style.display='none'; }, type==='danger'?6000:3500);
     },
+    /** 📦 Affiche le bouton « Archiver » dès qu'on commence le DERNIER cycle (ex. cycle 8) */
+    _updateArchiveBtn(){
+      const btn=document.getElementById('pdcc-btnArchiveNow'); if(!btn||!this._map||!this._wbMode) return;
+      const last=this._map.cycles[this._map.cycles.length-1]; const chRow=this._map.vals&&this._map.vals.ch;
+      let started=false;
+      if(chRow){ for(let i=0;i<last.cols.length;i++){ try{ const v=this._ws.getCell(chRow,last.cols[i].c).value; if(v!=null&&String(v).trim()!==''){ started=true; break; } }catch(e){} } }
+      btn.style.display = started ? 'inline-flex' : 'none';
+    },
+    /** 📦 Archivage MANUEL (bouton) : date du jour + téléchargement + sauvegarde, puis fiche vierge */
+    async _archiveNow(){
+      if(this._archiving) return;
+      if(!confirm('Archiver cette fiche maintenant ?')) return;
+      this._archiving=true;
+      try{
+        this._autoFillDate(true);
+        this._alert('📦 Archivage en cours…','success');
+        try{ await this._downloadWb(); }catch(e){}
+        await this._archive();
+        this._alert('✅ Fiche archivée et téléchargée. Nouvelle fiche prête.','success');
+      }catch(e){ this._alert('⚠ Archivage impossible : '+(e.message||e),'danger'); }
+      finally{ this._archiving=false; }
+    },
     /** ✅ La PDCC est-elle complète ? (toutes les cases Sample de tous les cycles ont un X) */
     _pdccComplete(){
       if(!this._map) return false;
@@ -12645,9 +12670,16 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const valRow={}; if(m.vals){ Object.keys(m.vals).forEach(function(k){ valRow[m.vals[k]]=k; }); }
       const traceRow={}; if(m.trace){ Object.keys(m.trace).forEach(function(k){ traceRow[m.trace[k]]=k; }); }
       const firstCols={}; m.cycles.forEach(function(b){ firstCols[b.cols[0].c]=b.n; });
+      const dateRow = m.trace && m.trace.date;
       host.querySelectorAll('td[data-rc]').forEach(function(td){
         const rc=td.getAttribute('data-rc').split('-'); const r=+rc[0], c=+rc[1];
         const ci=colInfo[c]; const vk=valRow[r];
+        // 📅 Cases DATE (1 par cycle) → sélecteur de date (calendrier), TOUJOURS modifiable (pas de verrou)
+        if(dateRow && r===dateRow && firstCols[c]){
+          td.classList.add('pd-ed-cell'); td.title='📅 Choisir la date';
+          td.onclick=function(){ self._wbDatePick(td,r,c); };
+          return;
+        }
         // 🔒 Valeur DÉJÀ enregistrée → verrouillée (interdit de changer)
         let hasVal=false; try{ const cv=self._ws.getCell(r,c).value; hasVal=(cv!=null && String(cv).trim()!==''); }catch(e){}
         if(vk && ci && self._isWhiteCell(r,c)){
@@ -12667,6 +12699,21 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
         // sinon : 🔒 verrouillé (graphique coloré, libellés, hachures, nominaux) — aucun handler, pas de saisie
       });
+    },
+    /** 📅 Sélecteur de date (calendrier natif) pour une case date — écrit jj.mm.aaaa */
+    _wbDatePick(td,r,c){
+      if(td.querySelector('input')) return;
+      const self=this;
+      const inp=document.createElement('input'); inp.type='date';
+      let cur=''; try{ const v=this._ws.getCell(r,c).value; if(v){ const mm=String(v).trim().match(/^(\d{2})[.\/-](\d{2})[.\/-](\d{4})$/); if(mm) cur=mm[3]+'-'+mm[2]+'-'+mm[1]; } }catch(e){}
+      if(!cur){ const d=new Date(); cur=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+      inp.value=cur; inp.style.cssText='width:100%;box-sizing:border-box;font-size:12px;border:2px solid #00d4ff;border-radius:4px';
+      td.innerHTML=''; td.appendChild(inp);
+      inp.focus(); if(inp.showPicker){ try{ inp.showPicker(); }catch(e){} }
+      let done=false;
+      const commit=function(){ if(done) return; done=true; const v=inp.value; if(v){ const p=v.split('-'); self._setCell(r,c, p[2]+'.'+p[1]+'.'+p[0]); } self._renderWbSheet(); };
+      inp.addEventListener('change', commit);
+      inp.addEventListener('blur', function(){ setTimeout(commit,150); });
     },
     /** 🖱️ Menu clic droit : saisir la valeur OU mesurer au micromètre Mitutoyo 341 (USB) */
     _wbCellMenu(e,td,r,c){
@@ -12788,14 +12835,38 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._saveTimer=setTimeout(function(){ self._saveDraft(); }, 600);
     },
     _saveDraft(){
+      const data={ fiche:this.state&&this.state.id, sheet:(this._ws&&this._ws.name)||'', edits:this._edits||{}, samples:(this.state&&this.state.samples)||{}, at:Date.now() };
       try{
         const key='pdccDraft::'+this.toolId+'::'+((this._ws&&this._ws.name)||'');
-        localStorage.setItem(key, JSON.stringify({ fiche:this.state&&this.state.id, sheet:(this._ws&&this._ws.name)||'', edits:this._edits||{}, samples:(this.state&&this.state.samples)||{}, at:Date.now() }));
+        localStorage.setItem(key, JSON.stringify(data));
         const ind=document.getElementById('pdcc-saveind'); if(ind) ind.textContent='✔ enregistré '+new Date().toLocaleTimeString('fr-FR');
       }catch(e){ const ind=document.getElementById('pdcc-saveind'); if(ind) ind.textContent='⚠ sauvegarde locale indisponible'; }
+      // ☁️ + Firebase → le remplissage est visible sur tous les appareils (PC, téléphone)
+      try{ if(typeof fbDb!=='undefined'&&fbDb&&this.toolId&&this._ws){ fbDb.ref('preparations/'+this.toolId+'/pdccDraft/'+this._fbDraftKey()).set(data); } }catch(e){}
     },
+    _fbDraftKey(){ return ((this._ws&&this._ws.name)||'sheet').replace(/[.#$/\[\]]/g,'_'); },
     _clearDraft(){
-      try{ if(this._wbSheets){ this._wbSheets.forEach(function(s){ localStorage.removeItem('pdccDraft::'+this.toolId+'::'+s.name); },this); } else { localStorage.removeItem('pdccDraft::'+this.toolId+'::'+((this._ws&&this._ws.name)||'')); } }catch(e){}
+      const self=this;
+      const names = this._wbSheets ? this._wbSheets.map(function(s){return s.name;}) : [(this._ws&&this._ws.name)||''];
+      names.forEach(function(nm){
+        try{ localStorage.removeItem('pdccDraft::'+self.toolId+'::'+nm); }catch(e){}
+        try{ if(typeof fbDb!=='undefined'&&fbDb&&self.toolId){ fbDb.ref('preparations/'+self.toolId+'/pdccDraft/'+nm.replace(/[.#$/\[\]]/g,'_')).remove(); } }catch(e){}
+      });
+    },
+    /** ☁️ Restaure depuis Firebase si rien en local (remplissage fait sur un autre appareil) */
+    async _restoreDraftRemote(){
+      try{
+        if(this._edits && Object.keys(this._edits).length) return false;   // déjà des modifs (local ou en session)
+        if(typeof fbDb==='undefined'||!fbDb||!this.toolId||!this._ws) return false;
+        const snap=await fbDb.ref('preparations/'+this.toolId+'/pdccDraft/'+this._fbDraftKey()).once('value');
+        const d=snap.val(); if(!d||!d.edits||!Object.keys(d.edits).length) return false;
+        const self=this;
+        Object.keys(d.edits).forEach(function(rc){ const p=rc.split('-'); try{ self._ws.getCell(parseInt(p[0],10),parseInt(p[1],10)).value=d.edits[rc]; }catch(e){} });
+        this._edits=d.edits; this.state.samples=d.samples||{};
+        this._renderWbSheet();
+        this._alert('☁️ Dernier remplissage récupéré (synchronisé).','success');
+        return true;
+      }catch(e){ return false; }
     },
     /** 💾 Restaure TOUJOURS une saisie non archivée (au ré-ouverture de la même section) — sans demander */
     _restoreDraft(){
@@ -34948,6 +35019,15 @@ Erreur Firebase : ${e.message}`;
      15. BOOTSTRAP
      ========================================================================== */
   document.addEventListener('DOMContentLoaded', () => {
+    // 🔄 Mise à jour automatique sur mobile : vérifie le Service Worker et recharge dès qu'une nouvelle version est prête
+    try{
+      if('serviceWorker' in navigator){
+        navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ try{ r.update(); }catch(e){} }); });
+        navigator.serviceWorker.ready.then(function(reg){ try{ reg.update(); }catch(e){} setInterval(function(){ try{ reg.update(); }catch(e){} }, 60000); }).catch(function(){});
+        let __reloaded=false;
+        navigator.serviceWorker.addEventListener('controllerchange', function(){ if(__reloaded) return; __reloaded=true; location.reload(); });
+      }
+    }catch(e){}
     // ╔════════════════════════════════════════════════════════════════════╗
     // ║  🛡 FILET DE SÉCURITÉ GLOBAL — capture les erreurs async silencieuses
     // ╠════════════════════════════════════════════════════════════════════╣

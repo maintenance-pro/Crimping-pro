@@ -13120,6 +13120,38 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       return load('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', function(){ return !!window.html2canvas; })
         .then(function(){ return load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', function(){ return !!(window.jspdf&&window.jspdf.jsPDF)||!!window.jsPDF; }); });
     },
+    /** 📈 Construit la courbe en SVG PAR-DESSUS le tableau (dans le DOM) → html2canvas la capture dans l'image PDF */
+    _buildCurveSvg(holder, mp){
+      if(!mp) return false;
+      const table=holder.querySelector('table'); if(!table) return false;
+      const wrapper=table.parentElement; if(wrapper) wrapper.style.position='relative';
+      const tr=table.getBoundingClientRect();
+      const scaleRows=mp.scale.map(function(s){return s.r;});
+      const NS='http://www.w3.org/2000/svg';
+      const svg=document.createElementNS(NS,'svg');
+      const W=Math.round(tr.width), H=Math.round(tr.height);
+      svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox','0 0 '+W+' '+H);
+      svg.style.cssText='position:absolute;left:'+(table.offsetLeft||0)+'px;top:'+(table.offsetTop||0)+'px;width:'+W+'px;height:'+H+'px;pointer-events:none;z-index:9';
+      let any=false;
+      mp.cycles.forEach(function(b){
+        const pts=[];
+        b.cols.forEach(function(o){
+          let xcell=null;
+          for(let i=0;i<scaleRows.length;i++){ const cell=holder.querySelector('td[data-rc="'+scaleRows[i]+'-'+o.c+'"]'); if(cell && cell.textContent.trim().toUpperCase()==='X'){ xcell=cell; break; } }
+          if(xcell){ const r=xcell.getBoundingClientRect(); pts.push([r.left-tr.left+r.width/2, r.top-tr.top+r.height/2]); }
+        });
+        if(pts.length>=2){
+          any=true;
+          const pl=document.createElementNS(NS,'polyline');
+          pl.setAttribute('points', pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' '));
+          pl.setAttribute('fill','none'); pl.setAttribute('stroke','#0a4fd6'); pl.setAttribute('stroke-width','2.6'); pl.setAttribute('stroke-linejoin','round'); pl.setAttribute('stroke-linecap','round');
+          svg.appendChild(pl);
+          pts.forEach(function(p){ const ci=document.createElementNS(NS,'circle'); ci.setAttribute('cx',p[0].toFixed(1)); ci.setAttribute('cy',p[1].toFixed(1)); ci.setAttribute('r','3.2'); ci.setAttribute('fill','#0a4fd6'); svg.appendChild(ci); });
+        }
+      });
+      if(any && wrapper) wrapper.appendChild(svg);
+      return any;
+    },
     /** 📈 Dessine la courbe (relie les X) DIRECTEMENT sur le canvas capturé */
     _drawCurveOnCanvas(canvas, container, mp){
       const ctx=canvas.getContext('2d'); if(!ctx||!mp) return;
@@ -13177,8 +13209,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         holder.querySelectorAll('td').forEach(function(td){ const bg=td.style.background||''; if(/gradient/i.test(bg)){ td.style.background='#dcdcdc'; } });
         void table.offsetHeight;   // force le layout
         await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+        if(mp){ try{ this._buildCurveSvg(holder, mp); }catch(e){} }   // 📈 courbe en SVG dans le DOM → capturée par html2canvas
         const canvas=await html2canvas(holder,{scale:2,backgroundColor:'#ffffff',logging:false,useCORS:true});
-        if(mp) this._drawCurveOnCanvas(canvas, holder, mp);   // 📈 courbe (échelle réelle, par-dessus le tableau colorié)
+        if(mp){ try{ this._drawCurveOnCanvas(canvas, holder, mp); }catch(e){} }   // 📈 filet de sécurité sur le canvas
         holder.remove();
         const JsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
         const w=canvas.width, h=canvas.height, landscape=(w>=h);

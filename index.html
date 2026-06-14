@@ -13121,21 +13121,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         .then(function(){ return load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', function(){ return !!(window.jspdf&&window.jspdf.jsPDF)||!!window.jsPDF; }); });
     },
     /** 📈 Dessine la courbe (relie les X) DIRECTEMENT sur le canvas capturé */
-    _drawCurveOnCanvas(canvas, table, container, mp, scale){
+    _drawCurveOnCanvas(canvas, container, mp){
       const ctx=canvas.getContext('2d'); if(!ctx||!mp) return;
-      const tr=table.getBoundingClientRect();
+      const cr=container.getBoundingClientRect();
+      const sx=canvas.width/cr.width, sy=canvas.height/cr.height;   // échelle RÉELLE (px canvas / px écran)
       const scaleRows=mp.scale.map(function(s){return s.r;});
-      ctx.strokeStyle='#0a4fd6'; ctx.lineWidth=2.5*scale; ctx.lineJoin='round'; ctx.lineCap='round';
+      ctx.strokeStyle='#0a4fd6'; ctx.lineWidth=Math.max(2,2.4*sx); ctx.lineJoin='round'; ctx.lineCap='round';
       mp.cycles.forEach(function(b){
         const pts=[];
         b.cols.forEach(function(o){
           let xcell=null;
           for(let i=0;i<scaleRows.length;i++){ const cell=container.querySelector('td[data-rc="'+scaleRows[i]+'-'+o.c+'"]'); if(cell && cell.textContent.trim().toUpperCase()==='X'){ xcell=cell; break; } }
-          if(xcell){ const r=xcell.getBoundingClientRect(); pts.push([ (r.left-tr.left+r.width/2)*scale, (r.top-tr.top+r.height/2)*scale ]); }
+          if(xcell){ const r=xcell.getBoundingClientRect(); pts.push([ (r.left-cr.left+r.width/2)*sx, (r.top-cr.top+r.height/2)*sy ]); }
         });
         if(pts.length>=2){
           ctx.beginPath(); pts.forEach(function(p,i){ if(i) ctx.lineTo(p[0],p[1]); else ctx.moveTo(p[0],p[1]); }); ctx.stroke();
-          ctx.fillStyle='#0a4fd6'; pts.forEach(function(p){ ctx.beginPath(); ctx.arc(p[0],p[1],3.2*scale,0,2*Math.PI); ctx.fill(); });
+          ctx.fillStyle='#0a4fd6'; pts.forEach(function(p){ ctx.beginPath(); ctx.arc(p[0],p[1],Math.max(2.5,3*sx),0,2*Math.PI); ctx.fill(); });
         }
       });
     },
@@ -13162,27 +13163,31 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         this._alert('🖨️ Génération du PDF en cours…','success');
         await this._loadPdfLibs();
         const holder=document.createElement('div');
-        holder.style.cssText='position:fixed;left:-99999px;top:0;background:#ffffff;padding:14px';
+        holder.id='pdcc-pdf-holder';
+        holder.style.cssText='position:fixed;left:-99999px;top:0;display:inline-block;background:#ffffff;padding:10px';
         let mp=null; try{ mp=this._mapSheet(ws); }catch(e){}
         let opts={big:true};
         if(mp){ let maxR=1,maxC=1; mp.scale.forEach(function(s){if(s.r>maxR)maxR=s.r;}); mp.cycles.forEach(function(b){b.cols.forEach(function(o){if(o.c>maxC)maxC=o.c;});}); [mp.vals,mp.trace].forEach(function(o){if(o)Object.keys(o).forEach(function(k){if(o[k]>maxR)maxR=o[k];});}); if(mp.hdrRow>maxR)maxR=mp.hdrRow; opts={maxRow:maxR,maxCol:maxC,big:true}; }
-        holder.innerHTML=toolAttachments._exceljsSheetHtml(ws,opts);
+        // 🎨 styles CLAIRS forcés : cellule sans couleur = BLANC (pas le fond sombre du thème), texte foncé, tableau ENTIER visible
+        holder.innerHTML='<style>#pdcc-pdf-holder *{color:#10243f}#pdcc-pdf-holder td{background-color:#ffffff}#pdcc-pdf-holder div{overflow:visible!important;border:none!important;border-radius:0!important;background:#ffffff!important;padding:0!important}</style>'+toolAttachments._exceljsSheetHtml(ws,opts);
         document.body.appendChild(holder);
         const table=holder.querySelector('table');
         if(!table){ holder.remove(); this._alert('Rien à exporter.','warn'); return; }
-        await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });   // attendre le layout
-        const scale=2;
-        const canvas=await html2canvas(table,{scale:scale,backgroundColor:'#ffffff',logging:false,useCORS:true});
-        if(mp) this._drawCurveOnCanvas(canvas, table, holder, mp, scale);   // 📈 courbe
+        // 🩹 trames hachurées (repeating-linear-gradient — non gérées par html2canvas → rendraient NOIR) → gris uni
+        holder.querySelectorAll('td').forEach(function(td){ const bg=td.style.background||''; if(/gradient/i.test(bg)){ td.style.background='#dcdcdc'; } });
+        void table.offsetHeight;   // force le layout
+        await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+        const canvas=await html2canvas(holder,{scale:2,backgroundColor:'#ffffff',logging:false,useCORS:true});
+        if(mp) this._drawCurveOnCanvas(canvas, holder, mp);   // 📈 courbe (échelle réelle, par-dessus le tableau colorié)
         holder.remove();
         const JsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
         const w=canvas.width, h=canvas.height, landscape=(w>=h);
         const pdf=new JsPDFCtor({orientation:landscape?'landscape':'portrait',unit:'pt',format:'a4'});
-        const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight(), margin=18;
+        const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight(), margin=14;
         const ratio=Math.min((pw-margin*2)/w,(ph-margin*2)/h), iw=w*ratio, ih=h*ratio;
         pdf.addImage(canvas.toDataURL('image/png'),'PNG',(pw-iw)/2,(ph-ih)/2,iw,ih,'','FAST');
         pdf.save((fname||'PDCC').replace(/\.xlsx$/i,'')+'.pdf');
-        this._alert('✅ PDF téléchargé (PDCC remplie + courbe).','success');
+        this._alert('✅ PDF téléchargé (zones colorées + courbe).','success');
       }catch(e){ this._alert('⚠ PDF impossible : '+(e.message||e),'danger'); }
     },
     async _viewArchived(id){

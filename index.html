@@ -12591,6 +12591,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._updateArchiveBtn();
     },
     /** 🎯 Surligne dans le classeur la colonne (en-tête Sample) en cours de mesure */
+    /** 🎯 Place la position guidée sur le CYCLE de la colonne c (Sample 1 du MÊME cycle) → la vue reste sur ce cycle, ne saute plus au Cycle 1 */
+    _focusCycleOfCol(c){
+      if(!this._map||!this._map.cycles) return;
+      const blk=this._map.cycles.find(function(b){ return b.cols.some(function(o){ return o.c===c; }); });
+      if(blk){ const ci=this.CYCLES.indexOf(blk.n); if(ci>=0){ this._ci=ci; this._si=0; } }
+    },
     _wbHighlight(){
       if(!this._wbMode||!this._map) return;
       document.querySelectorAll('#pdcc-wbhost td.pd-xlcur').forEach(function(el){ el.classList.remove('pd-xlcur'); });
@@ -12599,7 +12605,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const co=blk&&blk.cols.find(function(o){return o.k===smp.k;});
       if(!co) return;
       const el=document.querySelector('#pdcc-wbhost td[data-rc="'+co.a+'"]');
-      if(el){ el.classList.add('pd-xlcur'); try{ el.scrollIntoView({block:'nearest',inline:'center'}); }catch(e){} }
+      if(el){ el.classList.add('pd-xlcur'); try{ el.scrollIntoView({block:'nearest',inline:'nearest'}); }catch(e){} }
     },
     /** 🗂️ Affiche les boutons de sélection de section si le fichier contient plusieurs feuilles PDCC */
     _renderSectionPicker(){
@@ -12790,7 +12796,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       td.innerHTML=''; td.appendChild(inp);
       inp.focus(); if(inp.showPicker){ try{ inp.showPicker(); }catch(e){} }
       let done=false;
-      const commit=function(){ if(done) return; done=true; const v=inp.value; if(v){ const p=v.split('-'); self._setCell(r,c, p[2]+'.'+p[1]+'.'+p[0]); } self._renderWbSheet(); };
+      const commit=function(){ if(done) return; done=true; const v=inp.value; if(v){ const p=v.split('-'); self._setCell(r,c, p[2]+'.'+p[1]+'.'+p[0]); self._focusCycleOfCol(c); } self._renderWbSheet(); };
       inp.addEventListener('change', commit);
       inp.addEventListener('blur', function(){ setTimeout(commit,150); });
     },
@@ -12897,6 +12903,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._setCell(best.r,c,'X');                                      // X à la hauteur snappée
       this.state.samples[key]={ value:value, row:best.v.toFixed(2), r:best.r, c:c, cb:(prev&&prev.cb)||null, ich:(prev&&prev.ich)||null, icb:(prev&&prev.icb)||null, pt:(prev&&prev.pt)||null };
       this._fillCycleDate(cycle);                          // 📅 date du jour pour CE cycle au 1er point
+      this._focusCycleOfCol(c);                            // 🎯 on reste sur CE cycle (Sample 1), la vue ne saute pas au Cycle 1
       const zz=this._wbZoneAt(best.r,c); if(zz==='yellow') this._alert('⚠ '+value+' en zone JAUNE (limite) — enregistré.','warn');
       if(this._pdccComplete()) this._autoArchive();   // 📦 fiche complète → archivage auto
     },
@@ -12987,6 +12994,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const isNum=(v!==''&&!isNaN(n)&&/^-?\d+([.,]\d+)?$/.test(v));
         if(v!=='') self._wbPendingCell=null;   // 📐 valeur entrée → on n'attend plus le DATA du micromètre pour cette case
         self._setCell(r,c, isNum ? n : (v||null));
+        self._focusCycleOfCol(c);              // 🎯 rester sur le cycle en cours (Sample 1 du même cycle)
         // 🆕 Valeur saisie dans la ligne Crimp Height → tracer le X dans la zone colorée à cette hauteur
         if(isNum && self._map && self._map.vals && r===self._map.vals.ch){ self._wbPlotFromValue(c, n); }
         self._renderWbSheet();

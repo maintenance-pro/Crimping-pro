@@ -12595,7 +12595,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     _focusCycleOfCol(c){
       if(!this._map||!this._map.cycles) return;
       const blk=this._map.cycles.find(function(b){ return b.cols.some(function(o){ return o.c===c; }); });
-      if(blk){ const ci=this.CYCLES.indexOf(blk.n); if(ci>=0){ this._ci=ci; this._si=0; } }
+      if(blk){ const ci=this.CYCLES.indexOf(blk.n); if(ci>=0){ this._ci=ci;
+        // 🎯 RESTER sur la case qu'on vient de remplir (même Sample) — pas de retour forcé à Sample 1 ni saut vers Last Off
+        const col=blk.cols.find(function(o){ return o.c===c; });
+        const si=col ? this.SAMPLES.findIndex(function(s){ return s.k===col.k; }) : 0;
+        this._si=(si>=0?si:0);
+      } }
     },
     _wbHighlight(){
       if(!this._wbMode||!this._map) return;

@@ -11840,6 +11840,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const lo=document.getElementById('pdcc-btnLoad'); if(lo) lo.style.display='none';   // ❌ « Charger l'Annexe » supprimé
         const da=document.getElementById('pdcc-btnDlArch'); if(da) da.style.display='';     // ⬇️ Télécharger la fiche archivée
         const mb=document.getElementById('pdcc-btnMicro'); if(mb){ mb.style.display=''; this._updateMicroBtn(); }   // 🔌 Micromètre
+        const meb=document.getElementById('pdcc-btnMeasure'); if(meb){ meb.style.display=''; }   // 📐 Mesurer (requête série)
         // ⛶ Plein écran PERMANENT
         const ov=document.getElementById('pdcc-overlay'); if(ov) ov.classList.add('pd-full');
         this.state.section=(this._fileSpec&&(this._fileSpec.cross||this._fileSpec.label))||'fichier';
@@ -11900,6 +11901,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           + '<div style="flex:1 1 auto"></div>'
           + '<button class="pd-btn pd-btn--g" id="pdcc-btnLoad" style="display:none">📂 Charger l\'Annexe</button>'
           + '<button class="pd-btn pd-btn--p" id="pdcc-btnMicro" style="display:none">🔌 Micromètre</button>'
+          + '<button class="pd-btn pd-btn--g" id="pdcc-btnMeasure" style="display:none">📐 Mesurer</button>'
           + '<button class="pd-btn pd-btn--a" id="pdcc-btnArchiveNow" style="display:none">📦 Archiver la fiche</button>'
           + '<button class="pd-btn pd-btn--g" id="pdcc-btnDlArch" style="display:none">🧾 Dernière fiche en PDF</button>'
           + '<button class="pd-btn pd-btn--x" id="pdcc-close">✕ Fermer</button></div>'
@@ -11954,6 +11956,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       { const d=g('pdcc-btnDlArch'); if(d) d.onclick=()=>this._downloadArchived(); }
       { const a=g('pdcc-btnArchiveNow'); if(a) a.onclick=()=>this._archiveNow(); }
       { const mb=g('pdcc-btnMicro'); if(mb) mb.onclick=()=>this._toggleKeyboardMicro(); }
+      { const meb=g('pdcc-btnMeasure'); if(meb) meb.onclick=()=>this._requestMeasure(); }
       this._escHandler=(e)=>{ if(e.key==='Escape') this.close(); };
       document.addEventListener('keydown', this._escHandler);
       this._setPhase('measure');
@@ -12276,7 +12279,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               const v=parseFloat(m[0].replace(',','.'));
               if(!isNaN(v)){
                 if(this._wbMode && this._wbPendingCell){
-                  // 📐 MODE CLASSEUR : la valeur va dans la case Crimp Height cliquée → trace le X
+                  // 📐 MODE CLASSEUR : la valeur va dans la case Crimp Height ciblée → trace le X
+                  if(this._measureTimer){ clearTimeout(this._measureTimer); this._measureTimer=null; }   // réponse reçue → annule le minuteur "pas de réponse"
                   const pc=this._wbPendingCell; this._wbPendingCell=null;
                   const inp=pc.td&&pc.td.querySelector&&pc.td.querySelector('input');
                   if(inp){ inp.value=v; inp.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'})); }
@@ -12341,6 +12345,48 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const td=document.querySelector('#pdcc-wbhost td[data-rc="'+t.r+'-'+t.c+'"]');
         if(td){ try{ td.scrollIntoView({block:'nearest',inline:'nearest'}); }catch(e){} self._wbInlineEdit(td,t.r,t.c); }
       },30);
+    },
+
+    /** 📐 MESURE DÉCLENCHÉE PAR L'APPLICATION (sans toucher au micromètre).
+        Nécessite le micromètre en mode PORT SÉRIE (COM) : l'app envoie une requête, le micromètre répond, la valeur remplit la 1re case vide.
+        ⚠️ Ne marche PAS avec un USB-ITN en mode clavier (un clavier ne peut pas être commandé par le navigateur). */
+    async _requestMeasure(){
+      if(!('serial' in navigator)){ this._alert('Ce navigateur ne gère pas le port série. Utilisez Chrome ou Edge sur PC, avec le micromètre en mode COM.','warn'); return; }
+      if(!this._serialPort){
+        this._alert('🔌 Sélectionnez le port COM du micromètre…','success');
+        try{ await this.connectSerial(); }catch(e){}
+        if(!this._serialPort){ this._alert('Aucun port COM. Le micromètre doit être en mode série (pas clavier) pour la mesure par bouton.','warn'); return; }
+      }
+      const target=this._firstEmptyCh();
+      if(!target){ this._alert('Toutes les cases Crimp Height sont remplies.','warn'); return; }
+      this._ci=target.ci; this._si=target.si;
+      const td=document.querySelector('#pdcc-wbhost td[data-rc="'+target.r+'-'+target.c+'"]');
+      this._wbPendingCell={ td:td||null, r:target.r, c:target.c };
+      if(td){ try{ td.scrollIntoView({block:'nearest',inline:'nearest'}); td.classList.add('pd-xlcur'); }catch(e){} }
+      this._alert('📐 Mesure demandée au micromètre…','success');
+      // ⏱ Si pas de réponse en 2,5 s → on prévient (micromètre pas en mode COM, ou ne répond pas à la requête)
+      const self=this, tr=target.r, tc=target.c;
+      if(this._measureTimer) clearTimeout(this._measureTimer);
+      this._measureTimer=setTimeout(function(){
+        if(self._wbPendingCell && self._wbPendingCell.r===tr && self._wbPendingCell.c===tc){
+          self._wbPendingCell=null;
+          self._alert('⏱ Pas de réponse du micromètre. Vérifiez qu\'il est en mode COM (port série). Sinon utilisez le mode clavier (touche DATA).','warn');
+        }
+      }, 2500);
+      try{ await this._serialRequest(); }catch(e){}
+    },
+    /** Envoie une requête de lecture au micromètre Mitutoyo (commande « R » Digimatic + lignes de contrôle) */
+    async _serialRequest(){
+      const p=this._serialPort; if(!p) return;
+      // Active les lignes de contrôle (DTR/RTS)
+      try{ if(p.setSignals){ await p.setSignals({dataTerminalReady:true, requestToSend:true}); } }catch(e){}
+      // Commande Mitutoyo Digimatic : « R » (Request) + Entrée → le micromètre renvoie la mesure courante
+      try{ if(p.writable){ const w=p.writable.getWriter(); const enc=new TextEncoder();
+        await w.write(enc.encode('R\r'));
+        await new Promise(r=>setTimeout(r,30));
+        await w.write(enc.encode('\r'));   // certains réglages répondent aussi à un simple CR
+        w.releaseLock();
+      } }catch(e){}
     },
 
     /** 🆕 Bandeau des infos extraites de l'Annexe */

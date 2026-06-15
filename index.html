@@ -11838,7 +11838,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         // 🖱️ Saisie 100% par clic sur l'Annexe → on masque les formulaires + on supprime les boutons devenus inutiles
         ['pdcc-card-saisie','pdcc-card-trace','pdcc-card-actions'].forEach(function(id){ const el=document.getElementById(id); if(el) el.style.display='none'; });
         const lo=document.getElementById('pdcc-btnLoad'); if(lo) lo.style.display='none';   // ❌ « Charger l'Annexe » supprimé
-        const da=document.getElementById('pdcc-btnDlArch'); if(da) da.style.display='';     // ⬇️ Télécharger la fiche archivée
+        const da=document.getElementById('pdcc-btnDlArch'); if(da) da.style.display=this._canDownload()?'':'none';     // ⬇️ Télécharger la fiche archivée (pas l'opérateur)
         const mb=document.getElementById('pdcc-btnMicro'); if(mb){ mb.style.display=''; this._updateMicroBtn(); }   // 🔌 Micromètre
         const meb=document.getElementById('pdcc-btnMeasure'); if(meb){ meb.style.display=''; }   // 📐 Mesurer (requête série)
         // ⛶ Plein écran PERMANENT
@@ -12307,6 +12307,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     _toggleKeyboardMicro(){
       this._keyboardMicro=!this._keyboardMicro;
       this._updateMicroBtn();
+      const meb=document.getElementById('pdcc-btnMeasure'); if(meb) meb.style.display=this._keyboardMicro?'none':'';   // 📐 « Mesurer » masqué quand le clavier est ON (modes exclusifs)
       const stat=document.getElementById('pdcc-serialStat');
       if(this._keyboardMicro){
         if(stat){ stat.textContent='⌨️🟢 Micromètre clavier ACTIF — appuyez sur DATA'; stat.style.color='#00e5a0'; }
@@ -13086,28 +13087,76 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       }catch(e){ return false; }
     },
     /** 🖱️ Édition sur place d'une cellule (valeur / traçabilité) directement dans l'Annexe rendue */
+    /** Cycle+échantillon d'une colonne c → {ci,si} (ou null) */
+    _cellCycleSample(c){
+      const m=this._map; if(!m||!m.cycles) return null;
+      for(let bi=0;bi<m.cycles.length;bi++){ const b=m.cycles[bi]; for(let oi=0;oi<b.cols.length;oi++){ if(b.cols[oi].c===c) return {ci:bi,si:oi}; } }
+      return null;
+    },
+    /** 🔢 Droit de remplir la case Crimp Height (ci,si) — ORDRE GLOBAL OBLIGATOIRE :
+        1) tous les CYCLES précédents doivent être entièrement remplis (Cycle 1 complet avant Cycle 2…)
+        2) dans le cycle courant, toutes les cases précédentes doivent être remplies (S1→2→3→4→5→Last Off) */
+    _canFillCh(ci,si){
+      const m=this._map; if(!m||!m.cycles||!m.vals||!m.vals.ch) return true;
+      const self=this;
+      const isEmpty=function(col){ let v=null; try{ v=self._ws.getCell(m.vals.ch,col).value; }catch(e){} return (v==null||(typeof v==='object')||String(v).trim()===''); };
+      // 1) Cycles PRÉCÉDENTS entièrement remplis
+      for(let bi=0;bi<ci;bi++){ const pb=m.cycles[bi]; for(let oi=0;oi<pb.cols.length;oi++){ if(isEmpty(pb.cols[oi].c)) return false; } }
+      // 2) Cases précédentes du cycle courant
+      const b=m.cycles[ci]; if(!b) return true;
+      for(let j=0;j<si;j++){ if(isEmpty(b.cols[j].c)) return false; }
+      return true;
+    },
+    /** Première case Crimp Height VIDE d'un cycle donné → {r,c,ci,si} */
+    _firstEmptyChInCycle(ci){
+      const m=this._map; if(!m||!m.vals||!m.vals.ch||!m.cycles[ci]) return null;
+      const b=m.cycles[ci];
+      for(let oi=0;oi<b.cols.length;oi++){ const col=b.cols[oi].c; let v=null; try{ v=this._ws.getCell(m.vals.ch,col).value; }catch(e){} if(v==null||(typeof v==='object')||String(v).trim()==='') return {r:m.vals.ch,c:col,ci:ci,si:oi}; }
+      return null;
+    },
+    /** Est-ce la colonne « Last Off » (dernière du cycle) ? */
+    _isLastOff(ci,si){ const m=this._map; if(!m||!m.cycles||!m.cycles[ci]||!m.cycles[ci].cols[si]) return false; return m.cycles[ci].cols[si].k==='L' || si===m.cycles[ci].cols.length-1; },
+    /** 🔒 Téléchargement PDF réservé : pas pour l'opérateur */
+    _canDownload(){ try{ return state.role!=='operateur'; }catch(e){ return true; } },
     _wbInlineEdit(td,r,c){
       if(td.querySelector('input')) return;
-      let cur=''; try{ const v=this._ws.getCell(r,c).value; cur=(v==null||typeof v==='object')?'':String(v); }catch(e){}
       const self=this;
+      const isCh=(this._map && this._map.vals && r===this._map.vals.ch);
+      const cs=isCh?this._cellCycleSample(c):null;
+      // 🔢 ORDRE OBLIGATOIRE (ligne Crimp Height) : interdit de remplir une case si une case précédente du cycle est vide
+      if(cs && !this._canFillCh(cs.ci,cs.si)){
+        this._alert('⛔ Ordre obligatoire : remplissez les cases dans l\'ordre — chaque cycle en entier (Cycle 1 complet avant Cycle 2…), et dans chaque cycle Sample 1 → 2 → 3 → 4 → 5 → Last Off.','warn');
+        const fe=this._firstEmptyCh(); if(fe) this._openChInput(fe);   // guide vers la 1re case vide GLOBALE (le vrai prochain à remplir)
+        return;
+      }
+      let cur=''; try{ const v=this._ws.getCell(r,c).value; cur=(v==null||typeof v==='object')?'':String(v); }catch(e){}
       const inp=document.createElement('input'); inp.type='text'; inp.value=cur;
       inp.style.cssText='width:100%;box-sizing:border-box;font-size:.72rem;padding:2px 3px;border:2px solid #00d4ff;border-radius:3px;background:#fff;color:#0a1a2f;font-family:inherit';
       td.innerHTML=''; td.appendChild(inp); inp.focus(); inp.select();
-      let done=false;
+      let done=false, clearTimer=null;
+      // ⌨️ Micromètre clavier ON : sur les 5 mesures (pas Last Off), la frappe clavier manuelle s'efface après 0,5 s
+      //    → garantit que la valeur vient du micromètre (rafale instantanée + Entrée), pas d'une saisie manuelle
+      const isSampleMeasure = (isCh && cs && !this._isLastOff(cs.ci,cs.si));
+      if(this._keyboardMicro && isSampleMeasure){
+        inp.addEventListener('input',function(){
+          if(clearTimer) return;
+          clearTimer=setTimeout(function(){ if(!done && td.contains(inp)){ inp.value=''; } clearTimer=null; }, 500);
+        });
+      }
       const commit=function(){
         if(done) return; done=true;
+        if(clearTimer){ clearTimeout(clearTimer); clearTimer=null; }
         const v=inp.value.trim(); const n=Number(v.replace(',','.'));
         const isNum=(v!==''&&!isNaN(n)&&/^-?\d+([.,]\d+)?$/.test(v));
         if(v!=='') self._wbPendingCell=null;   // 📐 valeur entrée → on n'attend plus le DATA du micromètre pour cette case
         self._setCell(r,c, isNum ? n : (v||null));
-        self._focusCycleOfCol(c);              // 🎯 rester sur le cycle en cours (Sample 1 du même cycle)
-        // 🆕 Valeur saisie dans la ligne Crimp Height → tracer le X dans la zone colorée à cette hauteur
+        self._focusCycleOfCol(c);              // 🎯 rester sur la case en cours
         if(isNum && self._map && self._map.vals && r===self._map.vals.ch){ self._wbPlotFromValue(c, n); }
         self._renderWbSheet();
         if(self._pdccComplete && self._pdccComplete()) self._autoArchive();   // 📦 fiche complète → archivage auto
         else if(self._keyboardMicro && self._map && self._map.vals && r===self._map.vals.ch){ const nx=self._nextCh(c); if(nx) self._openChInput(nx); }   // ⌨️ micromètre clavier : passe automatiquement à la case suivante
       };
-      inp.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); commit(); } else if(e.key==='Escape'){ done=true; self._wbPendingCell=null; self._renderWbSheet(); } });
+      inp.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); commit(); } else if(e.key==='Escape'){ done=true; if(clearTimer){clearTimeout(clearTimer);clearTimer=null;} self._wbPendingCell=null; self._renderWbSheet(); } });
       inp.addEventListener('blur',commit);
     },
     /** 🎯 Écrit la traçabilité dans les VRAIES lignes du fichier (si repérées), colonne du cycle, sans toucher au reste */
@@ -13180,7 +13229,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           self._initSelectors();
           ['pdcc-card-saisie','pdcc-card-trace'].forEach(function(id){ const el=document.getElementById(id); if(el) el.style.display='none'; });
           const xb=document.getElementById('pdcc-btnXls'); if(xb) xb.style.display='';
-          { const da=document.getElementById('pdcc-btnDlArch'); if(da) da.style.display=''; const ov=document.getElementById('pdcc-overlay'); if(ov) ov.classList.add('pd-full'); }
+          { const da=document.getElementById('pdcc-btnDlArch'); if(da) da.style.display=this._canDownload()?'':'none'; const ov=document.getElementById('pdcc-overlay'); if(ov) ov.classList.add('pd-full'); }
           const N=map.noms||{};
           [['pdcc-inDCH',N.ch],['pdcc-inCB',N.cw],['pdcc-inICH',N.ih],['pdcc-inICB',N.iw],['pdcc-inPT',N.pt]].forEach(function(p){ const el=document.getElementById(p[0]); if(el&&p[1]) el.placeholder='nominal '+p[1]; });
           self.state.section=(self._fileSpec&&(self._fileSpec.cross||self._fileSpec.label))||file.name;
@@ -13343,7 +13392,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         ov.style.cssText='position:fixed;inset:0;background:rgba(2,6,12,.96);backdrop-filter:blur(8px);z-index:10050;display:flex;flex-direction:column';
         ov.innerHTML='<div style="display:flex;align-items:center;gap:.8rem;padding:.8rem 1.2rem;border-bottom:1px solid #22344e">'
           +'<span style="font-size:1.25rem">📄</span><div style="flex:1;min-width:0"><div style="font-weight:800;color:#00d4ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+ui.escape(f.name||id)+'</div><div style="font-size:.7rem;color:#8aa">Fiche archivée — affichage dans la page</div></div>'
-          +'<button id="pdcc-av-dl" style="padding:.5rem .95rem;background:#00e5a0;color:#012;border:none;border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:800;box-shadow:0 2px 10px rgba(0,229,160,.35)">🧾 Télécharger PDF</button>'
+          +(this._canDownload()?'<button id="pdcc-av-dl" style="padding:.5rem .95rem;background:#00e5a0;color:#012;border:none;border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:800;box-shadow:0 2px 10px rgba(0,229,160,.35)">🧾 Télécharger PDF</button>':'')
           +'<button id="pdcc-av-close" style="padding:.5rem .95rem;background:rgba(255,255,255,.1);color:#fff;border:1px solid #33486a;border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700">✕ Fermer</button></div>'
           +'<div id="pdcc-av-tabs" style="display:flex;gap:.35rem;padding:.55rem 1.2rem 0;flex-wrap:wrap"></div>'
           +'<div id="pdcc-av-body" style="flex:1;overflow:auto;padding:1rem"></div>';
@@ -13362,7 +13411,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         tabs.querySelectorAll('[data-avtab]').forEach(function(b,i){ b.onclick=function(){ setActive(i); }; });
         renderSheet(sheets[0]);
         ov.querySelector('#pdcc-av-close').onclick=function(){ ov.remove(); };
-        ov.querySelector('#pdcc-av-dl').onclick=function(){ self._exportPdccPdf(sheets[activeIdx], f.name||id); };
+        { const dlb=ov.querySelector('#pdcc-av-dl'); if(dlb) dlb.onclick=function(){ self._exportPdccPdf(sheets[activeIdx], f.name||id); }; }
       }catch(e){ this._alert('Affichage impossible : '+(e.message||e),'danger'); }
     },
     async _loadHistory(){
@@ -13371,7 +13420,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       let v={}; try{ const snap=await fbDb.ref('preparations/'+this.toolId+'/pdcc').once('value'); v=snap.val()||{}; }catch(e){}
       const arr=Object.values(v).sort(function(a,b){return (b.archivedAt||0)-(a.archivedAt||0);});
       if(!arr.length){ host.innerHTML='<div class="pd-hint" style="padding:1rem;text-align:center">Aucune fiche archivée pour cet outil.</div>'; return; }
-      host.innerHTML=arr.map(function(p){ const id=ui.escape(p.id||''); const when=p.archivedAt?new Date(p.archivedAt).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''; const btns=p.hasFile?('<button class="pd-btn pd-btn--p" data-pdccview="'+id+'" style="padding:.34rem .6rem;font-size:.72rem">👁 Voir</button> <button class="pd-btn pd-btn--g" data-pdccdl="'+id+'" style="padding:.34rem .6rem;font-size:.72rem">🧾 PDF</button>'):''; const noF=p.hasFile?'':' · <span style="color:#ffb547">sans copie Excel (modèle générique)</span>'; return '<div class="pd-hist"><span style="font-size:1.1rem">📄</span><div style="flex:1;min-width:0"><div class="hid">'+id+'</div><div style="font-size:.72rem;color:var(--text-muted)">Section '+ui.escape(p.section||'—')+' · '+when+' · '+ui.escape(p.by||'')+noF+'</div></div><div style="display:flex;gap:.4rem;align-items:center">'+btns+'<span class="pd-pill">'+(p.sampleCount||0)+' éch.</span></div></div>'; }).join('');
+      const _canDl=this._canDownload();
+      host.innerHTML=arr.map(function(p){ const id=ui.escape(p.id||''); const when=p.archivedAt?new Date(p.archivedAt).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}):''; const btns=p.hasFile?('<button class="pd-btn pd-btn--p" data-pdccview="'+id+'" style="padding:.34rem .6rem;font-size:.72rem">👁 Voir</button> '+(_canDl?'<button class="pd-btn pd-btn--g" data-pdccdl="'+id+'" style="padding:.34rem .6rem;font-size:.72rem">🧾 PDF</button>':'')):''; const noF=p.hasFile?'':' · <span style="color:#ffb547">sans copie Excel (modèle générique)</span>'; return '<div class="pd-hist"><span style="font-size:1.1rem">📄</span><div style="flex:1;min-width:0"><div class="hid">'+id+'</div><div style="font-size:.72rem;color:var(--text-muted)">Section '+ui.escape(p.section||'—')+' · '+when+' · '+ui.escape(p.by||'')+noF+'</div></div><div style="display:flex;gap:.4rem;align-items:center">'+btns+'<span class="pd-pill">'+(p.sampleCount||0)+' éch.</span></div></div>'; }).join('');
       host.querySelectorAll('[data-pdccview]').forEach(function(btn){ btn.onclick=function(){ self._viewArchived(btn.getAttribute('data-pdccview')); }; });
       host.querySelectorAll('[data-pdccdl]').forEach(function(btn){ btn.onclick=async function(){
         const id=btn.getAttribute('data-pdccdl'); btn.disabled=true;

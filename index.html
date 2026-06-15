@@ -11851,7 +11851,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         this._restoreDraftRemote();   // ☁️ sinon, récupère le remplissage fait sur un autre appareil
         this._skipRestoreOnce=false;  // le saut "post-archivage" n'était valable que pour cette ouverture
         if(this._archivedJustNow){ const prev=this._archivedJustNow; this._archivedJustNow=null; const hh=document.getElementById('pdcc-hint'); if(hh) hh.innerHTML='🆕 <b style="color:#00e5a0">NOUVELLE FICHE '+ui.escape(this.state.id)+'</b> — la précédente (<b>'+ui.escape(prev)+'</b>) a été archivée à la fermeture. Page vierge prête.'; this._alert('🆕 Nouvelle fiche '+this.state.id+' — la précédente a bien été archivée.','success'); }
-        const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Annexe affichée telle quelle — <b>'+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons</b>. ✍️ <b>Cliquez une case BLANCHE</b> (Crimp Height) pour saisir la valeur → le X se trace tout seul · <b>clic droit</b> = micromètre. 💾 Sauvegarde auto (PC + téléphone) · 📦 archivage auto quand complet.';
+        const h=document.getElementById('pdcc-hint'); if(h) h.innerHTML='✔ Annexe affichée telle quelle — <b>'+this.CYCLES.length+' cycles × '+this.SAMPLES.length+' échantillons</b>. ✍️ <b>Cliquez une case BLANCHE</b> (Crimp Height) pour saisir → le X se trace tout seul. 📐 <b>Micromètre USB-ITN</b> : cliquez « ⌨️ Micromètre USB » puis appuyez sur <b>DATA</b> — la valeur se remplit et passe à la case suivante. 💾 Sauvegarde auto (PC) · 📦 archivage auto quand complet.';
       } else if (this._fileSpec) {
         // Dimensions = celles du fichier → INTERDIT de les changer : on masque seulement le choix de Section
         const sf=document.getElementById('pdcc-selSection'); const sfp=sf&&sf.closest('.pd-f'); if(sfp) sfp.style.display='none';
@@ -11953,7 +11953,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       g('pdcc-btnXls').onclick=()=>this._downloadWb();
       { const d=g('pdcc-btnDlArch'); if(d) d.onclick=()=>this._downloadArchived(); }
       { const a=g('pdcc-btnArchiveNow'); if(a) a.onclick=()=>this._archiveNow(); }
-      { const mb=g('pdcc-btnMicro'); if(mb) mb.onclick=()=>this._toggleMicro(); }
+      { const mb=g('pdcc-btnMicro'); if(mb) mb.onclick=()=>this._toggleKeyboardMicro(); }
       this._escHandler=(e)=>{ if(e.key==='Escape') this.close(); };
       document.addEventListener('keydown', this._escHandler);
       this._setPhase('measure');
@@ -12231,10 +12231,16 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
     _updateMicroBtn(){
       const mb=document.getElementById('pdcc-btnMicro'); if(!mb) return;
+      if(this._keyboardMicro){
+        mb.innerHTML='⌨️ Micromètre clavier ON';
+        mb.className='pd-btn pd-btn--g';
+        mb.title='Mode clavier USB-ITN actif. Appuyez sur DATA du micromètre → la case se remplit et passe à la suivante. Cliquez pour désactiver.';
+        return;
+      }
       const on=!!this._serialPort;
-      mb.innerHTML = on ? '📐 Micromètre connecté' : '🔌 Micromètre';
+      mb.innerHTML = on ? '📐 Micromètre série connecté' : '⌨️ Micromètre USB';
       mb.className = 'pd-btn '+(on?'pd-btn--g':'pd-btn--p');
-      mb.title = on ? 'Micromètre relié — un clic sur une case Crimp Height lance la mesure (DATA). Cliquez pour déconnecter.' : 'Relier le micromètre (Mitutoyo). Une fois connecté, un clic sur Crimp Height mesure directement.';
+      mb.title = on ? 'Micromètre série relié. Cliquez pour déconnecter.' : 'Micromètre USB-ITN (mode clavier). Cliquez pour activer : appuyez sur DATA pour remplir chaque case automatiquement.';
     },
     /** 🆕 Micromètre relié au PC — port série (Web Serial).
         Le mode CLAVIER (interfaces USB type Mitutoyo) marche sans rien : la touche DATA tape la valeur + Entrée dans le champ. */
@@ -12290,6 +12296,51 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       try{ if(this._serialPort){ await this._serialPort.close().catch(function(){}); this._serialPort=null; } }catch(e){}
       const stat=document.getElementById('pdcc-serialStat'); if(stat){ stat.textContent='⌨️ mode clavier prêt'; stat.style.color=''; }
       this._updateMicroBtn();
+    },
+
+    /** ⌨️ Micromètre USB-ITN en MODE CLAVIER (Windows le voit comme un clavier ; il tape la valeur + Entrée à l'appui DATA).
+        Pas de port série : on ouvre la case Crimp Height, l'appui DATA la remplit, puis on passe AUTOMATIQUEMENT à la suivante. */
+    _toggleKeyboardMicro(){
+      this._keyboardMicro=!this._keyboardMicro;
+      this._updateMicroBtn();
+      const stat=document.getElementById('pdcc-serialStat');
+      if(this._keyboardMicro){
+        if(stat){ stat.textContent='⌨️🟢 Micromètre clavier ACTIF — appuyez sur DATA'; stat.style.color='#00e5a0'; }
+        this._alert('⌨️ Micromètre USB en mode clavier activé. Appuyez sur DATA du micromètre : la valeur remplit la case Crimp Height, trace le X, et passe automatiquement à la case suivante.','success');
+        const first=this._firstEmptyCh();
+        if(first){ this._openChInput(first); } else { this._alert('Toutes les cases Crimp Height sont déjà remplies.','warn'); }
+      } else {
+        if(stat){ stat.textContent='⌨️ mode clavier prêt'; stat.style.color=''; }
+        document.querySelectorAll('#pdcc-wbhost td input').forEach(function(i){ try{ i.blur(); }catch(e){} });
+      }
+    },
+    /** Première case Crimp Height encore VIDE → {r,c,ci,si} (ou null si tout rempli) */
+    _firstEmptyCh(){
+      const m=this._map; if(!m||!m.vals||!m.vals.ch) return null;
+      for(let bi=0;bi<m.cycles.length;bi++){ const b=m.cycles[bi];
+        for(let oi=0;oi<b.cols.length;oi++){ const col=b.cols[oi].c; let v=null; try{ v=this._ws.getCell(m.vals.ch,col).value; }catch(e){}
+          const empty=(v==null||(typeof v==='object')||String(v).trim()===''); if(empty) return {r:m.vals.ch,c:col,ci:bi,si:oi}; } }
+      return null;
+    },
+    /** Case Crimp Height SUIVANTE après la colonne c → {r,c,ci,si} (ou null si fin de la dernière) */
+    _nextCh(c){
+      const m=this._map; if(!m||!m.vals||!m.vals.ch) return null;
+      let bi=-1,oi=-1;
+      m.cycles.forEach(function(b,k){ b.cols.forEach(function(o,j){ if(o.c===c){ bi=k; oi=j; } }); });
+      if(bi<0) return null;
+      oi++; if(oi>=m.cycles[bi].cols.length){ oi=0; bi++; }
+      if(bi>=m.cycles.length) return null;
+      return {r:m.vals.ch,c:m.cycles[bi].cols[oi].c,ci:bi,si:oi};
+    },
+    /** Ouvre la saisie sur une case Crimp Height (scroll + champ prêt à recevoir le DATA du micromètre) */
+    _openChInput(t){
+      if(!t) return;
+      this._ci=t.ci; this._si=t.si;
+      const self=this;
+      setTimeout(function(){
+        const td=document.querySelector('#pdcc-wbhost td[data-rc="'+t.r+'-'+t.c+'"]');
+        if(td){ try{ td.scrollIntoView({block:'nearest',inline:'nearest'}); }catch(e){} self._wbInlineEdit(td,t.r,t.c); }
+      },30);
     },
 
     /** 🆕 Bandeau des infos extraites de l'Annexe */
@@ -13008,8 +13059,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if(isNum && self._map && self._map.vals && r===self._map.vals.ch){ self._wbPlotFromValue(c, n); }
         self._renderWbSheet();
         if(self._pdccComplete && self._pdccComplete()) self._autoArchive();   // 📦 fiche complète → archivage auto
+        else if(self._keyboardMicro && self._map && self._map.vals && r===self._map.vals.ch){ const nx=self._nextCh(c); if(nx) self._openChInput(nx); }   // ⌨️ micromètre clavier : passe automatiquement à la case suivante
       };
-      inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); commit(); } else if(e.key==='Escape'){ done=true; self._wbPendingCell=null; self._renderWbSheet(); } });
+      inp.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); commit(); } else if(e.key==='Escape'){ done=true; self._wbPendingCell=null; self._renderWbSheet(); } });
       inp.addEventListener('blur',commit);
     },
     /** 🎯 Écrit la traçabilité dans les VRAIES lignes du fichier (si repérées), colonne du cycle, sans toucher au reste */

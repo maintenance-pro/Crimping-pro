@@ -21076,9 +21076,31 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         } finally { ui.hideLoader(); }
       },
 
+      /** 🔓 Lève le verrouillage "bon validé/livré/rejeté" : réactive tous les champs, ré-affiche les boutons, retire le bandeau */
+      _unlockForm() {
+        const form = document.getElementById('form-intervention');
+        if (form) {
+          form.querySelectorAll('input, select, textarea, button').forEach(el => {
+            el.disabled = false;
+            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.readOnly = false;
+            el.style.opacity = '';
+            el.style.pointerEvents = '';
+          });
+          form.style.position = '';
+        }
+        ['btn-int-submit','btn-int-save-draft','btn-validate','btn-reject'].forEach(id => {
+          const b = document.getElementById(id);
+          if (b) { b.style.display = ''; b.disabled = false; }
+        });
+        document.getElementById('int-lock-banner')?.remove();
+        const cs = document.getElementById('section-crimping');
+        if (cs) { cs.classList.remove('section--readonly-labo'); cs.style.opacity = ''; cs.style.pointerEvents = ''; }
+        document.getElementById('crimp-readonly-badge')?.remove();
+      },
       newBlank() {
         state.currentInterventionId = null;
         $('#form-intervention').reset();
+        this._unlockForm();   // 🔓 lève TOUT verrou laissé par un bon validé ouvert juste avant (champs, boutons, bandeau)
         $('#int-num').textContent = '— (nouveau)';
         $('#int-created').textContent = fmt.dateTime(Date.now());
         $('#int-date').valueAsDate = new Date();
@@ -21116,6 +21138,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         $('#int-num').textContent = data.numBon;
         $('#int-created').textContent = fmt.dateTime(data.createdAt);
         this.setStatus(data.status);
+        this._unlockForm();   // 🔓 repart d'un formulaire NEUF (sinon le verrou d'un bon validé précédent resterait), puis on ré-applique rôle + statut ci-dessous
         drawQrPlaceholder($('#int-qrcode'), `#${data.numBon}`);
 
         // Outil
@@ -23116,7 +23139,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             return `<article style="padding:1rem;border:1px solid var(--border-soft);border-left:3px solid ${accent};border-radius:12px;background:var(--bg-elevated);display:flex;flex-direction:column;gap:.45rem;transition:border-color .15s" onmouseover="this.style.borderColor='rgba(0,212,255,.5)'" onmouseout="this.style.borderColor='var(--border-soft)'">
               <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
                 <strong style="font-size:.95rem;color:var(--text-primary);font-family:var(--font-mono);word-break:break-word">${ui.escape(title)}</strong>
-                ${fabBadge}
+                <div style="display:flex;align-items:center;gap:.4rem">${fabBadge}${canManage ? `<button data-prep-del="${p.toolId}" title="Retirer des préparations" style="background:rgba(255,61,90,.12);color:#ff3d5a;border:1px solid rgba(255,61,90,.35);border-radius:7px;padding:.25rem .5rem;font-size:.78rem;font-weight:700;cursor:pointer;line-height:1">🗑️</button>` : ''}</div>
               </header>
               <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">${statusB}${annexeBadge}${clientBadge}${archBadge}</div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:.2rem .55rem;font-size:.7rem;font-family:var(--font-mono);color:var(--text-secondary)">
@@ -23138,7 +23161,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <div style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.2rem;padding-top:.55rem;border-top:1px dashed var(--border-soft)">
                 <button data-prep-pdcc="${p.toolId}::${ui.escape(t.doutils || p.doutils || p.toolId)}" style="display:inline-flex;align-items:center;gap:.4rem;background:linear-gradient(135deg,#00e5a0,#00b37e);color:#04201a;border:none;border-radius:8px;padding:.45rem .8rem;font-size:.76rem;font-weight:800;cursor:pointer;box-shadow:0 2px 10px rgba(0,229,160,.25)">📝 Remplir PDCC</button>
                 ${xlBtns}
-                ${canManage ? `<button data-prep-del="${p.toolId}" title="Retirer des préparations" style="margin-left:auto;background:rgba(255,61,90,.1);color:#ff3d5a;border:1px solid rgba(255,61,90,.3);border-radius:8px;padding:.4rem .55rem;font-size:.72rem;font-weight:700;cursor:pointer">🗑️</button>` : ''}
               </div>
             </article>`;
           }).join('') + '</div>';
@@ -23226,8 +23248,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         this.render();
       },
 
+      /** Bon COMPLÈTEMENT vide (aucune saisie) → à ne pas afficher dans l'historique */
+      _isEmptyBon(i){
+        if(!i) return true;
+        const c=i.crimping||{}, lab=i.lab||{};
+        const has=function(v){ return v!=null && String(v).trim()!=='' && String(v).toLowerCase()!=='undefined'; };
+        const hasStatus = has(i.status) && String(i.status).toLowerCase()!=='undefined';
+        const hasLab = lab && Object.keys(lab).length>0;
+        const hasMeta = i.coupeMetallo || i.metallo || i.photos || i.report;
+        // vide = ni type, ni observation, ni cycles, ni date, ni statut réel, ni labo, ni coupe métallo
+        return !(has(c.type) || has(c.observation) || has(c.cycles) || has(c.date) || hasStatus || hasLab || hasMeta);
+      },
       getFiltered() {
-        let list = Object.values(state.interventions);
+        const self=this;
+        let list = Object.values(state.interventions).filter(i => !self._isEmptyBon(i));   // 🧹 masque les bons vides "UNDEFINED"
         const f = state.filters;
         if (f.tool)   list = list.filter(i => ((i.tool && i.tool.outilId) || '').toLowerCase().includes(f.tool));
         if (f.from)   { const ts = new Date(f.from).getTime(); list = list.filter(i => (i.crimping && i.crimping.date) >= ts); }

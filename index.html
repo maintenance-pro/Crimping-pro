@@ -11418,6 +11418,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 <div style="font-weight:800;color:#00d4ff;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ui.escape(f.name || 'Fichier Excel')}</div>
                 <div style="font-size:.68rem;color:var(--text-muted)">Contenu affiché dans la page — sans ouvrir Excel</div>
               </div>
+              ${(typeof state!=='undefined' && state.role!=='operateur') ? `<button data-xlv-pdf title="Télécharger en PDF (valeurs alignées sur les lignes, sans décalage)" style="padding:.4rem .85rem;background:linear-gradient(135deg,#c0392b,#e74c3c);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.74rem;font-weight:800;box-shadow:0 2px 8px rgba(231,76,60,.4)">📄 PDF</button>` : ''}
               <button data-xlv-close style="padding:.4rem .7rem;background:rgba(255,255,255,.06);color:var(--text-primary);border:1px solid var(--border-soft);border-radius:6px;cursor:pointer;font-size:.74rem;font-weight:700">← Retour</button>
             </header>
             <div id="excel-viewer-tabs" style="display:flex;gap:.3rem;padding:.55rem 1rem 0;flex-wrap:wrap"></div>
@@ -11435,6 +11436,44 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       { const dl=ov.querySelector('[data-xlv-download]'); if(dl) dl.onclick = () => this.download(toolId, fileId); }
       const bodyEl = ov.querySelector('#excel-viewer-body');
       const tabsEl = ov.querySelector('#excel-viewer-tabs');
+      // 🆕 Export Annexe → PDF : rend la feuille AFFICHÉE en grille (chaque valeur dans sa case),
+      // force vertical-align:middle → supprime le décalage vertical d'Excel (valeurs flottant au-dessus des lignes)
+      { const pb=ov.querySelector('[data-xlv-pdf]'); if(pb) pb.onclick = async () => {
+        let holder=null;
+        try {
+          if(!window.pdcc || !pdcc._loadPdfLibs){ ui.toast('Module PDF indisponible.','warn'); return; }
+          const srcTable = bodyEl.querySelector('table');
+          if(!srcTable){ ui.toast('Rien à exporter (feuille vide ou non rendue).','warn'); return; }
+          pb.disabled=true; const old=pb.textContent; pb.textContent='⏳ PDF…';
+          ui.toast('🖨️ Génération du PDF…','info');
+          await pdcc._loadPdfLibs();
+          holder=document.createElement('div');
+          holder.id='annex-pdf-holder';
+          holder.style.cssText='position:fixed;left:-99999px;top:0;display:inline-block;background:#ffffff;padding:14px';
+          // styles CLAIRS forcés : cellule sans couleur = BLANC, texte foncé, ET valeurs centrées verticalement (corrige le décalage)
+          holder.innerHTML='<style>#annex-pdf-holder *{color:#10243f}#annex-pdf-holder td{background-color:#ffffff;vertical-align:middle!important}#annex-pdf-holder table{border-collapse:collapse}#annex-pdf-holder div{overflow:visible!important;border:none!important;background:#ffffff!important;padding:0!important;margin:0!important}</style>';
+          const clone=srcTable.cloneNode(true);
+          // retire l'avertissement "affichage limité" éventuellement cloné
+          clone.querySelectorAll('[data-rc] div').forEach(()=>{});
+          holder.appendChild(clone);
+          document.body.appendChild(holder);
+          // trames hachurées (repeating-linear-gradient — html2canvas rendrait NOIR) → gris uni
+          holder.querySelectorAll('td').forEach(function(td){ const bg=td.style.background||td.style.backgroundImage||''; if(/gradient/i.test(bg)){ td.style.background='#dcdcdc'; td.style.backgroundImage='none'; } });
+          void clone.offsetHeight;
+          await new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+          const canvas=await html2canvas(holder,{scale:2,backgroundColor:'#ffffff',logging:false,useCORS:true});
+          holder.remove(); holder=null;
+          const JsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+          const w=canvas.width, h=canvas.height, landscape=(w>=h);
+          const pdf=new JsPDFCtor({orientation:landscape?'landscape':'portrait',unit:'pt',format:'a4'});
+          const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight(), margin=14;
+          const ratio=Math.min((pw-margin*2)/w,(ph-margin*2)/h), iw=w*ratio, ih=h*ratio;
+          pdf.addImage(canvas.toDataURL('image/png'),'PNG',(pw-iw)/2,(ph-ih)/2,iw,ih,'','FAST');
+          pdf.save((f.name||'Annexe').replace(/\.(xlsx|xls)$/i,'')+'.pdf');
+          pb.disabled=false; pb.textContent=old;
+          ui.toast('✅ PDF téléchargé — valeurs alignées sur les lignes.','success');
+        } catch(e){ if(holder) try{holder.remove();}catch(_){}; pb.disabled=false; pb.textContent='📄 PDF'; ui.toast('⚠ PDF impossible : '+(e.message||e),'danger'); }
+      }; }
       const msg = (txt, color) => `<div style="text-align:center;padding:2.5rem;color:${color || 'var(--text-muted)'};font-size:.86rem">${txt}</div>`;
       try {
         const b64 = this._b64cache[toolId + '/' + fileId] || await this._getB64(toolId, fileId, f);

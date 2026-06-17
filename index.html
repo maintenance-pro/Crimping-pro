@@ -26369,21 +26369,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const tgtFour = String(tool.fabricant || tool.fournisseur || '').trim();
           const tgtInv  = this._invValue(tool);
           if (tgtFour)   { try { b64 = await this._setOfficeFieldByLabel(b64, /fournisseur|supplier/i, tgtFour, TOOL_SECTION); } catch (e) {} }
-          if (tgtInv)    { try { b64 = await this._setOfficeFieldByLabel(b64, /inventaire|inventory/i, tgtInv, TOOL_SECTION); } catch (e) {} }
+          if (tgtInv)    { try { b64 = await this._setOfficeFieldByLabel(b64, /inventaire|invent[ou]ry|inventory/i, tgtInv, TOOL_SECTION); } catch (e) {} }
           if (tgtSerial) { try { b64 = await this._setOfficeFieldByLabel(b64, /\bserial\b|s[ée]rie/i, tgtSerial); } catch (e) {} }
         }
         if (includePieces !== false) {
           const pieceVal = (f) => String((tool[f] != null && tool[f] !== '') ? tool[f] : ((tool.pieces && tool.pieces[f]) || '')).trim();
+          // 🆕 motifs FR + EN (libellés anglais avec tirets/parenthèses : "Wirecrimper (DC)", "Insulation-crimper (IC)", "Wire-Anvil (A)", "Cutting-plate front"…)
           const pieceMap = [
-            ['pAr', /poin[çc]on\s*cond|wire\s*crimp/i],
-            ['pAv', /poin[çc]on\s*isol|insul[a-z]*\s*crimp|ins\.?\s*crimp/i],
-            ['eAr', /enclume\s*cond|wire\s*anvil/i],
-            ['eAv', /enclume\s*isol|insul[a-z]*\s*anvil|ins\.?\s*anvil/i],
-            ['cAr', /couteaux|floating\s*shear/i],
-            ['cAv', /matrice\s*couteau|slug\s*cut/i],
-            ['presseur', /presseur|hold\s*down/i],
-            ['matriceAvant', /matrice\s*avant/i],
-            ['matriceArriere', /matrice\s*arri/i]
+            ['pAr', /poin[çc]on\s*cond|wire[\s-]*crimp/i],
+            ['pAv', /poin[çc]on\s*isol|insul[a-z]*[\s-]*crimp|ins\.?[\s-]*crimp/i],
+            ['eAr', /enclume\s*cond|wire[\s-]*anvil/i],
+            ['eAv', /enclume\s*isol|insul[a-z]*[\s-]*anvil|ins\.?[\s-]*anvil/i],
+            ['cAr', /couteaux|floating\s*shear|cutter\s*\(|cut[\s-]*anvil/i],
+            ['cAv', /matrice\s*couteau|slug\s*cut|cutter[\s-]*holder/i],
+            ['presseur', /presseur|hold[\s-]*down/i],
+            ['matriceAvant', /matrice\s*avant|cutting[\s-]*plate\s*(front|frt|av)/i],
+            ['matriceArriere', /matrice\s*arri|cutting[\s-]*plate\s*(rear|arr)/i]
           ];
           for (const [f, re] of pieceMap) { const v = pieceVal(f); if (v) { try { b64 = await this._setOfficeFieldByLabel(b64, re, v); } catch (e) {} } }
         }

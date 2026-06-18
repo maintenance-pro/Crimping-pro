@@ -9349,7 +9349,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           📝 Choisir Annex 5
         </button>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          <button class="btn btn--secondary" id="btn-tool-details-inherit" style="background:rgba(34,211,238,.12);color:#22d3ee;border:1px solid rgba(34,211,238,.35);font-weight:700" title="Hériter pièces (même fournisseur) + Annex 4 depuis les outils de MÊME connexion + MÊME groupe + MÊME client">🧬 Hériter famille</button>
+          <button class="btn btn--secondary" id="btn-tool-details-inherit" style="background:rgba(34,211,238,.12);color:#22d3ee;border:1px solid rgba(34,211,238,.35);font-weight:700" title="Hériter les pièces (valeur consensus, même fournisseur) + Annexe 4 depuis les outils de MÊME connexion + MÊME groupe">🧬 Hériter famille</button>
           <button class="btn btn--secondary" id="btn-tool-details-timeline" style="background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.3);font-weight:700" title="Voir l'historique chronologique complet de cet outil">📈 Timeline</button>
           <button class="btn btn--secondary" id="btn-tool-details-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Générer un QR code pour cet outil">📱 QR Code</button>
           <button class="btn btn--ghost" data-close>Fermer</button>
@@ -11914,6 +11914,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
 
     async close(){
+      // 🆕 AUTO-SAUVEGARDE : si on ferme/quitte (même par erreur), on enregistre TOUT DE SUITE la dernière saisie.
+      //    1) on valide la cellule en cours d'édition (blur → commit dans _edits) ; 2) on flush la sauvegarde différée.
+      try { const act=document.activeElement; if(act && act.tagName==='INPUT' && typeof act.blur==='function') act.blur(); } catch(e){}
+      try { if(this._saveTimer){ clearTimeout(this._saveTimer); this._saveTimer=null; } this._saveDraft(); } catch(e){}
       // 📦 Si le DERNIER cycle (ex. cycle 8) est entamé → on archive AVANT de fermer (sans réinitialiser, on ferme)
       if(this._wbMode && !this._archiving && this._lastCycleStarted()){
         this._archiving=true;
@@ -24843,7 +24847,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       /** 🧬 CŒUR de l'héritage de famille. silent=true → sans confirmation ni toast (pour le mode automatique).
-       *  Famille = MÊME connexion + MÊME groupe + MÊME client. Retourne {pieces, docs} ou {skipped/error}. */
+       *  Famille = MÊME connexion + MÊME groupe (comparaison tolérante). Retourne {pieces, docs} ou {skipped/error}. */
       /** 🆕 Adapte les documents DÉJÀ présents sur un outil pour qu'ils portent SON numéro.
        *  Ex : un doc "…WZ7190-04…" sur l'outil WZ7190-R01 → renommé/adapté en "…WZ7190-01…".
        *  Ne touche que les tokens du type <base groupe>-<variante> différents du n° de l'outil. */
@@ -24908,48 +24912,71 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       async _inheritOne(tool, silent) {
         const nameOf = t => t.doutils || t.designation || t.serial || t.refOutil || t.outilId || '?';
         const name = nameOf(tool);
-        const norm = s => String(s ?? '').trim().toUpperCase().replace(/[\s\-_.]/g, '');
+        // 🆕 (A) normalisation : on retire aussi la VIRGULE → « 0.5 » et « 0,5 » deviennent IDENTIQUES
+        const norm = s => String(s ?? '').trim().toUpperCase().replace(/[\s\-_.,]/g, '');
         const groupOf = t => {
           if (t.groupe && String(t.groupe).trim()) return norm(t.groupe);
           const m = String(t.doutils || t.designation || t.serial || t.refOutil || t.outilId || '').match(/(\d{3,5})/);
           return m ? m[1] : '';
         };
         const connOf = t => norm(t.connection);
-        const clientKeyOf = t => { const c = views.blocked._getClientForProject(t.projet); return c ? c.key : (norm(t.projet) || '__none__'); };
-        const clientNameOf = t => { const c = views.blocked._getClientForProject(t.projet); return c ? c.name : (t.projet || '—'); };
         const tConn = connOf(tool), tGroup = groupOf(tool);
+        // 🆕 (B) groupe TOLÉRANT : égalité exacte OU l'un des numéros contient l'autre (≥ 3 chiffres) — ex. « 117 » ⊂ « 3117 »
+        const groupMatch = s => {
+          const gs = groupOf(s);
+          if (gs === tGroup) return true;
+          const da = gs.replace(/\D/g, ''), db = tGroup.replace(/\D/g, '');
+          return da.length >= 3 && db.length >= 3 && (da.includes(db) || db.includes(da));
+        };
         if (!tConn || !tGroup) {
           if (!silent) ui.toast(`Connexion et groupe requis pour identifier la famille (connexion: « ${tool.connection || '—'} », groupe: « ${tGroup || '—'} »).`, 'warn', 7000);
           return { skipped: true, reason: 'no-conn-group' };
         }
-        const tClient = clientKeyOf(tool);
+        // 🆕 (C) CLIENT OPTIONNEL : la famille = même connexion + même groupe (le client/projet n'est PLUS exigé)
         const compatible = Object.values(state.tools || {}).filter(s =>
-          s && s.id !== tool.id && connOf(s) === tConn && groupOf(s) === tGroup && clientKeyOf(s) === tClient
+          s && s.id !== tool.id && connOf(s) === tConn && groupMatch(s)
         );
-        const base = `groupe ${tGroup} · ${tool.connection} · ${clientNameOf(tool)}`;
+        const base = `groupe ${tGroup} · ${tool.connection}`;
         if (!compatible.length) {
-          if (!silent) ui.toast(`Aucun autre outil avec la même connexion (« ${tool.connection} ») + groupe (« ${tGroup} ») + client (« ${clientNameOf(tool)} »). Rien à hériter.`, 'info', 7000);
+          if (!silent) ui.toast(`Aucun autre outil avec la même connexion (« ${tool.connection} ») + groupe (« ${tGroup} »). Rien à hériter.`, 'info', 7000);
           return { skipped: true, reason: 'no-family' };
         }
         const supplierOf = t => String(t.fournisseur || t.fabricant || '').trim().toUpperCase();
         const PK = ['pAr','pAv','eAr','eAv','cAr','cAv','presseur','matriceAvant','matriceArriere'];
-        const countPieces = t => PK.filter(k => { const v = t.pieces && t.pieces[k]; return v && String(v).trim() && !['NA','#','-','—'].includes(String(v).trim().toUpperCase()); }).length;
+        const pieceBad = v => !v || !String(v).trim() || ['NA','#','-','—'].includes(String(v).trim().toUpperCase());
+        // 🆕 lit une pièce où qu'elle soit stockée : t.pieces[k] OU t[k] (haut niveau)
+        const pieceGet = (t, k) => { const a = t.pieces && t.pieces[k]; return (!pieceBad(a)) ? a : t[k]; };
+        const countPieces = t => PK.filter(k => !pieceBad(pieceGet(t, k))).length;
         const docCount = t => { const d = toolAttachments._all?.[t.id]; return d ? Object.keys(d).length : 0; };
         const mySupplier = supplierOf(tool);
         const sameSup = compatible.filter(s => mySupplier && supplierOf(s) === mySupplier);
-        let pieceSource = null;
-        if (sameSup.length) { pieceSource = sameSup.reduce((b, s) => countPieces(s) > countPieces(b) ? s : b, sameSup[0]); if (countPieces(pieceSource) === 0) pieceSource = null; }
+        // 🆕 CONSENSUS par emplacement : pour CHAQUE pièce, on retient la valeur la PLUS FRÉQUENTE parmi les frères
+        //    même fournisseur (robuste aux fautes de frappe d'un seul outil). Départage : le frère le plus complet.
+        const completeness = new Map(sameSup.map(s => [s, countPieces(s)]));
+        const bestPieces = {};
+        PK.forEach(k => {
+          const votes = new Map();   // valeur -> { n: nb d'outils, c: complétude max d'un porteur }
+          sameSup.forEach(s => { const v = pieceGet(s, k); if (pieceBad(v)) return; const key = String(v).trim();
+            const cur = votes.get(key) || { n: 0, c: 0 }; cur.n++; cur.c = Math.max(cur.c, completeness.get(s) || 0); votes.set(key, cur); });
+          let win = null, wn = -1, wc = -1;
+          votes.forEach((info, val) => { if (info.n > wn || (info.n === wn && info.c > wc)) { win = val; wn = info.n; wc = info.c; } });
+          if (win != null) bestPieces[k] = win;
+        });
+        const hasPieces = Object.keys(bestPieces).length > 0;
+        // frère représentatif (le plus complet, même fournisseur) — sert aux métadonnées et à l'affichage
+        let pieceSource = sameSup.length ? sameSup.reduce((b, s) => countPieces(s) > countPieces(b) ? s : b, sameSup[0]) : null;
+        if (pieceSource && countPieces(pieceSource) === 0) pieceSource = null;
         const docSource = compatible.reduce((b, s) => docCount(s) > docCount(b) ? s : b, compatible[0]);
         const hasDocs = docCount(docSource) > 0;
         const refSource = pieceSource || this._pickTemplate(compatible) || compatible[0];
-        if (!pieceSource && !hasDocs) {
+        if (!hasPieces && !hasDocs) {
           if (!silent) ui.toast(`Famille « ${base} » : aucune pièce (même fournisseur « ${mySupplier || '?'} ») ni document à hériter`, 'info', 5000);
           return { skipped: true, reason: 'nothing' };
         }
         if (!silent) {
           const lines = [];
-          if (pieceSource) lines.push(`• Pièces depuis ${nameOf(pieceSource)} (${supplierOf(pieceSource)})`);
-          else if (mySupplier) lines.push(`• Pièces : aucune (pas de frère même fournisseur « ${mySupplier} »)`);
+          if (hasPieces) lines.push(`• ${Object.keys(bestPieces).length} pièce(s) — valeur consensus de ${sameSup.length} outil(s) même fournisseur « ${mySupplier} »`);
+          else if (mySupplier) lines.push(`• Pièces : aucune (pas d'outil frère même fournisseur « ${mySupplier} »)`);
           if (hasDocs) lines.push(`• ${docCount(docSource)} document(s) depuis ${nameOf(docSource)} — ADAPTÉS au n° de ${name}`);
           if (!confirm(`Famille « ${base} » — hériter pour ${name} :\n\n${lines.join('\n')}\n\nLes documents seront ADAPTÉS (nom de fichier + données internes : n° d'outil et n° d'inventaire) au n° de cet outil.\nL'identité de l'outil est conservée.\n\nContinuer ?`)) return { cancelled: true };
           ui.showLoader('Héritage de famille en cours…');
@@ -24971,9 +24998,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             }
           }
           let piecesCopied = 0;
-          if (pieceSource && pieceSource.pieces) {
+          if (hasPieces) {
             updated.pieces = { ...(updated.pieces || {}) };
-            PK.forEach(k => { const cur = updated.pieces[k]; const isEmpty = !cur || !String(cur).trim() || ['NA','#','-','—'].includes(String(cur).trim().toUpperCase()); if (isEmpty && pieceSource.pieces[k]) { updated.pieces[k] = pieceSource.pieces[k]; piecesCopied++; } });
+            // 🆕 ÉCRASE avec la valeur CONSENSUS de la famille (la plus fréquente), même si la case cible est déjà remplie
+            PK.forEach(k => {
+              const sv = bestPieces[k];
+              if (pieceBad(sv)) return;                                  // pas de consensus exploitable → on ne touche pas
+              if (String(pieceGet(updated, k)) === String(sv)) return;   // déjà identique → rien à faire
+              updated.pieces[k] = sv;
+              if (updated[k] !== undefined && updated[k] !== null) updated[k] = sv; // cohérence avec l'injection Annexe (qui lit t[k] en priorité)
+              piecesCopied++;
+            });
           }
           await db.saveTool(updated);
           // Adapter les documents DÉJÀ présents au n° de l'outil (corrige les héritages antérieurs)
@@ -25028,7 +25063,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!['admin','super_admin','responsable'].includes(state.role)) return ui.toast('🔒 Réservé aux responsables/admins', 'warn');
         const tools = Object.values(state.tools || {}).filter(t => t && this._getToolStatus(t) === 'production');
         if (!tools.length) return ui.toast('Aucun outil en production', 'info');
-        if (!confirm(`Héritage AUTOMATIQUE de famille sur ${tools.length} outil(s) en production ?\n\nChaque outil héritera, depuis sa famille (même connexion + groupe + client) :\n• les pièces (même fournisseur)\n• les documents ADAPTÉS à son n° (nom de fichier + données internes)\n\nLes champs déjà remplis ne sont pas écrasés. Continuer ?`)) return;
+        if (!confirm(`Héritage AUTOMATIQUE de famille sur ${tools.length} outil(s) en production ?\n\nChaque outil héritera, depuis sa famille (même connexion + groupe — comparaison tolérante) :\n• les pièces : valeur CONSENSUS des outils même fournisseur (les pièces existantes sont mises à jour)\n• les documents ADAPTÉS à son n° (nom de fichier + données internes)\n\nContinuer ?`)) return;
         ui.showLoader(`Héritage automatique… 0/${tools.length}`);
         let okTools = 0, totPieces = 0, totDocs = 0, skipped = 0, invFilledTools = 0, i = 0;
         for (const t of tools) {

@@ -8352,6 +8352,49 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <!-- Bandeau info -->
         <div id="bl-info-banner" style="display:none;margin-bottom:.8rem;padding:.6rem .85rem;border-radius:8px;font-size:.78rem"></div>
 
+        <!-- 🆕 Liste SÉPARÉE : outils bloqués dont la localisation = Terminé sur la machine / En transit -->
+        <div id="bl-machine-section" style="display:none;margin-bottom:1rem;background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.3);border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.7rem 1rem;background:rgba(34,197,94,.12);border-bottom:1px solid rgba(34,197,94,.25)">
+            <span style="font-size:.82rem;font-weight:800;color:#16a34a;letter-spacing:.03em">🏭 Outils bloqués sur machine <span id="bl-machine-count" style="background:#16a34a;color:#fff;border-radius:20px;padding:.05rem .55rem;font-size:.72rem;margin-left:.3rem">0</span></span>
+            <span style="font-size:.68rem;color:var(--text-muted)">Terminé sur la machine · En transit</span>
+          </div>
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:32vh;overflow-y:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:.76rem;min-width:680px">
+              <thead style="position:sticky;top:0;background:var(--bg-2);z-index:1">
+                <tr style="border-bottom:1px solid rgba(34,197,94,.3)">
+                  <th style="text-align:left;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">📋 Inventory</th>
+                  <th style="text-align:left;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">📍 Projet</th>
+                  <th style="text-align:left;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">📍 Localisation</th>
+                  <th style="text-align:center;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">🚦 Cause</th>
+                </tr>
+              </thead>
+              <tbody id="bl-machine-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 🆕 Liste : TOUS les outils terminés sur la machine (bloqués ou non) -->
+        <div id="bl-finished-section" style="display:none;margin-bottom:1rem;background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.3);border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.7rem 1rem;background:rgba(59,130,246,.12);border-bottom:1px solid rgba(59,130,246,.25)">
+            <span style="font-size:.82rem;font-weight:800;color:#2563eb;letter-spacing:.03em">🏁 Tous les outils terminés sur la machine <span id="bl-finished-count" style="background:#2563eb;color:#fff;border-radius:20px;padding:.05rem .55rem;font-size:.72rem;margin-left:.3rem">0</span></span>
+            <span style="font-size:.68rem;color:var(--text-muted)">Bloqués ou non · localisation « Terminé sur la machine »</span>
+          </div>
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:32vh;overflow-y:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:.76rem;min-width:720px">
+              <thead style="position:sticky;top:0;background:var(--bg-2);z-index:1">
+                <tr style="border-bottom:1px solid rgba(59,130,246,.3)">
+                  <th style="text-align:left;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">📋 Inventory</th>
+                  <th style="text-align:left;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">📍 Projet</th>
+                  <th style="text-align:left;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">📍 Localisation</th>
+                  <th style="text-align:center;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">🚦 État</th>
+                  <th style="text-align:right;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">📊 Total Cnt</th>
+                </tr>
+              </thead>
+              <tbody id="bl-finished-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Tableau -->
         <div style="background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:9px;overflow:hidden">
           <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:65vh;overflow-y:auto">
@@ -8362,6 +8405,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                   <th data-bl-sort="maintenanceCounter" style="text-align:right;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none" title="Trier par Maintenance Counter">🔧 Maint. Cnt <span id="bl-sort-maintenanceCounter"></span></th>
                   <th data-bl-sort="totalCounter" style="text-align:right;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none" title="Trier par Total Counter (priorité)">📊 Total Cnt <span id="bl-sort-totalCounter"></span></th>
                   <th data-bl-sort="masterLocation" style="text-align:left;padding:.75rem .75rem;font-weight:800;color:var(--text-primary);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none" title="Trier par Projet">📍 Projet <span id="bl-sort-masterLocation"></span></th>
+                  <th data-bl-sort="location" style="text-align:left;padding:.75rem .75rem;font-weight:800;color:var(--text-primary);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none" title="Trier par Localisation (machine / transit)">📍 Localisation <span id="bl-sort-location"></span></th>
                   <th data-bl-sort="requalifTimeStatus" style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none">⏰ Requalif Time <span id="bl-sort-requalifTimeStatus"></span></th>
                   <th data-bl-sort="requalifStrokesStatus" style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none">🔁 Requalif Strokes <span id="bl-sort-requalifStrokesStatus"></span></th>
                   <th data-bl-sort="maintenanceStatus" style="text-align:center;padding:.75rem .5rem;font-weight:800;color:var(--text-primary);font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;user-select:none">🔧 Maintenance <span id="bl-sort-maintenanceStatus"></span></th>
@@ -8370,7 +8414,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 </tr>
               </thead>
               <tbody id="bl-tbody">
-                <tr><td colspan="9" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>
+                <tr><td colspan="10" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>
               </tbody>
             </table>
           </div>
@@ -11260,7 +11304,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         html += list.map(([fid, f]) => {
           const isXl = (f.mime || '').includes('spreadsheet') || /\.(xlsx|xls)$/i.test(f.name || '');
           return `
-          <div data-att-id="${ui.escape(fid)}" style="display:flex;align-items:center;gap:.65rem;padding:.55rem .85rem;border-bottom:1px solid var(--border-soft)">
+          <div data-att-id="${ui.escape(fid)}" data-att-xl="${isXl ? '1' : ''}" data-att-name="${ui.escape(f.name || '')}" title="Clic droit : Voir · Télécharger · Imprimer" style="display:flex;align-items:center;gap:.65rem;padding:.55rem .85rem;border-bottom:1px solid var(--border-soft)">
             <span style="font-size:1.4rem">${iconForMime(f.mime, f.name)}</span>
             <div style="flex:1;min-width:0${isXl ? ';cursor:pointer' : ''}" ${isXl ? `data-att-open="${ui.escape(fid)}" title="👁 Cliquer : afficher le contenu Excel dans la page"` : ''}>
               <div style="font-weight:600;font-size:.84rem;color:var(--text-primary);word-break:break-word">${ui.escape(f.name || 'sans nom')}</div>
@@ -11309,6 +11353,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       });
       container.querySelectorAll('button[data-att-delete]').forEach(b => {
         b.onclick = () => this.delete(toolId, b.dataset.attDelete);
+      });
+      // 🆕 Clic DROIT sur une ligne de document → menu Voir / Télécharger / Imprimer
+      container.querySelectorAll('[data-att-id]').forEach(row => {
+        row.addEventListener('contextmenu', (e) => this._attachMenu(e, toolId, row.dataset.attId, row.dataset.attXl === '1'));
       });
     },
 
@@ -11525,6 +11573,80 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         console.error('[viewExcel]', e);
         bodyEl.innerHTML = msg(`⚠️ Impossible d'afficher ce fichier Excel.<br><span style="font-size:.72rem;color:var(--text-muted)">${ui.escape(e.message || 'erreur de lecture')} — utilisez ⬇️ Télécharger.</span>`, '#ff3d5a');
       }
+    },
+
+    /** 🆕 Menu CLIC DROIT sur un document : Voir / Télécharger / Imprimer */
+    _attachMenu(e, toolId, fid, isXl) {
+      try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+      document.getElementById('att-ctx-menu')?.remove();
+      const items = [];
+      if (isXl) items.push(['👁', 'Voir', () => this.viewExcel(toolId, fid)]);
+      items.push(['⬇️', 'Télécharger', () => this.download(toolId, fid)]);
+      if (isXl) items.push(['🖨️', 'Imprimer', () => this._printAnnex(toolId, fid)]);
+      const m = document.createElement('div');
+      m.id = 'att-ctx-menu';
+      m.style.cssText = 'position:fixed;z-index:10060;min-width:188px;background:#16223a;border:1px solid var(--border-strong,#2a3b5a);border-radius:10px;box-shadow:0 14px 44px rgba(0,0,0,.6);padding:.35rem';
+      m.innerHTML = items.map((it, i) => `<div data-ci="${i}" style="display:flex;align-items:center;gap:.6rem;padding:.5rem .7rem;border-radius:7px;cursor:pointer;font-size:.83rem;color:var(--text-primary,#e8eefc);font-weight:600"><span style="font-size:1rem">${it[0]}</span>${it[1]}</div>`).join('');
+      document.body.appendChild(m);
+      const mw = 200, mh = items.length * 42 + 12;
+      let x = e.clientX, y = e.clientY;
+      if (x + mw > window.innerWidth) x = window.innerWidth - mw - 8;
+      if (y + mh > window.innerHeight) y = window.innerHeight - mh - 8;
+      m.style.left = Math.max(6, x) + 'px'; m.style.top = Math.max(6, y) + 'px';
+      m.querySelectorAll('[data-ci]').forEach(el => {
+        el.onmouseenter = () => el.style.background = 'rgba(0,212,255,.14)';
+        el.onmouseleave = () => el.style.background = 'transparent';
+        el.onclick = () => { const i = +el.dataset.ci; m.remove(); try { items[i][2](); } catch (err) {} };
+      });
+      const close = (ev) => { if (!m.contains(ev.target)) { m.remove(); document.removeEventListener('mousedown', close); document.removeEventListener('scroll', close, true); window.removeEventListener('blur', close); } };
+      setTimeout(() => { document.addEventListener('mousedown', close); document.addEventListener('scroll', close, true); window.addEventListener('blur', close); }, 0);
+    },
+
+    /** 🆕 IMPRIMER une Annexe (4 ou 5) : rendu en grille, fond blanc, valeurs centrées sur les lignes (pas de décalage), via iframe masquée */
+    async _printAnnex(toolId, fileId) {
+      let iframe = null;
+      try {
+        ui.toast('🖨️ Préparation de l\'impression…', 'info');
+        const f = (this._all && this._all[toolId] && this._all[toolId][fileId]) || {};
+        const b64 = this._b64cache[toolId + '/' + fileId] || await this._getB64(toolId, fileId, f);
+        if (!b64) { ui.toast('Document introuvable ou vide.', 'warn'); return; }
+        const isXls = /\.xls$/i.test(f.name || '') && !/\.xlsx$/i.test(f.name || '');
+        let sheetsHtml = '';
+        const SEP = '<div style="page-break-after:always"></div>';
+        if (!isXls) {
+          await this._ensureExcelJS();
+          const bin = atob(b64); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          const wbx = new ExcelJS.Workbook(); await wbx.xlsx.load(bytes.buffer);
+          const wss = (wbx.worksheets || []).filter(s => s && s.name);
+          sheetsHtml = wss.map(s => `<div class="annex-sheet">${this._exceljsSheetHtml(s)}</div>`).join(SEP);
+        } else {
+          if (!window.XLSX && views && views.catalog && views.catalog._ensureXLSXLib) await views.catalog._ensureXLSXLib();
+          const wb = XLSX.read(b64, { type: 'base64', cellStyles: true });
+          sheetsHtml = (wb.SheetNames || []).map(n => `<div class="annex-sheet">${this._excelSheetHtml(wb.Sheets[n])}</div>`).join(SEP);
+        }
+        if (!sheetsHtml.trim()) { ui.toast('Aucune feuille à imprimer.', 'warn'); return; }
+        iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+        document.body.appendChild(iframe);
+        const doc = iframe.contentWindow.document;
+        const title = String(f.name || 'Annexe').replace(/[<>]/g, '');
+        // styles d'impression : fond blanc, texte foncé, valeurs CENTRÉES verticalement (corrige le décalage), trames → gris
+        doc.open();
+        doc.write('<!doctype html><html><head><meta charset="utf-8"><title>' + title + '</title><style>'
+          + '@page{size:auto;margin:8mm}'
+          + 'html,body{margin:0;padding:0;background:#fff}'
+          + 'body,table,td,div,span{font-family:Arial,Helvetica,sans-serif;color:#10243f}'
+          + 'table{border-collapse:collapse}'
+          + 'td{vertical-align:middle!important;background:#fff}'
+          + '.annex-sheet{margin:0 0 6mm}'
+          + '</style></head><body>' + sheetsHtml + '</body></html>');
+        doc.close();
+        // trames hachurées → gris uni (sinon noir à l'impression)
+        try { iframe.contentWindow.document.querySelectorAll('td').forEach(function (td) { const bg = td.style.background || td.style.backgroundImage || ''; if (/gradient/i.test(bg)) { td.style.background = '#dcdcdc'; td.style.backgroundImage = 'none'; } }); } catch (_) {}
+        iframe.contentWindow.focus();
+        setTimeout(() => { try { iframe.contentWindow.print(); } catch (e) {} setTimeout(() => { try { iframe.remove(); } catch (_) {} }, 1500); }, 400);
+        ui.toast('🖨️ Boîte d\'impression ouverte.', 'success');
+      } catch (e) { if (iframe) try { iframe.remove(); } catch (_) {} ui.toast('⚠ Impression impossible : ' + (e.message || e), 'danger'); }
     },
 
     /** 🆕 Charge la librairie ExcelJS (lecture fidèle des couleurs/bordures) à la demande */
@@ -28133,6 +28255,98 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return `<span class="bl-pill bl-pill--muted">${ui.escape(String(status))}</span>`;
       },
 
+      /** 🆕 Outil situé SUR UNE MACHINE ? (localisation Komax = « Terminé sur la machine » ou « En transit ») */
+      _isOnMachine(r) {
+        const loc = String((r && r.location) || '').toLowerCase();
+        return /machine|transit/.test(loc);
+      },
+
+      /** 🆕 Pastille de localisation : 🏭 machine (vert) · 🚚 transit (orange) · 📍 autre */
+      _locationBadge(r) {
+        const loc = String((r && r.location) || '').trim();
+        if (!loc) return `<span class="bl-pill bl-pill--muted">—</span>`;
+        const low = loc.toLowerCase();
+        if (/machine|termin/.test(low)) return `<span class="bl-pill" style="color:#16a34a;background:rgba(34,197,94,.14)" title="${ui.escape(loc)}">🏭 ${ui.escape(loc)}</span>`;
+        if (/transit/.test(low))        return `<span class="bl-pill" style="color:#d97706;background:rgba(245,158,11,.14)" title="${ui.escape(loc)}">🚚 ${ui.escape(loc)}</span>`;
+        return `<span class="bl-pill bl-pill--muted" title="${ui.escape(loc)}">📍 ${ui.escape(loc)}</span>`;
+      },
+
+      /** 🆕 Remplit la liste séparée « Outils bloqués sur machine » (bloqués + localisation machine/transit) */
+      _renderMachineList() {
+        const sec = document.getElementById('bl-machine-section');
+        const tb  = document.getElementById('bl-machine-tbody');
+        const cnt = document.getElementById('bl-machine-count');
+        if (!sec || !tb) return;
+        let rows = (this._data || []).filter(r => this._isBlocked(r) && this._isOnMachine(r));
+        // respecte le filtre projet actif (mais ignore le filtre de statut — c'est une liste dédiée)
+        if (this._selectedProjects && this._selectedProjects.size > 0) {
+          if (this._selectedProjects.has('__NONE__')) rows = [];
+          else rows = rows.filter(r => this._selectedProjects.has(r.masterLocation));
+        }
+        rows = this._sortData(rows);
+        if (cnt) cnt.textContent = rows.length;
+        if (!rows.length) { sec.style.display = 'none'; tb.innerHTML = ''; return; }
+        sec.style.display = '';
+        tb.innerHTML = rows.slice(0, 200).map(r => {
+          const client = this._getClientForProject(r.masterLocation);
+          const clientBadge = client ? `<span class="bl-pill" style="color:${client.color};background:${client.color}1a">${client.icon} ${client.name.toUpperCase()}</span>` : '';
+          return `<tr data-bl-mrow="${ui.escape(r.inventoryNo||'')}" style="border-bottom:1px solid var(--border-soft);cursor:pointer" onmouseover="this.style.background='rgba(34,197,94,.06)'" onmouseout="this.style.background=''">
+            <td style="padding:.5rem .75rem;font-family:var(--font-mono);font-weight:800;color:#0084c7">${ui.escape(r.inventoryNo||'?')}</td>
+            <td style="padding:.5rem .75rem;color:var(--text-secondary)"><div style="font-weight:700;color:var(--text-primary)">${ui.escape(r.masterLocation||'—')}</div>${clientBadge}</td>
+            <td style="padding:.5rem .75rem">${this._locationBadge(r)}</td>
+            <td style="padding:.5rem .75rem;text-align:center">${this._causeBadge(r)}</td>
+          </tr>`;
+        }).join('');
+        tb.querySelectorAll('[data-bl-mrow]').forEach(tr => {
+          tr.addEventListener('click', () => { const row = (this._data||[]).find(r => String(r.inventoryNo) === String(tr.dataset.blMrow)); if (row) this._showToolDetail(row); });
+        });
+      },
+
+      /** 🆕 Outil TERMINÉ sur la machine ? (localisation « Terminé sur la machine », PAS « En transit ») */
+      _isFinishedOnMachine(r) {
+        const loc = String((r && r.location) || '').toLowerCase();
+        if (!loc || /transit/.test(loc)) return false;
+        return /machine|termin|finish|complet|done/.test(loc);
+      },
+
+      /** 🆕 État court d'un outil pour la liste : 🔴 Bloqué · ⚠️ Warning · ✅ OK */
+      _stateBadge(r) {
+        if (this._isBlocked(r)) return `<span class="bl-pill bl-pill--overrun">🔴 Bloqué</span>`;
+        if (this._hasWarning(r)) return `<span class="bl-pill bl-pill--warning">⚠️ Warning</span>`;
+        return `<span class="bl-pill bl-pill--ok">✅ OK</span>`;
+      },
+
+      /** 🆕 Remplit la liste « Tous les outils terminés sur la machine » (bloqués OU non) */
+      _renderFinishedMachineList() {
+        const sec = document.getElementById('bl-finished-section');
+        const tb  = document.getElementById('bl-finished-tbody');
+        const cnt = document.getElementById('bl-finished-count');
+        if (!sec || !tb) return;
+        let rows = (this._data || []).filter(r => this._isFinishedOnMachine(r));
+        if (this._selectedProjects && this._selectedProjects.size > 0) {
+          if (this._selectedProjects.has('__NONE__')) rows = [];
+          else rows = rows.filter(r => this._selectedProjects.has(r.masterLocation));
+        }
+        rows = this._sortData(rows);
+        if (cnt) cnt.textContent = rows.length;
+        if (!rows.length) { sec.style.display = 'none'; tb.innerHTML = ''; return; }
+        sec.style.display = '';
+        tb.innerHTML = rows.slice(0, 300).map(r => {
+          const client = this._getClientForProject(r.masterLocation);
+          const clientBadge = client ? `<span class="bl-pill" style="color:${client.color};background:${client.color}1a">${client.icon} ${client.name.toUpperCase()}</span>` : '';
+          return `<tr data-bl-frow="${ui.escape(r.inventoryNo||'')}" style="border-bottom:1px solid var(--border-soft);cursor:pointer" onmouseover="this.style.background='rgba(59,130,246,.06)'" onmouseout="this.style.background=''">
+            <td style="padding:.5rem .75rem;font-family:var(--font-mono);font-weight:800;color:#0084c7">${ui.escape(r.inventoryNo||'?')}</td>
+            <td style="padding:.5rem .75rem;color:var(--text-secondary)"><div style="font-weight:700;color:var(--text-primary)">${ui.escape(r.masterLocation||'—')}</div>${clientBadge}</td>
+            <td style="padding:.5rem .75rem">${this._locationBadge(r)}</td>
+            <td style="padding:.5rem .75rem;text-align:center">${this._stateBadge(r)}</td>
+            <td style="padding:.5rem .75rem;text-align:right;font-family:var(--font-mono);font-weight:700;color:var(--text-primary)">${this._fmtNum(r.totalCounter)}</td>
+          </tr>`;
+        }).join('');
+        tb.querySelectorAll('[data-bl-frow]').forEach(tr => {
+          tr.addEventListener('click', () => { const row = (this._data||[]).find(r => String(r.inventoryNo) === String(tr.dataset.blFrow)); if (row) this._showToolDetail(row); });
+        });
+      },
+
       /** 🆕 Badge "CAUSE DE BLOCAGE" — basé sur QUI débloque et POURQUOI :
        *   Cellule Sertissage → toujours "VÉRIFICATION VISUELLE 5J"
        *   Laboratoire :
@@ -29548,7 +29762,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const tbody = document.getElementById('bl-tbody');
         if (!total) {
           if (banner) banner.style.display = 'none';
-          if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>`;
+          if (tbody) tbody.innerHTML = `<tr><td colspan="10" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>`;
           return;
         }
 
@@ -29556,10 +29770,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const filtered = this._sortData(this._getFiltered());
 
         // 🆕 Mettre à jour les indicateurs de tri dans les en-têtes
-        ['inventoryNo','maintenanceCounter','totalCounter','masterLocation','requalifTimeStatus','requalifStrokesStatus','maintenanceStatus','daysInUseStatus','cause'].forEach(col => {
+        ['inventoryNo','maintenanceCounter','totalCounter','masterLocation','location','requalifTimeStatus','requalifStrokesStatus','maintenanceStatus','daysInUseStatus','cause'].forEach(col => {
           const el = document.getElementById('bl-sort-' + col);
           if (el) el.innerHTML = this._sortIndicator(col);
         });
+
+        // 🆕 Liste séparée "Outils bloqués sur machine"
+        this._renderMachineList();
+        // 🆕 Liste "Tous les outils terminés sur la machine"
+        this._renderFinishedMachineList();
 
         // 🆕 Total Compteur cumulé sur les résultats filtrés
         const totalCounterSum = filtered.reduce((sum, r) => {
@@ -29614,7 +29833,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
 
         if (!filtered.length) {
-          tbody.innerHTML = `<tr><td colspan="9" style="padding:2rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">🔍 Aucun outil ne correspond aux filtres</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="10" style="padding:2rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">🔍 Aucun outil ne correspond aux filtres</td></tr>`;
           return;
         }
 
@@ -29656,6 +29875,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 <div style="font-weight:700;color:var(--text-primary)">${ui.escape(r.masterLocation || '—')}</div>
                 ${clientBadge}
               </td>
+              <td style="padding:.6rem .75rem;vertical-align:top">${this._locationBadge(r)}</td>
               <td style="padding:.6rem .5rem;text-align:center;vertical-align:middle">${this._statusBadge(r.requalifTimeStatus)}</td>
               <td style="padding:.6rem .5rem;text-align:center;vertical-align:middle">${this._statusBadge(r.requalifStrokesStatus)}</td>
               <td style="padding:.6rem .5rem;text-align:center;vertical-align:middle">${this._statusBadge(r.maintenanceStatus)}</td>
@@ -29666,7 +29886,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }).join('');
 
         if (filtered.length > MAX_DISPLAY) {
-          tbody.innerHTML += `<tr><td colspan="9" style="padding:1rem;text-align:center;color:var(--text-muted);font-style:italic;background:rgba(255,180,71,.05)">⚠️ ${filtered.length - MAX_DISPLAY} lignes supplémentaires non affichées — affinez les filtres pour les voir</td></tr>`;
+          tbody.innerHTML += `<tr><td colspan="10" style="padding:1rem;text-align:center;color:var(--text-muted);font-style:italic;background:rgba(255,180,71,.05)">⚠️ ${filtered.length - MAX_DISPLAY} lignes supplémentaires non affichées — affinez les filtres pour les voir</td></tr>`;
         }
 
         // 🆕 Clic sur ligne → fiche détaillée

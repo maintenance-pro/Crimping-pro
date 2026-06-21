@@ -11304,7 +11304,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         html += list.map(([fid, f]) => {
           const isXl = (f.mime || '').includes('spreadsheet') || /\.(xlsx|xls)$/i.test(f.name || '');
           return `
-          <div data-att-id="${ui.escape(fid)}" data-att-xl="${isXl ? '1' : ''}" data-att-name="${ui.escape(f.name || '')}" title="Clic droit : Voir · Télécharger · Imprimer" style="display:flex;align-items:center;gap:.65rem;padding:.55rem .85rem;border-bottom:1px solid var(--border-soft)">
+          <div data-att-id="${ui.escape(fid)}" style="display:flex;align-items:center;gap:.65rem;padding:.55rem .85rem;border-bottom:1px solid var(--border-soft)">
             <span style="font-size:1.4rem">${iconForMime(f.mime, f.name)}</span>
             <div style="flex:1;min-width:0${isXl ? ';cursor:pointer' : ''}" ${isXl ? `data-att-open="${ui.escape(fid)}" title="👁 Cliquer : afficher le contenu Excel dans la page"` : ''}>
               <div style="font-weight:600;font-size:.84rem;color:var(--text-primary);word-break:break-word">${ui.escape(f.name || 'sans nom')}</div>
@@ -11320,6 +11320,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 padding:.35rem .55rem;background:rgba(0,229,160,.12);color:#00e5a0;
                 border:1px solid rgba(0,229,160,.3);border-radius:5px;cursor:pointer;font-size:.78rem">
               👁
+            </button>` : ''}
+            ${isXl ? `<button data-att-print="${ui.escape(fid)}" title="🖨️ Imprimer (fond blanc, valeurs alignées sur les lignes)" style="
+                padding:.35rem .55rem;background:rgba(168,85,247,.12);color:#a855f7;
+                border:1px solid rgba(168,85,247,.3);border-radius:5px;cursor:pointer;font-size:.78rem">
+              🖨️
             </button>` : ''}
             <button data-att-download="${ui.escape(fid)}" title="Télécharger" style="
                 padding:.35rem .55rem;background:rgba(0,212,255,.12);color:var(--accent-500);
@@ -11354,9 +11359,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       container.querySelectorAll('button[data-att-delete]').forEach(b => {
         b.onclick = () => this.delete(toolId, b.dataset.attDelete);
       });
-      // 🆕 Clic DROIT sur une ligne de document → menu Voir / Télécharger / Imprimer
-      container.querySelectorAll('[data-att-id]').forEach(row => {
-        row.addEventListener('contextmenu', (e) => this._attachMenu(e, toolId, row.dataset.attId, row.dataset.attXl === '1'));
+      // 🆕 Bouton Imprimer (Annexes Excel) — rendu propre, valeurs alignées sur les lignes
+      container.querySelectorAll('button[data-att-print]').forEach(b => {
+        b.onclick = () => this._printAnnex(toolId, b.dataset.attPrint);
       });
     },
 
@@ -11573,33 +11578,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         console.error('[viewExcel]', e);
         bodyEl.innerHTML = msg(`⚠️ Impossible d'afficher ce fichier Excel.<br><span style="font-size:.72rem;color:var(--text-muted)">${ui.escape(e.message || 'erreur de lecture')} — utilisez ⬇️ Télécharger.</span>`, '#ff3d5a');
       }
-    },
-
-    /** 🆕 Menu CLIC DROIT sur un document : Voir / Télécharger / Imprimer */
-    _attachMenu(e, toolId, fid, isXl) {
-      try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
-      document.getElementById('att-ctx-menu')?.remove();
-      const items = [];
-      if (isXl) items.push(['👁', 'Voir', () => this.viewExcel(toolId, fid)]);
-      items.push(['⬇️', 'Télécharger', () => this.download(toolId, fid)]);
-      if (isXl) items.push(['🖨️', 'Imprimer', () => this._printAnnex(toolId, fid)]);
-      const m = document.createElement('div');
-      m.id = 'att-ctx-menu';
-      m.style.cssText = 'position:fixed;z-index:10060;min-width:188px;background:#16223a;border:1px solid var(--border-strong,#2a3b5a);border-radius:10px;box-shadow:0 14px 44px rgba(0,0,0,.6);padding:.35rem';
-      m.innerHTML = items.map((it, i) => `<div data-ci="${i}" style="display:flex;align-items:center;gap:.6rem;padding:.5rem .7rem;border-radius:7px;cursor:pointer;font-size:.83rem;color:var(--text-primary,#e8eefc);font-weight:600"><span style="font-size:1rem">${it[0]}</span>${it[1]}</div>`).join('');
-      document.body.appendChild(m);
-      const mw = 200, mh = items.length * 42 + 12;
-      let x = e.clientX, y = e.clientY;
-      if (x + mw > window.innerWidth) x = window.innerWidth - mw - 8;
-      if (y + mh > window.innerHeight) y = window.innerHeight - mh - 8;
-      m.style.left = Math.max(6, x) + 'px'; m.style.top = Math.max(6, y) + 'px';
-      m.querySelectorAll('[data-ci]').forEach(el => {
-        el.onmouseenter = () => el.style.background = 'rgba(0,212,255,.14)';
-        el.onmouseleave = () => el.style.background = 'transparent';
-        el.onclick = () => { const i = +el.dataset.ci; m.remove(); try { items[i][2](); } catch (err) {} };
-      });
-      const close = (ev) => { if (!m.contains(ev.target)) { m.remove(); document.removeEventListener('mousedown', close); document.removeEventListener('scroll', close, true); window.removeEventListener('blur', close); } };
-      setTimeout(() => { document.addEventListener('mousedown', close); document.addEventListener('scroll', close, true); window.addEventListener('blur', close); }, 0);
     },
 
     /** 🆕 IMPRIMER une Annexe (4 ou 5) : rendu en grille, fond blanc, valeurs centrées sur les lignes (pas de décalage), via iframe masquée */

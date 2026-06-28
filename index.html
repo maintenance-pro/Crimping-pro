@@ -8174,7 +8174,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <button class="btn btn--secondary" id="btn-catalog-print-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Imprimer les QR codes des outils filtrés">🖨 QR Codes</button>
             <button class="btn btn--secondary" id="btn-catalog-bulk-docs" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog" style="background:rgba(124,58,237,.14);color:#a855f7;border:1px solid rgba(124,58,237,.35);font-weight:700" title="Joindre une liste de documents (Annexes) à plusieurs outils d'un coup">📎 Docs en masse</button>
             <button class="btn btn--secondary" id="btn-catalog-annex-templates" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog" style="background:rgba(0,229,160,.14);color:#00e5a0;border:1px solid rgba(0,229,160,.35);font-weight:700" title="Ajouter un modèle d'Annexe (4/5) par groupe, puis injecter les données d'un outil au clic">📐 Annexes / groupe</button>
-            <button class="btn btn--secondary" id="btn-catalog-optimize-docs" data-requires-role="super_admin,admin" data-edit-module="catalog" style="background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.3);font-weight:700" title="Allège l'index des documents (déplace les fichiers volumineux hors de l'index) — corrige l'affichage si les documents ne se chargent pas">⚙️ Optimiser docs</button>
+            <button class="btn btn--secondary" id="btn-catalog-optimize-docs" data-requires-role="super_admin,admin" data-edit-module="catalog" style="background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.3);font-weight:700" title="Déplace les pièces jointes (base64) de la base de données vers Firebase Storage → allège la base et libère le quota. Aucun document supprimé.">☁️ Migrer docs → Storage</button>
             <button class="btn btn--primary" id="btn-catalog-add" data-requires-role="responsable,super_admin,admin" data-edit-module="catalog">＋ Nouvel outil</button>
           </div>
         </header>
@@ -10962,9 +10962,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (inlineB64 && !this._autoMigrated) { this._autoMigrated = true; setTimeout(() => this._migrateHeavyDocs({ silent: true }), 1500); }
       }, err => {
         clearTimeout(this._loadWatchdog);
-        // 🆕 Échec de chargement (index trop lourd / timeout sur mobile) → migration via shallow (ne charge PAS les b64) puis re-tentative
         console.error('[toolAttachments] ⛔ chargement échoué:', err.code, err.message);
         this._loaded = false;
+        const code = String(err.code || err.message || '').toUpperCase();
+        // 🆕 Refus SERVEUR (règles RTDB / App Check / quota dépassé) → la migration n'aide PAS, ne pas la lancer
+        if (code.includes('PERMISSION') || code.includes('DENIED') || code.includes('UNAUTH')) {
+          ui.toast('⛔ Firebase a refusé l\'accès aux documents (règles RTDB, App Check ou quota dépassé). Côté app rien à corriger — vérifiez la console Firebase (Realtime Database ▸ Règles + Utilisation).', 'danger', 14000);
+          return;
+        }
+        // Sinon : index réellement lourd / timeout → optimisation automatique
         ui.toast('⚠️ Index documents lourd — optimisation en cours, patientez…', 'warn', 8000);
         if (!this._autoMigrated) {
           this._autoMigrated = true;
@@ -10999,18 +11005,56 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
     /** 🆕 Récupère le base64 d'un document À LA DEMANDE (jamais chargé en masse).
      *  Ordre : cache session → b64 déjà en mémoire (ancien inline) → noeud séparé toolAttachmentsB64 → inline Firebase (non migré). */
+    /** 🆕 Chemin Storage d'un document */
+    _storagePathFor(toolId, fid) { return 'toolAttachments/' + toolId + '/' + fid; },
+
+    /** 🆕 Type MIME d'après l'extension (pour Storage) */
+    _contentTypeFor(name) {
+      const ext = String(name || '').toLowerCase().split('.').pop();
+      const map = {
+        xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        xls:  'application/vnd.ms-excel',
+        pdf:  'application/pdf',
+        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        doc:  'application/msword',
+        png:  'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', csv: 'text/csv'
+      };
+      return map[ext] || 'application/octet-stream';
+    },
+
+    /** 🆕 Blob → base64 (sans préfixe data:) */
+    _blobToB64(blob) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => { const s = String(r.result || ''); const i = s.indexOf(','); resolve(i >= 0 ? s.slice(i + 1) : s); };
+        r.onerror = reject;
+        r.readAsDataURL(blob);
+      });
+    },
+
     async _getB64(toolId, fid, meta) {
       if (!toolId || !fid) return null;
       const ck = toolId + '/' + fid;
       if (this._b64cache[ck]) return this._b64cache[ck];
       const inMem = meta || this._all?.[toolId]?.[fid];
       if (inMem && inMem.b64) { this._b64cache[ck] = inMem.b64; return inMem.b64; }
+      // 🆕 1) Firebase STORAGE (nouveau format) — via storagePath
+      const sp = inMem && inMem.storagePath;
+      if (sp && typeof fbStorage !== 'undefined' && fbStorage) {
+        try {
+          const url = await fbStorage.ref(sp).getDownloadURL();
+          const resp = await fetch(url);
+          if (resp.ok) { const b64 = await this._blobToB64(await resp.blob()); if (b64) { this._b64cache[ck] = b64; return b64; } }
+        } catch (e) { console.warn('[storage] lecture échouée', sp, e.message || e); }
+      }
+      // 2) RTDB séparé (format intermédiaire toolAttachmentsB64)
       try {
         const s = await fbDb.ref('toolAttachmentsB64/' + toolId + '/' + fid).once('value');
         const v = s.val();
         const b = (v && typeof v === 'object') ? v.b64 : v;
         if (b) { this._b64cache[ck] = b; return b; }
       } catch (e) {}
+      // 3) inline ancien format (toolAttachments/{id}/{fid}/b64)
       try {
         const s2 = await fbDb.ref('toolAttachments/' + toolId + '/' + fid + '/b64').once('value');
         const v2 = s2.val();
@@ -11019,11 +11063,24 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       return null;
     },
 
-    /** 🆕 Écrit un doc en 2 parties : métadonnée LÉGÈRE (toolAttachments, SANS b64) + base64 SÉPARÉ (toolAttachmentsB64).
-     *  → l'index reste léger (badges/liste fiables) ; le base64 n'est lu qu'au téléchargement. */
+    /** 🆕 Écrit un doc : base64 → Firebase STORAGE (libère le quota RTDB), métadonnée LÉGÈRE (+ storagePath) → RTDB.
+     *  Repli automatique sur RTDB (toolAttachmentsB64) si Storage est indisponible. */
     async _writeDoc(toolId, fid, meta, b64) {
       const m = { ...meta }; delete m.b64;
-      if (b64) await fbDb.ref('toolAttachmentsB64/' + toolId + '/' + fid).set(b64);
+      if (b64) {
+        let onStorage = false;
+        if (typeof fbStorage !== 'undefined' && fbStorage) {
+          try {
+            const path = this._storagePathFor(toolId, fid);
+            await fbStorage.ref(path).putString(b64, 'base64', { contentType: this._contentTypeFor(meta.name) });
+            m.storagePath = path;
+            if (!m.size) m.size = Math.round(b64.length * 0.75);
+            onStorage = true;
+            try { await fbDb.ref('toolAttachmentsB64/' + toolId + '/' + fid).remove(); } catch (e) {} // purge ancien b64 RTDB éventuel
+          } catch (e) { console.warn('[storage] upload échoué → repli RTDB', e.message || e); }
+        }
+        if (!onStorage) { await fbDb.ref('toolAttachmentsB64/' + toolId + '/' + fid).set(b64); delete m.storagePath; }
+      }
       await fbDb.ref('toolAttachments/' + toolId + '/' + fid).set(m);
       if (!this._all[toolId]) this._all[toolId] = {};
       this._all[toolId][fid] = m;
@@ -11080,6 +11137,63 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         console.error('[migrateHeavyDocs]', e);
         this._migrating = false;
         setTimeout(() => { try { this.init(); } catch (e2) {} }, 300);  // 🆕 rebrancher même en cas d'échec
+        return { error: e.message };
+      }
+    },
+
+    /** 🆕 MIGRATION vers Firebase STORAGE : déplace les base64 existants (inline OU toolAttachmentsB64) vers Storage,
+     *  écrit storagePath dans la métadonnée et retire le b64 de la RTDB → libère le quota base de données. */
+    async _migrateToStorage(opts) {
+      opts = opts || {};
+      if (typeof fbStorage === 'undefined' || !fbStorage) { if (!opts.silent) ui.toast('⛔ Firebase Storage indisponible (SDK ou bucket manquant).', 'danger'); return { error: 'no-storage' }; }
+      if (this._migrating) return { busy: true };
+      this._migrating = true;
+      try { fbDb.ref('toolAttachments').off('value'); } catch (e) {}
+      this._listenerAttached = false;
+      try {
+        const dbBase = (FIREBASE_CONFIG.databaseURL || '').replace(/\/+$/, '');
+        const token = fbAuth.currentUser ? await fbAuth.currentUser.getIdToken() : '';
+        const idxRes = await fetch(`${dbBase}/toolAttachments.json?shallow=true&auth=${encodeURIComponent(token)}`);
+        const idx = await idxRes.json();
+        const toolIds = (idx && typeof idx === 'object') ? Object.keys(idx) : [];
+        if (!toolIds.length) { if (!opts.silent) ui.toast('Aucun document à migrer.', 'info'); this._migrating = false; setTimeout(() => { try { this.init(); } catch (e) {} }, 200); return { moved: 0 }; }
+        let moved = 0, already = 0, failed = 0;
+        const BATCH = 6;
+        for (let i = 0; i < toolIds.length; i += BATCH) {
+          const slice = toolIds.slice(i, i + BATCH);
+          if (!opts.silent) ui.showLoader(`Migration vers Storage… ${Math.min(i + BATCH, toolIds.length)}/${toolIds.length} outils — ${moved} fichier(s)`);
+          await Promise.all(slice.map(async tid => {
+            let docs; try { const s = await fbDb.ref('toolAttachments/' + tid).once('value'); docs = s.val(); } catch (e) { return; }
+            if (!docs || typeof docs !== 'object') return;
+            for (const [fid, doc] of Object.entries(docs)) {
+              if (!doc || typeof doc !== 'object') continue;
+              if (doc.storagePath) { already++; continue; }              // déjà sur Storage
+              let b64 = doc.b64;
+              if (!b64) { try { const sb = await fbDb.ref('toolAttachmentsB64/' + tid + '/' + fid).once('value'); const v = sb.val(); b64 = (v && typeof v === 'object') ? v.b64 : v; } catch (e) {} }
+              if (!b64) continue;
+              try {
+                const path = this._storagePathFor(tid, fid);
+                await fbStorage.ref(path).putString(b64, 'base64', { contentType: this._contentTypeFor(doc.name) });
+                await fbDb.ref('toolAttachments/' + tid + '/' + fid + '/storagePath').set(path);
+                if (doc.b64) { try { await fbDb.ref('toolAttachments/' + tid + '/' + fid + '/b64').remove(); } catch (e) {} }
+                try { await fbDb.ref('toolAttachmentsB64/' + tid + '/' + fid).remove(); } catch (e) {}
+                this._b64cache[tid + '/' + fid] = b64;
+                moved++;
+              } catch (e) { failed++; console.warn('[migrate→storage] échec', tid + '/' + fid, e.message || e); }
+            }
+          }));
+        }
+        try { await fbDb.ref('toolDocsStorageMigratedAt').set(Date.now()); } catch (e) {}
+        if (!opts.silent) { ui.hideLoader(); ui.toast(`✅ Storage : ${moved} fichier(s) déplacé(s)${already ? ' · ' + already + ' déjà migré(s)' : ''}${failed ? ' · ⚠ ' + failed + ' échec(s)' : ''}. Base de données allégée.`, failed ? 'warn' : 'success', 10000); }
+        console.log(`[migrate→storage] ${moved} déplacés, ${already} déjà, ${failed} échecs / ${toolIds.length} outils`);
+        this._migrating = false;
+        setTimeout(() => { try { this.init(); } catch (e) {} }, 300);
+        return { moved, already, failed };
+      } catch (e) {
+        if (!opts.silent) { ui.hideLoader(); ui.toast('⛔ Migration Storage : ' + (e.message || e), 'danger'); }
+        console.error('[migrateToStorage]', e);
+        this._migrating = false;
+        setTimeout(() => { try { this.init(); } catch (e2) {} }, 300);
         return { error: e.message };
       }
     },
@@ -11850,6 +11964,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if (!f) return;
       if (!await ui.confirm("Supprimer le fichier ?", `"${f.name}" sera supprimé définitivement.`, { type: "danger", okLabel: "🗑️ Supprimer le fichier" })) return;
       try {
+        // 🆕 supprimer aussi le fichier dans Storage (si présent)
+        const sp = f.storagePath || this._storagePathFor(toolId, fileId);
+        if (typeof fbStorage !== 'undefined' && fbStorage) { try { await fbStorage.ref(sp).delete(); } catch (e) { /* peut ne pas exister */ } }
         await fbDb.ref(`toolAttachments/${toolId}/${fileId}`).remove();
         try { await fbDb.ref(`toolAttachmentsB64/${toolId}/${fileId}`).remove(); } catch(e){}
         delete this._b64cache[toolId + '/' + fileId];
@@ -24253,8 +24370,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           btnOptDocs.addEventListener('click', async () => {
             const diag = await toolAttachments._diagnose();  // 🆕 affiche l'état réel d'abord
             if (diag && diag.metaIds && diag.metaIds.length) {
-              if (confirm("Optimiser maintenant ?\n\nLes fichiers volumineux seront déplacés hors de l'index pour fiabiliser l'affichage. Aucun document supprimé.")) {
-                await toolAttachments._migrateHeavyDocs({ silent: false });
+              if (confirm("Migrer les documents vers Firebase Storage ?\n\nLes fichiers (base64) seront déplacés de la base de données vers Storage → la base est allégée et le quota libéré. Aucun document n'est supprimé.\n\nSelon le nombre de fichiers, cela peut prendre 1-2 minutes.")) {
+                await toolAttachments._migrateToStorage({ silent: false });
               }
             } else {
               alert("⚠️ Aucun document trouvé dans Firebase (index vide).\n\nSi des documents devraient exister, ils n'ont pas été enregistrés (échec d'écriture précédent). Il faudra les re-téléverser / relancer l'héritage — désormais l'enregistrement est fiable (métadonnée + fichier séparés).");

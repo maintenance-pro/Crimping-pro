@@ -35907,7 +35907,11 @@ Erreur Firebase : ${e.message}`;
     // 🔄 Mise à jour automatique sur mobile : vérifie le Service Worker et recharge dès qu'une nouvelle version est prête
     try{
       if('serviceWorker' in navigator){
-        navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ try{ r.update(); }catch(e){} }); });
+        navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ try{
+          // 🆕 Désinscrire les Service Workers FANTÔMES (ancien déploiement, scope différent de la page) → supprime l'erreur 404 sw.js
+          if(r.scope && location.href.indexOf(r.scope)!==0){ r.unregister(); }
+          else { r.update(); }
+        }catch(e){} }); });
         navigator.serviceWorker.ready.then(function(reg){ try{ reg.update(); }catch(e){} setInterval(function(){ try{ reg.update(); }catch(e){} }, 60000); }).catch(function(){});
         let __reloaded=false;
         navigator.serviceWorker.addEventListener('controllerchange', function(){ if(__reloaded) return; __reloaded=true; location.reload(); });

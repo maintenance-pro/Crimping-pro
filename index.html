@@ -10,79 +10,12 @@
   <meta name="apple-mobile-web-app-title" content="LEONI" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>LEONI · Maintenance</title>
-  <!-- 📱 PWA — TOUT INLINE (aucun fichier externe) : icônes générées par Canvas → PNG,
-       manifest construit en JS et exposé via Blob URL. Fonctionne pour l'icône d'installation
-       et le mode standalone (barre navigateur masquée). Limite technique du web : un vrai
-       Service Worker (cache hors-ligne) DOIT être un fichier .js séparé — impossible à inliner,
-       restriction de sécurité des navigateurs (aucun contournement possible). -->
+  <!-- 📱 PWA réelle : manifest.json + icônes réelles + sw.js (voir bas de page).
+       Ces 3 fichiers doivent être uploadés à côté de index.html sur GitHub Pages. -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230a1424'/%3E%3Cpath d='M30 25h12v45h28v10H30z' fill='%2300d4ff'/%3E%3Ccircle cx='75' cy='30' r='5' fill='%2300e5a0'/%3E%3C/svg%3E" />
-  <script>
-    (function() {
-      try {
-        // Dessine l'icône LEONI (fond arrondi + "L" cyan + point vert) à une taille donnée
-        function drawIcon(size, maskable) {
-          const c = document.createElement('canvas');
-          c.width = size; c.height = size;
-          const ctx = c.getContext('2d');
-          const pad = maskable ? size * 0.20 : size * 0.10; // zone de sécurité maskable = 20%
-          ctx.fillStyle = '#0a1424';
-          if (maskable) {
-            ctx.fillRect(0, 0, size, size); // fond plein, pas de coins arrondis (l'OS applique son propre masque)
-          } else if (ctx.roundRect) {
-            ctx.beginPath(); ctx.roundRect(0, 0, size, size, size * 0.22); ctx.fill();
-          } else {
-            ctx.fillRect(0, 0, size, size);
-          }
-          const s = size - 2 * pad;
-          ctx.fillStyle = '#00d4ff';
-          const barW = s * 0.19;
-          const x0 = pad + s * 0.14, y0 = pad + s * 0.10;
-          ctx.fillRect(x0, y0, barW, s * 0.72);
-          ctx.fillRect(x0, y0 + s * 0.72 - barW * 0.75, s * 0.46, barW * 0.75);
-          ctx.fillStyle = '#00e5a0';
-          ctx.beginPath(); ctx.arc(pad + s * 0.82, pad + s * 0.18, s * 0.085, 0, Math.PI * 2); ctx.fill();
-          return c.toDataURL('image/png');
-        }
-        const icon192 = drawIcon(192, false);
-        const icon512 = drawIcon(512, false);
-        const icon512m = drawIcon(512, true);
-
-        const manifest = {
-          name: "LEONI Maintenance Pro — Crimping Lab",
-          short_name: "LEONI Crimping",
-          start_url: ".",
-          scope: ".",
-          display: "standalone",
-          orientation: "any",
-          background_color: "#0a1424",
-          theme_color: "#0a0e1a",
-          description: "Gestion maintenance des outils de sertissage — LEONI Wiring Systems",
-          lang: "fr",
-          icons: [
-            { src: icon192, sizes: "192x192", type: "image/png", purpose: "any" },
-            { src: icon512, sizes: "512x512", type: "image/png", purpose: "any" },
-            { src: icon512m, sizes: "512x512", type: "image/png", purpose: "maskable" }
-          ]
-        };
-        const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
-        const blobUrl = URL.createObjectURL(blob);
-        document.querySelectorAll('link[rel="manifest"]').forEach(l => l.remove());
-        const link = document.createElement('link');
-        link.rel = 'manifest';
-        link.href = blobUrl;
-        document.head.appendChild(link);
-
-        // apple-touch-icon (iOS ignore le manifest, se base sur ce lien)
-        document.querySelectorAll('link[rel="apple-touch-icon"]').forEach(l => l.remove());
-        const at = document.createElement('link');
-        at.rel = 'apple-touch-icon';
-        at.href = icon192;
-        document.head.appendChild(at);
-      } catch (e) {
-        console.warn('[manifest] Génération inline échouée, pas grave :', e.message);
-      }
-    })();
-  </script>
+  <link rel="apple-touch-icon" href="icon-192.png" />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <!-- Optimisation chargement réseau (Firebase + CDN) -->
   <link rel="preconnect" href="https://leoni-sertissage-labo-default-rtdb.europe-west1.firebasedatabase.app" crossorigin/>
@@ -35968,13 +35901,18 @@ Erreur Firebase : ${e.message}`;
      15. BOOTSTRAP
      ========================================================================== */
   document.addEventListener('DOMContentLoaded', () => {
-    // 🧹 Désinscrit d'éventuels Service Workers fantômes (ancien déploiement, scope différent)
-    // Note : pas de vrai Service Worker ici (single-file) → pas de mode hors-ligne, mais
-    // l'app reste installable (icône + fenêtre standalone) via le manifest inline ci-dessus.
+    // 📦 Enregistre le VRAI service worker (requis par Chrome pour déclencher l'installation native)
     try{
       if('serviceWorker' in navigator){
         navigator.serviceWorker.getRegistrations().then(function(regs){
-          regs.forEach(function(r){ try{ r.unregister(); }catch(e){} });
+          regs.forEach(function(r){ try{
+            // Désinscrit les SW fantômes (ancien scope différent de la page actuelle)
+            if(r.scope && location.href.indexOf(r.scope)!==0){ r.unregister(); }
+          }catch(e){} });
+          navigator.serviceWorker.register('./sw.js').then(function(reg){
+            reg.update();
+            setInterval(function(){ try{ reg.update(); }catch(e){} }, 60000);
+          }).catch(function(e){ console.warn('[SW] enregistrement échoué (fichier sw.js manquant sur le serveur ?)', e.message||e); });
         });
       }
     }catch(e){}
@@ -36087,12 +36025,27 @@ Erreur Firebase : ${e.message}`;
       btn.addEventListener('click', async () => {
         if (deferredPrompt) {
           // Installation native disponible → prompt direct du navigateur
-          deferredPrompt.prompt();
-          const result = await deferredPrompt.userChoice;
-          deferredPrompt = null;
-          if (result.outcome === 'accepted') { btn.style.display = 'none'; ui.toast('📱 LEONI installé ✅', 'success', 4000); }
+          btn.disabled = true;
+          const originalHTML = btn.innerHTML;
+          btn.innerHTML = '<span>⏳</span><span>Installation…</span>';
+          try {
+            deferredPrompt.prompt();
+            const result = await deferredPrompt.userChoice;
+            deferredPrompt = null;
+            if (result.outcome === 'accepted') {
+              btn.style.display = 'none';
+              ui.toast('📱 LEONI installé ✅', 'success', 4000);
+            } else {
+              btn.disabled = false;
+              btn.innerHTML = originalHTML;
+            }
+          } catch (e) {
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+          }
         } else {
-          // Pas d'API native disponible (iOS, ou pas encore proposée par Chrome) → instructions claires
+          // Chrome n'a pas encore proposé l'install native (SW pas encore actif, ou heuristique
+          // d'engagement pas atteinte) → instructions manuelles claires, jamais un blocage silencieux
           showInstallModal();
         }
       });

@@ -7199,7 +7199,16 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <span class="cockpit-bar__time" id="cockpit-time">--:--:--</span>
           <span class="cockpit-bar__user" id="cockpit-user">—</span>
           <span class="cockpit-bar__mode cockpit-bar__mode--test" id="cockpit-mode" title="Mode système" hidden>🧪 TEST</span>
+          <button type="button" id="btn-pwa-install" title="Installer LEONI Crimping comme application" style="margin-left:.6rem;padding:.22rem .65rem;background:linear-gradient(135deg,#00d4ff,#00e5a0);color:#04121a;border:0;border-radius:6px;font-family:var(--font-mono,monospace);font-size:.68rem;font-weight:800;letter-spacing:.04em;cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;box-shadow:0 2px 10px rgba(0,212,255,.3);animation:pwaBtnPulse 2.4s ease-in-out infinite">
+            <span aria-hidden="true">📲</span><span>Installer l'app</span>
+          </button>
         </div>
+        <style>
+          @keyframes pwaBtnPulse{0%,100%{box-shadow:0 2px 10px rgba(0,212,255,.3)}50%{box-shadow:0 2px 16px rgba(0,212,255,.6)}}
+          #btn-pwa-install:hover{filter:brightness(1.08)}
+          #btn-pwa-install:active{transform:scale(.96)}
+          @media (max-width:640px){ #btn-pwa-install span:last-child{display:none} #btn-pwa-install{padding:.3rem .45rem} }
+        </style>
 
         <!-- ════════════════════════════════════════════════════════════ -->
         <!--  🔔 ALERTES PRÉDICTIVES — Usure outils                        -->
@@ -35999,63 +36008,94 @@ Erreur Firebase : ${e.message}`;
       console.error('[LEONI · js error]', event.error);
     });
     // ════════════════════════════════════════════════════════════════════════
-    // 📱 PWA — Détection installable + bouton "Installer l'app"
+    // 📱 PWA — Bouton d'installation UNIQUE, toujours visible (PC + mobile)
     // ════════════════════════════════════════════════════════════════════════
-    let deferredInstallPrompt = null;
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredInstallPrompt = e;
-      console.log('[PWA] App installable détectée');
-      // Affiche le bouton dans la cockpit bar
-      const bar = document.getElementById('cockpit-bar');
-      if (bar && !document.getElementById('btn-pwa-install')) {
-        const btn = document.createElement('button');
-        btn.id = 'btn-pwa-install';
-        btn.type = 'button';
-        btn.style.cssText = 'margin-left:.5rem;padding:.18rem .55rem;background:linear-gradient(135deg,#00d4ff,#00e5a0);color:#000;border:0;border-radius:5px;font-family:var(--font-mono,monospace);font-size:.66rem;font-weight:700;letter-spacing:.08em;cursor:pointer;text-transform:uppercase';
-        btn.textContent = '📱 Installer';
-        btn.addEventListener('click', async () => {
-          if (!deferredInstallPrompt) return;
-          deferredInstallPrompt.prompt();
-          const result = await deferredInstallPrompt.userChoice;
-          console.log('[PWA] User choice:', result.outcome);
-          deferredInstallPrompt = null;
-          btn.remove();
-          if (result.outcome === 'accepted') {
-            ui.toast('📱 LEONI installé ✅', 'success', 4000);
-          }
-        });
-        bar.appendChild(btn);
-      }
-    });
-    window.addEventListener('appinstalled', () => {
-      console.log('[PWA] App installée');
-      document.getElementById('btn-pwa-install')?.remove();
-      try { ui.toast('📱 Application LEONI installée', 'success', 4000); } catch(e){}
-    });
+    (function pwaInstall(){
+      const btn = document.getElementById('btn-pwa-install');
+      if (!btn) return;
+      let deferredPrompt = null;
 
-    // 🆕 iOS Safari : pas de beforeinstallprompt → bandeau explicatif "Partager → Sur l'écran d'accueil"
-    (function iosInstallHint(){
-      try{
-        const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-        const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-        const dismissed = localStorage.getItem('leoni_ios_install_hint_dismissed');
-        if (!isIOS || isStandalone || dismissed) return;
-        setTimeout(() => {
-          const bar = document.createElement('div');
-          bar.id = 'ios-install-hint';
-          bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;background:linear-gradient(135deg,#0a1424,#132339);border-top:1px solid rgba(0,212,255,.35);padding:.7rem .9rem;display:flex;align-items:center;gap:.6rem;font-family:var(--font-sans,sans-serif);color:#e8f4ff;box-shadow:0 -4px 20px rgba(0,0,0,.4)';
-          bar.innerHTML = `
-            <span style="font-size:1.4rem">📲</span>
-            <span style="flex:1;font-size:.78rem;line-height:1.3">Installez <b>LEONI Crimping</b> sur cet iPhone : appuyez sur <b>Partager</b> ⬆️ puis <b>« Sur l'écran d'accueil »</b>.</span>
-            <button id="ios-install-hint-close" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:.3rem .6rem;font-size:.7rem;cursor:pointer">OK</button>`;
-          document.body.appendChild(bar);
-          document.getElementById('ios-install-hint-close').onclick = () => {
-            bar.remove();
-            try { localStorage.setItem('leoni_ios_install_hint_dismissed', '1'); } catch(e){}
-          };
-        }, 2500);
-      }catch(e){}
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+      const isAndroid = /android/i.test(navigator.userAgent);
+      const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
+      // Déjà installée → bouton inutile
+      if (isStandalone) { btn.style.display = 'none'; return; }
+
+      // Le navigateur signale que l'installation native est possible (Chrome/Edge/Samsung Internet)
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        btn.style.display = 'inline-flex'; // au cas où il aurait été masqué
+      });
+
+      window.addEventListener('appinstalled', () => {
+        deferredPrompt = null;
+        btn.style.display = 'none';
+        try { ui.toast('📱 Application LEONI installée avec succès', 'success', 4000); } catch(e){}
+      });
+
+      // ── Modal d'instructions (fallback quand le navigateur ne propose pas d'install native) ──
+      function showInstallModal() {
+        document.getElementById('pwa-install-modal')?.remove();
+        let steps;
+        if (isIOS) {
+          steps = [
+            ['1', 'Appuie sur l\'icône <b>Partager</b> ⬆️ en bas de Safari (ou en haut, selon iOS).'],
+            ['2', 'Fais défiler et choisis <b>« Sur l\'écran d\'accueil »</b>.'],
+            ['3', 'Appuie sur <b>Ajouter</b>. L\'icône LEONI apparaît sur ton écran d\'accueil.']
+          ];
+        } else if (isAndroid) {
+          steps = [
+            ['1', 'Appuie sur le menu <b>⋮</b> (3 points) en haut à droite de Chrome.'],
+            ['2', 'Choisis <b>« Installer l\'application »</b> ou <b>« Ajouter à l\'écran d\'accueil »</b>.'],
+            ['3', 'Confirme. L\'icône LEONI apparaît sur ton écran d\'accueil, comme une app native.']
+          ];
+        } else {
+          steps = [
+            ['1', 'Repère l\'icône <b>⊕ Installer</b> tout à droite de la barre d\'adresse (Chrome / Edge).'],
+            ['2', 'Si tu ne la vois pas : menu <b>⋮</b> → <b>« Installer LEONI Maintenance… »</b>.'],
+            ['3', 'Confirme. L\'app s\'ouvre dans sa propre fenêtre, épinglable à la barre des tâches.']
+          ];
+        }
+        const modal = document.createElement('div');
+        modal.id = 'pwa-install-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(5,9,18,.85);backdrop-filter:blur(6px);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem';
+        modal.innerHTML = `
+          <div style="background:var(--bg-2,#0f1a2b);border:1px solid rgba(0,212,255,.3);border-radius:14px;max-width:420px;width:100%;padding:1.4rem;box-shadow:0 12px 40px rgba(0,0,0,.5);font-family:var(--font-sans,sans-serif)">
+            <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:1rem">
+              <span style="font-size:1.8rem">📲</span>
+              <div>
+                <div style="font-weight:800;color:#00d4ff;font-size:1rem">Installer LEONI Crimping</div>
+                <div style="font-size:.72rem;color:var(--text-muted,#8aa)">${isIOS ? 'sur iPhone / iPad' : isAndroid ? 'sur Android' : 'sur PC (Chrome / Edge)'}</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:.7rem;margin-bottom:1.2rem">
+              ${steps.map(([n, t]) => `
+                <div style="display:flex;gap:.65rem;align-items:flex-start">
+                  <span style="flex-shrink:0;width:22px;height:22px;border-radius:50%;background:rgba(0,212,255,.15);color:#00d4ff;font-weight:800;font-size:.72rem;display:flex;align-items:center;justify-content:center">${n}</span>
+                  <span style="font-size:.82rem;color:#e8f4ff;line-height:1.4">${t}</span>
+                </div>`).join('')}
+            </div>
+            <button id="pwa-install-modal-close" style="width:100%;padding:.6rem;background:linear-gradient(135deg,#00d4ff,#00e5a0);color:#04121a;border:0;border-radius:8px;font-weight:800;font-size:.82rem;cursor:pointer">Compris</button>
+          </div>`;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+        document.getElementById('pwa-install-modal-close').onclick = () => modal.remove();
+      }
+
+      btn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+          // Installation native disponible → prompt direct du navigateur
+          deferredPrompt.prompt();
+          const result = await deferredPrompt.userChoice;
+          deferredPrompt = null;
+          if (result.outcome === 'accepted') { btn.style.display = 'none'; ui.toast('📱 LEONI installé ✅', 'success', 4000); }
+        } else {
+          // Pas d'API native disponible (iOS, ou pas encore proposée par Chrome) → instructions claires
+          showInstallModal();
+        }
+      });
     })();
 
     // Cleanup au unload : détache les listeners Firebase + clear intervals

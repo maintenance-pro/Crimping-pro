@@ -10,65 +10,76 @@
   <meta name="apple-mobile-web-app-title" content="LEONI" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>LEONI · Maintenance</title>
-  <!-- Icône SVG haute qualité (visible favicon + iOS) -->
+  <!-- 📱 PWA — TOUT INLINE (aucun fichier externe) : icônes générées par Canvas → PNG,
+       manifest construit en JS et exposé via Blob URL. Fonctionne pour l'icône d'installation
+       et le mode standalone (barre navigateur masquée). Limite technique du web : un vrai
+       Service Worker (cache hors-ligne) DOIT être un fichier .js séparé — impossible à inliner,
+       restriction de sécurité des navigateurs (aucun contournement possible). -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230a1424'/%3E%3Cpath d='M30 25h12v45h28v10H30z' fill='%2300d4ff'/%3E%3Ccircle cx='75' cy='30' r='5' fill='%2300e5a0'/%3E%3C/svg%3E" />
-  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230a1424'/%3E%3Cpath d='M30 25h12v45h28v10H30z' fill='%2300d4ff'/%3E%3Ccircle cx='75' cy='30' r='5' fill='%2300e5a0'/%3E%3C/svg%3E" />
-  <!-- 📱 PWA Manifest généré dynamiquement par JS au chargement
-       Pourquoi : Chrome refuse les data:image/svg+xml dans les icônes du manifest.
-       Solution : on génère une icône PNG 192x192 via Canvas, puis on construit le manifest
-       comme Blob URL (méthode native PWA, sans warning). -->
   <script>
     (function() {
       try {
-        // Génère une icône PNG 192x192 (même graphisme que le favicon)
-        const c = document.createElement('canvas');
-        c.width = 192; c.height = 192;
-        const ctx = c.getContext('2d');
-        // Fond arrondi (bg dark LEONI)
-        ctx.fillStyle = '#0a1424';
-        if (ctx.roundRect) {
-          ctx.beginPath(); ctx.roundRect(0, 0, 192, 192, 42); ctx.fill();
-        } else {
-          ctx.fillRect(0, 0, 192, 192); // fallback navigateurs anciens
+        // Dessine l'icône LEONI (fond arrondi + "L" cyan + point vert) à une taille donnée
+        function drawIcon(size, maskable) {
+          const c = document.createElement('canvas');
+          c.width = size; c.height = size;
+          const ctx = c.getContext('2d');
+          const pad = maskable ? size * 0.20 : size * 0.10; // zone de sécurité maskable = 20%
+          ctx.fillStyle = '#0a1424';
+          if (maskable) {
+            ctx.fillRect(0, 0, size, size); // fond plein, pas de coins arrondis (l'OS applique son propre masque)
+          } else if (ctx.roundRect) {
+            ctx.beginPath(); ctx.roundRect(0, 0, size, size, size * 0.22); ctx.fill();
+          } else {
+            ctx.fillRect(0, 0, size, size);
+          }
+          const s = size - 2 * pad;
+          ctx.fillStyle = '#00d4ff';
+          const barW = s * 0.19;
+          const x0 = pad + s * 0.14, y0 = pad + s * 0.10;
+          ctx.fillRect(x0, y0, barW, s * 0.72);
+          ctx.fillRect(x0, y0 + s * 0.72 - barW * 0.75, s * 0.46, barW * 0.75);
+          ctx.fillStyle = '#00e5a0';
+          ctx.beginPath(); ctx.arc(pad + s * 0.82, pad + s * 0.18, s * 0.085, 0, Math.PI * 2); ctx.fill();
+          return c.toDataURL('image/png');
         }
-        // Lettre "L" (cyan)
-        ctx.fillStyle = '#00d4ff';
-        ctx.fillRect(58, 48, 23, 86);
-        ctx.fillRect(58, 117, 54, 17);
-        // Point vert
-        ctx.fillStyle = '#00e5a0';
-        ctx.beginPath(); ctx.arc(144, 58, 10, 0, Math.PI * 2); ctx.fill();
-        // Convertit en PNG base64
-        const pngDataUrl = c.toDataURL('image/png');
+        const icon192 = drawIcon(192, false);
+        const icon512 = drawIcon(512, false);
+        const icon512m = drawIcon(512, true);
 
-        // Construit le manifest avec l'icône PNG (sera accepté par Chrome/Edge/Firefox)
         const manifest = {
-          name: "LEONI Maintenance Pro",
-          short_name: "LEONI",
+          name: "LEONI Maintenance Pro — Crimping Lab",
+          short_name: "LEONI Crimping",
           start_url: ".",
+          scope: ".",
           display: "standalone",
-          orientation: "portrait-primary",
+          orientation: "any",
           background_color: "#0a1424",
           theme_color: "#0a0e1a",
-          description: "Maintenance Management LEONI Wiring System",
-          icons: [{
-            src: pngDataUrl,
-            sizes: "192x192",
-            type: "image/png",
-            purpose: "any maskable"
-          }]
+          description: "Gestion maintenance des outils de sertissage — LEONI Wiring Systems",
+          lang: "fr",
+          icons: [
+            { src: icon192, sizes: "192x192", type: "image/png", purpose: "any" },
+            { src: icon512, sizes: "512x512", type: "image/png", purpose: "any" },
+            { src: icon512m, sizes: "512x512", type: "image/png", purpose: "maskable" }
+          ]
         };
-        // Génère un Blob URL (méthode officielle PWA, pas de data: URI sur le manifest)
         const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
         const blobUrl = URL.createObjectURL(blob);
-        // Remplace le manifest statique par celui-ci
         document.querySelectorAll('link[rel="manifest"]').forEach(l => l.remove());
         const link = document.createElement('link');
         link.rel = 'manifest';
         link.href = blobUrl;
         document.head.appendChild(link);
+
+        // apple-touch-icon (iOS ignore le manifest, se base sur ce lien)
+        document.querySelectorAll('link[rel="apple-touch-icon"]').forEach(l => l.remove());
+        const at = document.createElement('link');
+        at.rel = 'apple-touch-icon';
+        at.href = icon192;
+        document.head.appendChild(at);
       } catch (e) {
-        console.warn('[manifest] Génération dynamique échouée, pas grave :', e.message);
+        console.warn('[manifest] Génération inline échouée, pas grave :', e.message);
       }
     })();
   </script>
@@ -11036,6 +11047,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if (!toolId || !fid) return null;
       const ck = toolId + '/' + fid;
       if (this._b64cache[ck]) return this._b64cache[ck];
+      this._lastB64Err = null; // 🆕 raison réelle du dernier échec (diagnostic)
       const inMem = meta || this._all?.[toolId]?.[fid];
       if (inMem && inMem.b64) { this._b64cache[ck] = inMem.b64; return inMem.b64; }
       // 🆕 1) Firebase STORAGE (nouveau format) — via storagePath
@@ -11045,7 +11057,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const url = await fbStorage.ref(sp).getDownloadURL();
           const resp = await fetch(url);
           if (resp.ok) { const b64 = await this._blobToB64(await resp.blob()); if (b64) { this._b64cache[ck] = b64; return b64; } }
-        } catch (e) { console.warn('[storage] lecture échouée', sp, e.message || e); }
+          else { this._lastB64Err = `Storage HTTP ${resp.status} sur ${sp}`; }
+        } catch (e) {
+          // 🆕 code Firebase Storage explicite (permission-denied / object-not-found / CORS…)
+          const code = e && e.code ? ` [${e.code}]` : '';
+          this._lastB64Err = `Storage${code} : ${e.message || e} (chemin: ${sp})`;
+          console.warn('[storage] lecture échouée', sp, e.message || e);
+        }
+      } else if (sp) {
+        this._lastB64Err = `storagePath="${sp}" présent mais Firebase Storage (fbStorage) non initialisé.`;
       }
       // 2) RTDB séparé (format intermédiaire toolAttachmentsB64)
       try {
@@ -11053,13 +11073,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const v = s.val();
         const b = (v && typeof v === 'object') ? v.b64 : v;
         if (b) { this._b64cache[ck] = b; return b; }
-      } catch (e) {}
+      } catch (e) { if (!this._lastB64Err) this._lastB64Err = `RTDB toolAttachmentsB64 : ${e.message || e}`; }
       // 3) inline ancien format (toolAttachments/{id}/{fid}/b64)
       try {
         const s2 = await fbDb.ref('toolAttachments/' + toolId + '/' + fid + '/b64').once('value');
         const v2 = s2.val();
         if (v2) { this._b64cache[ck] = v2; return v2; }
-      } catch (e) {}
+      } catch (e) { if (!this._lastB64Err) this._lastB64Err = `RTDB toolAttachments inline : ${e.message || e}`; }
+      if (!this._lastB64Err) this._lastB64Err = sp ? 'Storage inaccessible et aucune copie RTDB de secours (déjà purgée par la migration).' : 'Aucune donnée trouvée (ni Storage, ni RTDB) — le document semble réellement absent.';
       return null;
     },
 
@@ -11577,20 +11598,43 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if (!isXl) return this.download(toolId, fileId);   // non-Excel : comportement existant inchangé
       document.getElementById('excel-viewer-overlay')?.remove();
       document.body.insertAdjacentHTML('beforeend', `
-        <div id="excel-viewer-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.92);backdrop-filter:blur(8px);z-index:10012;display:flex;align-items:stretch;justify-content:stretch;padding:0">
+        <div id="excel-viewer-overlay" style="position:fixed;inset:0;background:rgba(5,9,18,.94);backdrop-filter:blur(10px);z-index:10012;display:flex;align-items:stretch;justify-content:stretch;padding:0;animation:xlvFadeIn .18s ease-out">
+          <style>
+            @keyframes xlvFadeIn{from{opacity:0}to{opacity:1}}
+            @keyframes xlvSlideUp{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+            @keyframes xlvSpin{to{transform:rotate(360deg)}}
+            #excel-viewer-overlay .xlv-tab{border:1px solid var(--border-soft);border-bottom:none;background:rgba(255,255,255,.02);color:var(--text-muted);border-radius:8px 8px 0 0;padding:.42rem .9rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:var(--font-mono);transition:all .15s ease;white-space:nowrap}
+            #excel-viewer-overlay .xlv-tab:hover{background:rgba(0,212,255,.08);color:#7fe3ff}
+            #excel-viewer-overlay .xlv-tab.on{background:rgba(0,212,255,.14);color:#00d4ff;border-color:rgba(0,212,255,.5);box-shadow:0 -2px 0 #00d4ff inset}
+            #excel-viewer-overlay .xlv-btn{padding:.42rem .85rem;border:1px solid var(--border-soft);border-radius:7px;cursor:pointer;font-size:.72rem;font-weight:800;letter-spacing:.02em;display:inline-flex;align-items:center;gap:.35rem;transition:all .15s ease;white-space:nowrap}
+            #excel-viewer-overlay .xlv-btn:active{transform:scale(.96)}
+            #excel-viewer-overlay .xlv-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+            #excel-viewer-overlay table{border-collapse:collapse;animation:xlvSlideUp .2s ease-out}
+            @media (max-width:640px){
+              #excel-viewer-overlay header{flex-wrap:wrap;padding:.65rem .7rem!important}
+              #excel-viewer-overlay #excel-viewer-toolbar{width:100%;justify-content:flex-end;order:3}
+            }
+          </style>
           <div style="background:var(--bg-2);border:none;border-radius:0;width:100%;height:100%;max-width:100%;max-height:100%;display:flex;flex-direction:column;overflow:hidden">
-            <header style="display:flex;align-items:center;gap:.6rem;padding:.8rem 1rem;border-bottom:1px solid var(--border-soft)">
-              <span style="font-size:1.3rem">📊</span>
+            <header style="display:flex;align-items:center;gap:.7rem;padding:.7rem 1.1rem;border-bottom:1px solid var(--border-soft);background:linear-gradient(180deg,rgba(0,212,255,.05),transparent)">
+              <span style="font-size:1.5rem;flex-shrink:0;filter:drop-shadow(0 0 6px rgba(0,212,255,.35))">📊</span>
               <div style="flex:1;min-width:0">
-                <div style="font-weight:800;color:#00d4ff;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ui.escape(f.name || 'Fichier Excel')}</div>
-                <div style="font-size:.68rem;color:var(--text-muted)">Contenu affiché dans la page — sans ouvrir Excel</div>
+                <div style="font-weight:800;color:#00d4ff;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.01em">${ui.escape(f.name || 'Fichier Excel')}</div>
+                <div id="excel-viewer-subtitle" style="font-size:.66rem;color:var(--text-muted);display:flex;align-items:center;gap:.4rem;margin-top:.1rem">
+                  <span>Aperçu intégré — sans ouvrir Excel</span>
+                </div>
               </div>
-              ${(typeof state!=='undefined' && state.role!=='operateur') ? `<button data-xlv-pdf title="Télécharger en PDF (valeurs alignées sur les lignes, sans décalage)" style="padding:.4rem .85rem;background:linear-gradient(135deg,#c0392b,#e74c3c);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.74rem;font-weight:800;box-shadow:0 2px 8px rgba(231,76,60,.4)">📄 PDF</button>` : ''}
-              <button data-xlv-close style="padding:.4rem .7rem;background:rgba(255,255,255,.06);color:var(--text-primary);border:1px solid var(--border-soft);border-radius:6px;cursor:pointer;font-size:.74rem;font-weight:700">← Retour</button>
+              <div id="excel-viewer-toolbar" style="display:flex;gap:.45rem;flex-shrink:0">
+                ${(typeof state!=='undefined' && state.role!=='operateur') ? `<button data-xlv-pdf class="xlv-btn" title="Exporter en PDF (valeurs alignées sur les lignes)" style="background:linear-gradient(135deg,#c0392b,#e74c3c);color:#fff;border:none;box-shadow:0 2px 8px rgba(231,76,60,.35)">📄 PDF</button>` : ''}
+                <button data-xlv-close class="xlv-btn" style="background:rgba(255,255,255,.06);color:var(--text-primary)">← Retour</button>
+              </div>
             </header>
-            <div id="excel-viewer-tabs" style="display:flex;gap:.3rem;padding:.55rem 1rem 0;flex-wrap:wrap"></div>
-            <div id="excel-viewer-body" style="flex:1;overflow:auto;padding:.8rem 1rem">
-              <div style="text-align:center;color:var(--text-muted);padding:2.5rem">⏳ Chargement du fichier Excel…</div>
+            <div id="excel-viewer-tabs" style="display:flex;gap:.3rem;padding:.6rem 1.1rem 0;flex-wrap:wrap;overflow-x:auto"></div>
+            <div id="excel-viewer-body" style="flex:1;overflow:auto;padding:.9rem 1.1rem;position:relative">
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.9rem;padding:3.5rem 1rem;color:var(--text-muted)">
+                <div style="width:34px;height:34px;border:3px solid rgba(0,212,255,.18);border-top-color:#00d4ff;border-radius:50%;animation:xlvSpin .8s linear infinite"></div>
+                <div style="font-size:.82rem;font-weight:600">Chargement du fichier Excel…</div>
+              </div>
             </div>
           </div>
         </div>`);
@@ -11642,22 +11686,32 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         } catch(e){ if(holder) try{holder.remove();}catch(_){}; pb.disabled=false; pb.textContent='📄 PDF'; ui.toast('⚠ PDF impossible : '+(e.message||e),'danger'); }
       }; }
       const msg = (txt, color) => `<div style="text-align:center;padding:2.5rem;color:${color || 'var(--text-muted)'};font-size:.86rem">${txt}</div>`;
+      const errorCard = (icon, title, detail) => `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.7rem;padding:3rem 1rem;text-align:center;animation:xlvSlideUp .2s ease-out">
+          <div style="font-size:2.4rem;line-height:1;filter:grayscale(.15)">${icon}</div>
+          <div style="font-weight:800;color:#ff8b6b;font-size:.9rem">${title}</div>
+          ${detail ? `<div style="font-size:.72rem;color:var(--text-muted);max-width:480px;word-break:break-word;background:rgba(255,255,255,.03);border:1px solid var(--border-soft);border-radius:8px;padding:.6rem .8rem">${detail}</div>` : ''}
+          <button data-xlv-retry class="xlv-btn" style="margin-top:.4rem;background:rgba(0,212,255,.1);color:#00d4ff;border-color:rgba(0,212,255,.35)">🔄 Réessayer</button>
+        </div>`;
+      const bindRetry = () => { const r = bodyEl.querySelector('[data-xlv-retry]'); if (r) r.onclick = () => { delete this._b64cache[toolId + '/' + fileId]; this.viewExcel(toolId, fileId); }; };
       try {
         const b64 = this._b64cache[toolId + '/' + fileId] || await this._getB64(toolId, fileId, f);
-        if (!b64) { bodyEl.innerHTML = msg('📭 Impossible de charger ce fichier (introuvable ou vide).', '#ff8b6b'); return; }
+        if (!b64) {
+          const why = this._lastB64Err ? ui.escape(this._lastB64Err) : null;
+          bodyEl.innerHTML = errorCard('📭', 'Impossible de charger ce fichier', why);
+          bindRetry();
+          return;
+        }
         // Onglets + rendu commun
         const buildTabs = (names, getHtml) => {
           const renderSheet = (name) => {
-            tabsEl.querySelectorAll('button').forEach(b => {
-              const on = b.dataset.xlvSheet === name;
-              b.style.background = on ? 'rgba(0,212,255,.16)' : 'transparent';
-              b.style.color = on ? '#00d4ff' : 'var(--text-muted)';
-              b.style.borderColor = on ? 'rgba(0,212,255,.5)' : 'var(--border-soft)';
-            });
+            tabsEl.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.xlvSheet === name));
             bodyEl.innerHTML = getHtml(name); bodyEl.scrollTop = 0;
           };
-          tabsEl.innerHTML = names.map(n => `<button data-xlv-sheet="${ui.escape(n)}" style="border:1px solid var(--border-soft);border-bottom:none;background:transparent;color:var(--text-muted);border-radius:7px 7px 0 0;padding:.3rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer;font-family:var(--font-mono)">${ui.escape(n)}</button>`).join('');
+          tabsEl.innerHTML = names.map(n => `<button data-xlv-sheet="${ui.escape(n)}" class="xlv-tab">${ui.escape(n)}</button>`).join('');
           tabsEl.querySelectorAll('button').forEach(b => b.onclick = () => renderSheet(b.dataset.xlvSheet));
+          const sub = document.getElementById('excel-viewer-subtitle');
+          if (sub) sub.innerHTML = `<span>Aperçu intégré — sans ouvrir Excel</span><span style="opacity:.5">·</span><span>${names.length} feuille${names.length>1?'s':''}</span>`;
           renderSheet(names[0]);
         };
         const isXls = /\.xls$/i.test(f.name || '') && !/\.xlsx$/i.test(f.name || '');
@@ -11690,7 +11744,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
       } catch (e) {
         console.error('[viewExcel]', e);
-        bodyEl.innerHTML = msg(`⚠️ Impossible d'afficher ce fichier Excel.<br><span style="font-size:.72rem;color:var(--text-muted)">${ui.escape(e.message || 'erreur de lecture')} — utilisez ⬇️ Télécharger.</span>`, '#ff3d5a');
+        bodyEl.innerHTML = errorCard('⚠️', "Impossible d'afficher ce fichier Excel", ui.escape(e.message || 'erreur de lecture') + ' — utilisez ⬇️ Télécharger.');
+        bindRetry();
       }
     },
 
@@ -11701,7 +11756,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         ui.toast('🖨️ Préparation de l\'impression…', 'info');
         const f = (this._all && this._all[toolId] && this._all[toolId][fileId]) || {};
         const b64 = this._b64cache[toolId + '/' + fileId] || await this._getB64(toolId, fileId, f);
-        if (!b64) { ui.toast('Document introuvable ou vide.', 'warn'); return; }
+        if (!b64) { ui.toast('Document introuvable ou vide. ' + (this._lastB64Err || ''), 'warn', 9000); return; }
         const isXls = /\.xls$/i.test(f.name || '') && !/\.xlsx$/i.test(f.name || '');
         let sheetsHtml = '';
         const SEP = '<div style="page-break-after:always"></div>';
@@ -35904,17 +35959,14 @@ Erreur Firebase : ${e.message}`;
      15. BOOTSTRAP
      ========================================================================== */
   document.addEventListener('DOMContentLoaded', () => {
-    // 🔄 Mise à jour automatique sur mobile : vérifie le Service Worker et recharge dès qu'une nouvelle version est prête
+    // 🧹 Désinscrit d'éventuels Service Workers fantômes (ancien déploiement, scope différent)
+    // Note : pas de vrai Service Worker ici (single-file) → pas de mode hors-ligne, mais
+    // l'app reste installable (icône + fenêtre standalone) via le manifest inline ci-dessus.
     try{
       if('serviceWorker' in navigator){
-        navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ try{
-          // 🆕 Désinscrire les Service Workers FANTÔMES (ancien déploiement, scope différent de la page) → supprime l'erreur 404 sw.js
-          if(r.scope && location.href.indexOf(r.scope)!==0){ r.unregister(); }
-          else { r.update(); }
-        }catch(e){} }); });
-        navigator.serviceWorker.ready.then(function(reg){ try{ reg.update(); }catch(e){} setInterval(function(){ try{ reg.update(); }catch(e){} }, 60000); }).catch(function(){});
-        let __reloaded=false;
-        navigator.serviceWorker.addEventListener('controllerchange', function(){ if(__reloaded) return; __reloaded=true; location.reload(); });
+        navigator.serviceWorker.getRegistrations().then(function(regs){
+          regs.forEach(function(r){ try{ r.unregister(); }catch(e){} });
+        });
       }
     }catch(e){}
     // ╔════════════════════════════════════════════════════════════════════╗
@@ -35981,6 +36033,30 @@ Erreur Firebase : ${e.message}`;
       document.getElementById('btn-pwa-install')?.remove();
       try { ui.toast('📱 Application LEONI installée', 'success', 4000); } catch(e){}
     });
+
+    // 🆕 iOS Safari : pas de beforeinstallprompt → bandeau explicatif "Partager → Sur l'écran d'accueil"
+    (function iosInstallHint(){
+      try{
+        const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+        const dismissed = localStorage.getItem('leoni_ios_install_hint_dismissed');
+        if (!isIOS || isStandalone || dismissed) return;
+        setTimeout(() => {
+          const bar = document.createElement('div');
+          bar.id = 'ios-install-hint';
+          bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;background:linear-gradient(135deg,#0a1424,#132339);border-top:1px solid rgba(0,212,255,.35);padding:.7rem .9rem;display:flex;align-items:center;gap:.6rem;font-family:var(--font-sans,sans-serif);color:#e8f4ff;box-shadow:0 -4px 20px rgba(0,0,0,.4)';
+          bar.innerHTML = `
+            <span style="font-size:1.4rem">📲</span>
+            <span style="flex:1;font-size:.78rem;line-height:1.3">Installez <b>LEONI Crimping</b> sur cet iPhone : appuyez sur <b>Partager</b> ⬆️ puis <b>« Sur l'écran d'accueil »</b>.</span>
+            <button id="ios-install-hint-close" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:.3rem .6rem;font-size:.7rem;cursor:pointer">OK</button>`;
+          document.body.appendChild(bar);
+          document.getElementById('ios-install-hint-close').onclick = () => {
+            bar.remove();
+            try { localStorage.setItem('leoni_ios_install_hint_dismissed', '1'); } catch(e){}
+          };
+        }, 2500);
+      }catch(e){}
+    })();
 
     // Cleanup au unload : détache les listeners Firebase + clear intervals
     window.addEventListener('beforeunload', () => {

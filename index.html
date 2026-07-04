@@ -9263,6 +9263,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           .qrqc-sim__act{display:flex;gap:.4rem;margin-top:.45rem;flex-wrap:wrap}
           .qrqc-recur{background:rgba(167,139,250,.16);color:#a78bfa;padding:.15rem .5rem;border-radius:999px;font-weight:700}
           .qrqc-recur-toggle.is-on{background:rgba(167,139,250,.18)!important;border-color:#a78bfa!important;color:#a78bfa!important}
+          .qrqc-kpi__sub{font-size:.68rem;color:var(--text-muted);margin-top:.3rem;position:relative;z-index:1}
+          .qrqc-kpi-card{cursor:pointer;outline:2px solid transparent;outline-offset:2px;transition:transform .16s ease,box-shadow .16s ease,outline-color .12s ease}
+          .qrqc-kpi-card[data-active="true"]{outline-color:var(--accent-500,#00d4ff)}
         </style>
 
         <div class="control-center__title-block" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
@@ -9271,31 +9274,39 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <p class="control-center__sub">Traçabilité complète des traitements : sécurisation, analyse, actions, vérification, standardisation</p>
           </div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            <button class="btn btn--primary" id="btn-qrqc-new" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">➕ Nouvelle fiche QRQC</button>
+            <button class="btn btn--primary" id="btn-qrqc-new" data-edit-module="qrqc" style="font-weight:700">➕ Nouvelle fiche QRQC</button>
           </div>
         </div>
 
-        <!-- KPI Hero — répartition par statut (cliquables → filtre) -->
-        <div class="kpi-hero" style="margin-bottom:1.1rem">
-          <div class="kpi-hero__card" data-kpi="danger" data-qstatus="open" title="Filtrer : fiches ouvertes">
-            <div class="kpi-hero__label">🔴 Ouvertes</div>
-            <div class="kpi-hero__value" id="qrqc-kpi-open">—</div>
-            <div class="kpi-hero__sub">analyse à démarrer</div>
+        <!-- KPIs style Outils Bloqués (cliquables → filtre) -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.7rem;margin-bottom:1.1rem">
+          <div class="bl-kpi qrqc-kpi-card" data-qstatus="open" title="Filtrer : fiches ouvertes" style="background:linear-gradient(135deg,rgba(239,68,68,.13),var(--bg-elevated));border-color:rgba(239,68,68,.32)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#ef4444,transparent)"></div>
+            <div class="bl-kpi__label">🔴 Ouvertes</div>
+            <div id="qrqc-kpi-open" class="bl-kpi__value" style="color:#ef4444">—</div>
+            <div class="qrqc-kpi__sub">analyse à démarrer</div>
+            <div class="bl-kpi__wm">🚨</div>
           </div>
-          <div class="kpi-hero__card" data-kpi="warn" data-qstatus="progress" title="Filtrer : fiches en cours">
-            <div class="kpi-hero__label">🟠 En cours</div>
-            <div class="kpi-hero__value" id="qrqc-kpi-progress">—</div>
-            <div class="kpi-hero__sub" id="qrqc-kpi-progress-sub">actions en traitement</div>
+          <div class="bl-kpi qrqc-kpi-card" data-qstatus="progress" title="Filtrer : fiches en cours" style="background:linear-gradient(135deg,rgba(245,158,11,.13),var(--bg-elevated));border-color:rgba(245,158,11,.32)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#f59e0b,transparent)"></div>
+            <div class="bl-kpi__label">🟠 En cours</div>
+            <div id="qrqc-kpi-progress" class="bl-kpi__value" style="color:#f59e0b">—</div>
+            <div class="qrqc-kpi__sub" id="qrqc-kpi-progress-sub">actions en traitement</div>
+            <div class="bl-kpi__wm">🔧</div>
           </div>
-          <div class="kpi-hero__card" data-kpi="primary" data-qstatus="check" title="Filtrer : fiches en vérification">
-            <div class="kpi-hero__label">🔵 Vérification</div>
-            <div class="kpi-hero__value" id="qrqc-kpi-check">—</div>
-            <div class="kpi-hero__sub">efficacité à confirmer</div>
+          <div class="bl-kpi qrqc-kpi-card" data-qstatus="check" title="Filtrer : fiches en vérification" style="background:linear-gradient(135deg,rgba(0,212,255,.11),var(--bg-elevated));border-color:rgba(0,212,255,.30)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#00d4ff,transparent)"></div>
+            <div class="bl-kpi__label">🔵 Vérification</div>
+            <div id="qrqc-kpi-check" class="bl-kpi__value" style="color:#00d4ff">—</div>
+            <div class="qrqc-kpi__sub">efficacité à confirmer</div>
+            <div class="bl-kpi__wm">🔎</div>
           </div>
-          <div class="kpi-hero__card" data-kpi="success" data-qstatus="closed" title="Filtrer : fiches clôturées">
-            <div class="kpi-hero__label">🟢 Clôturées</div>
-            <div class="kpi-hero__value" id="qrqc-kpi-closed">—</div>
-            <div class="kpi-hero__sub" id="qrqc-kpi-closed-sub">standardisées</div>
+          <div class="bl-kpi qrqc-kpi-card" data-qstatus="closed" title="Filtrer : fiches clôturées" style="background:linear-gradient(135deg,rgba(16,185,129,.12),var(--bg-elevated));border-color:rgba(16,185,129,.30)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#10b981,transparent)"></div>
+            <div class="bl-kpi__label">🟢 Clôturées</div>
+            <div id="qrqc-kpi-closed" class="bl-kpi__value" style="color:#10b981">—</div>
+            <div class="qrqc-kpi__sub" id="qrqc-kpi-closed-sub">standardisées</div>
+            <div class="bl-kpi__wm">✅</div>
           </div>
         </div>
 
@@ -33664,7 +33675,7 @@ Erreur Firebase : ${e.message}`;
         document.getElementById('qrqc-filter-projet')?.addEventListener('change', () => this.render());
 
         // KPIs cliquables : filtre par statut (re-clic = tous)
-        document.querySelectorAll('#view-qrqc .kpi-hero__card[data-qstatus]').forEach(card => {
+        document.querySelectorAll('#view-qrqc .qrqc-kpi-card[data-qstatus]').forEach(card => {
           card.addEventListener('click', () => {
             const sel = document.getElementById('qrqc-filter-status');
             if (!sel) return;
@@ -34041,7 +34052,7 @@ Erreur Firebase : ${e.message}`;
         const q  = (document.getElementById('qrqc-search')?.value || '').trim().toLowerCase();
         const fs = document.getElementById('qrqc-filter-status')?.value || '';
         const fp = document.getElementById('qrqc-filter-projet')?.value || '';
-        document.querySelectorAll('#view-qrqc .kpi-hero__card[data-qstatus]').forEach(c => {
+        document.querySelectorAll('#view-qrqc .qrqc-kpi-card[data-qstatus]').forEach(c => {
           c.dataset.active = (c.dataset.qstatus === fs) ? 'true' : 'false';
         });
         let list = all;

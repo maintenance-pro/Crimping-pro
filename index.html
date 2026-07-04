@@ -30199,6 +30199,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       _renderCaoAlert() {
         const box = document.getElementById('bl-cao-alert');
         if (!box) return;
+        // 🔒 Réservé à l'administrateur
+        if (!['admin', 'super_admin'].includes(state.role)) { box.style.display = 'none'; box.innerHTML = ''; return; }
         if (!(this._data || []).length) { box.style.display = 'none'; box.innerHTML = ''; return; }
         const missing = this._getProductionNotInList();
         if (!missing.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
@@ -30274,6 +30276,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       _renderCaoRemoveAlert() {
         const box = document.getElementById('bl-cao-remove-alert');
         if (!box) return;
+        // 🔒 Réservé à l'administrateur
+        if (!['admin', 'super_admin'].includes(state.role)) { box.style.display = 'none'; box.innerHTML = ''; return; }
         if (!(this._data || []).length) { box.style.display = 'none'; box.innerHTML = ''; return; }
         const stuck = this._getDamagedStillInList();
         if (!stuck.length) { box.style.display = 'none'; box.innerHTML = ''; return; }

@@ -8295,6 +8295,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           </div>
         </header>
 
+        <!-- 🆕 Alerte : outils en production absents de cette liste (à ajouter sur CAO) -->
+        <div id="bl-cao-alert" style="display:none;margin-bottom:1.1rem;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.4);border-left:4px solid #f59e0b;border-radius:10px;padding:.85rem 1rem"></div>
+
+        <!-- 🆕 Alerte : outils endommagés encore présents dans la liste (à retirer par CAO) -->
+        <div id="bl-cao-remove-alert" style="display:none;margin-bottom:1.1rem;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.4);border-left:4px solid #ef4444;border-radius:10px;padding:.85rem 1rem"></div>
+
         <!-- KPIs -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem;margin-bottom:1.1rem">
           <div class="bl-kpi" style="background:linear-gradient(135deg,rgba(0,212,255,.10),var(--bg-elevated));border-color:rgba(0,212,255,.28)">
@@ -30156,6 +30162,152 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         badge.style.display = blockedCount > 0 ? '' : 'none';
       },
 
+      /** Normalise un identifiant pour comparaison croisée (majuscules, alphanum seul) */
+      _normId(s) {
+        return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      },
+
+      /** 🆕 Outils du catalogue EN PRODUCTION qui ne sont PAS dans la liste Outils Bloqués (Komax/CAO).
+       *  Lien croisé : numInventaire / serial / outilId / doutils ↔ inventoryNo de l'import Komax. */
+      _getProductionNotInList() {
+        // Identifiants présents dans la liste importée (Komax)
+        const blockedIds = new Set();
+        (this._data || []).forEach(r => {
+          const inv = this._normId(r.inventoryNo);
+          if (inv && inv.length >= 4) blockedIds.add(inv);
+          const dsc = this._normId(r.description);
+          if (dsc && dsc.length >= 4) blockedIds.add(dsc);
+        });
+        if (!blockedIds.size) return [];   // pas de données Komax → on ne signale rien
+        const cat = views.catalog;
+        const statusOf = t => { try { return cat && cat._getToolStatus ? cat._getToolStatus(t) : (t.status || 'production'); } catch (e) { return t.status || 'production'; } };
+        const tools = Object.values(state.tools || {}).filter(t => t && statusOf(t) === 'production');
+        return tools.filter(t => {
+          const ids = [t.numInventaire, t.serial, t.outilId, t.doutils, t.refOutil]
+            .map(x => this._normId(x)).filter(x => x && x.length >= 4);
+          if (!ids.length) return false;                 // aucun identifiant exploitable → pas de bruit
+          const present = ids.some(id => blockedIds.has(id));
+          return !present;                               // absent de la liste = à ajouter sur CAO
+        });
+      },
+
+      _caoNameOf(t) {
+        return t.designation || t.doutils || t.serial || t.outilId || t.refOutil || '—';
+      },
+
+      /** 🆕 Rend le bandeau d'alerte « à ajouter sur CAO » */
+      _renderCaoAlert() {
+        const box = document.getElementById('bl-cao-alert');
+        if (!box) return;
+        if (!(this._data || []).length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+        const missing = this._getProductionNotInList();
+        if (!missing.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+        const list = missing.slice(0, 50).map(t => {
+          const inv = t.numInventaire || '—';
+          const proj = t.projet ? ` · 📁 ${ui.escape(t.projet)}` : '';
+          return `<div style="display:flex;justify-content:space-between;gap:.6rem;padding:.35rem .55rem;border-radius:6px;background:var(--bg-3);align-items:center">
+            <span><strong style="color:var(--text-primary)">${ui.escape(this._caoNameOf(t))}</strong>
+              <span style="font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);margin-left:.35rem">N°inv ${ui.escape(inv)}</span>${proj}</span>
+            <span style="font-size:.66rem;background:rgba(245,158,11,.18);color:#f59e0b;padding:.14rem .5rem;border-radius:999px;font-weight:700;white-space:nowrap">➕ Ajouter sur CAO</span>
+          </div>`;
+        }).join('');
+
+        box.style.display = 'block';
+        box.innerHTML =
+          `<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:.6rem">
+            <div style="font-weight:800;color:#f59e0b;font-size:.9rem">⚠️ ${missing.length} outil(s) en production absent(s) de cette liste — à ajouter sur CAO</div>
+            <div style="display:flex;gap:.4rem">
+              <button id="bl-cao-copy" class="btn btn--ghost" style="font-size:.72rem;padding:.35rem .7rem">📋 Copier N° inventaire</button>
+              <button id="bl-cao-export" class="btn btn--secondary" style="font-size:.72rem;padding:.35rem .7rem;background:rgba(245,158,11,.14);color:#f59e0b;border:1px solid rgba(245,158,11,.35)">📤 Exporter</button>
+            </div>
+          </div>
+          <div style="display:grid;gap:.3rem;max-height:230px;overflow:auto">${list}</div>` +
+          (missing.length > 50 ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.45rem">… et ${missing.length - 50} autre(s). Utilise « Exporter » pour la liste complète.</div>` : '');
+
+        document.getElementById('bl-cao-copy')?.addEventListener('click', () => {
+          const txt = missing.map(t => [t.numInventaire || '', this._caoNameOf(t), t.projet || ''].join('\t')).join('\n');
+          if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => ui.toast('📋 Liste copiée', 'success')).catch(() => ui.toast('Copie impossible', 'warn'));
+          else ui.toast('Copie non supportée', 'warn');
+        });
+        document.getElementById('bl-cao-export')?.addEventListener('click', () => this._exportCaoMissing(missing));
+      },
+
+      /** 🆕 Export CSV d'une liste d'outils CAO (fichier + libellé statut paramétrables) */
+      _exportCaoMissing(list, filename, statusLabel) {
+        filename = filename || 'outils_a_ajouter_CAO.csv';
+        statusLabel = statusLabel || 'production';
+        const rows = [['N° Inventaire', 'Outil', 'Serial', 'Outil ID', 'Projet', 'Statut']]
+          .concat(list.map(t => [t.numInventaire || '', this._caoNameOf(t), t.serial || '', t.outilId || '', t.projet || '', statusLabel]));
+        const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        ui.toast('📤 Export CSV généré (' + list.length + ' outils)', 'success');
+      },
+
+      /** 🆕 Outils du catalogue ENDOMMAGÉS qui sont ENCORE présents dans la liste Outils Bloqués (Komax/CAO).
+       *  → doivent être retirés du système CAO. */
+      _getDamagedStillInList() {
+        const blockedIds = new Set();
+        (this._data || []).forEach(r => {
+          const inv = this._normId(r.inventoryNo);
+          if (inv && inv.length >= 4) blockedIds.add(inv);
+          const dsc = this._normId(r.description);
+          if (dsc && dsc.length >= 4) blockedIds.add(dsc);
+        });
+        if (!blockedIds.size) return [];
+        const cat = views.catalog;
+        const statusOf = t => { try { return cat && cat._getToolStatus ? cat._getToolStatus(t) : (t.status || 'production'); } catch (e) { return t.status || 'production'; } };
+        const tools = Object.values(state.tools || {}).filter(t => t && statusOf(t) === 'endommage');
+        return tools.filter(t => {
+          const ids = [t.numInventaire, t.serial, t.outilId, t.doutils, t.refOutil]
+            .map(x => this._normId(x)).filter(x => x && x.length >= 4);
+          if (!ids.length) return false;
+          return ids.some(id => blockedIds.has(id));   // encore présent = à retirer
+        });
+      },
+
+      /** 🆕 Rend le bandeau d'alerte « à retirer par CAO » (outils endommagés encore listés) */
+      _renderCaoRemoveAlert() {
+        const box = document.getElementById('bl-cao-remove-alert');
+        if (!box) return;
+        if (!(this._data || []).length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+        const stuck = this._getDamagedStillInList();
+        if (!stuck.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+        const list = stuck.slice(0, 50).map(t => {
+          const inv = t.numInventaire || '—';
+          const proj = t.projet ? ` · 📁 ${ui.escape(t.projet)}` : '';
+          return `<div style="display:flex;justify-content:space-between;gap:.6rem;padding:.35rem .55rem;border-radius:6px;background:var(--bg-3);align-items:center">
+            <span><strong style="color:var(--text-primary)">${ui.escape(this._caoNameOf(t))}</strong>
+              <span style="font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);margin-left:.35rem">N°inv ${ui.escape(inv)}</span>${proj}</span>
+            <span style="font-size:.66rem;background:rgba(239,68,68,.18);color:#ef4444;padding:.14rem .5rem;border-radius:999px;font-weight:700;white-space:nowrap">➖ Retirer par CAO</span>
+          </div>`;
+        }).join('');
+
+        box.style.display = 'block';
+        box.innerHTML =
+          `<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:.6rem">
+            <div style="font-weight:800;color:#ef4444;font-size:.9rem">🛑 ${stuck.length} outil(s) endommagé(s) encore présent(s) dans la liste — à retirer par CAO</div>
+            <div style="display:flex;gap:.4rem">
+              <button id="bl-caorm-copy" class="btn btn--ghost" style="font-size:.72rem;padding:.35rem .7rem">📋 Copier N° inventaire</button>
+              <button id="bl-caorm-export" class="btn btn--secondary" style="font-size:.72rem;padding:.35rem .7rem;background:rgba(239,68,68,.14);color:#ef4444;border:1px solid rgba(239,68,68,.35)">📤 Exporter</button>
+            </div>
+          </div>
+          <div style="display:grid;gap:.3rem;max-height:230px;overflow:auto">${list}</div>` +
+          (stuck.length > 50 ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.45rem">… et ${stuck.length - 50} autre(s). Utilise « Exporter » pour la liste complète.</div>` : '');
+
+        document.getElementById('bl-caorm-copy')?.addEventListener('click', () => {
+          const txt = stuck.map(t => [t.numInventaire || '', this._caoNameOf(t), t.projet || ''].join('\t')).join('\n');
+          if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => ui.toast('📋 Liste copiée', 'success')).catch(() => ui.toast('Copie impossible', 'warn'));
+          else ui.toast('Copie non supportée', 'warn');
+        });
+        document.getElementById('bl-caorm-export')?.addEventListener('click', () => this._exportCaoMissing(stuck, 'outils_a_retirer_CAO.csv', 'endommagé'));
+      },
+
       render() {
         // KPIs globaux (sur l'ensemble, pas filtré)
         const total = this._data.length;
@@ -30175,6 +30327,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const tbody = document.getElementById('bl-tbody');
         if (!total) {
           if (banner) banner.style.display = 'none';
+          const caoBox = document.getElementById('bl-cao-alert'); if (caoBox) caoBox.style.display = 'none';
+          const caoRmBox = document.getElementById('bl-cao-remove-alert'); if (caoRmBox) caoRmBox.style.display = 'none';
           if (tbody) tbody.innerHTML = `<tr><td colspan="10" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>`;
           return;
         }
@@ -30192,6 +30346,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         this._renderMachineList();
         // 🆕 Liste "Tous les outils terminés sur la machine"
         this._renderFinishedMachineList();
+        // 🆕 Alerte outils en production absents de la liste (à ajouter sur CAO)
+        this._renderCaoAlert();
+        // 🆕 Alerte outils endommagés encore dans la liste (à retirer par CAO)
+        this._renderCaoRemoveAlert();
 
         // 🆕 Total Compteur cumulé sur les résultats filtrés
         const totalCounterSum = filtered.reduce((sum, r) => {

@@ -7020,7 +7020,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             </button>
           </li>
           <!-- 👥 ÉQUIPE — Utilisateurs + Techniciens fusionnés -->
-          <li class="sidebar__item sidebar__item--admin" data-requires-role="responsable,super_admin,admin">
+          <li class="sidebar__item sidebar__item--admin" data-requires-role="responsable,super_admin,admin,tl">
             <button class="sidebar__link" data-nav="equipe">
               <span class="sidebar__icon">👥</span><span class="sidebar__label">Équipe</span>
               <span class="sidebar__pill" id="nav-tech-count" style="background:rgba(255,139,107,.18);color:#ff8b6b">0</span>
@@ -9187,6 +9187,31 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           .qrqc-prog{height:6px;border-radius:99px;background:var(--bg-3);overflow:hidden;margin-top:.5rem;max-width:420px}
           .qrqc-prog__bar{height:100%;border-radius:99px;background:linear-gradient(90deg,#00b4d8,#00e5a0)}
           .qrqc-late{background:rgba(239,68,68,.16);color:#ef4444;padding:.15rem .5rem;border-radius:999px;font-weight:700}
+          /* Stepper d'avancement PDCA */
+          .qrqc-stepper{margin-bottom:1rem;padding:.75rem .9rem;background:var(--bg-3);border:1px solid var(--border-soft);border-radius:10px}
+          .qrqc-stepper__track{display:flex;align-items:flex-start;gap:.15rem}
+          .qrqc-step{display:flex;flex-direction:column;align-items:center;gap:.28rem;min-width:54px;text-align:center}
+          .qrqc-step__dot{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.82rem;background:var(--bg-2);border:2px solid var(--border-soft);color:var(--text-muted);transition:.15s}
+          .qrqc-step.is-done .qrqc-step__dot{background:rgba(0,229,160,.18);border-color:#00e5a0;color:#00e5a0}
+          .qrqc-step.is-cur .qrqc-step__dot{border-color:var(--accent-500,#00b4d8);color:var(--accent-500,#00b4d8);box-shadow:0 0 0 4px rgba(0,180,255,.15)}
+          .qrqc-step__lb{font-size:.66rem;color:var(--text-muted);line-height:1.15;max-width:66px}
+          .qrqc-step.is-cur .qrqc-step__lb{color:var(--text-primary);font-weight:700}
+          .qrqc-step__line{flex:1;height:2px;background:var(--border-soft);min-width:12px;margin-top:14px}
+          .qrqc-step__line.is-done{background:#00e5a0}
+          .qrqc-stepper__pct{margin-top:.55rem;font-size:.76rem;color:var(--text-muted);text-align:right}
+          .qrqc-stepper__pct b{color:var(--text-primary)}
+          /* Bloc réclamations similaires (réutilisation solution) */
+          .qrqc-simbox{margin-bottom:1rem;border:1px solid rgba(167,139,250,.4);border-radius:10px;overflow:hidden;background:rgba(167,139,250,.06)}
+          .qrqc-simbox__head{padding:.5rem .8rem;font-weight:700;font-size:.8rem;color:#a78bfa;background:rgba(167,139,250,.12)}
+          .qrqc-sim{padding:.55rem .8rem;border-top:1px solid rgba(167,139,250,.18)}
+          .qrqc-sim__top{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+          .qrqc-sim__match{font-family:var(--font-mono,monospace);font-size:.72rem;font-weight:800;color:#a78bfa}
+          .qrqc-sim__tool{font-size:.68rem;background:rgba(0,180,255,.16);color:#00b4d8;padding:.1rem .45rem;border-radius:999px;font-weight:700}
+          .qrqc-sim__def{font-size:.8rem;color:var(--text-primary);margin:.3rem 0}
+          .qrqc-sim__sol{font-size:.76rem;color:var(--text-secondary,#b9c4dc);background:var(--bg-2);border-left:3px solid #00e5a0;border-radius:5px;padding:.4rem .55rem}
+          .qrqc-sim__act{display:flex;gap:.4rem;margin-top:.45rem;flex-wrap:wrap}
+          .qrqc-recur{background:rgba(167,139,250,.16);color:#a78bfa;padding:.15rem .5rem;border-radius:999px;font-weight:700}
+          .qrqc-recur-toggle.is-on{background:rgba(167,139,250,.18)!important;border-color:#a78bfa!important;color:#a78bfa!important}
         </style>
 
         <div class="control-center__title-block" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
@@ -9252,6 +9277,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <select class="filter__input" id="qrqc-filter-projet" style="min-width:140px">
             <option value="">Tous projets</option>
           </select>
+          <button type="button" class="btn btn--ghost qrqc-recur-toggle" id="qrqc-recur-toggle" title="Afficher uniquement les défauts récurrents (même outil sur ≥ 2 fiches)" hidden>🔁 Récurrents</button>
         </div>
 
         <!-- Liste des fiches -->
@@ -10040,6 +10066,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <label class="field__label" for="user-role" data-i18n="t.role_2">Rôle *</label>
             <select class="field__input" id="user-role" name="role" required>
               <option value="crimp">🟢 Technicien Crimping</option>
+              <option value="tl">👷‍♂️ TL Cellule (Chef d'équipe — techniciens uniquement)</option>
               <option value="labo">🔵 Technicien Laboratoire</option>
               <option value="magasinier">📦 Magasinier</option>
               <option value="operateur">🟠 Opérateur (Préparations)</option>
@@ -14738,7 +14765,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         crimp:            'Technicien Crimping',
         crimping:         'Technicien Crimping',
         labo:             'Technicien Labo',
-        viewer:           'Visiteur'
+        viewer:           'Visiteur',
+        tl:               'TL Cellule'
       }[role] || role);
     },
 
@@ -15723,6 +15751,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return;
       }
 
+      // 🆕 Rôle TL CELLULE : gère UNIQUEMENT les techniciens de l'équipe.
+      //    → Ne voit ni « Utilisateurs » ni « Gestion des accès ».
+      if (state.role === 'tl' && view !== 'technicians') {
+        window.location.hash = 'technicians';
+        return;
+      }
+
       // 🆕 GESTION DES ACCÈS configurable : bloquer les modules en niveau 'Aucun'
       try {
         if (typeof access !== 'undefined' && view !== 'hub') {
@@ -15767,8 +15802,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         analytics: [{ view: 'performance', label: '📊 Performance Équipe' }, { view: 'stats', label: '📈 Statistiques & SLA' }],
         'pdr-hub': [{ view: 'pdr', label: '🔧 Suivi PDR' }, { view: 'demandes-pdr', label: '📦 Demandes PDR' }]
       };
-      const tabs = TABS[hub];
+      let tabs = TABS[hub];
       if (!tabs) return;
+      // TL Cellule : onglet « Utilisateurs » masqué (techniciens uniquement)
+      if (state.role === 'tl') tabs = tabs.filter(t => t.view !== 'users');
       // Trouve la vue active et injecte la tab-bar tout en haut
       const viewEl = document.querySelector(`[data-view="${activeView}"]`);
       if (!viewEl) return;
@@ -16429,7 +16466,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const map = {
         admin: 'Admin', super_admin: 'Super Admin', responsable: 'Responsable',
         crimp: 'Crimping', crimping: 'Crimping', labo: 'Labo', magasinier: 'Magasinier',
-        technicien: 'Technicien', viewer: 'Lecture'
+        technicien: 'Technicien', tl: 'TL Cellule', viewer: 'Lecture'
       };
       return map[role] || role || '—';
     },
@@ -27950,6 +27987,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                   <option value="magasinier" ${u.role === 'magasinier' ? 'selected' : ''}>📦 Magasinier</option>
                   <option value="operateur"  ${u.role === 'operateur'  ? 'selected' : ''}>🟠 Opérateur (Préparations)</option>
                   <option value="crimp"      ${u.role === 'crimp'      ? 'selected' : ''}>🟢 Technicien Crimping</option>
+                  <option value="tl"         ${u.role === 'tl'         ? 'selected' : ''}>👷‍♂️ TL Cellule (Chef d'équipe)</option>
                   <option value="responsable"${u.role === 'responsable'? 'selected' : ''} data-i18n="t.responsable_maintenance">🟡 Responsable Maintenance</option>
                 </select>
               </div>
@@ -33355,6 +33393,10 @@ Erreur Firebase : ${e.message}`;
         document.getElementById('btn-qrqc-save')?.addEventListener('click', () => this.save(false));
         document.getElementById('btn-qrqc-print')?.addEventListener('click', () => this.print());
         document.getElementById('btn-qrqc-close-fiche')?.addEventListener('click', () => this.closeFiche());
+        document.getElementById('qrqc-recur-toggle')?.addEventListener('click', () => {
+          this._recurOnly = !this._recurOnly;
+          this.render();
+        });
         document.getElementById('btn-qrqc-delete')?.addEventListener('click', () => this.remove());
       },
 
@@ -33490,6 +33532,176 @@ Erreur Firebase : ${e.message}`;
         });
       },
 
+      /* ── Normalisation texte pour comparaison (sans accents/ponctuation) ── */
+      _norm(s) {
+        return (s || '').toString().toLowerCase()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+      },
+      _tokens(s) {
+        const stop = new Set(['de','la','le','les','des','un','une','du','et','au','aux','sur','pour','dans','par','avec','sans','ou','en','the','of','a','se','sa','son','ses','ce','cet','cette','pas','plus','ne']);
+        return this._norm(s).split(' ').filter(w => w.length >= 3 && !stop.has(w));
+      },
+
+      /* ── Récurrence : outils présents sur ≥ 2 fiches → Map(toolNorm → count) ── */
+      _recurrentTools(all) {
+        const m = new Map();
+        (all || this._all()).forEach(f => {
+          const t = this._norm(f.toolLabel);
+          if (t) m.set(t, (m.get(t) || 0) + 1);
+        });
+        const out = new Map();
+        m.forEach((v, k) => { if (v >= 2) out.set(k, v); });
+        return out;
+      },
+
+      _hasSolution(f) {
+        return !!(f.rootCause && f.rootCause.toString().trim()) || (f.actions || []).some(a => a && a.desc);
+      },
+      _solutionText(f) {
+        const parts = [];
+        if (f.rootCause && f.rootCause.toString().trim()) parts.push('Cause racine : ' + f.rootCause.toString().trim());
+        const acts = (f.actions || []).filter(a => a && a.desc).map(a => a.desc.toString().trim());
+        if (acts.length) parts.push('Actions : ' + acts.join(' · '));
+        if (f.standardisation && f.standardisation.toString().trim()) parts.push('Standardisation : ' + f.standardisation.toString().trim());
+        return parts.join('  —  ');
+      },
+
+      /* ── Recherche de fiches similaires (défaut + outil + projet) ── */
+      _findSimilar(live, opt) {
+        opt = opt || {};
+        const exId = opt.excludeId;
+        const minScore = opt.minScore != null ? opt.minScore : 0.28;
+        const dTok = new Set(this._tokens(live.defaut));
+        const toolN = this._norm(live.toolLabel);
+        const projN = this._norm(live.projet);
+        if (dTok.size === 0 && !toolN) return [];
+        const res = [];
+        for (const f of this._all()) {
+          if (f.id === exId) continue;
+          const fTok = new Set(this._tokens(f.defaut));
+          let inter = 0; dTok.forEach(t => { if (fTok.has(t)) inter++; });
+          const uni = new Set([...dTok, ...fTok]).size || 1;
+          const jac = inter / uni;
+          const fToolN = this._norm(f.toolLabel);
+          let toolScore = 0, toolExact = false;
+          if (toolN && fToolN) {
+            if (fToolN === toolN) { toolScore = 1; toolExact = true; }
+            else {
+              const a = new Set(this._tokens(live.toolLabel)), b = new Set(this._tokens(f.toolLabel));
+              let ti = 0; a.forEach(t => { if (b.has(t)) ti++; });
+              toolScore = a.size ? ti / a.size : 0;
+            }
+          }
+          const projScore = (projN && this._norm(f.projet) === projN) ? 1 : 0;
+          const score = jac * 0.55 + toolScore * 0.35 + projScore * 0.10;
+          if (score >= minScore) res.push({ f, score, toolExact });
+        }
+        res.sort((a, b) => {
+          const sa = this._hasSolution(a.f) ? 1 : 0, sb = this._hasSolution(b.f) ? 1 : 0;
+          if (sa !== sb) return sb - sa;          // solutions documentées d'abord
+          return b.score - a.score;
+        });
+        return res.slice(0, opt.limit || 3);
+      },
+
+      /* ── Affichage live du bloc similaires (lit le formulaire en cours) ── */
+      _renderSimilar() {
+        const host = document.getElementById('q-similar');
+        if (!host) return;
+        const live = {
+          defaut: document.getElementById('q-defaut')?.value || '',
+          toolLabel: document.getElementById('q-tool')?.value || '',
+          projet: document.getElementById('q-projet')?.value || ''
+        };
+        const matches = this._findSimilar(live, { excludeId: this._editingId, limit: 3, minScore: 0.28 });
+        if (!matches.length) { host.hidden = true; host.innerHTML = ''; return; }
+        const SL = { open: '🔴 Ouverte', progress: '🟠 En cours', check: '🔵 Vérification', closed: '🟢 Clôturée' };
+        host.hidden = false;
+        host.innerHTML = '<div class="qrqc-simbox">' +
+          '<div class="qrqc-simbox__head">🔁 ' + matches.length + ' réclamation(s) similaire(s) déjà traitée(s) — réutilise la solution pour réduire le temps d\'analyse</div>' +
+          matches.map(m => {
+            const f = m.f, sol = this._solutionText(f), pct = Math.round(m.score * 100);
+            return '<div class="qrqc-sim">' +
+              '<div class="qrqc-sim__top">' +
+                '<span class="qrqc-card__num">' + ui.escape(f.id) + '</span>' +
+                '<span class="qrqc-status qrqc-status--' + this._computeStatus(f) + '">' + SL[this._computeStatus(f)] + '</span>' +
+                '<span class="qrqc-sim__match" title="Taux de similarité">' + pct + '%</span>' +
+                (m.toolExact ? '<span class="qrqc-sim__tool">même outil</span>' : '') +
+              '</div>' +
+              '<div class="qrqc-sim__def">' + ui.escape(f.defaut || '—') + '</div>' +
+              (this._hasSolution(f)
+                ? '<div class="qrqc-sim__sol"><b>💡 Solution :</b> ' + ui.escape(sol) + '</div>'
+                : '<div class="qrqc-sim__sol" style="opacity:.6;border-left-color:var(--border-soft)">Pas encore de solution documentée sur cette fiche</div>') +
+              '<div class="qrqc-sim__act">' +
+                '<button type="button" class="btn btn--ghost" data-simopen="' + ui.escape(f.id) + '">Ouvrir la fiche</button>' +
+                (this._hasSolution(f) ? '<button type="button" class="btn btn--secondary" data-simreuse="' + ui.escape(f.id) + '">↩️ Réutiliser la solution</button>' : '') +
+              '</div>' +
+            '</div>';
+          }).join('') + '</div>';
+        host.querySelectorAll('[data-simopen]').forEach(b => b.onclick = () => this.openModal(b.dataset.simopen));
+        host.querySelectorAll('[data-simreuse]').forEach(b => b.onclick = () => this._reuse(b.dataset.simreuse));
+      },
+
+      /* ── Réutiliser la solution d'une fiche passée dans le formulaire courant ── */
+      _reuse(id) {
+        const src = state.qrqc?.[id];
+        if (!src) return;
+        const rc = document.getElementById('q-rootcause');
+        if (rc && !rc.value.trim() && src.rootCause) rc.value = src.rootCause;
+        const wrap = document.getElementById('q-act-rows');
+        const acts = (src.actions || []).filter(a => a && a.desc);
+        if (wrap && acts.length) {
+          const rows = [...wrap.querySelectorAll('.qrqc-act-row')];
+          if (rows.length === 1 && !(rows[0].querySelector('[data-f="desc"]')?.value || '').trim()) rows[0].remove();
+          acts.forEach(a => wrap.insertAdjacentHTML('beforeend',
+            this._rowHtml({ desc: a.desc, resp: a.resp || '', deadline: a.deadline || '', done: false })));
+          wrap.querySelectorAll('[data-del]').forEach(btn => {
+            btn.onclick = () => { if (wrap.children.length > 1) btn.closest('.qrqc-act-row').remove(); };
+          });
+        }
+        const std = document.getElementById('q-standard');
+        if (std && !std.value.trim() && src.standardisation) std.value = src.standardisation;
+        ui.toast('↩️ Solution reprise depuis ' + id + ' — adapte-la si besoin.', 'success');
+        this._renderStepper(); this._renderSimilar();
+      },
+
+      /* ── État d'avancement PDCA (5 étapes) ── */
+      _stageInfo(f) {
+        const acts = (f.actions || []).filter(a => a && a.desc);
+        const steps = [
+          { k: 'R', label: 'Réclamation', done: !!(f.defaut && f.defaut.toString().trim()) },
+          { k: 'P', label: 'Analyse (P)', done: !!(f.rootCause && f.rootCause.toString().trim()) },
+          { k: 'D', label: 'Actions (D)', done: acts.length > 0 && acts.every(a => a.done) },
+          { k: 'C', label: 'Vérif. (C)', done: !!(f.check && f.check.result === 'ok') },
+          { k: 'A', label: 'Clôture (A)', done: !!f.closedAt }
+        ];
+        let cur = steps.findIndex(s => !s.done);
+        if (cur < 0) cur = steps.length - 1;
+        const pct = Math.round(steps.filter(s => s.done).length / steps.length * 100);
+        return { steps, cur, pct };
+      },
+      _stepperHtml(f) {
+        const info = this._stageInfo(f);
+        let html = '<div class="qrqc-stepper"><div class="qrqc-stepper__track">';
+        info.steps.forEach((s, i) => {
+          const cls = (s.done ? 'is-done' : '') + (i === info.cur && !s.done ? ' is-cur' : '');
+          html += '<div class="qrqc-step ' + cls + '"><div class="qrqc-step__dot">' + (s.done ? '✓' : (i + 1)) + '</div>' +
+                  '<div class="qrqc-step__lb">' + s.label + '</div></div>';
+          if (i < info.steps.length - 1) html += '<div class="qrqc-step__line ' + (s.done ? 'is-done' : '') + '"></div>';
+        });
+        html += '</div><div class="qrqc-stepper__pct">Avancement PDCA : <b>' + info.pct + '%</b></div></div>';
+        return html;
+      },
+      _renderStepper() {
+        const host = document.getElementById('q-stepper');
+        if (!host) return;
+        const live = this._collect();
+        const saved = this._editingId ? (state.qrqc?.[this._editingId] || {}) : {};
+        live.closedAt = saved.closedAt;
+        host.innerHTML = this._stepperHtml(live);
+      },
+
       updateBadge() {
         const open = this._all().filter(f => this._computeStatus(f) !== 'closed').length;
         const b = document.getElementById('nav-qrqc-count');
@@ -33548,6 +33760,10 @@ Erreur Firebase : ${e.message}`;
         let list = all;
         if (fs) list = list.filter(f => f._status === fs);
         if (fp) list = list.filter(f => (f.projet || '').trim() === fp);
+        if (this._recurOnly) {
+          const rm = this._recurrentTools(all);
+          list = list.filter(f => rm.has(this._norm(f.toolLabel)));
+        }
         if (q)  list = list.filter(f =>
           [f.id, f.reclamation, f.toolLabel, f.defaut, f.pilote, f.client, f.projet, f.rootCause]
             .some(v => (v || '').toString().toLowerCase().includes(q)));
@@ -33561,6 +33777,17 @@ Erreur Firebase : ${e.message}`;
           return;
         }
 
+        // Récurrence : outils présents sur ≥ 2 fiches (sur l'ensemble, pas les filtres)
+        const recurMap = this._recurrentTools(all);
+        let recurFiches = 0; recurMap.forEach(v => recurFiches += v);
+        const recBtn = document.getElementById('qrqc-recur-toggle');
+        if (recBtn) {
+          recBtn.hidden = recurMap.size === 0;
+          recBtn.textContent = '🔁 Récurrents (' + recurFiches + ')';
+          recBtn.classList.toggle('is-on', !!this._recurOnly);
+          if (recurMap.size === 0) this._recurOnly = false;
+        }
+
         const SL = { open: '🔴 Ouverte', progress: '🟠 En cours', check: '🔵 Vérification', closed: '🟢 Clôturée' };
         listEl.innerHTML = list.map(f => {
           const p = this._pdca(f);
@@ -33569,6 +33796,8 @@ Erreur Firebase : ${e.message}`;
           const late = this._lateCount(f);
           const ageDays = f.closedAt ? null : Math.floor((Date.now() - (f.date || f.createdAt || Date.now())) / 86400000);
           const prog = ['P','D','C','A'].filter(s => p[s]).length * 25;
+          const _tn = this._norm(f.toolLabel);
+          const recurN = _tn && recurMap.has(_tn) ? recurMap.get(_tn) : 0;
           return `<article class="qrqc-card qrqc-card--${f._status}" data-id="${ui.escape(f.id)}">
             <div class="qrqc-card__main">
               <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
@@ -33585,6 +33814,7 @@ Erreur Firebase : ${e.message}`;
                 ${acts.length ? `<span>✔ ${done}/${acts.length} actions</span>` : ''}
                 ${ageDays != null ? `<span title="Ancienneté de la fiche">⏱ J+${ageDays}</span>` : ''}
                 ${late ? `<span class="qrqc-late">⚠️ ${late} en retard</span>` : ''}
+                ${recurN > 1 ? `<span class="qrqc-recur" title="Défaut récurrent : ${recurN} fiches sur le même outil">🔁 récurrent ×${recurN}</span>` : ''}
               </div>
               <div class="qrqc-prog" title="Avancement PDCA : ${prog}%"><div class="qrqc-prog__bar" style="width:${prog}%"></div></div>
             </div>
@@ -33640,6 +33870,12 @@ Erreur Firebase : ${e.message}`;
         body.innerHTML = `
           ${f.closedAt ? `<div style="margin-bottom:.8rem;padding:.6rem .85rem;background:rgba(0,229,160,.10);border-left:3px solid #00e5a0;border-radius:6px;font-size:.85rem">
             ✅ Fiche clôturée le ${fmt.dateTime(f.closedAt)}${f.closedByName ? ' par ' + ui.escape(f.closedByName) : ''}</div>` : ''}
+
+          <!-- ─── ÉTAT D'AVANCEMENT PDCA ─── -->
+          <div id="q-stepper"></div>
+
+          <!-- ─── RÉCLAMATIONS SIMILAIRES / SOLUTIONS DÉJÀ TRAITÉES ─── -->
+          <div id="q-similar" hidden></div>
 
           <!-- ─── EN-TÊTE RÉCLAMATION ─── -->
           <div class="qrqc-block" style="border-color:rgba(239,68,68,.35)">
@@ -33734,6 +33970,14 @@ Erreur Firebase : ${e.message}`;
         bindRows(secuWrap); bindRows(actWrap);
         body.querySelector('#q-secu-add').onclick = () => { secuWrap.insertAdjacentHTML('beforeend', this._rowHtml({})); bindRows(secuWrap); };
         body.querySelector('#q-act-add').onclick  = () => { actWrap.insertAdjacentHTML('beforeend', this._rowHtml({}));  bindRows(actWrap); };
+
+        // État d'avancement + suggestions de solutions (rendu initial)
+        this._renderStepper();
+        this._renderSimilar();
+        // Mise à jour live pendant la saisie (défaut / outil / projet / actions / check)
+        const _reRender = debounce(() => { this._renderStepper(); this._renderSimilar(); }, 250);
+        body.addEventListener('input', _reRender);
+        body.addEventListener('change', _reRender);
 
         modal.hidden = false;
         body.scrollTop = 0;

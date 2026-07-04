@@ -9176,6 +9176,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           .qrqc-block--a .qrqc-block__head{background:rgba(0,229,160,.12);color:#00e5a0}
           .qrqc-act-row{display:grid;grid-template-columns:1fr 140px 130px 34px 34px;gap:.45rem;align-items:center}
           @media(max-width:720px){.qrqc-act-row{grid-template-columns:1fr 1fr;grid-auto-rows:auto}}
+          #view-qrqc .kpi-hero__card{cursor:pointer;transition:transform .12s ease,outline-color .12s ease;outline:2px solid transparent;outline-offset:2px}
+          #view-qrqc .kpi-hero__card:hover{transform:translateY(-2px)}
+          #view-qrqc .kpi-hero__card[data-active="true"]{outline-color:var(--accent-500,#00b4d8)}
+          .qrqc-card{border-left:4px solid var(--border-soft)}
+          .qrqc-card--open{border-left-color:#ef4444}
+          .qrqc-card--progress{border-left-color:#ffb547}
+          .qrqc-card--check{border-left-color:#00b4d8}
+          .qrqc-card--closed{border-left-color:#00e5a0}
+          .qrqc-prog{height:6px;border-radius:99px;background:var(--bg-3);overflow:hidden;margin-top:.5rem;max-width:420px}
+          .qrqc-prog__bar{height:100%;border-radius:99px;background:linear-gradient(90deg,#00b4d8,#00e5a0)}
+          .qrqc-late{background:rgba(239,68,68,.16);color:#ef4444;padding:.15rem .5rem;border-radius:999px;font-weight:700}
         </style>
 
         <div class="control-center__title-block" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
@@ -9188,28 +9199,44 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           </div>
         </div>
 
-        <!-- KPI Hero — répartition par statut -->
+        <!-- KPI Hero — répartition par statut (cliquables → filtre) -->
         <div class="kpi-hero" style="margin-bottom:1.1rem">
-          <div class="kpi-hero__card" data-kpi="danger">
+          <div class="kpi-hero__card" data-kpi="danger" data-qstatus="open" title="Filtrer : fiches ouvertes">
             <div class="kpi-hero__label">🔴 Ouvertes</div>
             <div class="kpi-hero__value" id="qrqc-kpi-open">—</div>
             <div class="kpi-hero__sub">analyse à démarrer</div>
           </div>
-          <div class="kpi-hero__card" data-kpi="warn">
+          <div class="kpi-hero__card" data-kpi="warn" data-qstatus="progress" title="Filtrer : fiches en cours">
             <div class="kpi-hero__label">🟠 En cours</div>
             <div class="kpi-hero__value" id="qrqc-kpi-progress">—</div>
-            <div class="kpi-hero__sub">actions en traitement</div>
+            <div class="kpi-hero__sub" id="qrqc-kpi-progress-sub">actions en traitement</div>
           </div>
-          <div class="kpi-hero__card" data-kpi="primary">
+          <div class="kpi-hero__card" data-kpi="primary" data-qstatus="check" title="Filtrer : fiches en vérification">
             <div class="kpi-hero__label">🔵 Vérification</div>
             <div class="kpi-hero__value" id="qrqc-kpi-check">—</div>
             <div class="kpi-hero__sub">efficacité à confirmer</div>
           </div>
-          <div class="kpi-hero__card" data-kpi="success">
+          <div class="kpi-hero__card" data-kpi="success" data-qstatus="closed" title="Filtrer : fiches clôturées">
             <div class="kpi-hero__label">🟢 Clôturées</div>
             <div class="kpi-hero__value" id="qrqc-kpi-closed">—</div>
-            <div class="kpi-hero__sub">standardisées</div>
+            <div class="kpi-hero__sub" id="qrqc-kpi-closed-sub">standardisées</div>
           </div>
+        </div>
+
+        <!-- 📊 Analyse graphique -->
+        <div id="qrqc-charts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:.75rem;margin-bottom:1.1rem" hidden>
+          <article class="control-center__card" style="padding:.9rem 1rem">
+            <div class="control-center__card-title">🎯 Répartition par statut</div>
+            <div style="height:215px;position:relative"><canvas id="qrqc-chart-status"></canvas></div>
+          </article>
+          <article class="control-center__card" style="padding:.9rem 1rem">
+            <div class="control-center__card-title">📈 Évolution · 6 derniers mois</div>
+            <div style="height:215px;position:relative"><canvas id="qrqc-chart-monthly"></canvas></div>
+          </article>
+          <article class="control-center__card" style="padding:.9rem 1rem">
+            <div class="control-center__card-title">📁 Top projets</div>
+            <div style="height:215px;position:relative"><canvas id="qrqc-chart-projets"></canvas></div>
+          </article>
         </div>
 
         <!-- Filtres -->
@@ -33311,6 +33338,17 @@ Erreur Firebase : ${e.message}`;
         document.getElementById('qrqc-filter-status')?.addEventListener('change', () => this.render());
         document.getElementById('qrqc-filter-projet')?.addEventListener('change', () => this.render());
 
+        // KPIs cliquables : filtre par statut (re-clic = tous)
+        document.querySelectorAll('#view-qrqc .kpi-hero__card[data-qstatus]').forEach(card => {
+          card.addEventListener('click', () => {
+            const sel = document.getElementById('qrqc-filter-status');
+            if (!sel) return;
+            const v = card.dataset.qstatus;
+            sel.value = (sel.value === v) ? '' : v;
+            this.render();
+          });
+        });
+
         const modal = document.getElementById('modal-qrqc');
         modal?.querySelectorAll('[data-close]').forEach(el =>
           el.addEventListener('click', () => { modal.hidden = true; }));
@@ -33351,6 +33389,107 @@ Erreur Firebase : ${e.message}`;
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       },
 
+      /* Actions (sécurisation + correctives) en retard : délai dépassé & non soldées */
+      _lateCount(f) {
+        if (f.closedAt) return 0;
+        const today = this._ymd(Date.now());
+        const late = a => a && a.desc && !a.done && a.deadline && a.deadline < today;
+        return ((f.actions || []).filter(late).length) + ((f.securisation || []).filter(late).length);
+      },
+
+      _charts: {},
+      _chartSig: null,
+
+      _loadChart() {
+        return new Promise((res, rej) => {
+          if (window.Chart) return res();
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
+          s.onload = res; s.onerror = rej; document.head.appendChild(s);
+        });
+      },
+
+      /* 📊 Donut statuts + barres mensuelles (ouvertes/clôturées) + top projets.
+         Basés sur TOUTES les fiches (pas les filtres) — signature pour éviter
+         les reconstructions inutiles à chaque frappe de recherche. */
+      async _renderCharts(all) {
+        const wrap = document.getElementById('qrqc-charts');
+        if (!wrap || wrap.hidden) return;
+        const sig = all.length + ':' + all.reduce((m, f) => Math.max(m, f.updatedAt || 0, f.closedAt || 0), 0);
+        if (sig === this._chartSig && this._charts.status) return;
+        try { await this._loadChart(); } catch (e) { return; }
+        this._chartSig = sig;
+        const C = this._charts;
+        ['status', 'monthly', 'projets'].forEach(k => { try { C[k]?.destroy(); } catch (e) {} });
+
+        const AX = { ticks: { color: '#8895b3', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,.04)' } };
+
+        // 1) Donut — répartition par statut
+        const k = { open: 0, progress: 0, check: 0, closed: 0 };
+        all.forEach(f => { const s = this._computeStatus(f); k[s] = (k[s] || 0) + 1; });
+        const cv1 = document.getElementById('qrqc-chart-status');
+        if (cv1) C.status = new Chart(cv1, {
+          type: 'doughnut',
+          data: {
+            labels: ['Ouvertes', 'En cours', 'Vérification', 'Clôturées'],
+            datasets: [{
+              data: [k.open, k.progress, k.check, k.closed],
+              backgroundColor: ['rgba(239,68,68,.8)', 'rgba(255,181,71,.8)', 'rgba(0,180,255,.8)', 'rgba(0,229,160,.8)'],
+              borderColor: 'rgba(10,22,40,.9)', borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false, cutout: '62%',
+            plugins: { legend: { position: 'bottom', labels: { color: '#8895b3', font: { size: 10.5 }, boxWidth: 10, padding: 8 } } }
+          }
+        });
+
+        // 2) Barres — évolution 6 mois : réclamations ouvertes vs clôturées
+        const months = [];
+        const now = new Date();
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          months.push({ y: d.getFullYear(), m: d.getMonth(), label: d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }) });
+        }
+        const inMonth = (ts, mo) => { if (!ts) return false; const d = new Date(ts); return d.getFullYear() === mo.y && d.getMonth() === mo.m; };
+        const created = months.map(mo => all.filter(f => inMonth(f.date || f.createdAt, mo)).length);
+        const closedM = months.map(mo => all.filter(f => inMonth(f.closedAt, mo)).length);
+        const cv2 = document.getElementById('qrqc-chart-monthly');
+        if (cv2) C.monthly = new Chart(cv2, {
+          type: 'bar',
+          data: {
+            labels: months.map(m => m.label),
+            datasets: [
+              { label: 'Ouvertes',  data: created, backgroundColor: 'rgba(239,68,68,.65)', borderColor: '#ef4444', borderWidth: 1, borderRadius: 4 },
+              { label: 'Clôturées', data: closedM, backgroundColor: 'rgba(0,229,160,.65)', borderColor: '#00e5a0', borderWidth: 1, borderRadius: 4 }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#8895b3', font: { size: 10.5 }, boxWidth: 10 } } },
+            scales: { x: AX, y: { ticks: { color: '#8895b3', font: { size: 11 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true } }
+          }
+        });
+
+        // 3) Barres horizontales — top 5 projets
+        const byProj = {};
+        all.forEach(f => { const p = (f.projet || '').trim() || '(sans projet)'; byProj[p] = (byProj[p] || 0) + 1; });
+        const top = Object.entries(byProj).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        const cv3 = document.getElementById('qrqc-chart-projets');
+        if (cv3) C.projets = new Chart(cv3, {
+          type: 'bar',
+          data: {
+            labels: top.map(t => t[0]),
+            datasets: [{ label: 'Fiches', data: top.map(t => t[1]), backgroundColor: 'rgba(167,139,250,.65)', borderColor: '#a78bfa', borderWidth: 1, borderRadius: 4 }]
+          },
+          options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { ticks: { color: '#8895b3', font: { size: 11 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }, y: AX }
+          }
+        });
+      },
+
       updateBadge() {
         const open = this._all().filter(f => this._computeStatus(f) !== 'closed').length;
         const b = document.getElementById('nav-qrqc-count');
@@ -33369,6 +33508,26 @@ Erreur Firebase : ${e.message}`;
         set('qrqc-kpi-open', k.open); set('qrqc-kpi-progress', k.progress);
         set('qrqc-kpi-check', k.check); set('qrqc-kpi-closed', k.closed);
 
+        // Sous-titres dynamiques : actions en retard + délai moyen de clôture
+        const totalLate = all.reduce((s, f) => s + this._lateCount(f), 0);
+        const subProg = document.getElementById('qrqc-kpi-progress-sub');
+        if (subProg) {
+          subProg.textContent = totalLate > 0 ? ('⚠️ ' + totalLate + ' action(s) en retard') : 'actions en traitement';
+          subProg.style.color = totalLate > 0 ? '#ef4444' : '';
+          subProg.style.fontWeight = totalLate > 0 ? '700' : '';
+        }
+        const closedList = all.filter(f => f.closedAt && (f.date || f.createdAt));
+        const leadDays = closedList.length
+          ? Math.round(closedList.reduce((s, f) => s + Math.max(0, f.closedAt - (f.date || f.createdAt)), 0) / closedList.length / 86400000)
+          : null;
+        const subClosed = document.getElementById('qrqc-kpi-closed-sub');
+        if (subClosed) subClosed.textContent = (leadDays != null) ? ('standardisées · Ø clôture ' + leadDays + ' j') : 'standardisées';
+
+        // Charts (masqués tant qu'aucune fiche)
+        const chartsEl = document.getElementById('qrqc-charts');
+        if (chartsEl) chartsEl.hidden = !all.length;
+        this._renderCharts(all).catch(() => {});
+
         // Options du filtre projet (préserve la sélection)
         const sel = document.getElementById('qrqc-filter-projet');
         if (sel) {
@@ -33383,6 +33542,9 @@ Erreur Firebase : ${e.message}`;
         const q  = (document.getElementById('qrqc-search')?.value || '').trim().toLowerCase();
         const fs = document.getElementById('qrqc-filter-status')?.value || '';
         const fp = document.getElementById('qrqc-filter-projet')?.value || '';
+        document.querySelectorAll('#view-qrqc .kpi-hero__card[data-qstatus]').forEach(c => {
+          c.dataset.active = (c.dataset.qstatus === fs) ? 'true' : 'false';
+        });
         let list = all;
         if (fs) list = list.filter(f => f._status === fs);
         if (fp) list = list.filter(f => (f.projet || '').trim() === fp);
@@ -33404,7 +33566,10 @@ Erreur Firebase : ${e.message}`;
           const p = this._pdca(f);
           const acts = (f.actions || []).filter(a => a && a.desc);
           const done = acts.filter(a => a.done).length;
-          return `<article class="qrqc-card" data-id="${ui.escape(f.id)}">
+          const late = this._lateCount(f);
+          const ageDays = f.closedAt ? null : Math.floor((Date.now() - (f.date || f.createdAt || Date.now())) / 86400000);
+          const prog = ['P','D','C','A'].filter(s => p[s]).length * 25;
+          return `<article class="qrqc-card qrqc-card--${f._status}" data-id="${ui.escape(f.id)}">
             <div class="qrqc-card__main">
               <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
                 <span class="qrqc-card__num">${ui.escape(f.id)}</span>
@@ -33418,7 +33583,10 @@ Erreur Firebase : ${e.message}`;
                 ${f.pilote ? `<span>👤 ${ui.escape(f.pilote)}</span>` : ''}
                 <span>📅 ${fmt.date(f.date || f.createdAt)}</span>
                 ${acts.length ? `<span>✔ ${done}/${acts.length} actions</span>` : ''}
+                ${ageDays != null ? `<span title="Ancienneté de la fiche">⏱ J+${ageDays}</span>` : ''}
+                ${late ? `<span class="qrqc-late">⚠️ ${late} en retard</span>` : ''}
               </div>
+              <div class="qrqc-prog" title="Avancement PDCA : ${prog}%"><div class="qrqc-prog__bar" style="width:${prog}%"></div></div>
             </div>
             <div class="qrqc-pdca" title="Avancement PDCA — P: cause racine · D: actions soldées · C: efficacité OK · A: clôturée">
               ${['P','D','C','A'].map(s => `<span class="qrqc-pdca__step ${p[s] ? 'qrqc-pdca__step--done' : ''}">${s}</span>`).join('')}

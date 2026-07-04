@@ -2707,6 +2707,47 @@ legend { padding: 0; }
   overflow-y: auto;
 }
 
+/* 🖥️ Gestion des accès — plein écran (matrice large : 12 modules) */
+#modal-access { padding: 1rem; }
+.modal__panel--full {
+  max-width: 96vw !important;
+  width: min(1500px, 96vw);
+  height: 94vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal__panel--full .modal__body {
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#access-matrix {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto !important;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+}
+#access-matrix table { min-width: 100% !important; font-size: .9rem !important; }
+#access-matrix th, #access-matrix td { padding: .6rem .55rem !important; }
+#access-matrix thead th {
+  position: sticky; top: 0; z-index: 3;
+  background: var(--bg-2) !important;
+  box-shadow: 0 2px 0 var(--accent-500, #00d4ff);
+}
+#access-matrix thead th:first-child { left: 0; z-index: 5; }
+#access-matrix tbody td:first-child { z-index: 2; }
+#access-matrix th span { font-size: .72rem !important; }
+#access-matrix select { font-size: .95rem !important; padding: .4rem .3rem !important; min-width: 64px; }
+@media (max-width: 640px) {
+  #modal-access { padding: 0; }
+  .modal__panel--full { width: 100vw; max-width: 100vw !important; height: 100vh; border-radius: 0; }
+}
+
 
 /* ╔══════════════════════════════════════════════════════════════════════╗
    ║  AMÉLIORATIONS PRO — Optimisations terrain                           ║
@@ -8203,6 +8244,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <option value="all">🔁 Tous</option>
             <option value="incomplete">⚠️ Incomplets seulement</option>
           </select>
+          <!-- 🆕 Filtre par STATUT opérationnel (Nouveau / Production / Maintenance / Transféré / Réceptionné …) -->
+          <select id="cat-filter-toolstatus" class="filter__input" style="font-size:.85rem;min-width:180px" title="Filtrer par statut opérationnel de l'outil">
+            <option value="">🏷 Tous les statuts</option>
+          </select>
           <!-- 🆕 Filtre documents -->
           <select id="cat-filter-docs" class="filter__input" style="font-size:.85rem;min-width:150px">
             <option value="">📎 Tous (docs)</option>
@@ -10012,7 +10057,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
   <!-- Modal: 🔐 Gestion des accès par rôle -->
   <div class="modal" id="modal-access" role="dialog" aria-modal="true" hidden>
     <div class="modal__backdrop" data-close></div>
-    <div class="modal__panel" style="max-width:860px">
+    <div class="modal__panel modal__panel--full">
       <header class="modal__header">
         <h2 class="modal__title">🔐 Gestion des accès par rôle</h2>
         <button class="modal__close" data-close aria-label="Fermer">×</button>
@@ -14239,6 +14284,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
      *  Exception : crimp sur magasin = 'view' (cohérent avec le comportement actuel lecture seule). */
     _defaultLevel(role, moduleKey) {
       if (moduleKey === 'magasin' && (role === 'crimp' || role === 'crimping')) return 'view';
+      if (moduleKey === 'catalog' && role === 'tl') return 'view';  // 🆕 TL : voit le catalogue (lecture) pour gérer les statuts
       const nav = this._navSelector(moduleKey);
       if (!nav) return 'none';
       const li = document.querySelector(`[data-nav="${nav}"]`)?.closest('li');
@@ -22098,7 +22144,25 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (state_ === 'found') {
           const t = extra || {};
           const name = t.designation || t.doutils || t.serial || t.refOutil || t.outilId || 'Outil';
-          el.innerHTML = `<span style="color:#00e5a0;font-weight:700">✅ Outil reconnu : ${ui.escape(name)}</span>`;
+          // 🆕 Badge de statut cliquable (le technicien peut signaler maintenance/endommagé)
+          let statusBadge = '';
+          try {
+            if (views.catalog && views.catalog._renderStatusBadge) {
+              const canEdit = views.catalog._canEditStatus && views.catalog._canEditStatus();
+              statusBadge = ' &nbsp;·&nbsp; ' + views.catalog._renderStatusBadge(t, { clickable: canEdit, size: 'small' });
+            }
+          } catch (e) {}
+          el.innerHTML = `<span style="color:#00e5a0;font-weight:700">✅ Outil reconnu : ${ui.escape(name)}</span>${statusBadge}`;
+          // Câblage du clic → ouvre le picker (restreint selon le rôle)
+          if (!el._statusWired) {
+            el._statusWired = true;
+            el.addEventListener('click', (ev) => {
+              const tgt = ev.target.closest('[data-change-status]');
+              if (tgt && tgt.dataset.changeStatus && views.catalog?._showStatusPicker) {
+                views.catalog._showStatusPicker(tgt.dataset.changeStatus);
+              }
+            });
+          }
         } else if (state_ === 'multi') {
           el.innerHTML = `<span style="color:#00d4ff;font-weight:700">🔍 ${extra} outils correspondent — précisez (ou choisissez dans la liste ▾)</span>`;
         } else if (state_ === 'notfound') {
@@ -23929,6 +23993,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         production:    { label: 'En production', icon: '✅', bg: 'rgba(0,229,160,.15)',   color: '#00e5a0' },
         maintenance:   { label: 'En maintenance',icon: '🔧', bg: 'rgba(255,180,71,.15)',  color: '#ffb547' },
         endommage:     { label: 'Endommagé',     icon: '⚠️', bg: 'rgba(239,68,68,.15)',   color: '#ef4444' },
+        transfere:     { label: 'Transféré',     icon: '📤', bg: 'rgba(59,130,246,.15)',   color: '#3b82f6' },
+        receptionne:   { label: 'Réceptionné',   icon: '📥', bg: 'rgba(20,184,166,.15)',   color: '#14b8a6' },
         reserve:       { label: 'Réservé',       icon: '🔒', bg: 'rgba(168,85,247,.15)',  color: '#a855f7' },
         obsolete:      { label: 'Obsolète',      icon: '🚫', bg: 'rgba(107,114,128,.15)', color: '#9ca3af' }
       },
@@ -24414,11 +24480,27 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return this.DEFAULT_STATUS;
       },
 
+      /** Statuts qu'un rôle a le droit d'APPLIQUER à un outil.
+       *  • Admin / Super Admin / TL Cellule : tous les statuts.
+       *  • Techniciens (crimp / crimping / labo) : signaler uniquement « En maintenance » ou « Endommagé ».
+       *  • Autres rôles : aucun. */
+      _allowedStatusChanges() {
+        const role = state.role;
+        if (['admin', 'super_admin', 'tl'].includes(role)) return Object.keys(this.TOOL_STATUSES);
+        if (['crimp', 'crimping', 'labo'].includes(role)) return ['maintenance', 'endommage'];
+        return [];
+      },
+      /** Le rôle courant peut-il changer au moins un statut ? (→ badge cliquable) */
+      _canEditStatus() {
+        return this._allowedStatusChanges().length > 0;
+      },
+
       /** Génère le badge HTML du statut (pour le titre de la modale détails) */
       _renderStatusBadge(tool, opts = {}) {
         const statusKey = this._getToolStatus(tool);
         const s = this.TOOL_STATUSES[statusKey];
-        const clickable = opts.clickable !== false;
+        // Cliquable seulement si l'appelant le demande ET si le rôle a le droit
+        const clickable = opts.clickable !== false && this._canEditStatus();
         const size = opts.size || 'normal'; // 'normal' | 'small'
         const sizeStyle = size === 'small'
           ? 'font-size:.6rem;padding:.1rem .35rem'
@@ -24433,6 +24515,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       async _showStatusPicker(toolId) {
         const tool = state.tools?.[toolId];
         if (!tool) return;
+        // 🔒 Droits selon le rôle (liste des statuts applicables)
+        const allowedStatuses = this._allowedStatusChanges();
+        if (!allowedStatuses.length) {
+          ui.toast('🔒 Vous n\'êtes pas autorisé à modifier le statut', 'warn');
+          return;
+        }
+        // Rôle « restreint » = technicien : ne voit que ses statuts autorisés
+        const isRestricted = !['admin', 'super_admin', 'tl'].includes(state.role);
         document.getElementById('status-picker-modal')?.remove();
         const current = this._getToolStatus(tool);
         const html = `
@@ -24442,14 +24532,24 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 <h2 style="margin:0;color:var(--text-primary);font-size:1.05rem">🏷 Statut · <span style="color:#00d4ff;font-family:var(--font-mono);font-size:.9em">${ui.escape(tool.designation || tool.doutils || tool.id)}</span></h2>
                 <button onclick="this.closest('#status-picker-modal').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem">✕</button>
               </header>
+              ${isRestricted ? `<div style="font-size:.76rem;color:#ffb547;background:rgba(255,181,71,.1);border-left:3px solid #ffb547;border-radius:6px;padding:.55rem .7rem;margin-bottom:.8rem">🔧 En tant que technicien, vous pouvez signaler l'outil <strong>En maintenance</strong> 🔧 ou <strong>Endommagé</strong> ⚠️. La remise en production est validée par l'admin ou le TL.</div>` : ''}
               <div style="display:flex;flex-direction:column;gap:.4rem">
-                ${Object.entries(this.TOOL_STATUSES).map(([key, s]) => `
-                  <button data-status-key="${key}" style="background:${s.bg};color:${s.color};border:2px solid ${current === key ? s.color : 'transparent'};padding:.7rem 1rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.92rem;text-align:left;display:flex;align-items:center;gap:.5rem;transition:all .15s" onmouseover="this.style.transform='translateX(4px)'" onmouseout="this.style.transform=''">
-                    <span style="font-size:1.3rem">${s.icon}</span>
+                ${Object.entries(this.TOOL_STATUSES).map(([key, s]) => {
+                  const allow = allowedStatuses.includes(key);
+                  const isCur = current === key;
+                  if (isRestricted && !allow && !isCur) return '';   // technicien : masquer les statuts hors périmètre
+                  const clickable = allow && !isCur;
+                  const dim = (!allow && !isCur) ? 'opacity:.4;' : '';
+                  const cursor = clickable ? 'cursor:pointer' : 'cursor:default';
+                  const hover = clickable ? `onmouseover=\"this.style.transform='translateX(4px)'\" onmouseout=\"this.style.transform=''\"` : '';
+                  const dataAttr = clickable ? `data-status-key=\"${key}\"` : '';
+                  const endMark = isCur ? '<span style=\"margin-left:auto;font-size:.7rem\">✓ Actuel</span>' : (!allow ? '<span style=\"margin-left:auto;font-size:.7rem;opacity:.7\">🔒</span>' : '');
+                  return `<button ${dataAttr} ${clickable ? '' : 'disabled'} ${hover} style=\"background:${s.bg};color:${s.color};border:2px solid ${isCur ? s.color : 'transparent'};padding:.7rem 1rem;border-radius:8px;${cursor};${dim}font-weight:700;font-size:.92rem;text-align:left;display:flex;align-items:center;gap:.5rem;transition:all .15s\">
+                    <span style=\"font-size:1.3rem\">${s.icon}</span>
                     <span>${s.label}</span>
-                    ${current === key ? '<span style="margin-left:auto;font-size:.7rem">✓ Actuel</span>' : ''}
-                  </button>
-                `).join('')}
+                    ${endMark}
+                  </button>`;
+                }).join('')}
               </div>
               <div style="font-size:.7rem;color:var(--text-muted);margin-top:1rem;font-style:italic;text-align:center">
                 💡 Le statut est enregistré immédiatement et visible dans le catalogue
@@ -24464,6 +24564,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             const newStatus = btn.dataset.statusKey;
             if (newStatus === current) {
               document.getElementById('status-picker-modal').remove();
+              return;
+            }
+            if (!allowedStatuses.includes(newStatus)) {
+              ui.toast('🔒 Ce statut n\'est pas autorisé pour votre rôle', 'warn');
               return;
             }
             try {
@@ -24498,6 +24602,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         // ── Filtres ──
         document.getElementById('cat-filter-fab')?.addEventListener('change', () => { this._page = 1; this.render(); });
         document.getElementById('cat-filter-status')?.addEventListener('change', () => { this._page = 1; this.render(); });
+        document.getElementById('cat-filter-toolstatus')?.addEventListener('change', () => { this._page = 1; this.render(); });
         document.getElementById('cat-filter-sort')?.addEventListener('change', () => { this._page = 1; this.render(); });
         // 🆕 Filtre documents
         document.getElementById('cat-filter-docs')?.addEventListener('change', () => { this._page = 1; this.render(); });
@@ -26151,13 +26256,16 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const filterStatus = document.getElementById('cat-filter-status')?.value || 'complete';
         const filterDocs   = document.getElementById('cat-filter-docs')?.value || '';  // 🆕 '', 'with', 'without'
         const sortBy       = document.getElementById('cat-filter-sort')?.value || 'name';
+        const filterToolStatus = document.getElementById('cat-filter-toolstatus')?.value || '';  // 🆕 statut opérationnel
         const allToolsRaw = Object.values(state.tools);
 
         // 🆕 SCOPE PAR RÔLE : l'admin voit tout, les autres ne voient QUE production
         //    Tous les calculs (KPIs, fabricants, dropdown, etc.) doivent se baser sur ce scope
         //    pour ne PAS révéler l'existence d'outils cachés aux non-admin.
         const isAdminRole = ['admin', 'super_admin'].includes(state.role);
-        const allTools = isAdminRole
+        // 🆕 Le TL Cellule gère les statuts → il voit aussi tous les outils (pas que production)
+        const canSeeAllStatuses = isAdminRole || state.role === 'tl';
+        const allTools = canSeeAllStatuses
           ? allToolsRaw
           : allToolsRaw.filter(t => this._getToolStatus(t) === 'production');
 
@@ -26207,6 +26315,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           }
         }
 
+        // 🆕 Peupler le dropdown STATUT une seule fois (depuis TOOL_STATUSES)
+        const tsSelect = document.getElementById('cat-filter-toolstatus');
+        if (tsSelect && tsSelect.options.length <= 1) {
+          const cur = tsSelect.value;
+          tsSelect.innerHTML = '<option value="">🏷 Tous les statuts</option>' +
+            Object.entries(this.TOOL_STATUSES).map(([k, s]) =>
+              `<option value="${k}" ${k === cur ? 'selected' : ''}>${s.icon} ${ui.escape(s.label)}</option>`).join('');
+        }
+
         // ── Peupler le dropdown fabricant ──
         const fabSelect = document.getElementById('cat-filter-fab');
         if (fabSelect && fabSelect.options.length <= 1 + fabSet.size) {
@@ -26235,6 +26352,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
 
         if (filterFab) list = list.filter(t => (t.fabricant || '').trim() === filterFab);
+        // 🆕 Filtre par statut opérationnel
+        if (filterToolStatus) list = list.filter(t => this._getToolStatus(t) === filterToolStatus);
 
         // 🆕 Filtre multi-projets (vide = tous ; '__NONE__' = aucun ; sinon projets sélectionnés)
         if (this._selectedProjects.size > 0) {

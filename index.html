@@ -14106,7 +14106,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       // 🆕 GESTION DES ACCÈS (surcharge admin par rôle) — uniquement rôles gérables
       //    admin/super_admin = toujours total (jamais restreints)
       try {
-        const managed = ['responsable','crimp','crimping','labo','magasinier'].includes(state.role);
+        const managed = ['responsable','crimp','crimping','labo','magasinier','tl'].includes(state.role);
         if (managed && typeof access !== 'undefined') {
           access.MODULES.forEach(m => {
             const lvl = access.level(m.key);                 // 'none' | 'view' | 'edit'
@@ -14184,22 +14184,33 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
      admin & super_admin = toujours accès total (non éditable, anti-verrouillage)
      ========================================================================== */
   const access = {
-    // Modules gérables (auditlog reste réservé admin, non listé ici)
+    // ══════════════════════════════════════════════════════════════════
+    // SOURCE UNIQUE des modules gérables via « Gestion des accès par rôle ».
+    // ⚠️ Pour rendre un NOUVEAU module gérable : ajoute UNE seule ligne ici
+    //    { key, label, icon, nav, views } et tout se propage automatiquement
+    //    (colonne matrice + mapping vue→module + masquage sidebar + défauts).
+    //      • nav   = data-nav du <li> sidebar (pour masquer l'entrée de menu)
+    //      • views = toutes les routes rattachées au module (onglets inclus)
+    //    auditlog = réservé admin → volontairement non listé.
+    // ══════════════════════════════════════════════════════════════════
     MODULES: [
-      { key: 'intervention', label: "Bon d'intervention", icon: '📝' },
-      { key: 'preventive5j', label: 'Préventive 5 jours',  icon: '📸' },
-      { key: 'history',      label: 'Historique',          icon: '📋' },
-      { key: 'queue',        label: "File d'attente",       icon: '⏳' },
-      { key: 'catalog',      label: 'Catalogue outils',     icon: '🛠' },
-      { key: 'blocked',      label: 'Outils Bloqués',       icon: '🚫' },
-      { key: 'equipe',       label: 'Équipe',               icon: '👥' },
-      { key: 'analytics',    label: 'Analytics',            icon: '📊' },
-      { key: 'magasin',      label: 'Magasin Stock',        icon: '📦' },
-      { key: 'pdr',          label: 'PDR',                  icon: '🔧' },
+      { key: 'intervention', label: "Bon d'intervention", icon: '📝', nav: 'intervention', views: ['intervention'] },
+      { key: 'preventive5j', label: 'Préventive 5 jours',  icon: '📸', nav: 'preventive5j', views: ['preventive5j'] },
+      { key: 'history',      label: 'Historique',          icon: '📋', nav: 'history',      views: ['history'] },
+      { key: 'queue',        label: "File d'attente",       icon: '⏳', nav: 'queue',        views: ['queue'] },
+      { key: 'catalog',      label: 'Catalogue outils',     icon: '🛠', nav: 'catalog',      views: ['catalog'] },
+      { key: 'blocked',      label: 'Outils Bloqués',       icon: '🚫', nav: 'blocked',      views: ['blocked'] },
+      { key: 'equipe',       label: 'Équipe',               icon: '👥', nav: 'equipe',       views: ['technicians','users','equipe'] },
+      { key: 'analytics',    label: 'Analytics',            icon: '📊', nav: 'analytics',    views: ['performance','stats','analytics'] },
+      { key: 'magasin',      label: 'Magasin Stock',        icon: '📦', nav: 'magasin',      views: ['magasin'] },
+      { key: 'pdr',          label: 'PDR',                  icon: '🔧', nav: 'pdr-hub',      views: ['pdr','demandes-pdr','pdr-hub'] },
+      { key: 'qrqc',         label: 'QRQC / PDCA',          icon: '🔄', nav: 'qrqc',         views: ['qrqc'] },
+      { key: 'preparations', label: 'Préparations',         icon: '🧰', nav: 'preparations', views: ['preparations'] },
     ],
     // Rôles gérables (admin/super_admin exclus = toujours total)
     ROLES: [
       { key: 'responsable', label: 'Responsable Maintenance', icon: '🟡' },
+      { key: 'tl',          label: 'TL Cellule (Chef équipe)', icon: '👷' },
       { key: 'crimp',       label: 'Technicien Crimping',     icon: '🟢' },
       { key: 'labo',        label: 'Technicien Laboratoire',  icon: '🔵' },
       { key: 'magasinier',  label: 'Magasinier',              icon: '📦' },
@@ -14209,24 +14220,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
     // Mapping vue (route) → clé de module
     _viewToModule(view) {
-      const map = {
-        intervention: 'intervention', preventive5j: 'preventive5j',
-        history: 'history', queue: 'queue', catalog: 'catalog', blocked: 'blocked',
-        technicians: 'equipe', users: 'equipe', equipe: 'equipe',
-        performance: 'analytics', stats: 'analytics', analytics: 'analytics',
-        magasin: 'magasin', pdr: 'pdr', 'demandes-pdr': 'pdr', 'pdr-hub': 'pdr'
-      };
-      return map[view] || null;
+      // Dérivé automatiquement de MODULES.views (une seule source de vérité)
+      if (!this._v2m) {
+        this._v2m = {};
+        this.MODULES.forEach(m => (m.views || [m.key]).forEach(v => { this._v2m[v] = m.key; }));
+      }
+      return this._v2m[view] || null;
     },
 
     // Sélecteur du <li> de navigation d'un module
     _navSelector(moduleKey) {
-      const navByModule = {
-        intervention: 'intervention', preventive5j: 'preventive5j', history: 'history',
-        queue: 'queue', catalog: 'catalog', blocked: 'blocked', equipe: 'equipe',
-        analytics: 'analytics', magasin: 'magasin', pdr: 'pdr-hub'
-      };
-      return navByModule[moduleKey];
+      // Dérivé automatiquement de MODULES.nav (une seule source de vérité)
+      const m = this.MODULES.find(x => x.key === moduleKey);
+      return m ? (m.nav || m.key) : undefined;
     },
 
     /** Niveau par défaut (déduit du data-requires-role de la sidebar) : 'edit' si le rôle y a accès, sinon 'none'.
@@ -15751,9 +15757,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return;
       }
 
-      // 🆕 Rôle TL CELLULE : gère UNIQUEMENT les techniciens de l'équipe.
-      //    → Ne voit ni « Utilisateurs » ni « Gestion des accès ».
-      if (state.role === 'tl' && view !== 'technicians') {
+      // 🆕 Rôle TL CELLULE : la vue « Utilisateurs » reste interdite (admin only).
+      //    Le reste de ses accès est piloté par « Gestion des accès par rôle ».
+      if (state.role === 'tl' && view === 'users') {
         window.location.hash = 'technicians';
         return;
       }

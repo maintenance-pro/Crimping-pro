@@ -7060,6 +7060,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <span class="sidebar__pill" id="nav-qrqc-count" style="background:rgba(167,139,250,.18);color:#a78bfa">0</span>
             </button>
           </li>
+          <!-- 📚 DOCUMENTATION — Standards, dérogations, mises à jour -->
+          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo,magasinier,tl">
+            <button class="sidebar__link" data-nav="documentation">
+              <span class="sidebar__icon">📚</span><span class="sidebar__label">Documentation</span>
+              <span class="sidebar__pill" id="nav-doc-count" style="background:rgba(56,189,248,.18);color:#38bdf8">0</span>
+            </button>
+          </li>
+          <!-- 🎯 ORDRE DE MISSION — Admin ↔ TL -->
+          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,tl">
+            <button class="sidebar__link" data-nav="missions">
+              <span class="sidebar__icon">🎯</span><span class="sidebar__label">Ordre de mission</span>
+              <span class="sidebar__pill sidebar__pill--warn" id="nav-missions-count" style="background:rgba(245,158,11,.18);color:#f59e0b">0</span>
+            </button>
+          </li>
           <!-- 👥 ÉQUIPE — Utilisateurs + Techniciens fusionnés -->
           <li class="sidebar__item sidebar__item--admin" data-requires-role="responsable,super_admin,admin,tl">
             <button class="sidebar__link" data-nav="equipe">
@@ -9258,6 +9272,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           .qrqc-sim__top{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
           .qrqc-sim__match{font-family:var(--font-mono,monospace);font-size:.72rem;font-weight:800;color:#a78bfa}
           .qrqc-sim__tool{font-size:.68rem;background:rgba(0,180,255,.16);color:#00b4d8;padding:.1rem .45rem;border-radius:999px;font-weight:700}
+          .qrqc-sim__conn{font-size:.68rem;background:rgba(34,211,238,.18);color:#22d3ee;padding:.1rem .45rem;border-radius:999px;font-weight:700}
+          /* 📊 Cartes graphiques — style moderne */
+          #qrqc-charts{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))!important}
+          #qrqc-charts > article{background:linear-gradient(160deg,rgba(255,255,255,.035),rgba(255,255,255,0)),var(--bg-elevated);border:1px solid var(--border-soft);border-radius:16px;box-shadow:0 6px 20px rgba(0,0,0,.22);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;position:relative;overflow:hidden}
+          #qrqc-charts > article::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#22d3ee,#a78bfa,transparent);opacity:.6}
+          #qrqc-charts > article:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(0,0,0,.34);border-color:rgba(34,211,238,.3)}
+          #qrqc-charts .control-center__card-title{font-size:.8rem;font-weight:700;letter-spacing:.015em;margin-bottom:.65rem;display:flex;align-items:center;gap:.45rem;color:var(--text-primary)}
           .qrqc-sim__def{font-size:.8rem;color:var(--text-primary);margin:.3rem 0}
           .qrqc-sim__sol{font-size:.76rem;color:var(--text-secondary,#b9c4dc);background:var(--bg-2);border-left:3px solid #00e5a0;border-radius:5px;padding:.4rem .55rem}
           .qrqc-sim__act{display:flex;gap:.4rem;margin-top:.45rem;flex-wrap:wrap}
@@ -9324,6 +9345,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <div class="control-center__card-title">📁 Top projets</div>
             <div style="height:215px;position:relative"><canvas id="qrqc-chart-projets"></canvas></div>
           </article>
+          <article class="control-center__card" style="padding:.9rem 1rem">
+            <div class="control-center__card-title">🔌 Top connexions (défauts)</div>
+            <div style="height:215px;position:relative"><canvas id="qrqc-chart-conn"></canvas></div>
+          </article>
         </div>
 
         <!-- Filtres -->
@@ -9344,6 +9369,121 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
         <!-- Liste des fiches -->
         <div id="qrqc-list" style="display:grid;gap:.7rem"></div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- VIEW — DOCUMENTATION · Standards / Dérogations / Mises à jour      -->
+      <!-- ================================================================= -->
+      <section class="history" id="view-documentation" data-view="documentation" hidden>
+        <style>
+          .doc-card{background:var(--bg-elevated,var(--bg-2));border:1px solid var(--border-soft);border-radius:12px;padding:.85rem 1rem;display:flex;gap:.9rem;align-items:center;flex-wrap:wrap;transition:border-color .15s ease,transform .15s ease}
+          .doc-card:hover{border-color:#38bdf8;transform:translateY(-1px)}
+          .doc-ico{width:46px;height:46px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0}
+          .doc-main{flex:1;min-width:220px}
+          .doc-title{font-weight:700;color:var(--text-primary);font-size:.92rem}
+          .doc-meta{font-size:.74rem;color:var(--text-muted);margin-top:.25rem;display:flex;gap:.7rem;flex-wrap:wrap;align-items:center}
+          .doc-cat{padding:.16rem .55rem;border-radius:999px;font-size:.7rem;font-weight:700;white-space:nowrap}
+        </style>
+
+        <div class="control-center__title-block" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
+          <div>
+            <h1 class="control-center__title">📚 Documentation</h1>
+            <p class="control-center__sub">Standards, dérogations, procédures et mises à jour — centralisés et accessibles à tous</p>
+          </div>
+          <button class="btn btn--primary" id="btn-doc-new" data-edit-module="documentation" style="font-weight:700">➕ Ajouter un document</button>
+        </div>
+
+        <!-- Filtres -->
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+          <input type="search" class="filter__input" id="doc-search" placeholder="🔍 Titre, description, fichier…" style="flex:1;min-width:220px" autocomplete="off">
+          <select class="filter__input" id="doc-filter-cat" style="min-width:170px">
+            <option value="">📂 Toutes catégories</option>
+            <option value="standard">📘 Standard</option>
+            <option value="derogation">📙 Dérogation</option>
+            <option value="maj">🔄 Mise à jour</option>
+            <option value="procedure">📗 Procédure</option>
+            <option value="autre">📄 Autre</option>
+          </select>
+        </div>
+
+        <div id="doc-list" style="display:grid;gap:.7rem"></div>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- VIEW — ORDRE DE MISSION · Admin demande, TL réalise               -->
+      <!-- ================================================================= -->
+      <section class="history" id="view-missions" data-view="missions" hidden>
+        <style>
+          .msn-card{background:var(--bg-elevated,var(--bg-2));border:1px solid var(--border-soft);border-left:4px solid var(--border-soft);border-radius:12px;padding:.9rem 1rem;transition:border-color .15s ease,transform .15s ease}
+          .msn-card:hover{transform:translateY(-1px)}
+          .msn-card--requested{border-left-color:#00b4d8}
+          .msn-card--in_progress{border-left-color:#f59e0b}
+          .msn-card--done{border-left-color:#10b981}
+          .msn-card--validated{border-left-color:#a78bfa}
+          .msn-status{padding:.2rem .6rem;border-radius:999px;font-size:.72rem;font-weight:700;white-space:nowrap}
+          .msn-status--requested{background:rgba(0,180,255,.16);color:#00b4d8}
+          .msn-status--in_progress{background:rgba(245,158,11,.16);color:#f59e0b}
+          .msn-status--done{background:rgba(16,185,129,.16);color:#10b981}
+          .msn-status--validated{background:rgba(167,139,250,.16);color:#a78bfa}
+          .msn-prio{padding:.16rem .5rem;border-radius:999px;font-size:.68rem;font-weight:700}
+          .msn-prio--haute{background:rgba(239,68,68,.16);color:#ef4444}
+          .msn-prio--normale{background:rgba(148,163,184,.16);color:#94a3b8}
+          .msn-prio--basse{background:rgba(56,189,248,.14);color:#38bdf8}
+          .msn-meta{font-size:.75rem;color:var(--text-muted);margin-top:.4rem;display:flex;gap:.8rem;flex-wrap:wrap;align-items:center}
+        </style>
+
+        <div class="control-center__title-block" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
+          <div>
+            <h1 class="control-center__title">🎯 Ordre de mission</h1>
+            <p class="control-center__sub">Missions confiées aux chefs de cellule (TL) — demande, prise en charge, réalisation, validation</p>
+          </div>
+          <button class="btn btn--primary" id="btn-msn-new" data-edit-module="missions" style="font-weight:700">➕ Nouvel ordre de mission</button>
+        </div>
+
+        <!-- KPIs -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.7rem;margin-bottom:1.1rem">
+          <div class="bl-kpi msn-kpi" data-mstatus="requested" title="Filtrer : demandées" style="cursor:pointer;background:linear-gradient(135deg,rgba(0,180,255,.11),var(--bg-elevated));border-color:rgba(0,180,255,.30)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#00b4d8,transparent)"></div>
+            <div class="bl-kpi__label">🔵 Demandées</div>
+            <div id="msn-kpi-requested" class="bl-kpi__value" style="color:#00b4d8">—</div>
+            <div class="bl-kpi__wm">📨</div>
+          </div>
+          <div class="bl-kpi msn-kpi" data-mstatus="in_progress" title="Filtrer : en cours" style="cursor:pointer;background:linear-gradient(135deg,rgba(245,158,11,.12),var(--bg-elevated));border-color:rgba(245,158,11,.30)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#f59e0b,transparent)"></div>
+            <div class="bl-kpi__label">🟠 En cours</div>
+            <div id="msn-kpi-progress" class="bl-kpi__value" style="color:#f59e0b">—</div>
+            <div class="bl-kpi__wm">🔧</div>
+          </div>
+          <div class="bl-kpi msn-kpi" data-mstatus="done" title="Filtrer : réalisées" style="cursor:pointer;background:linear-gradient(135deg,rgba(16,185,129,.12),var(--bg-elevated));border-color:rgba(16,185,129,.30)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#10b981,transparent)"></div>
+            <div class="bl-kpi__label">🟢 Réalisées</div>
+            <div id="msn-kpi-done" class="bl-kpi__value" style="color:#10b981">—</div>
+            <div class="bl-kpi__wm">✅</div>
+          </div>
+          <div class="bl-kpi msn-kpi" data-mstatus="validated" title="Filtrer : validées" style="cursor:pointer;background:linear-gradient(135deg,rgba(167,139,250,.12),var(--bg-elevated));border-color:rgba(167,139,250,.30)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#a78bfa,transparent)"></div>
+            <div class="bl-kpi__label">🟣 Validées</div>
+            <div id="msn-kpi-validated" class="bl-kpi__value" style="color:#a78bfa">—</div>
+            <div class="bl-kpi__wm">🏁</div>
+          </div>
+        </div>
+
+        <!-- Filtres -->
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+          <input type="search" class="filter__input" id="msn-search" placeholder="🔍 Titre, description, TL…" style="flex:1;min-width:220px" autocomplete="off">
+          <select class="filter__input" id="msn-filter-status" style="min-width:150px">
+            <option value="">Tous statuts</option>
+            <option value="requested">🔵 Demandées</option>
+            <option value="in_progress">🟠 En cours</option>
+            <option value="done">🟢 Réalisées</option>
+            <option value="validated">🟣 Validées</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:.35rem;font-size:.8rem;color:var(--text-muted);cursor:pointer" id="msn-mine-wrap">
+            <input type="checkbox" id="msn-mine" style="width:16px;height:16px;accent-color:#f59e0b"> Mes missions
+          </label>
+        </div>
+
+        <div id="msn-list" style="display:grid;gap:.7rem"></div>
       </section>
 
     </main>
@@ -9413,6 +9553,60 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       <footer class="modal__footer">
         <button class="btn btn--ghost" data-close data-i18n="t.annuler">Annuler</button>
         <button class="btn btn--primary" id="confirm-ok" data-i18n="t.confirmer">Confirmer</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: ajout / édition document -->
+  <div class="modal" id="modal-doc" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:560px">
+      <header class="modal__header">
+        <h2 class="modal__title" id="doc-modal-title">📚 Ajouter un document</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body" id="doc-modal-body" style="display:grid;gap:.75rem">
+        <div class="field"><label class="field__label">Titre *</label>
+          <input class="field__input" id="doc-title" placeholder="ex : Standard sertissage 0.35mm²"></div>
+        <div style="display:grid;grid-template-columns:1fr 120px;gap:.6rem">
+          <div class="field"><label class="field__label">Catégorie</label>
+            <select class="field__input" id="doc-category">
+              <option value="standard">📘 Standard</option>
+              <option value="derogation">📙 Dérogation</option>
+              <option value="maj">🔄 Mise à jour</option>
+              <option value="procedure">📗 Procédure</option>
+              <option value="autre">📄 Autre</option>
+            </select></div>
+          <div class="field"><label class="field__label">Version</label>
+            <input class="field__input" id="doc-version" placeholder="v1.0"></div>
+        </div>
+        <div class="field"><label class="field__label">Description</label>
+          <textarea class="field__input field__input--area" id="doc-description" rows="2" placeholder="Objet, périmètre, référence…"></textarea></div>
+        <div class="field"><label class="field__label">Fichier (PDF, Excel, Word) — max 8 Mo</label>
+          <input class="field__input" id="doc-file" type="file" accept=".pdf,.xlsx,.xls,.docx,.doc,.csv" style="padding:.5rem"></div>
+        <div id="doc-current-file" style="font-size:.78rem;color:var(--text-muted)" hidden></div>
+      </div>
+      <footer class="modal__footer" style="flex-wrap:wrap;gap:.5rem">
+        <button class="btn btn--danger" id="btn-doc-delete" style="margin-right:auto" hidden>🗑 Supprimer</button>
+        <button class="btn btn--ghost" data-close>Annuler</button>
+        <button class="btn btn--primary" id="btn-doc-save">💾 Enregistrer</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: ordre de mission -->
+  <div class="modal" id="modal-msn" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:600px">
+      <header class="modal__header">
+        <h2 class="modal__title" id="msn-modal-title">🎯 Nouvel ordre de mission</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body" id="msn-modal-body" style="display:grid;gap:.75rem;max-height:70vh;overflow:auto"></div>
+      <footer class="modal__footer" style="flex-wrap:wrap;gap:.5rem">
+        <button class="btn btn--danger" id="btn-msn-delete" style="margin-right:auto" hidden>🗑 Supprimer</button>
+        <button class="btn btn--ghost" data-close>Fermer</button>
+        <button class="btn btn--primary" id="btn-msn-save" hidden>💾 Enregistrer</button>
       </footer>
     </div>
   </div>
@@ -10569,6 +10763,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     // 🆕 Drapeaux de chargement (évitent l'affichage "vide" avant l'arrivée des données Firebase)
     toolsLoaded: false,
     qrqc: {},             // 🆕 fiches QRQC / PDCA (réclamations qualité)
+    documentation: {},    // 🆕 bibliothèque documentaire (métadonnées)
+    missions: {},         // 🆕 ordres de mission (admin ↔ TL)
   };
 
   /* ==========================================================================
@@ -14268,6 +14464,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       { key: 'pdr',          label: 'PDR',                  icon: '🔧', nav: 'pdr-hub',      views: ['pdr','demandes-pdr','pdr-hub'] },
       { key: 'qrqc',         label: 'QRQC / PDCA',          icon: '🔄', nav: 'qrqc',         views: ['qrqc'] },
       { key: 'preparations', label: 'Préparations',         icon: '🧰', nav: 'preparations', views: ['preparations'] },
+      { key: 'documentation', label: 'Documentation',        icon: '📚', nav: 'documentation', views: ['documentation'] },
+      { key: 'missions',      label: 'Ordre de mission',     icon: '🎯', nav: 'missions',      views: ['missions'] },
     ],
     // Rôles gérables (admin/super_admin exclus = toujours total)
     ROLES: [
@@ -14972,6 +15170,30 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
 
     /* --- 🆕 QRQC / PDCA (réclamations qualité) --- */
+    /* --- 🆕 DOCUMENTATION (métadonnées seules ; fichiers b64 dans documentationFiles) --- */
+    /* --- 🆕 ORDRES DE MISSION (admin ↔ TL) --- */
+    listenMissions() {
+      const ref = fbDb.ref('missions');
+      const handler = (snap) => {
+        state.missions = snap.val() || {};
+        if (state.currentView === 'missions' && views.missions) views.missions.render();
+        if (views.missions && views.missions.updateBadge) views.missions.updateBadge();
+      };
+      ref.on('value', handler, () => {});
+      state.listeners.push(() => ref.off('value', handler));
+    },
+
+    listenDocumentation() {
+      const ref = fbDb.ref('documentation');
+      const handler = (snap) => {
+        state.documentation = snap.val() || {};
+        if (state.currentView === 'documentation' && views.documentation) views.documentation.render();
+        if (views.documentation && views.documentation.updateBadge) views.documentation.updateBadge();
+      };
+      ref.on('value', handler, () => {});
+      state.listeners.push(() => ref.off('value', handler));
+    },
+
     listenQrqc() {
       const ref = fbDb.ref('qrqc');
       const handler = (snap) => {
@@ -15800,7 +16022,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         mergedTarget = hash;
         resolvedHash = mergedHubs[hash];
       }
-      const valid = ['hub','intervention','preventive5j','history','queue','catalog','blocked','users','technicians','stats','auditlog','magasin','performance','pdr','demandes-pdr','preparations','qrqc'];
+      const valid = ['hub','intervention','preventive5j','history','queue','catalog','blocked','users','technicians','stats','auditlog','magasin','performance','pdr','demandes-pdr','preparations','qrqc','documentation','missions'];
       let view = valid.includes(resolvedHash) ? resolvedHash : 'hub';
 
       // ── Restrictions par rôle ──
@@ -33752,6 +33974,13 @@ Erreur Firebase : ${e.message}`;
       /* 📊 Donut statuts + barres mensuelles (ouvertes/clôturées) + top projets.
          Basés sur TOUTES les fiches (pas les filtres) — signature pour éviter
          les reconstructions inutiles à chaque frappe de recherche. */
+      /* Convertit un hex en rgba avec alpha */
+      _rgba(hex, a) {
+        const h = String(hex).replace('#', '');
+        const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+        return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+      },
+
       async _renderCharts(all) {
         const wrap = document.getElementById('qrqc-charts');
         if (!wrap || wrap.hidden) return;
@@ -33760,31 +33989,80 @@ Erreur Firebase : ${e.message}`;
         try { await this._loadChart(); } catch (e) { return; }
         this._chartSig = sig;
         const C = this._charts;
-        ['status', 'monthly', 'projets'].forEach(k => { try { C[k]?.destroy(); } catch (e) {} });
+        const self = this;
+        ['status', 'monthly', 'projets', 'conn'].forEach(k => { try { C[k]?.destroy(); } catch (e) {} });
 
-        const AX = { ticks: { color: '#8895b3', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,.04)' } };
+        // ── Style moderne partagé ──
+        // Dégradés dynamiques (calculés au draw via chartArea → toujours nets)
+        const vGrad = hex => ctx => {
+          const area = ctx.chart.chartArea; if (!area) return self._rgba(hex, .6);
+          const g = ctx.chart.ctx.createLinearGradient(0, area.bottom, 0, area.top);
+          g.addColorStop(0, self._rgba(hex, .18)); g.addColorStop(1, self._rgba(hex, .95));
+          return g;
+        };
+        const hGrad = hex => ctx => {
+          const area = ctx.chart.chartArea; if (!area) return self._rgba(hex, .6);
+          const g = ctx.chart.ctx.createLinearGradient(area.left, 0, area.right, 0);
+          g.addColorStop(0, self._rgba(hex, .95)); g.addColorStop(1, self._rgba(hex, .3));
+          return g;
+        };
+        const TT = {
+          backgroundColor: 'rgba(15,23,42,.96)', borderColor: 'rgba(148,163,184,.22)', borderWidth: 1,
+          titleColor: '#f1f5f9', bodyColor: '#cbd5e1', padding: 11, cornerRadius: 9,
+          displayColors: true, boxPadding: 5, usePointStyle: true,
+          titleFont: { size: 12, weight: '700' }, bodyFont: { size: 11.5 }
+        };
+        const ANIM = { duration: 750, easing: 'easeOutQuart' };
+        const gridY = { color: 'rgba(148,163,184,.07)' };
+        const axCat  = { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { display: false }, border: { display: false } };
+        const axVal  = { ticks: { color: '#94a3b8', font: { size: 11 }, stepSize: 1, precision: 0 }, grid: gridY, border: { display: false }, beginAtZero: true };
+        const LEG = { color: '#94a3b8', font: { size: 10.5 }, usePointStyle: true, pointStyle: 'circle', padding: 12 };
 
-        // 1) Donut — répartition par statut
+        // Plugin : total des fiches au centre du donut
+        const centerText = {
+          id: 'qrqcCenterText',
+          afterDraw(chart) {
+            const ds = chart.data.datasets[0]; if (!ds) return;
+            const total = ds.data.reduce((a, b) => a + (b || 0), 0);
+            const ca = chart.chartArea; if (!ca) return;
+            const ctx = chart.ctx;
+            const cx = (ca.left + ca.right) / 2, cy = (ca.top + ca.bottom) / 2;
+            ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#f1f5f9'; ctx.font = '800 28px ui-monospace,monospace';
+            ctx.fillText(String(total), cx, cy - 5);
+            ctx.fillStyle = '#64748b'; ctx.font = '700 9px sans-serif';
+            ctx.fillText('FICHES', cx, cy + 15);
+            ctx.restore();
+          }
+        };
+
+        // 1) Donut — répartition par statut (couleurs vives, hover offset, arrondi)
         const k = { open: 0, progress: 0, check: 0, closed: 0 };
         all.forEach(f => { const s = this._computeStatus(f); k[s] = (k[s] || 0) + 1; });
         const cv1 = document.getElementById('qrqc-chart-status');
-        if (cv1) C.status = new Chart(cv1, {
-          type: 'doughnut',
-          data: {
-            labels: ['Ouvertes', 'En cours', 'Vérification', 'Clôturées'],
-            datasets: [{
-              data: [k.open, k.progress, k.check, k.closed],
-              backgroundColor: ['rgba(239,68,68,.8)', 'rgba(255,181,71,.8)', 'rgba(0,180,255,.8)', 'rgba(0,229,160,.8)'],
-              borderColor: 'rgba(10,22,40,.9)', borderWidth: 2
-            }]
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false, cutout: '62%',
-            plugins: { legend: { position: 'bottom', labels: { color: '#8895b3', font: { size: 10.5 }, boxWidth: 10, padding: 8 } } }
-          }
-        });
+        if (cv1) {
+          const cols = ['#ef4444', '#f59e0b', '#00d4ff', '#10b981'];
+          C.status = new Chart(cv1, {
+            type: 'doughnut',
+            data: {
+              labels: ['Ouvertes', 'En cours', 'Vérification', 'Clôturées'],
+              datasets: [{
+                data: [k.open, k.progress, k.check, k.closed],
+                backgroundColor: cols.map(c => self._rgba(c, .85)),
+                hoverBackgroundColor: cols,
+                borderColor: 'rgba(15,23,42,.9)', borderWidth: 3,
+                borderRadius: 7, hoverOffset: 9, spacing: 2
+              }]
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false, cutout: '70%', animation: { animateRotate: true, duration: 800, easing: 'easeOutQuart' },
+              plugins: { legend: { position: 'bottom', labels: LEG }, tooltip: TT }
+            },
+            plugins: [centerText]
+          });
+        }
 
-        // 2) Barres — évolution 6 mois : réclamations ouvertes vs clôturées
+        // 2) Barres — évolution 6 mois (dégradé vertical)
         const months = [];
         const now = new Date();
         for (let i = 5; i >= 0; i--) {
@@ -33800,32 +34078,49 @@ Erreur Firebase : ${e.message}`;
           data: {
             labels: months.map(m => m.label),
             datasets: [
-              { label: 'Ouvertes',  data: created, backgroundColor: 'rgba(239,68,68,.65)', borderColor: '#ef4444', borderWidth: 1, borderRadius: 4 },
-              { label: 'Clôturées', data: closedM, backgroundColor: 'rgba(0,229,160,.65)', borderColor: '#00e5a0', borderWidth: 1, borderRadius: 4 }
+              { label: 'Ouvertes',  data: created, backgroundColor: vGrad('#ef4444'), borderRadius: 7, borderSkipped: false, maxBarThickness: 26 },
+              { label: 'Clôturées', data: closedM, backgroundColor: vGrad('#10b981'), borderRadius: 7, borderSkipped: false, maxBarThickness: 26 }
             ]
           },
           options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { labels: { color: '#8895b3', font: { size: 10.5 }, boxWidth: 10 } } },
-            scales: { x: AX, y: { ticks: { color: '#8895b3', font: { size: 11 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true } }
+            responsive: true, maintainAspectRatio: false, animation: ANIM,
+            plugins: { legend: { labels: LEG }, tooltip: TT },
+            scales: { x: axCat, y: axVal }
           }
         });
 
-        // 3) Barres horizontales — top 5 projets
+        // 3) Barres horizontales — top 5 projets (dégradé horizontal)
         const byProj = {};
         all.forEach(f => { const p = (f.projet || '').trim() || '(sans projet)'; byProj[p] = (byProj[p] || 0) + 1; });
         const top = Object.entries(byProj).sort((a, b) => b[1] - a[1]).slice(0, 5);
         const cv3 = document.getElementById('qrqc-chart-projets');
         if (cv3) C.projets = new Chart(cv3, {
           type: 'bar',
-          data: {
-            labels: top.map(t => t[0]),
-            datasets: [{ label: 'Fiches', data: top.map(t => t[1]), backgroundColor: 'rgba(167,139,250,.65)', borderColor: '#a78bfa', borderWidth: 1, borderRadius: 4 }]
-          },
+          data: { labels: top.map(t => t[0]), datasets: [{ label: 'Fiches', data: top.map(t => t[1]), backgroundColor: hGrad('#a78bfa'), borderRadius: 7, borderSkipped: false, maxBarThickness: 24 }] },
           options: {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { x: { ticks: { color: '#8895b3', font: { size: 11 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }, y: AX }
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: ANIM,
+            plugins: { legend: { display: false }, tooltip: TT },
+            scales: { x: axVal, y: axCat }
+          }
+        });
+
+        // 4) 🔌 Barres horizontales — top connexions (dégradé horizontal)
+        const byConn = {};
+        all.forEach(f => {
+          const c = this._normConn(f.connexion);
+          if (!c) return;
+          if (!byConn[c]) byConn[c] = { label: (f.connexion || '').trim(), n: 0 };
+          byConn[c].n++;
+        });
+        const topConn = Object.values(byConn).sort((a, b) => b.n - a.n).slice(0, 6);
+        const cv4 = document.getElementById('qrqc-chart-conn');
+        if (cv4 && topConn.length) C.conn = new Chart(cv4, {
+          type: 'bar',
+          data: { labels: topConn.map(c => c.label), datasets: [{ label: 'Réclamations', data: topConn.map(c => c.n), backgroundColor: hGrad('#22d3ee'), borderRadius: 7, borderSkipped: false, maxBarThickness: 24 }] },
+          options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: ANIM,
+            plugins: { legend: { display: false }, tooltip: TT },
+            scales: { x: axVal, y: axCat }
           }
         });
       },
@@ -33839,6 +34134,27 @@ Erreur Firebase : ${e.message}`;
       _tokens(s) {
         const stop = new Set(['de','la','le','les','des','un','une','du','et','au','aux','sur','pour','dans','par','avec','sans','ou','en','the','of','a','se','sa','son','ses','ce','cet','cette','pas','plus','ne']);
         return this._norm(s).split(' ').filter(w => w.length >= 3 && !stop.has(w));
+      },
+      /* Normalisation d'une connexion (comme la logique famille : maj + sans séparateurs) */
+      _normConn(s) {
+        return String(s ?? '').trim().toUpperCase().replace(/[\s\-_.,]/g, '');
+      },
+      /* Retrouve l'outil du catalogue correspondant au libellé saisi */
+      _findToolByLabel(label) {
+        const n = this._norm(label);
+        if (!n) return null;
+        return Object.values(state.tools || {}).find(t => t &&
+          [t.designation, t.doutils, t.serial, t.refOutil, t.outilId, t.numInventaire]
+            .some(x => x && this._norm(x) === n)) || null;
+      },
+      /* Auto-remplit la connexion (et le projet si vide) depuis l'outil reconnu */
+      _autofillFromTool() {
+        const t = this._findToolByLabel(document.getElementById('q-tool')?.value || '');
+        if (!t) return;
+        const connEl = document.getElementById('q-connexion');
+        if (connEl && t.connection) connEl.value = t.connection;   // la connexion suit l'outil
+        const projEl = document.getElementById('q-projet');
+        if (projEl && !projEl.value.trim() && t.projet) projEl.value = t.projet;
       },
 
       /* ── Récurrence : outils présents sur ≥ 2 fiches → Map(toolNorm → count) ── */
@@ -33873,7 +34189,8 @@ Erreur Firebase : ${e.message}`;
         const dTok = new Set(this._tokens(live.defaut));
         const toolN = this._norm(live.toolLabel);
         const projN = this._norm(live.projet);
-        if (dTok.size === 0 && !toolN) return [];
+        const liveConn = this._normConn(live.connexion);
+        if (dTok.size === 0 && !toolN && !liveConn) return [];
         const res = [];
         for (const f of this._all()) {
           if (f.id === exId) continue;
@@ -33892,12 +34209,22 @@ Erreur Firebase : ${e.message}`;
             }
           }
           const projScore = (projN && this._norm(f.projet) === projN) ? 1 : 0;
-          const score = jac * 0.55 + toolScore * 0.35 + projScore * 0.10;
-          if (score >= minScore) res.push({ f, score, toolExact });
+          const fConn = this._normConn(f.connexion);
+          const connMatch = !!(liveConn && fConn && liveConn === fConn);
+          let score;
+          if (liveConn && fConn) {
+            // 🔌 Comparaison par CONNEXION : même connexion = risque de défaut identique
+            score = connMatch ? (0.6 + jac * 0.4) : (jac * 0.3);
+          } else {
+            // Fallback si la connexion n'est pas renseignée : défaut + outil + projet
+            score = jac * 0.55 + toolScore * 0.35 + projScore * 0.10;
+          }
+          if (score >= minScore) res.push({ f, score, toolExact, connMatch });
         }
         res.sort((a, b) => {
+          if (a.connMatch !== b.connMatch) return a.connMatch ? -1 : 1;   // même connexion en tête
           const sa = this._hasSolution(a.f) ? 1 : 0, sb = this._hasSolution(b.f) ? 1 : 0;
-          if (sa !== sb) return sb - sa;          // solutions documentées d'abord
+          if (sa !== sb) return sb - sa;          // puis solutions documentées
           return b.score - a.score;
         });
         return res.slice(0, opt.limit || 3);
@@ -33910,7 +34237,8 @@ Erreur Firebase : ${e.message}`;
         const live = {
           defaut: document.getElementById('q-defaut')?.value || '',
           toolLabel: document.getElementById('q-tool')?.value || '',
-          projet: document.getElementById('q-projet')?.value || ''
+          projet: document.getElementById('q-projet')?.value || '',
+          connexion: document.getElementById('q-connexion')?.value || ''
         };
         const matches = this._findSimilar(live, { excludeId: this._editingId, limit: 3, minScore: 0.28 });
         if (!matches.length) { host.hidden = true; host.innerHTML = ''; return; }
@@ -33925,6 +34253,7 @@ Erreur Firebase : ${e.message}`;
                 '<span class="qrqc-card__num">' + ui.escape(f.id) + '</span>' +
                 '<span class="qrqc-status qrqc-status--' + this._computeStatus(f) + '">' + SL[this._computeStatus(f)] + '</span>' +
                 '<span class="qrqc-sim__match" title="Taux de similarité">' + pct + '%</span>' +
+                (m.connMatch ? '<span class="qrqc-sim__conn">🔌 même connexion</span>' : '') +
                 (m.toolExact ? '<span class="qrqc-sim__tool">même outil</span>' : '') +
               '</div>' +
               '<div class="qrqc-sim__def">' + ui.escape(f.defaut || '—') + '</div>' +
@@ -34190,6 +34519,8 @@ Erreur Firebase : ${e.message}`;
                   <input class="field__input" id="q-client" value="${ui.escape(f.client || '')}" placeholder="Client final, ligne, labo…"></div>
                 <div class="field"><label class="field__label">Outil concerné</label>
                   <input class="field__input" id="q-tool" list="datalist-tools" value="${ui.escape(f.toolLabel || '')}" placeholder="Serial / désignation" autocomplete="off"></div>
+                <div class="field"><label class="field__label">🔌 Connexion <span style="font-weight:400;color:var(--text-muted);font-size:.68rem">(auto depuis l'outil · base de comparaison)</span></label>
+                  <input class="field__input" id="q-connexion" value="${ui.escape(f.connexion || '')}" placeholder="ex : P00118418" autocomplete="off"></div>
                 <div class="field"><label class="field__label">Pilote QRQC *</label>
                   <input class="field__input" id="q-pilote" value="${ui.escape(f.pilote || state.profile?.displayName || '')}" placeholder="Responsable du traitement"></div>
               </div>
@@ -34269,10 +34600,17 @@ Erreur Firebase : ${e.message}`;
         body.querySelector('#q-secu-add').onclick = () => { secuWrap.insertAdjacentHTML('beforeend', this._rowHtml({})); bindRows(secuWrap); };
         body.querySelector('#q-act-add').onclick  = () => { actWrap.insertAdjacentHTML('beforeend', this._rowHtml({}));  bindRows(actWrap); };
 
-        // État d'avancement + suggestions de solutions (rendu initial)
+        // 🔌 Auto-remplissage connexion/projet depuis l'outil, puis rendu initial
+        this._autofillFromTool();
         this._renderStepper();
         this._renderSimilar();
-        // Mise à jour live pendant la saisie (défaut / outil / projet / actions / check)
+        const _toolInput = document.getElementById('q-tool');
+        if (_toolInput) {
+          const _onTool = () => { this._autofillFromTool(); this._renderStepper(); this._renderSimilar(); };
+          _toolInput.addEventListener('change', _onTool);
+          _toolInput.addEventListener('input', debounce(_onTool, 300));
+        }
+        // Mise à jour live pendant la saisie (défaut / connexion / projet / actions / check)
         const _reRender = debounce(() => { this._renderStepper(); this._renderSimilar(); }, 250);
         body.addEventListener('input', _reRender);
         body.addEventListener('change', _reRender);
@@ -34302,6 +34640,7 @@ Erreur Firebase : ${e.message}`;
           projet: val('q-projet'),
           client: val('q-client'),
           toolLabel: val('q-tool'),
+          connexion: val('q-connexion'),
           pilote: val('q-pilote'),
           defaut: val('q-defaut'),
           securisation: rows('q-secu-rows'),
@@ -34478,6 +34817,516 @@ Erreur Firebase : ${e.message}`;
         if (!w) { ui.toast('⚠️ Autorise les pop-ups pour imprimer.', 'warn'); return; }
         w.document.write(html);
         w.document.close();
+      }
+    },
+    /* ═══════════════════════════════════════════════════════════════════
+       📚 DOCUMENTATION — Standards / Dérogations / Procédures / MAJ
+       Métadonnées : documentation/{id} · Fichier base64 : documentationFiles/{id}
+       ═══════════════════════════════════════════════════════════════════ */
+    documentation: {
+      _editingId: null,
+
+      CATS: {
+        standard:  { label: 'Standard',    icon: '📘', bg: 'rgba(59,130,246,.16)',  color: '#3b82f6' },
+        derogation:{ label: 'Dérogation',  icon: '📙', bg: 'rgba(245,158,11,.16)',  color: '#f59e0b' },
+        maj:       { label: 'Mise à jour', icon: '🔄', bg: 'rgba(16,185,129,.16)',  color: '#10b981' },
+        procedure: { label: 'Procédure',   icon: '📗', bg: 'rgba(167,139,250,.16)', color: '#a78bfa' },
+        autre:     { label: 'Autre',       icon: '📄', bg: 'rgba(148,163,184,.16)', color: '#94a3b8' }
+      },
+
+      _canManage() { return ['admin', 'super_admin', 'responsable'].includes(state.role); },
+
+      init() {
+        document.getElementById('btn-doc-new')?.addEventListener('click', () => this.openModal(null));
+        document.getElementById('doc-search')?.addEventListener('input', debounce(() => this.render(), 200));
+        document.getElementById('doc-filter-cat')?.addEventListener('change', () => this.render());
+        const modal = document.getElementById('modal-doc');
+        modal?.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => { modal.hidden = true; }));
+        document.getElementById('btn-doc-save')?.addEventListener('click', () => this.save());
+        document.getElementById('btn-doc-delete')?.addEventListener('click', () => this.remove());
+      },
+
+      _all() {
+        return Object.entries(state.documentation || {}).map(([id, d]) => ({ ...(d || {}), id }))
+          .sort((a, b) => (b.uploadedAt || 0) - (a.uploadedAt || 0));
+      },
+
+      _fileIcon(mime, name) {
+        const n = (name || '').toLowerCase();
+        if ((mime || '').includes('pdf') || n.endsWith('.pdf')) return { i: '📕', c: '#ef4444', bg: 'rgba(239,68,68,.14)' };
+        if (/sheet|excel|csv/.test(mime || '') || /\.(xlsx|xls|csv)$/.test(n)) return { i: '📊', c: '#10b981', bg: 'rgba(16,185,129,.14)' };
+        if (/word|document/.test(mime || '') || /\.(docx|doc)$/.test(n)) return { i: '📘', c: '#3b82f6', bg: 'rgba(59,130,246,.14)' };
+        return { i: '📄', c: '#94a3b8', bg: 'rgba(148,163,184,.14)' };
+      },
+      _fmtSize(b) { if (!b) return ''; if (b < 1024) return b + ' o'; if (b < 1048576) return (b / 1024).toFixed(0) + ' Ko'; return (b / 1048576).toFixed(1) + ' Mo'; },
+
+      updateBadge() {
+        const n = this._all().length;
+        const b = document.getElementById('nav-doc-count');
+        if (b) { b.textContent = n; b.style.display = n > 0 ? '' : 'none'; }
+      },
+
+      render() {
+        const listEl = document.getElementById('doc-list');
+        if (!listEl) return;
+        const manage = this._canManage();
+        const newBtn = document.getElementById('btn-doc-new');
+        if (newBtn) newBtn.style.display = manage ? '' : 'none';
+
+        let list = this._all();
+        const q = (document.getElementById('doc-search')?.value || '').trim().toLowerCase();
+        const fc = document.getElementById('doc-filter-cat')?.value || '';
+        if (fc) list = list.filter(d => (d.category || 'autre') === fc);
+        if (q) list = list.filter(d => [d.title, d.description, d.fileName, d.version].some(v => (v || '').toString().toLowerCase().includes(q)));
+
+        if (!list.length) {
+          listEl.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--text-muted);background:var(--bg-elevated);border-radius:10px">
+            <div style="font-size:2.5rem;opacity:.5">📭</div>
+            <div style="margin-top:.5rem">Aucun document${(q || fc) ? ' pour ces filtres' : ''}</div>
+            ${manage ? '<div style="margin-top:.35rem;font-size:.78rem">« ➕ Ajouter un document » pour déposer un standard, une dérogation ou une mise à jour.</div>' : ''}
+          </div>`;
+          return;
+        }
+
+        listEl.innerHTML = list.map(d => {
+          const cat = this.CATS[d.category] || this.CATS.autre;
+          const fi = this._fileIcon(d.mimeType, d.fileName);
+          return `<article class="doc-card" data-id="${ui.escape(d.id)}">
+            <div class="doc-ico" style="background:${fi.bg};color:${fi.c}">${fi.i}</div>
+            <div class="doc-main">
+              <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                <span class="doc-title">${ui.escape(d.title || d.fileName || 'Document')}</span>
+                <span class="doc-cat" style="background:${cat.bg};color:${cat.color}">${cat.icon} ${cat.label}</span>
+                ${d.version ? `<span style="font-size:.7rem;color:var(--text-muted);font-family:var(--font-mono)">${ui.escape(d.version)}</span>` : ''}
+              </div>
+              ${d.description ? `<div style="font-size:.8rem;color:var(--text-secondary,#b9c4dc);margin-top:.2rem">${ui.escape(d.description)}</div>` : ''}
+              <div class="doc-meta">
+                ${d.fileName ? `<span>📎 ${ui.escape(d.fileName)}</span>` : ''}
+                ${d.size ? `<span>${this._fmtSize(d.size)}</span>` : ''}
+                <span>📅 ${fmt.date(d.uploadedAt)}</span>
+                ${d.uploadedByName ? `<span>👤 ${ui.escape(d.uploadedByName)}</span>` : ''}
+              </div>
+            </div>
+            <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+              ${(d.mimeType || '').includes('pdf') ? `<button class="btn btn--ghost" data-act="preview" title="Aperçu">👁</button>` : ''}
+              <button class="btn btn--secondary" data-act="download" title="Télécharger">⬇️ Télécharger</button>
+              ${manage ? `<button class="btn btn--ghost" data-act="edit" title="Modifier">✏️</button>` : ''}
+            </div>
+          </article>`;
+        }).join('');
+
+        listEl.querySelectorAll('.doc-card').forEach(card => {
+          const id = card.dataset.id;
+          card.querySelector('[data-act="download"]')?.addEventListener('click', () => this._download(id));
+          card.querySelector('[data-act="preview"]')?.addEventListener('click', () => this._preview(id));
+          card.querySelector('[data-act="edit"]')?.addEventListener('click', () => this.openModal(id));
+        });
+      },
+
+      _fileToB64(file) {
+        return new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => { const s = String(r.result || ''); const i = s.indexOf(','); resolve(i >= 0 ? s.slice(i + 1) : s); };
+          r.onerror = reject;
+          r.readAsDataURL(file);
+        });
+      },
+
+      async _fetchB64(id) {
+        try { const s = await fbDb.ref('documentationFiles/' + id).once('value'); return s.val(); } catch (e) { return null; }
+      },
+      _b64ToBlob(b64, mime) {
+        const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new Blob([bytes], { type: mime || 'application/octet-stream' });
+      },
+      async _download(id) {
+        const d = state.documentation?.[id] || {};
+        ui.toast('⬇️ Préparation du fichier…', 'info');
+        const b64 = await this._fetchB64(id);
+        if (!b64) { ui.toast('❌ Fichier introuvable', 'danger'); return; }
+        const url = URL.createObjectURL(this._b64ToBlob(b64, d.mimeType));
+        const a = document.createElement('a');
+        a.href = url; a.download = d.fileName || (d.title || 'document'); a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+      },
+      async _preview(id) {
+        const d = state.documentation?.[id] || {};
+        const b64 = await this._fetchB64(id);
+        if (!b64) { ui.toast('❌ Fichier introuvable', 'danger'); return; }
+        const url = URL.createObjectURL(this._b64ToBlob(b64, d.mimeType || 'application/pdf'));
+        const w = window.open(url, '_blank');
+        if (!w) ui.toast('⚠️ Autorise les pop-ups pour l\'aperçu', 'warn');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      },
+
+      openModal(id) {
+        if (!this._canManage()) { ui.toast('🔒 Réservé aux gestionnaires', 'warn'); return; }
+        this._editingId = id || null;
+        const d = id ? (state.documentation?.[id] || {}) : {};
+        const modal = document.getElementById('modal-doc');
+        if (!modal) return;
+        document.getElementById('doc-modal-title').textContent = id ? '📚 Modifier le document' : '📚 Ajouter un document';
+        document.getElementById('doc-title').value = d.title || '';
+        document.getElementById('doc-category').value = d.category || 'standard';
+        document.getElementById('doc-version').value = d.version || '';
+        document.getElementById('doc-description').value = d.description || '';
+        document.getElementById('doc-file').value = '';
+        const cur = document.getElementById('doc-current-file');
+        if (cur) {
+          if (id && d.fileName) { cur.hidden = false; cur.innerHTML = '📎 Fichier actuel : <strong>' + ui.escape(d.fileName) + '</strong> — laisse vide pour le conserver'; }
+          else cur.hidden = true;
+        }
+        const del = document.getElementById('btn-doc-delete');
+        if (del) del.hidden = !id;
+        modal.hidden = false;
+      },
+
+      async save() {
+        if (!this._canManage()) return;
+        const title = (document.getElementById('doc-title')?.value || '').trim();
+        if (!title) { ui.toast('⚠️ Donne un titre au document.', 'warn'); return; }
+        const file = document.getElementById('doc-file')?.files?.[0] || null;
+        const isNew = !this._editingId;
+        if (isNew && !file) { ui.toast('⚠️ Sélectionne un fichier.', 'warn'); return; }
+        if (file && file.size > 8 * 1024 * 1024) { ui.toast('❌ Fichier trop volumineux (max 8 Mo).', 'danger'); return; }
+        try {
+          const now = Date.now();
+          let id = this._editingId || fbDb.ref('documentation').push().key;
+          const prev = this._editingId ? (state.documentation?.[id] || {}) : {};
+          const meta = {
+            title,
+            category: document.getElementById('doc-category')?.value || 'standard',
+            version: (document.getElementById('doc-version')?.value || '').trim(),
+            description: (document.getElementById('doc-description')?.value || '').trim(),
+            uploadedBy: prev.uploadedBy || state.user?.uid || '',
+            uploadedByName: prev.uploadedByName || state.profile?.displayName || '',
+            uploadedAt: prev.uploadedAt || now,
+            updatedAt: now,
+            fileName: prev.fileName || '',
+            mimeType: prev.mimeType || '',
+            size: prev.size || 0
+          };
+          if (file) {
+            ui.toast('⏳ Téléversement…', 'info');
+            const b64 = await this._fileToB64(file);
+            meta.fileName = file.name;
+            meta.mimeType = file.type || (views.catalog?._guessMime ? views.catalog._guessMime(file.name) : 'application/octet-stream');
+            meta.size = file.size;
+            await fbDb.ref('documentationFiles/' + id).set(b64);
+          }
+          await fbDb.ref('documentation/' + id).set(meta);
+          try { db.audit(isNew ? 'doc.create' : 'doc.update', id, { title }); } catch (e) {}
+          ui.toast('💾 Document enregistré.', 'success');
+          document.getElementById('modal-doc').hidden = true;
+        } catch (e) {
+          console.error('[doc] save', e);
+          ui.toast('❌ Échec enregistrement : ' + (e.message || e), 'danger');
+        }
+      },
+
+      async remove() {
+        const id = this._editingId;
+        if (!id || !this._canManage()) return;
+        const d = state.documentation?.[id] || {};
+        if (!window.confirm('Supprimer définitivement « ' + (d.title || 'ce document') + ' » ?')) return;
+        try {
+          await fbDb.ref('documentation/' + id).remove();
+          await fbDb.ref('documentationFiles/' + id).remove();
+          try { db.audit('doc.delete', id, {}); } catch (e) {}
+          ui.toast('🗑 Document supprimé.', 'success');
+          document.getElementById('modal-doc').hidden = true;
+        } catch (e) {
+          ui.toast('❌ Suppression impossible : ' + (e.message || e), 'danger');
+        }
+      }
+    },
+    /* ═══════════════════════════════════════════════════════════════════
+       🎯 ORDRE DE MISSION — Admin/Responsable demande, TL prend & réalise, Admin valide
+       Données : missions/{id} · Statuts : requested → in_progress → done → validated
+       ═══════════════════════════════════════════════════════════════════ */
+    missions: {
+      _editingId: null,
+      _tls: null,        // cache de la liste des TL
+
+      STATUS: {
+        requested:   { label: '🔵 Demandée',   short: 'Demandée' },
+        in_progress: { label: '🟠 En cours',    short: 'En cours' },
+        done:        { label: '🟢 Réalisée',    short: 'Réalisée' },
+        validated:   { label: '🟣 Validée',     short: 'Validée' }
+      },
+
+      _canCreate() { return ['admin', 'super_admin', 'responsable'].includes(state.role); },
+      _canValidate() { return ['admin', 'super_admin', 'responsable'].includes(state.role); },
+      _isTL() { return state.role === 'tl'; },
+      _mine(m) { return m.assignedTo && state.user && m.assignedTo === state.user.uid; },
+
+      init() {
+        document.getElementById('btn-msn-new')?.addEventListener('click', () => this.openCreate());
+        document.getElementById('msn-search')?.addEventListener('input', debounce(() => this.render(), 200));
+        document.getElementById('msn-filter-status')?.addEventListener('change', () => this.render());
+        document.getElementById('msn-mine')?.addEventListener('change', () => this.render());
+        document.querySelectorAll('#view-missions .msn-kpi[data-mstatus]').forEach(card => {
+          card.addEventListener('click', () => {
+            const sel = document.getElementById('msn-filter-status');
+            const v = card.dataset.mstatus;
+            sel.value = (sel.value === v) ? '' : v;
+            this.render();
+          });
+        });
+        const modal = document.getElementById('modal-msn');
+        modal?.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => { modal.hidden = true; }));
+        document.getElementById('btn-msn-save')?.addEventListener('click', () => this.save());
+        document.getElementById('btn-msn-delete')?.addEventListener('click', () => this.remove());
+      },
+
+      _all() {
+        return Object.entries(state.missions || {}).map(([id, m]) => ({ ...(m || {}), id }))
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      },
+
+      async _loadTLs() {
+        try {
+          const snap = await fbDb.ref('users').orderByChild('role').equalTo('tl').once('value');
+          const v = snap.val() || {};
+          this._tls = Object.entries(v).map(([uid, u]) => ({ uid, name: u.displayName || u.name || u.email || uid }));
+        } catch (e) { this._tls = []; }
+        return this._tls;
+      },
+
+      updateBadge() {
+        // Badge = missions actives me concernant (TL) ou toutes non validées (admin)
+        const all = this._all();
+        let n;
+        if (this._isTL()) n = all.filter(m => this._mine(m) && m.status !== 'validated').length;
+        else n = all.filter(m => m.status !== 'validated').length;
+        const b = document.getElementById('nav-missions-count');
+        if (b) { b.textContent = n; b.style.display = n > 0 ? '' : 'none'; }
+      },
+
+      render() {
+        const listEl = document.getElementById('msn-list');
+        if (!listEl) return;
+        const newBtn = document.getElementById('btn-msn-new');
+        if (newBtn) newBtn.style.display = this._canCreate() ? '' : 'none';
+        const mineWrap = document.getElementById('msn-mine-wrap');
+        if (mineWrap) mineWrap.style.display = this._isTL() ? '' : 'none';
+
+        let all = this._all();
+        // Un TL ne voit que ses missions assignées
+        if (this._isTL()) all = all.filter(m => this._mine(m));
+
+        // KPIs
+        const k = { requested: 0, in_progress: 0, done: 0, validated: 0 };
+        all.forEach(m => { k[m.status || 'requested'] = (k[m.status || 'requested'] || 0) + 1; });
+        const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+        set('msn-kpi-requested', k.requested); set('msn-kpi-progress', k.in_progress);
+        set('msn-kpi-done', k.done); set('msn-kpi-validated', k.validated);
+
+        // Filtres
+        let list = all;
+        const q = (document.getElementById('msn-search')?.value || '').trim().toLowerCase();
+        const fs = document.getElementById('msn-filter-status')?.value || '';
+        const mine = document.getElementById('msn-mine')?.checked;
+        if (fs) list = list.filter(m => (m.status || 'requested') === fs);
+        if (mine && this._isTL()) list = list.filter(m => this._mine(m));
+        if (q) list = list.filter(m => [m.title, m.description, m.assignedToName, m.createdByName].some(v => (v || '').toString().toLowerCase().includes(q)));
+
+        if (!list.length) {
+          listEl.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--text-muted);background:var(--bg-elevated);border-radius:10px">
+            <div style="font-size:2.5rem;opacity:.5">📭</div>
+            <div style="margin-top:.5rem">Aucun ordre de mission${(q || fs) ? ' pour ces filtres' : ''}</div>
+            ${this._canCreate() ? '<div style="margin-top:.35rem;font-size:.78rem">« ➕ Nouvel ordre de mission » pour confier une tâche à un chef de cellule.</div>' : ''}
+          </div>`;
+          return;
+        }
+
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        listEl.innerHTML = list.map(m => {
+          const st = m.status || 'requested';
+          const S = this.STATUS[st];
+          const prio = m.priority || 'normale';
+          const overdue = m.deadline && st !== 'done' && st !== 'validated' && new Date(m.deadline) < today;
+          return `<article class="msn-card msn-card--${st}" data-id="${ui.escape(m.id)}">
+            <div style="display:flex;justify-content:space-between;gap:.6rem;align-items:flex-start;flex-wrap:wrap">
+              <div style="flex:1;min-width:220px">
+                <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                  <span style="font-weight:700;color:var(--text-primary)">${ui.escape(m.title || 'Mission')}</span>
+                  <span class="msn-status msn-status--${st}">${S.label}</span>
+                  <span class="msn-prio msn-prio--${prio}">${prio === 'haute' ? '🔴' : prio === 'basse' ? '🔵' : '⚪'} ${prio}</span>
+                  ${overdue ? '<span class="msn-status" style="background:rgba(239,68,68,.16);color:#ef4444">⚠️ en retard</span>' : ''}
+                </div>
+                ${m.description ? `<div style="font-size:.82rem;color:var(--text-secondary,#b9c4dc);margin-top:.35rem;white-space:pre-wrap">${ui.escape(m.description)}</div>` : ''}
+                <div class="msn-meta">
+                  <span>👷 TL : <strong style="color:var(--text-primary)">${ui.escape(m.assignedToName || '—')}</strong></span>
+                  ${m.deadline ? `<span>📅 échéance ${fmt.date(new Date(m.deadline).getTime())}</span>` : ''}
+                  <span>✍️ ${ui.escape(m.createdByName || '')} · ${fmt.date(m.createdAt)}</span>
+                </div>
+                ${m.completionNote ? `<div style="font-size:.8rem;color:#10b981;background:rgba(16,185,129,.08);border-left:3px solid #10b981;border-radius:5px;padding:.4rem .55rem;margin-top:.5rem"><strong>Compte-rendu TL :</strong> ${ui.escape(m.completionNote)}${m.completedAt ? ' <span style="color:var(--text-muted)">· ' + fmt.date(m.completedAt) + '</span>' : ''}</div>` : ''}
+              </div>
+            </div>
+            <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem">${this._actions(m, st).join('')}</div>
+          </article>`;
+        }).join('');
+
+        listEl.querySelectorAll('.msn-card').forEach(card => {
+          const id = card.dataset.id;
+          card.querySelector('[data-act="take"]')?.addEventListener('click', () => this._setStatus(id, 'in_progress'));
+          card.querySelector('[data-act="done"]')?.addEventListener('click', () => this._complete(id));
+          card.querySelector('[data-act="validate"]')?.addEventListener('click', () => this._setStatus(id, 'validated'));
+          card.querySelector('[data-act="edit"]')?.addEventListener('click', () => this.openEdit(id));
+          card.querySelector('[data-act="reopen"]')?.addEventListener('click', () => this._setStatus(id, 'in_progress'));
+        });
+      },
+
+      _actions(m, st) {
+        const a = [];
+        const isTL = this._isTL(), mine = this._mine(m), canV = this._canValidate();
+        // TL assigné : prendre / réaliser
+        if (isTL && mine) {
+          if (st === 'requested') a.push('<button class="btn btn--secondary" data-act="take" style="background:rgba(245,158,11,.14);color:#f59e0b;border:1px solid rgba(245,158,11,.35)">▶️ Prendre en charge</button>');
+          if (st === 'requested' || st === 'in_progress') a.push('<button class="btn btn--primary" data-act="done">✅ Marquer réalisée</button>');
+        }
+        // Admin/Responsable : valider / modifier / rouvrir
+        if (canV) {
+          if (st === 'done') a.push('<button class="btn btn--secondary" data-act="validate" style="background:rgba(167,139,250,.14);color:#a78bfa;border:1px solid rgba(167,139,250,.35)">🏁 Valider</button>');
+          if (st === 'validated' || st === 'done') a.push('<button class="btn btn--ghost" data-act="reopen">↩️ Rouvrir</button>');
+          a.push('<button class="btn btn--ghost" data-act="edit">✏️ Modifier</button>');
+        }
+        return a;
+      },
+
+      /* ── Création (admin) ── */
+      async openCreate() {
+        if (!this._canCreate()) { ui.toast('🔒 Réservé aux gestionnaires', 'warn'); return; }
+        this._editingId = null;
+        await this._renderForm({});
+      },
+      async openEdit(id) {
+        if (!this._canCreate()) return;
+        this._editingId = id;
+        await this._renderForm(state.missions?.[id] || {});
+      },
+
+      async _renderForm(m) {
+        const body = document.getElementById('msn-modal-body');
+        const modal = document.getElementById('modal-msn');
+        if (!body || !modal) return;
+        document.getElementById('msn-modal-title').textContent = this._editingId ? '🎯 Modifier l\'ordre de mission' : '🎯 Nouvel ordre de mission';
+        const tls = await this._loadTLs();
+        const dl = m.deadline ? m.deadline : '';
+        body.innerHTML = `
+          <div class="field"><label class="field__label">Intitulé de la mission *</label>
+            <input class="field__input" id="m-title" value="${ui.escape(m.title || '')}" placeholder="ex : Contrôle applicateurs cellule B"></div>
+          <div class="field"><label class="field__label">Description / consignes</label>
+            <textarea class="field__input field__input--area" id="m-desc" rows="4" placeholder="Détail de la tâche, attendus, points de contrôle…">${ui.escape(m.description || '')}</textarea></div>
+          <div style="display:grid;grid-template-columns:1fr 140px 150px;gap:.6rem">
+            <div class="field"><label class="field__label">Assigner au TL *</label>
+              <select class="field__input" id="m-tl">
+                <option value="">— Choisir —</option>
+                ${tls.map(t => `<option value="${ui.escape(t.uid)}" ${m.assignedTo === t.uid ? 'selected' : ''}>${ui.escape(t.name)}</option>`).join('')}
+              </select></div>
+            <div class="field"><label class="field__label">Priorité</label>
+              <select class="field__input" id="m-prio">
+                <option value="basse" ${m.priority === 'basse' ? 'selected' : ''}>🔵 Basse</option>
+                <option value="normale" ${!m.priority || m.priority === 'normale' ? 'selected' : ''}>⚪ Normale</option>
+                <option value="haute" ${m.priority === 'haute' ? 'selected' : ''}>🔴 Haute</option>
+              </select></div>
+            <div class="field"><label class="field__label">Échéance</label>
+              <input class="field__input" id="m-deadline" type="date" value="${dl}"></div>
+          </div>
+          ${!tls.length ? '<div style="font-size:.76rem;color:#f59e0b;background:rgba(245,158,11,.1);border-radius:6px;padding:.5rem .7rem">⚠️ Aucun utilisateur avec le rôle « TL Cellule ». Crée d\'abord un compte TL dans Utilisateurs.</div>' : ''}`;
+        document.getElementById('btn-msn-save').hidden = false;
+        document.getElementById('btn-msn-delete').hidden = !this._editingId;
+        modal.hidden = false;
+      },
+
+      async save() {
+        if (!this._canCreate()) return;
+        const body = document.getElementById('msn-modal-body');
+        const val = id => (body.querySelector('#' + id)?.value || '').trim();
+        const title = val('m-title');
+        const tlUid = val('m-tl');
+        if (!title) { ui.toast('⚠️ Donne un intitulé à la mission.', 'warn'); return; }
+        if (!tlUid) { ui.toast('⚠️ Assigne la mission à un TL.', 'warn'); return; }
+        const tl = (this._tls || []).find(t => t.uid === tlUid);
+        try {
+          const now = Date.now();
+          const isNew = !this._editingId;
+          const id = this._editingId || fbDb.ref('missions').push().key;
+          const prev = this._editingId ? (state.missions?.[id] || {}) : {};
+          const data = {
+            title,
+            description: val('m-desc'),
+            assignedTo: tlUid,
+            assignedToName: tl ? tl.name : (prev.assignedToName || ''),
+            priority: val('m-prio') || 'normale',
+            deadline: val('m-deadline') || '',
+            status: prev.status || 'requested',
+            createdBy: prev.createdBy || state.user?.uid || '',
+            createdByName: prev.createdByName || state.profile?.displayName || '',
+            createdAt: prev.createdAt || now,
+            updatedAt: now
+          };
+          if (prev.startedAt) data.startedAt = prev.startedAt;
+          if (prev.completedAt) { data.completedAt = prev.completedAt; data.completionNote = prev.completionNote || ''; }
+          if (prev.validatedAt) data.validatedAt = prev.validatedAt;
+          await fbDb.ref('missions/' + id).set(data);
+          try { db.audit(isNew ? 'mission.create' : 'mission.update', id, { title }); } catch (e) {}
+          ui.toast(isNew ? '🎯 Ordre de mission envoyé au TL.' : '💾 Mission mise à jour.', 'success');
+          document.getElementById('modal-msn').hidden = true;
+        } catch (e) {
+          console.error('[mission] save', e);
+          ui.toast('❌ Échec : ' + (e.message || e), 'danger');
+        }
+      },
+
+      /* ── Transitions de statut ── */
+      async _setStatus(id, newStatus) {
+        const m = state.missions?.[id]; if (!m) return;
+        // Contrôle des droits selon la transition
+        if (newStatus === 'in_progress' && !(this._canValidate() || (this._isTL() && this._mine(m)))) return;
+        if (newStatus === 'validated' && !this._canValidate()) { ui.toast('🔒 Seul un gestionnaire peut valider', 'warn'); return; }
+        try {
+          const patch = { status: newStatus, updatedAt: Date.now() };
+          if (newStatus === 'in_progress' && !m.startedAt) patch.startedAt = Date.now();
+          if (newStatus === 'validated') patch.validatedAt = Date.now();
+          await fbDb.ref('missions/' + id).update(patch);
+          try { db.audit('mission.status', id, { status: newStatus }); } catch (e) {}
+          const lbl = { in_progress: '▶️ Mission prise en charge', validated: '🏁 Mission validée' }[newStatus] || 'Statut mis à jour';
+          ui.toast(lbl, 'success');
+        } catch (e) { ui.toast('❌ ' + (e.message || e), 'danger'); }
+      },
+
+      /* ── Le TL marque la mission réalisée (avec compte-rendu) ── */
+      async _complete(id) {
+        const m = state.missions?.[id]; if (!m) return;
+        if (!(this._isTL() && this._mine(m))) { ui.toast('🔒 Seul le TL assigné peut réaliser', 'warn'); return; }
+        const note = window.prompt('Compte-rendu de réalisation (ce que tu as fait) :', m.completionNote || '');
+        if (note === null) return;   // annulé
+        try {
+          await fbDb.ref('missions/' + id).update({
+            status: 'done',
+            completionNote: note.trim(),
+            completedAt: Date.now(),
+            updatedAt: Date.now()
+          });
+          try { db.audit('mission.done', id, {}); } catch (e) {}
+          ui.toast('✅ Mission marquée réalisée — le responsable est notifié.', 'success');
+        } catch (e) { ui.toast('❌ ' + (e.message || e), 'danger'); }
+      },
+
+      async remove() {
+        const id = this._editingId;
+        if (!id || !this._canCreate()) return;
+        const m = state.missions?.[id] || {};
+        if (!window.confirm('Supprimer l\'ordre de mission « ' + (m.title || '') + ' » ?')) return;
+        try {
+          await fbDb.ref('missions/' + id).remove();
+          try { db.audit('mission.delete', id, {}); } catch (e) {}
+          ui.toast('🗑 Mission supprimée.', 'success');
+          document.getElementById('modal-msn').hidden = true;
+        } catch (e) { ui.toast('❌ ' + (e.message || e), 'danger'); }
       }
     },
     notifications: {
@@ -34779,6 +35628,8 @@ Erreur Firebase : ${e.message}`;
       db.listenPreparations();   // 🆕 file de préparations (opérateur)
       db.listenStock();
       db.listenQrqc();           // 🆕 fiches QRQC / PDCA (réclamations qualité)
+      db.listenDocumentation();  // 🆕 bibliothèque documentaire
+      db.listenMissions();       // 🆕 ordres de mission
       db.listenNotifications();
       try { toolAttachments.init(); } catch(e) {}  // 🆕 charger les pièces jointes dès le départ (badges 📎 fiables)
       ui.hideLoader();
@@ -37494,6 +38345,8 @@ Erreur Firebase : ${e.message}`;
     if (views.pdr && views.pdr.init) views.pdr.init();
     if (views.demandesPdr && views.demandesPdr.init) views.demandesPdr.init();
     if (views.qrqc && views.qrqc.init) views.qrqc.init();
+    if (views.documentation && views.documentation.init) views.documentation.init();
+    if (views.missions && views.missions.init) views.missions.init();
     if (views.technicians && views.technicians.init) views.technicians.init();
     userActions.initModals();
     initDurationField();

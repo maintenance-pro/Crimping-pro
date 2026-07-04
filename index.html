@@ -7012,6 +7012,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <span class="sidebar__pill sidebar__pill--danger" id="nav-blocked-count" style="background:rgba(239,68,68,.18);color:#ef4444">0</span>
             </button>
           </li>
+          <!-- 🔄 QRQC / PDCA — Traitement des réclamations qualité -->
+          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">
+            <button class="sidebar__link" data-nav="qrqc">
+              <span class="sidebar__icon">🔄</span><span class="sidebar__label">QRQC / PDCA</span>
+              <span class="sidebar__pill" id="nav-qrqc-count" style="background:rgba(167,139,250,.18);color:#a78bfa">0</span>
+            </button>
+          </li>
           <!-- 👥 ÉQUIPE — Utilisateurs + Techniciens fusionnés -->
           <li class="sidebar__item sidebar__item--admin" data-requires-role="responsable,super_admin,admin">
             <button class="sidebar__link" data-nav="equipe">
@@ -9141,6 +9148,89 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         </article>
       </section>
 
+      <!-- ================================================================= -->
+      <!-- VIEW — QRQC / PDCA · Traitement des réclamations qualité          -->
+      <!-- ================================================================= -->
+      <section class="history" id="view-qrqc" data-view="qrqc" hidden>
+        <style>
+          .qrqc-card{background:var(--bg-elevated,var(--bg-2));border:1px solid var(--border-soft);border-radius:12px;padding:.85rem 1rem;display:flex;gap:.9rem;align-items:center;flex-wrap:wrap;transition:border-color .15s ease,transform .15s ease}
+          .qrqc-card:hover{border-color:var(--accent-500,#00b4d8);transform:translateY(-1px)}
+          .qrqc-card__main{flex:1;min-width:230px}
+          .qrqc-card__num{font-family:var(--font-mono,monospace);font-weight:800;color:var(--accent-500,#00b4d8);font-size:.92rem}
+          .qrqc-card__defaut{font-size:.88rem;color:var(--text-primary);margin-top:.15rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+          .qrqc-card__meta{font-size:.74rem;color:var(--text-muted);margin-top:.3rem;display:flex;gap:.7rem;flex-wrap:wrap}
+          .qrqc-pdca{display:flex;gap:.3rem}
+          .qrqc-pdca__step{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem;font-family:var(--font-mono,monospace);border:1px solid var(--border-soft);color:var(--text-muted);background:var(--bg-3)}
+          .qrqc-pdca__step--done{background:rgba(0,229,160,.16);border-color:rgba(0,229,160,.5);color:#00e5a0}
+          .qrqc-status{padding:.22rem .6rem;border-radius:999px;font-size:.72rem;font-weight:700;white-space:nowrap}
+          .qrqc-status--open{background:rgba(239,68,68,.16);color:#ef4444}
+          .qrqc-status--progress{background:rgba(255,181,71,.16);color:#ffb547}
+          .qrqc-status--check{background:rgba(0,180,255,.16);color:#00b4d8}
+          .qrqc-status--closed{background:rgba(0,229,160,.16);color:#00e5a0}
+          .qrqc-block{border:1px solid var(--border-soft);border-radius:10px;margin-bottom:.9rem;overflow:hidden}
+          .qrqc-block__head{padding:.55rem .85rem;font-weight:800;font-size:.82rem;letter-spacing:.03em;display:flex;align-items:center;gap:.5rem}
+          .qrqc-block__body{padding:.75rem .85rem;display:grid;gap:.6rem}
+          .qrqc-block--p .qrqc-block__head{background:rgba(0,180,255,.12);color:#00b4d8}
+          .qrqc-block--d .qrqc-block__head{background:rgba(255,181,71,.12);color:#ffb547}
+          .qrqc-block--c .qrqc-block__head{background:rgba(167,139,250,.12);color:#a78bfa}
+          .qrqc-block--a .qrqc-block__head{background:rgba(0,229,160,.12);color:#00e5a0}
+          .qrqc-act-row{display:grid;grid-template-columns:1fr 140px 130px 34px 34px;gap:.45rem;align-items:center}
+          @media(max-width:720px){.qrqc-act-row{grid-template-columns:1fr 1fr;grid-auto-rows:auto}}
+        </style>
+
+        <div class="control-center__title-block" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
+          <div>
+            <h1 class="control-center__title">🔄 QRQC / PDCA — Réclamations Qualité</h1>
+            <p class="control-center__sub">Traçabilité complète des traitements : sécurisation, analyse, actions, vérification, standardisation</p>
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn btn--primary" id="btn-qrqc-new" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">➕ Nouvelle fiche QRQC</button>
+          </div>
+        </div>
+
+        <!-- KPI Hero — répartition par statut -->
+        <div class="kpi-hero" style="margin-bottom:1.1rem">
+          <div class="kpi-hero__card" data-kpi="danger">
+            <div class="kpi-hero__label">🔴 Ouvertes</div>
+            <div class="kpi-hero__value" id="qrqc-kpi-open">—</div>
+            <div class="kpi-hero__sub">analyse à démarrer</div>
+          </div>
+          <div class="kpi-hero__card" data-kpi="warn">
+            <div class="kpi-hero__label">🟠 En cours</div>
+            <div class="kpi-hero__value" id="qrqc-kpi-progress">—</div>
+            <div class="kpi-hero__sub">actions en traitement</div>
+          </div>
+          <div class="kpi-hero__card" data-kpi="primary">
+            <div class="kpi-hero__label">🔵 Vérification</div>
+            <div class="kpi-hero__value" id="qrqc-kpi-check">—</div>
+            <div class="kpi-hero__sub">efficacité à confirmer</div>
+          </div>
+          <div class="kpi-hero__card" data-kpi="success">
+            <div class="kpi-hero__label">🟢 Clôturées</div>
+            <div class="kpi-hero__value" id="qrqc-kpi-closed">—</div>
+            <div class="kpi-hero__sub">standardisées</div>
+          </div>
+        </div>
+
+        <!-- Filtres -->
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+          <input type="search" class="filter__input" id="qrqc-search" placeholder="🔍 N° fiche, réclamation, outil, défaut, pilote…" style="flex:1;min-width:220px" autocomplete="off">
+          <select class="filter__input" id="qrqc-filter-status" style="min-width:150px">
+            <option value="">Tous statuts</option>
+            <option value="open">🔴 Ouvertes</option>
+            <option value="progress">🟠 En cours</option>
+            <option value="check">🔵 Vérification</option>
+            <option value="closed">🟢 Clôturées</option>
+          </select>
+          <select class="filter__input" id="qrqc-filter-projet" style="min-width:140px">
+            <option value="">Tous projets</option>
+          </select>
+        </div>
+
+        <!-- Liste des fiches -->
+        <div id="qrqc-list" style="display:grid;gap:.7rem"></div>
+      </section>
+
     </main>
 
     <!-- ============== 📷 BOUTON FLOTTANT SCANNER QR ============== -->
@@ -9208,6 +9298,27 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       <footer class="modal__footer">
         <button class="btn btn--ghost" data-close data-i18n="t.annuler">Annuler</button>
         <button class="btn btn--primary" id="confirm-ok" data-i18n="t.confirmer">Confirmer</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: fiche QRQC / PDCA -->
+  <div class="modal" id="modal-qrqc" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel modal__panel--lg" style="max-width:960px;width:min(96vw,960px)">
+      <header class="modal__header">
+        <h2 class="modal__title" id="qrqc-modal-title">🔄 Fiche QRQC / PDCA</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body" id="qrqc-modal-body" style="max-height:70vh;overflow:auto">
+        <!-- contenu injecté par views.qrqc.openModal() -->
+      </div>
+      <footer class="modal__footer" style="flex-wrap:wrap;gap:.5rem">
+        <button class="btn btn--danger" id="btn-qrqc-delete" style="margin-right:auto" hidden>🗑 Supprimer</button>
+        <button class="btn btn--ghost" data-close>Annuler</button>
+        <button class="btn btn--secondary" id="btn-qrqc-print">🖨️ Imprimer</button>
+        <button class="btn btn--secondary" id="btn-qrqc-close-fiche" hidden>✅ Clôturer (Act)</button>
+        <button class="btn btn--primary" id="btn-qrqc-save">💾 Enregistrer</button>
       </footer>
     </div>
   </div>
@@ -10341,6 +10452,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     accessConfig: {},
     // 🆕 Drapeaux de chargement (évitent l'affichage "vide" avant l'arrivée des données Firebase)
     toolsLoaded: false,
+    qrqc: {},             // 🆕 fiches QRQC / PDCA (réclamations qualité)
   };
 
   /* ==========================================================================
@@ -11513,7 +11625,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const f = this._all?.[toolId]?.[fileId] || {};
       let b64 = this._b64cache[toolId + '/' + fileId];
       if (!b64) { ui.showLoader('Préparation du téléchargement…'); try { b64 = await this._getB64(toolId, fileId, f); } finally { ui.hideLoader(); } }
-      if (!b64) return ui.toast('Fichier introuvable', 'danger');
+      if (!b64) return ui.toast('⛔ Fichier introuvable' + (this._lastB64Err ? ' — ' + this._lastB64Err : ''), 'danger', 8000);
       try {
         const bin = atob(b64);
         const bytes = new Uint8Array(bin.length);
@@ -14735,6 +14847,24 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       state.listeners.push(() => ref.off('value', handler));
     },
 
+    /* --- 🆕 QRQC / PDCA (réclamations qualité) --- */
+    listenQrqc() {
+      const ref = fbDb.ref('qrqc');
+      const handler = (snap) => {
+        state.qrqc = snap.val() || {};
+        if (state.currentView === 'qrqc' && views.qrqc) views.qrqc.render();
+        if (views.qrqc && views.qrqc.updateBadge) views.qrqc.updateBadge();
+      };
+      ref.on('value', handler, () => {});
+      state.listeners.push(() => ref.off('value', handler));
+    },
+
+    async getNextQrqc() {
+      const ref = fbDb.ref('counters/qrqc');
+      const result = await ref.transaction(current => (current || 0) + 1);
+      return result.snapshot.val();
+    },
+
     /* --- stock --- */
     listenStock() {
       const ref = fbDb.ref('stock');
@@ -15059,6 +15189,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if (action.startsWith('pdfTemplate'))            entity = `pdfTemplates/${entityId}`;
       else if (action.startsWith('toolAttachment') || action.startsWith('tool.')) entity = `tools/${entityId}`;
       else if (action.startsWith('access'))            entity = `accessConfig`;
+      else if (action.startsWith('qrqc'))              entity = `qrqc/${entityId}`;
       else                                             entity = `interventions/${entityId}`;
       const log = {
         timestamp: Date.now(),
@@ -15545,7 +15676,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         mergedTarget = hash;
         resolvedHash = mergedHubs[hash];
       }
-      const valid = ['hub','intervention','preventive5j','history','queue','catalog','blocked','users','technicians','stats','auditlog','magasin','performance','pdr','demandes-pdr','preparations'];
+      const valid = ['hub','intervention','preventive5j','history','queue','catalog','blocked','users','technicians','stats','auditlog','magasin','performance','pdr','demandes-pdr','preparations','qrqc'];
       let view = valid.includes(resolvedHash) ? resolvedHash : 'hub';
 
       // ── Restrictions par rôle ──
@@ -33165,6 +33296,480 @@ Erreur Firebase : ${e.message}`;
     },
 
     /* ========== NOTIFICATIONS PANEL ========== */
+    /* ═══════════════════════════════════════════════════════════════════
+       🔄 QRQC / PDCA — Traitement des réclamations qualité
+       P (sécurisation + 5 Pourquoi + cause racine) → D (actions correctives)
+       → C (vérification d'efficacité) → A (standardisation + clôture)
+       Données : qrqc/{QRQC-AAAA-###} · compteur : counters/qrqc
+       ═══════════════════════════════════════════════════════════════════ */
+    qrqc: {
+      _editingId: null,
+
+      init() {
+        document.getElementById('btn-qrqc-new')?.addEventListener('click', () => this.openModal(null));
+        document.getElementById('qrqc-search')?.addEventListener('input', debounce(() => this.render(), 200));
+        document.getElementById('qrqc-filter-status')?.addEventListener('change', () => this.render());
+        document.getElementById('qrqc-filter-projet')?.addEventListener('change', () => this.render());
+
+        const modal = document.getElementById('modal-qrqc');
+        modal?.querySelectorAll('[data-close]').forEach(el =>
+          el.addEventListener('click', () => { modal.hidden = true; }));
+        document.getElementById('btn-qrqc-save')?.addEventListener('click', () => this.save(false));
+        document.getElementById('btn-qrqc-print')?.addEventListener('click', () => this.print());
+        document.getElementById('btn-qrqc-close-fiche')?.addEventListener('click', () => this.closeFiche());
+        document.getElementById('btn-qrqc-delete')?.addEventListener('click', () => this.remove());
+      },
+
+      _all() {
+        return Object.entries(state.qrqc || {}).map(([id, f]) => ({ ...(f || {}), id }))
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      },
+
+      /* Statut auto-calculé depuis l'avancement réel de la fiche */
+      _computeStatus(f) {
+        if (f.closedAt) return 'closed';
+        const acts = (f.actions || []).filter(a => a && a.desc);
+        if (acts.length && acts.every(a => a.done)) return 'check';
+        if ((f.rootCause || '').trim() || acts.length || (f.whys || []).some(w => (w || '').trim())) return 'progress';
+        return 'open';
+      },
+
+      /* Quadrants PDCA validés */
+      _pdca(f) {
+        const acts = (f.actions || []).filter(a => a && a.desc);
+        return {
+          P: !!(f.rootCause || '').trim(),
+          D: acts.length > 0 && acts.every(a => a.done),
+          C: !!(f.check && f.check.result === 'ok'),
+          A: !!f.closedAt
+        };
+      },
+
+      _ymd(ts) {
+        if (!ts) return '';
+        const d = new Date(ts);
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      },
+
+      updateBadge() {
+        const open = this._all().filter(f => this._computeStatus(f) !== 'closed').length;
+        const b = document.getElementById('nav-qrqc-count');
+        if (b) { b.textContent = open; b.style.display = open > 0 ? '' : 'none'; }
+      },
+
+      render() {
+        const listEl = document.getElementById('qrqc-list');
+        if (!listEl) return;
+        const all = this._all().map(f => ({ ...f, _status: this._computeStatus(f) }));
+
+        // KPIs
+        const k = { open: 0, progress: 0, check: 0, closed: 0 };
+        all.forEach(f => { k[f._status] = (k[f._status] || 0) + 1; });
+        const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+        set('qrqc-kpi-open', k.open); set('qrqc-kpi-progress', k.progress);
+        set('qrqc-kpi-check', k.check); set('qrqc-kpi-closed', k.closed);
+
+        // Options du filtre projet (préserve la sélection)
+        const sel = document.getElementById('qrqc-filter-projet');
+        if (sel) {
+          const cur = sel.value;
+          const projets = [...new Set(all.map(f => (f.projet || '').trim()).filter(Boolean))].sort();
+          sel.innerHTML = '<option value="">Tous projets</option>' +
+            projets.map(p => `<option value="${ui.escape(p)}">${ui.escape(p)}</option>`).join('');
+          sel.value = projets.includes(cur) ? cur : '';
+        }
+
+        // Filtres
+        const q  = (document.getElementById('qrqc-search')?.value || '').trim().toLowerCase();
+        const fs = document.getElementById('qrqc-filter-status')?.value || '';
+        const fp = document.getElementById('qrqc-filter-projet')?.value || '';
+        let list = all;
+        if (fs) list = list.filter(f => f._status === fs);
+        if (fp) list = list.filter(f => (f.projet || '').trim() === fp);
+        if (q)  list = list.filter(f =>
+          [f.id, f.reclamation, f.toolLabel, f.defaut, f.pilote, f.client, f.projet, f.rootCause]
+            .some(v => (v || '').toString().toLowerCase().includes(q)));
+
+        if (!list.length) {
+          listEl.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--text-muted);background:var(--bg-elevated);border-radius:10px">
+            <div style="font-size:2.5rem;opacity:.5">📭</div>
+            <div style="margin-top:.5rem">Aucune fiche QRQC${(q || fs || fp) ? ' pour ces filtres' : ''}</div>
+            <div style="margin-top:.35rem;font-size:.78rem">« ➕ Nouvelle fiche QRQC » pour tracer le traitement d'une réclamation qualité.</div>
+          </div>`;
+          return;
+        }
+
+        const SL = { open: '🔴 Ouverte', progress: '🟠 En cours', check: '🔵 Vérification', closed: '🟢 Clôturée' };
+        listEl.innerHTML = list.map(f => {
+          const p = this._pdca(f);
+          const acts = (f.actions || []).filter(a => a && a.desc);
+          const done = acts.filter(a => a.done).length;
+          return `<article class="qrqc-card" data-id="${ui.escape(f.id)}">
+            <div class="qrqc-card__main">
+              <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+                <span class="qrqc-card__num">${ui.escape(f.id)}</span>
+                <span class="qrqc-status qrqc-status--${f._status}">${SL[f._status]}</span>
+                ${f.reclamation ? `<span style="font-size:.72rem;color:var(--text-muted)">Récl. ${ui.escape(f.reclamation)}</span>` : ''}
+              </div>
+              <div class="qrqc-card__defaut">${ui.escape(f.defaut || '—')}</div>
+              <div class="qrqc-card__meta">
+                ${f.projet ? `<span>📁 ${ui.escape(f.projet)}</span>` : ''}
+                ${f.toolLabel ? `<span>🛠 ${ui.escape(f.toolLabel)}</span>` : ''}
+                ${f.pilote ? `<span>👤 ${ui.escape(f.pilote)}</span>` : ''}
+                <span>📅 ${fmt.date(f.date || f.createdAt)}</span>
+                ${acts.length ? `<span>✔ ${done}/${acts.length} actions</span>` : ''}
+              </div>
+            </div>
+            <div class="qrqc-pdca" title="Avancement PDCA — P: cause racine · D: actions soldées · C: efficacité OK · A: clôturée">
+              ${['P','D','C','A'].map(s => `<span class="qrqc-pdca__step ${p[s] ? 'qrqc-pdca__step--done' : ''}">${s}</span>`).join('')}
+            </div>
+            <div style="display:flex;gap:.4rem">
+              <button class="btn btn--ghost" data-act="print" title="Imprimer la fiche">🖨️</button>
+              <button class="btn btn--secondary" data-act="open">Ouvrir</button>
+            </div>
+          </article>`;
+        }).join('');
+
+        listEl.querySelectorAll('.qrqc-card').forEach(card => {
+          const id = card.dataset.id;
+          card.querySelector('[data-act="open"]')?.addEventListener('click', () => this.openModal(id));
+          card.querySelector('[data-act="print"]')?.addEventListener('click', () => this.print(id));
+        });
+      },
+
+      /* Ligne éditable d'action (sécurisation ou corrective) */
+      _rowHtml(a = {}) {
+        return `<div class="qrqc-act-row">
+          <input class="field__input" data-f="desc" value="${ui.escape(a.desc || '')}" placeholder="Description de l'action">
+          <input class="field__input" data-f="resp" value="${ui.escape(a.resp || '')}" placeholder="Resp.">
+          <input class="field__input" data-f="deadline" type="date" value="${ui.escape(a.deadline || '')}">
+          <input type="checkbox" data-f="done" ${a.done ? 'checked' : ''} title="Action réalisée" style="width:18px;height:18px;justify-self:center;accent-color:#00e5a0">
+          <button type="button" data-del title="Supprimer la ligne" style="background:none;border:0;color:#ef4444;cursor:pointer;font-size:1rem;line-height:1">✕</button>
+        </div>`;
+      },
+
+      openModal(id) {
+        this._editingId = id || null;
+        const f = id ? (state.qrqc?.[id] || {}) : {};
+        const modal = document.getElementById('modal-qrqc');
+        const body  = document.getElementById('qrqc-modal-body');
+        if (!modal || !body) return;
+
+        const title = document.getElementById('qrqc-modal-title');
+        if (title) title.textContent = id ? `🔄 Fiche ${id}` : '🔄 Nouvelle fiche QRQC / PDCA';
+        const canDelete = ['admin', 'super_admin', 'responsable'].includes(state.role);
+        const delBtn = document.getElementById('btn-qrqc-delete');
+        if (delBtn) delBtn.hidden = !(id && canDelete);
+        const closeBtn = document.getElementById('btn-qrqc-close-fiche');
+        if (closeBtn) closeBtn.hidden = !id || !!f.closedAt;
+
+        const whys  = (f.whys && f.whys.length) ? f.whys.concat(['', '', '', '', '']).slice(0, 5) : ['', '', '', '', ''];
+        const secu  = (f.securisation && f.securisation.length) ? f.securisation : [{}];
+        const acts  = (f.actions && f.actions.length) ? f.actions : [{}];
+        const check = f.check || {};
+        const dateVal = f.date ? this._ymd(f.date) : this._ymd(Date.now());
+
+        body.innerHTML = `
+          ${f.closedAt ? `<div style="margin-bottom:.8rem;padding:.6rem .85rem;background:rgba(0,229,160,.10);border-left:3px solid #00e5a0;border-radius:6px;font-size:.85rem">
+            ✅ Fiche clôturée le ${fmt.dateTime(f.closedAt)}${f.closedByName ? ' par ' + ui.escape(f.closedByName) : ''}</div>` : ''}
+
+          <!-- ─── EN-TÊTE RÉCLAMATION ─── -->
+          <div class="qrqc-block" style="border-color:rgba(239,68,68,.35)">
+            <div class="qrqc-block__head" style="background:rgba(239,68,68,.12);color:#ef4444">🚨 RÉCLAMATION QUALITÉ</div>
+            <div class="qrqc-block__body">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.6rem">
+                <div class="field"><label class="field__label">N° réclamation</label>
+                  <input class="field__input" id="q-reclamation" value="${ui.escape(f.reclamation || '')}" placeholder="ex : RC-2026-045"></div>
+                <div class="field"><label class="field__label">Date réclamation</label>
+                  <input class="field__input" id="q-date" type="date" value="${dateVal}"></div>
+                <div class="field"><label class="field__label">Projet</label>
+                  <input class="field__input" id="q-projet" value="${ui.escape(f.projet || '')}" placeholder="ex : VW270"></div>
+                <div class="field"><label class="field__label">Client / Lieu de détection</label>
+                  <input class="field__input" id="q-client" value="${ui.escape(f.client || '')}" placeholder="Client final, ligne, labo…"></div>
+                <div class="field"><label class="field__label">Outil concerné</label>
+                  <input class="field__input" id="q-tool" list="datalist-tools" value="${ui.escape(f.toolLabel || '')}" placeholder="Serial / désignation" autocomplete="off"></div>
+                <div class="field"><label class="field__label">Pilote QRQC *</label>
+                  <input class="field__input" id="q-pilote" value="${ui.escape(f.pilote || state.profile?.displayName || '')}" placeholder="Responsable du traitement"></div>
+              </div>
+              <div class="field"><label class="field__label">Description du défaut *</label>
+                <textarea class="field__input field__input--area" id="q-defaut" rows="2" placeholder="Quoi / Où / Quand / Combien — description factuelle du problème">${ui.escape(f.defaut || '')}</textarea></div>
+            </div>
+          </div>
+
+          <!-- ─── P · PLAN ─── -->
+          <div class="qrqc-block qrqc-block--p">
+            <div class="qrqc-block__head">🅿️ P — PLAN · Sécurisation immédiate & Analyse cause racine</div>
+            <div class="qrqc-block__body">
+              <div style="font-size:.76rem;font-weight:700;color:var(--text-muted)">Actions immédiates de sécurisation (tri, blocage outil, alerte client…)</div>
+              <div id="q-secu-rows" style="display:grid;gap:.4rem"></div>
+              <button type="button" class="btn btn--ghost" id="q-secu-add" style="justify-self:start;font-size:.75rem;padding:.3rem .6rem">➕ Ligne sécurisation</button>
+
+              <div style="font-size:.76rem;font-weight:700;color:var(--text-muted);margin-top:.4rem">Analyse 5 Pourquoi</div>
+              ${whys.map((w, i) => `<div style="display:flex;gap:.5rem;align-items:center">
+                <span style="font-family:var(--font-mono,monospace);font-size:.72rem;color:#00b4d8;min-width:72px">Pourquoi ${i + 1}</span>
+                <input class="field__input" data-why="${i}" value="${ui.escape(w || '')}" style="flex:1"></div>`).join('')}
+
+              <div class="field"><label class="field__label">🎯 Cause racine identifiée</label>
+                <textarea class="field__input field__input--area" id="q-rootcause" rows="2" placeholder="Cause fondamentale confirmée (valide le quadrant P)">${ui.escape(f.rootCause || '')}</textarea></div>
+            </div>
+          </div>
+
+          <!-- ─── D · DO ─── -->
+          <div class="qrqc-block qrqc-block--d">
+            <div class="qrqc-block__head">🔧 D — DO · Actions correctives</div>
+            <div class="qrqc-block__body">
+              <div class="qrqc-act-row" style="font-size:.7rem;font-weight:700;color:var(--text-muted)">
+                <span>Action corrective</span><span>Responsable</span><span>Délai</span><span title="Réalisée">✔</span><span></span>
+              </div>
+              <div id="q-act-rows" style="display:grid;gap:.4rem"></div>
+              <button type="button" class="btn btn--ghost" id="q-act-add" style="justify-self:start;font-size:.75rem;padding:.3rem .6rem">➕ Action corrective</button>
+            </div>
+          </div>
+
+          <!-- ─── C · CHECK ─── -->
+          <div class="qrqc-block qrqc-block--c">
+            <div class="qrqc-block__head">🔎 C — CHECK · Vérification d'efficacité</div>
+            <div class="qrqc-block__body">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.6rem">
+                <div class="field"><label class="field__label">Date de vérification</label>
+                  <input class="field__input" id="q-check-date" type="date" value="${check.date ? this._ymd(check.date) : ''}"></div>
+                <div class="field"><label class="field__label">Résultat</label>
+                  <select class="field__input" id="q-check-result">
+                    <option value="" ${!check.result ? 'selected' : ''}>— À vérifier —</option>
+                    <option value="ok" ${check.result === 'ok' ? 'selected' : ''}>✅ Efficace (OK)</option>
+                    <option value="nok" ${check.result === 'nok' ? 'selected' : ''}>❌ Non efficace (NOK)</option>
+                  </select></div>
+              </div>
+              <div class="field"><label class="field__label">Méthode / preuve (audit, contrôle Cm/Cmk, absence de récurrence…)</label>
+                <textarea class="field__input field__input--area" id="q-check-comment" rows="2">${ui.escape(check.comment || '')}</textarea></div>
+            </div>
+          </div>
+
+          <!-- ─── A · ACT ─── -->
+          <div class="qrqc-block qrqc-block--a">
+            <div class="qrqc-block__head">📌 A — ACT · Standardisation & Clôture</div>
+            <div class="qrqc-block__body">
+              <div class="field"><label class="field__label">Standardisation (Annexe 4/5 mise à jour, gamme, formation, poka-yoke, extension aux outils similaires…)</label>
+                <textarea class="field__input field__input--area" id="q-standard" rows="2">${ui.escape(f.standardisation || '')}</textarea></div>
+              ${!f.closedAt && id ? '<div style="font-size:.74rem;color:var(--text-muted)">La clôture se fait via le bouton « ✅ Clôturer (Act) » ci-dessous : elle enregistre la fiche puis valide le quadrant A.</div>' : ''}
+            </div>
+          </div>`;
+
+        // Lignes dynamiques sécurisation + actions
+        const secuWrap = body.querySelector('#q-secu-rows');
+        const actWrap  = body.querySelector('#q-act-rows');
+        secu.forEach(a => secuWrap.insertAdjacentHTML('beforeend', this._rowHtml(a || {})));
+        acts.forEach(a => actWrap.insertAdjacentHTML('beforeend', this._rowHtml(a || {})));
+        const bindRows = wrap => wrap.querySelectorAll('[data-del]').forEach(btn => {
+          btn.onclick = () => { if (wrap.children.length > 1) btn.closest('.qrqc-act-row').remove(); };
+        });
+        bindRows(secuWrap); bindRows(actWrap);
+        body.querySelector('#q-secu-add').onclick = () => { secuWrap.insertAdjacentHTML('beforeend', this._rowHtml({})); bindRows(secuWrap); };
+        body.querySelector('#q-act-add').onclick  = () => { actWrap.insertAdjacentHTML('beforeend', this._rowHtml({}));  bindRows(actWrap); };
+
+        modal.hidden = false;
+        body.scrollTop = 0;
+      },
+
+      /* Lecture du formulaire → objet fiche */
+      _collect() {
+        const body = document.getElementById('qrqc-modal-body');
+        const val = id => (body.querySelector('#' + id)?.value || '').trim();
+        const rows = wrapId => Array.from(body.querySelectorAll('#' + wrapId + ' .qrqc-act-row'))
+          .map(r => ({
+            desc:     (r.querySelector('[data-f="desc"]')?.value || '').trim(),
+            resp:     (r.querySelector('[data-f="resp"]')?.value || '').trim(),
+            deadline: r.querySelector('[data-f="deadline"]')?.value || '',
+            done:     !!r.querySelector('[data-f="done"]')?.checked
+          }))
+          .filter(a => a.desc);
+
+        const dateStr  = val('q-date');
+        const checkStr = val('q-check-date');
+        return {
+          reclamation: val('q-reclamation'),
+          date: dateStr ? new Date(dateStr + 'T00:00:00').getTime() : Date.now(),
+          projet: val('q-projet'),
+          client: val('q-client'),
+          toolLabel: val('q-tool'),
+          pilote: val('q-pilote'),
+          defaut: val('q-defaut'),
+          securisation: rows('q-secu-rows'),
+          whys: Array.from(body.querySelectorAll('[data-why]')).map(i => (i.value || '').trim()),
+          rootCause: val('q-rootcause'),
+          actions: rows('q-act-rows'),
+          check: {
+            date: checkStr ? new Date(checkStr + 'T00:00:00').getTime() : null,
+            result: body.querySelector('#q-check-result')?.value || '',
+            comment: val('q-check-comment')
+          },
+          standardisation: val('q-standard')
+        };
+      },
+
+      async save(silent) {
+        const data = this._collect();
+        if (!data.defaut)  { ui.toast('⚠️ Décris le défaut de la réclamation.', 'warn'); return null; }
+        if (!data.pilote)  { ui.toast('⚠️ Indique le pilote du QRQC.', 'warn'); return null; }
+        const isNew = !this._editingId;
+        try {
+          let id = this._editingId;
+          const now = Date.now();
+          if (isNew) {
+            const seq = await db.getNextQrqc();
+            id = 'QRQC-' + new Date().getFullYear() + '-' + String(seq).padStart(3, '0');
+            data.createdAt = now;
+            data.createdBy = state.user?.uid || '';
+            data.createdByName = state.profile?.displayName || '';
+          } else {
+            const prev = state.qrqc?.[id] || {};
+            data.createdAt = prev.createdAt || now;
+            data.createdBy = prev.createdBy || '';
+            data.createdByName = prev.createdByName || '';
+            if (prev.closedAt) {
+              data.closedAt = prev.closedAt;
+              data.closedBy = prev.closedBy || '';
+              data.closedByName = prev.closedByName || '';
+            }
+          }
+          data.updatedAt = now;
+          await fbDb.ref('qrqc/' + id).set(data);
+          this._editingId = id;
+          try { db.audit(isNew ? 'qrqc.create' : 'qrqc.update', id, { defaut: (data.defaut || '').slice(0, 80) }); } catch (e) {}
+          if (!silent) {
+            ui.toast('💾 Fiche ' + id + ' enregistrée.', 'success');
+            const m = document.getElementById('modal-qrqc');
+            if (m) m.hidden = true;
+          }
+          return id;
+        } catch (e) {
+          console.error('[qrqc] save', e);
+          ui.toast('❌ Échec enregistrement : ' + (e.message || e), 'danger');
+          return null;
+        }
+      },
+
+      /* Clôture (quadrant A) — enregistre d'abord, avertit si D/C incomplets */
+      async closeFiche() {
+        if (!this._editingId) { ui.toast('Enregistre d\'abord la fiche.', 'warn'); return; }
+        const data = this._collect();
+        const acts = (data.actions || []).filter(a => a.desc);
+        const allDone = acts.length > 0 && acts.every(a => a.done);
+        const checkOk = data.check && data.check.result === 'ok';
+        let msg = 'Clôturer la fiche ' + this._editingId + ' ? Elle passera en statut 🟢 Clôturée.';
+        if (!allDone || !checkOk) {
+          const pts = [];
+          if (!allDone) pts.push('des actions correctives ne sont pas soldées');
+          if (!checkOk) pts.push('l\'efficacité n\'est pas confirmée (Check ≠ OK)');
+          msg = '⚠️ Attention : ' + pts.join(' et ') + '.\n\nClôturer quand même la fiche ' + this._editingId + ' ?';
+        }
+        if (!window.confirm(msg)) return;
+        const savedId = await this.save(true);
+        if (!savedId) return;
+        try {
+          await fbDb.ref('qrqc/' + savedId).update({
+            closedAt: Date.now(),
+            closedBy: state.user?.uid || '',
+            closedByName: state.profile?.displayName || ''
+          });
+          try { db.audit('qrqc.close', savedId, {}); } catch (e) {}
+          ui.toast('✅ Fiche ' + savedId + ' clôturée (Act).', 'success');
+          const m = document.getElementById('modal-qrqc');
+          if (m) m.hidden = true;
+        } catch (e) {
+          ui.toast('❌ Clôture impossible : ' + (e.message || e), 'danger');
+        }
+      },
+
+      async remove() {
+        const id = this._editingId;
+        if (!id) return;
+        if (!window.confirm('Supprimer définitivement la fiche ' + id + ' ?\nCette action est irréversible.')) return;
+        try {
+          await fbDb.ref('qrqc/' + id).remove();
+          try { db.audit('qrqc.delete', id, {}); } catch (e) {}
+          ui.toast('🗑 Fiche ' + id + ' supprimée.', 'success');
+          const m = document.getElementById('modal-qrqc');
+          if (m) m.hidden = true;
+        } catch (e) {
+          ui.toast('❌ Suppression impossible : ' + (e.message || e), 'danger');
+        }
+      },
+
+      /* Impression A4 — fiche PDCA complète (depuis la liste ou le modal ouvert) */
+      print(id) {
+        let f;
+        const modalOpen = !document.getElementById('modal-qrqc')?.hidden;
+        if (id && state.qrqc?.[id] && !(modalOpen && this._editingId === id)) {
+          f = { ...state.qrqc[id], id };
+        } else {
+          const cur = this._editingId;
+          f = { ...this._collect(), id: cur || 'BROUILLON' };
+          const prev = cur ? (state.qrqc?.[cur] || null) : null;
+          if (prev) { f.closedAt = prev.closedAt; f.closedByName = prev.closedByName; f.createdAt = prev.createdAt; }
+        }
+        const st = this._computeStatus(f);
+        const SL = { open: 'OUVERTE', progress: 'EN COURS', check: 'VÉRIFICATION', closed: 'CLÔTURÉE' };
+        const esc = s => ui.escape(s || '');
+        const dOnly = ts => ts ? new Date(ts).toLocaleDateString('fr-FR') : '—';
+        const rowsHtml = arr => ((arr || []).filter(a => a && a.desc).map((a, i) =>
+          '<tr><td>' + (i + 1) + '</td><td>' + esc(a.desc) + '</td><td>' + esc(a.resp) + '</td><td>' +
+          (a.deadline ? esc(a.deadline) : '—') + '</td><td style="text-align:center">' +
+          (a.done ? '&#10004; Fait' : '&#9203; En cours') + '</td></tr>').join('')) ||
+          '<tr><td colspan="5" style="text-align:center;color:#888">—</td></tr>';
+        const whysHtml = (f.whys || []).map((w, i) => w ? '<div><b>P' + (i + 1) + ' :</b> ' + esc(w) + '</div>' : '').join('') || '—';
+        const thead = '<tr><th style="width:5%">#</th><th>Action</th><th style="width:16%">Resp.</th><th style="width:13%">Délai</th><th style="width:13%">Statut</th></tr>';
+
+        const html = '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>' + esc(f.id) + ' — QRQC PDCA</title><style>' +
+          '*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}' +
+          'body{margin:0;padding:12mm 11mm;color:#111;font-size:11px}' +
+          'h1{font-size:16px;margin:0}' +
+          'table{width:100%;border-collapse:collapse;margin-top:4px}' +
+          'th,td{border:1px solid #444;padding:4px 6px;vertical-align:top;font-size:10.5px}' +
+          'th{background:#eef3f8;text-align:left}' +
+          '.head{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #003399;padding-bottom:6px;margin-bottom:8px}' +
+          '.brand{font-weight:800;color:#003399;font-size:14px}' +
+          '.block{border:1.5px solid #333;border-radius:4px;margin-top:8px;overflow:hidden;page-break-inside:avoid}' +
+          '.block>.bh{padding:4px 8px;font-weight:800;font-size:11px;color:#fff}' +
+          '.block>.bb{padding:6px 8px}' +
+          '.p .bh{background:#0069b4}.d .bh{background:#e07b00}.c .bh{background:#6b4fbb}.a .bh{background:#1a9e6e}' +
+          '.sig{margin-top:14px;display:flex;gap:10mm}' +
+          '.sig>div{flex:1;border-top:1px solid #333;padding-top:3px;font-size:10px;text-align:center;margin-top:16mm}' +
+          '@media print{@page{size:A4;margin:0}}' +
+          '</style></head><body>' +
+          '<div class="head"><div><div class="brand">LEONI Wiring Systems — Crimping Lab</div>' +
+          '<div style="font-size:10px;color:#555">QRQC / PDCA — Traitement d\'une réclamation qualité</div></div>' +
+          '<div style="text-align:right"><h1>' + esc(f.id) + '</h1>' +
+          '<div style="font-size:10px">Statut : <b>' + SL[st] + '</b> · Édité le ' + new Date().toLocaleDateString('fr-FR') + '</div></div></div>' +
+          '<table><tr><th style="width:15%">N° réclamation</th><td style="width:17%">' + (esc(f.reclamation) || '—') + '</td>' +
+          '<th style="width:9%">Date</th><td style="width:14%">' + dOnly(f.date) + '</td>' +
+          '<th style="width:9%">Projet</th><td style="width:13%">' + (esc(f.projet) || '—') + '</td>' +
+          '<th style="width:8%">Pilote</th><td>' + (esc(f.pilote) || '—') + '</td></tr>' +
+          '<tr><th>Outil</th><td>' + (esc(f.toolLabel) || '—') + '</td><th>Détection</th><td colspan="5">' + (esc(f.client) || '—') + '</td></tr>' +
+          '<tr><th>Défaut</th><td colspan="7">' + (esc(f.defaut) || '—') + '</td></tr></table>' +
+          '<div class="block p"><div class="bh">P — PLAN · Sécurisation immédiate &amp; Analyse cause racine</div><div class="bb">' +
+          '<b>Actions immédiates de sécurisation</b><table>' + thead + rowsHtml(f.securisation) + '</table>' +
+          '<div style="margin-top:6px"><b>Analyse 5 Pourquoi</b><div style="margin-top:2px">' + whysHtml + '</div></div>' +
+          '<div style="margin-top:6px"><b>&#127919; Cause racine :</b> ' + (esc(f.rootCause) || '—') + '</div></div></div>' +
+          '<div class="block d"><div class="bh">D — DO · Actions correctives</div><div class="bb">' +
+          '<table>' + thead + rowsHtml(f.actions) + '</table></div></div>' +
+          '<div class="block c"><div class="bh">C — CHECK · Vérification d\'efficacité</div><div class="bb">' +
+          '<b>Date :</b> ' + dOnly(f.check?.date) + ' &nbsp;&middot;&nbsp; <b>Résultat :</b> ' +
+          (f.check?.result === 'ok' ? '&#10004; EFFICACE' : f.check?.result === 'nok' ? '&#10008; NON EFFICACE' : 'À vérifier') +
+          '<br><b>Méthode / preuve :</b> ' + (esc(f.check?.comment) || '—') + '</div></div>' +
+          '<div class="block a"><div class="bh">A — ACT · Standardisation &amp; Clôture</div><div class="bb">' +
+          '<b>Standardisation :</b> ' + (esc(f.standardisation) || '—') + '<br>' +
+          '<b>Clôture :</b> ' + (f.closedAt ? dOnly(f.closedAt) + (f.closedByName ? ' — ' + esc(f.closedByName) : '') : 'Non clôturée') +
+          '</div></div>' +
+          '<div class="sig"><div>Pilote QRQC</div><div>Responsable Maintenance</div><div>Qualité</div></div>' +
+          '<scr' + 'ipt>window.onload=function(){window.print();}</scr' + 'ipt></body></html>';
+
+        const w = window.open('', '_blank');
+        if (!w) { ui.toast('⚠️ Autorise les pop-ups pour imprimer.', 'warn'); return; }
+        w.document.write(html);
+        w.document.close();
+      }
+    },
     notifications: {
       // Référence au dernier non-lu affiché dans la barre persistante
       _topUnread: null,
@@ -33463,6 +34068,7 @@ Erreur Firebase : ${e.message}`;
       db.listenInterventions();
       db.listenPreparations();   // 🆕 file de préparations (opérateur)
       db.listenStock();
+      db.listenQrqc();           // 🆕 fiches QRQC / PDCA (réclamations qualité)
       db.listenNotifications();
       try { toolAttachments.init(); } catch(e) {}  // 🆕 charger les pièces jointes dès le départ (badges 📎 fiables)
       ui.hideLoader();
@@ -36177,6 +36783,7 @@ Erreur Firebase : ${e.message}`;
     views.performance.init();
     if (views.pdr && views.pdr.init) views.pdr.init();
     if (views.demandesPdr && views.demandesPdr.init) views.demandesPdr.init();
+    if (views.qrqc && views.qrqc.init) views.qrqc.init();
     if (views.technicians && views.technicians.init) views.technicians.init();
     userActions.initModals();
     initDurationField();

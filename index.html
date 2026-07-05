@@ -11979,16 +11979,21 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           return;
         } catch (e) { console.warn('[download blob]', e); }
       }
-      // 2) 🆕 Repli anti-CORS : fichier encore sur Storage → ouverture par URL directe
+      // 2) 🆕 Repli : fichier sur Storage → ouverture par URL directe dans un NOUVEL onglet.
+      //    Navigation (pas de fetch) → pas de CORS ; ton navigateur est authentifié → l'accès passe.
+      //    Un .xlsx n'est pas affichable inline → il se télécharge automatiquement.
       const dl = await this._directUrl(toolId, fileId, f);
       if (dl) {
-        const a = document.createElement('a');
-        a.href = dl; a.target = '_blank'; a.rel = 'noopener'; a.download = f.name || 'fichier';
-        document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 120);
-        ui.toast(`📂 "${f.name}" ouvert depuis Storage`, 'success', 6000);
-        return;
+        const w = window.open(dl, '_blank', 'noopener');
+        if (w) { ui.toast(`⬇️ Téléchargement de "${f.name}" lancé (nouvel onglet)`, 'success', 6000); return; }
+        // popup bloquée → repli lien cliquable
+        const a = document.createElement('a'); a.href = dl; a.target = '_blank'; a.rel = 'noopener';
+        document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 150);
+        ui.toast(`⬇️ Ouverture de "${f.name}"…`, 'success', 6000); return;
       }
-      ui.toast('⛔ Fichier introuvable' + (this._lastB64Err ? ' — ' + this._lastB64Err : ''), 'danger', 8000);
+      // 3) Réellement introuvable → diagnostic actionnable
+      const diag = this._lastB64Err || 'source inconnue';
+      ui.toast('⛔ « ' + (f.name || 'fichier') + " » introuvable — " + diag + ' · Le fichier a peut-être été retiré de Storage : ré-importe l\'annexe.', 'danger', 12000);
     },
 
     /** 🆕 SOLUTION PRO — Aperçu intégré via visualiseur Office Online.
@@ -12010,8 +12015,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           '<div style="display:flex;gap:.5rem;padding:.5rem .75rem;flex-wrap:wrap;align-items:center;background:var(--bg-2);border-bottom:1px solid var(--border-soft)">' +
             '<span style="font-size:.72rem;color:var(--text-muted)">📄 ' + ui.escape(f.name || 'Annexe') + '</span>' +
             '<div style="margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap">' +
-              '<a href="' + url + '" target="_blank" rel="noopener" class="xlv-btn" style="text-decoration:none;background:rgba(0,212,255,.1);color:#00d4ff">🔗 Ouvrir</a>' +
-              '<a href="' + url + '" download="' + ui.escape(f.name || 'fichier') + '" class="xlv-btn" style="text-decoration:none;background:rgba(16,185,129,.12);color:#10b981">⬇️ Télécharger</a>' +
+              '<button data-xlv-dl class="xlv-btn" style="background:rgba(16,185,129,.14);color:#10b981">⬇️ Télécharger</button>' +
+              '<button data-xlv-open class="xlv-btn" style="background:rgba(0,212,255,.1);color:#00d4ff">🔗 Ouvrir</button>' +
               '<button data-xlv-gview class="xlv-btn" title="Basculer de moteur d\'aperçu">🔁 Autre moteur</button>' +
               '<button data-xlv-local class="xlv-btn">🔄 Aperçu local</button>' +
             '</div>' +
@@ -12029,6 +12034,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       const msg = bodyEl.querySelector('#xlv-of-msg');
       if (frame) frame.addEventListener('load', () => { if (load) load.remove(); });
       setTimeout(() => { if (msg && bodyEl.querySelector('#xlv-of-load')) msg.textContent = 'Aperçu long à venir ? Essaie « 🔁 Autre moteur » ou « ⬇️ Télécharger ».'; }, 6000);
+      const dlBtn = bodyEl.querySelector('[data-xlv-dl]');
+      if (dlBtn) dlBtn.onclick = () => this.download(toolId, fileId);
+      const opBtn = bodyEl.querySelector('[data-xlv-open]');
+      if (opBtn) opBtn.onclick = () => { try { window.open(url, '_blank', 'noopener'); } catch (e) {} };
       const g = bodyEl.querySelector('[data-xlv-gview]');
       if (g) g.onclick = () => { if (!frame) return; if (load) load.style.display = 'flex'; if (msg) msg.textContent = 'Chargement (Google Viewer)…'; frame.src = (frame.src.indexOf('officeapps') >= 0) ? gUrl : officeUrl; };
       const l = bodyEl.querySelector('[data-xlv-local]');

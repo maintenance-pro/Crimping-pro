@@ -11466,22 +11466,29 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       return null;
     },
 
-    /** 🆕 Écrit un doc : base64 → Firebase STORAGE (libère le quota RTDB), métadonnée LÉGÈRE (+ storagePath) → RTDB.
-     *  Repli automatique sur RTDB (toolAttachmentsB64) si Storage est indisponible. */
+    /** 🆕 Écrit un doc avec stockage ADAPTATIF :
+     *  • Excel léger (< 2 Mo) → base64 en RTDB (toolAttachmentsB64) : aperçu local ExcelJS/SheetJS
+     *    garanti à chaque fois, SANS fetch, donc ZÉRO problème de CORS.
+     *  • Autres fichiers / gros fichiers → Firebase Storage (préserve le quota RTDB).
+     *  Repli automatique sur RTDB si Storage indisponible. */
     async _writeDoc(toolId, fid, meta, b64) {
       const m = { ...meta }; delete m.b64;
       if (b64) {
+        if (!m.size) m.size = Math.round(b64.length * 0.75);
+        // Un .xlsx/.xls a besoin d'un aperçu inline → on le garde lisible sans CORS (RTDB base64)
+        const isExcel = /sheet|excelml|ms-excel/i.test(meta.mime || '') || /\.(xlsx|xls|xlsm|csv)$/i.test(meta.name || '');
+        const keepInRtdb = isExcel && m.size < 2 * 1024 * 1024;
         let onStorage = false;
-        if (typeof fbStorage !== 'undefined' && fbStorage) {
+        if (!keepInRtdb && typeof fbStorage !== 'undefined' && fbStorage) {
           try {
             const path = this._storagePathFor(toolId, fid);
             await fbStorage.ref(path).putString(b64, 'base64', { contentType: this._contentTypeFor(meta.name) });
             m.storagePath = path;
-            if (!m.size) m.size = Math.round(b64.length * 0.75);
             onStorage = true;
-            try { await fbDb.ref('toolAttachmentsB64/' + toolId + '/' + fid).remove(); } catch (e) {} // purge ancien b64 RTDB éventuel
+            try { await fbDb.ref('toolAttachmentsB64/' + toolId + '/' + fid).remove(); } catch (e) {}
           } catch (e) { console.warn('[storage] upload échoué → repli RTDB', e.message || e); }
         }
+        // RTDB base64 : cas Excel léger OU repli si Storage indispo
         if (!onStorage) { await fbDb.ref('toolAttachmentsB64/' + toolId + '/' + fid).set(b64); delete m.storagePath; }
       }
       await fbDb.ref('toolAttachments/' + toolId + '/' + fid).set(m);
@@ -12006,7 +12013,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if (pdfBtn) pdfBtn.style.display = 'none';   // export PDF local indispo sans binaire
       const sub = document.getElementById('excel-viewer-subtitle');
       if (sub) sub.innerHTML = '<span>Aperçu en ligne (Microsoft Office) — sans installation</span>';
-      const enc = encodeURIComponent(url);
+      // Cache-buster : force Microsoft à re-fetch le fichier (évite une URL/version en cache)
+      const bustedUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'cb=' + Date.now();
+      const enc = encodeURIComponent(bustedUrl);
       const officeUrl = 'https://view.officeapps.live.com/op/embed.aspx?src=' + enc;
       const gUrl = 'https://docs.google.com/gview?embedded=true&url=' + enc;
       bodyEl.style.padding = '0';

@@ -11948,29 +11948,47 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       modal.hidden = false;
     },
 
-    /** Télécharge un fichier (n'importe quel rôle) — récupère le base64 À LA DEMANDE */
+    /** 🆕 URL de download Firebase Storage — chargement de ressource, PAS de fetch/XHR,
+     *  donc NON bloqué par CORS. Permet d'ouvrir/télécharger un fichier même sans
+     *  config CORS et même s'il n'a pas de copie base64 en RTDB. */
+    async _directUrl(toolId, fid, meta) {
+      const m = meta || this._all?.[toolId]?.[fid] || {};
+      const sp = m.storagePath;
+      if (!sp || typeof fbStorage === 'undefined' || !fbStorage) return null;
+      try { return await fbStorage.ref(sp).getDownloadURL(); } catch (e) { return null; }
+    },
+
+    /** Télécharge un fichier (n'importe quel rôle) — base64 à la demande, repli URL directe (anti-CORS) */
     async download(toolId, fileId) {
       const f = this._all?.[toolId]?.[fileId] || {};
       let b64 = this._b64cache[toolId + '/' + fileId];
       if (!b64) { ui.showLoader('Préparation du téléchargement…'); try { b64 = await this._getB64(toolId, fileId, f); } finally { ui.hideLoader(); } }
-      if (!b64) return ui.toast('⛔ Fichier introuvable' + (this._lastB64Err ? ' — ' + this._lastB64Err : ''), 'danger', 8000);
-      try {
-        const bin = atob(b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const blob = new Blob([bytes], { type: f.mime || 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = f.name || 'fichier';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
-        ui.toast(`⬇️ "${f.name}" téléchargé`, 'success');
-      } catch(e) {
-        console.error('[toolAttachments.download]', e);
-        ui.toast('Erreur téléchargement : ' + e.message, 'danger');
+      // 1) base64 disponible (RTDB/inline) → téléchargement propre par blob
+      if (b64) {
+        try {
+          const bin = atob(b64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          const blob = new Blob([bytes], { type: f.mime || 'application/octet-stream' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = f.name || 'fichier';
+          document.body.appendChild(a); a.click();
+          setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+          ui.toast(`⬇️ "${f.name}" téléchargé`, 'success');
+          return;
+        } catch (e) { console.warn('[download blob]', e); }
       }
+      // 2) 🆕 Repli anti-CORS : fichier encore sur Storage → ouverture par URL directe
+      const dl = await this._directUrl(toolId, fileId, f);
+      if (dl) {
+        const a = document.createElement('a');
+        a.href = dl; a.target = '_blank'; a.rel = 'noopener'; a.download = f.name || 'fichier';
+        document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 120);
+        ui.toast(`📂 "${f.name}" ouvert depuis Storage`, 'success', 6000);
+        return;
+      }
+      ui.toast('⛔ Fichier introuvable' + (this._lastB64Err ? ' — ' + this._lastB64Err : ''), 'danger', 8000);
     },
 
     /** 🆕 Affiche le CONTENU d'un fichier Excel directement DANS LA PAGE (sans ouvrir Excel, sans redirection) */
@@ -12080,8 +12098,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const b64 = this._b64cache[toolId + '/' + fileId] || await this._getB64(toolId, fileId, f);
         if (!b64) {
           const why = this._lastB64Err ? ui.escape(this._lastB64Err) : null;
-          bodyEl.innerHTML = errorCard('📭', 'Impossible de charger ce fichier', why);
+          bodyEl.innerHTML = errorCard('📭', 'Aperçu intégré indisponible', why);
           bindRetry();
+          // 🆕 Repli anti-CORS : proposer l'ouverture directe du fichier (sans fetch)
+          this._directUrl(toolId, fileId, f).then(dl => {
+            if (!dl) return;
+            const box = bodyEl.querySelector('[data-xlv-retry]')?.parentElement;
+            if (box) box.insertAdjacentHTML('beforeend',
+              `<a href="${dl}" target="_blank" rel="noopener" download="${ui.escape(f.name || 'fichier')}" class="xlv-btn" style="margin-top:.4rem;text-decoration:none;display:inline-flex;align-items:center;gap:.35rem;background:rgba(16,185,129,.12);color:#10b981;border-color:rgba(16,185,129,.4)">📂 Ouvrir / Télécharger le fichier</a>`);
+          }).catch(() => {});
           return;
         }
         // Onglets + rendu commun

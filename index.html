@@ -11991,6 +11991,50 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       ui.toast('⛔ Fichier introuvable' + (this._lastB64Err ? ' — ' + this._lastB64Err : ''), 'danger', 8000);
     },
 
+    /** 🆕 SOLUTION PRO — Aperçu intégré via visualiseur Office Online.
+     *  Le fichier est chargé par Microsoft depuis l'URL Storage CÔTÉ SERVEUR :
+     *  aucun fetch navigateur → CORS totalement contourné, sans config ni migration.
+     *  Rendu Excel fidèle, dans un iframe plein écran, avec repli Google Viewer. */
+    _renderOfficePreview(bodyEl, tabsEl, f, url, toolId, fileId) {
+      if (tabsEl) tabsEl.innerHTML = '';
+      const pdfBtn = document.querySelector('#excel-viewer-overlay [data-xlv-pdf]');
+      if (pdfBtn) pdfBtn.style.display = 'none';   // export PDF local indispo sans binaire
+      const sub = document.getElementById('excel-viewer-subtitle');
+      if (sub) sub.innerHTML = '<span>Aperçu en ligne (Microsoft Office) — sans installation</span>';
+      const enc = encodeURIComponent(url);
+      const officeUrl = 'https://view.officeapps.live.com/op/embed.aspx?src=' + enc;
+      const gUrl = 'https://docs.google.com/gview?embedded=true&url=' + enc;
+      bodyEl.style.padding = '0';
+      bodyEl.innerHTML =
+        '<div style="position:absolute;inset:0;display:flex;flex-direction:column;background:#fff">' +
+          '<div style="display:flex;gap:.5rem;padding:.5rem .75rem;flex-wrap:wrap;align-items:center;background:var(--bg-2);border-bottom:1px solid var(--border-soft)">' +
+            '<span style="font-size:.72rem;color:var(--text-muted)">📄 ' + ui.escape(f.name || 'Annexe') + '</span>' +
+            '<div style="margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap">' +
+              '<a href="' + url + '" target="_blank" rel="noopener" class="xlv-btn" style="text-decoration:none;background:rgba(0,212,255,.1);color:#00d4ff">🔗 Ouvrir</a>' +
+              '<a href="' + url + '" download="' + ui.escape(f.name || 'fichier') + '" class="xlv-btn" style="text-decoration:none;background:rgba(16,185,129,.12);color:#10b981">⬇️ Télécharger</a>' +
+              '<button data-xlv-gview class="xlv-btn" title="Basculer de moteur d\'aperçu">🔁 Autre moteur</button>' +
+              '<button data-xlv-local class="xlv-btn">🔄 Aperçu local</button>' +
+            '</div>' +
+          '</div>' +
+          '<div style="flex:1;position:relative;background:#f1f5f9">' +
+            '<div id="xlv-of-load" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.7rem;color:#64748b;text-align:center;padding:1rem">' +
+              '<div style="width:30px;height:30px;border:3px solid rgba(16,185,129,.2);border-top-color:#10b981;border-radius:50%;animation:xlvSpin .8s linear infinite"></div>' +
+              '<div id="xlv-of-msg" style="font-size:.82rem">Chargement de l’aperçu en ligne…</div>' +
+            '</div>' +
+            '<iframe id="xlv-of-frame" src="' + officeUrl + '" style="position:absolute;inset:0;width:100%;height:100%;border:0" allowfullscreen></iframe>' +
+          '</div>' +
+        '</div>';
+      const frame = bodyEl.querySelector('#xlv-of-frame');
+      const load = bodyEl.querySelector('#xlv-of-load');
+      const msg = bodyEl.querySelector('#xlv-of-msg');
+      if (frame) frame.addEventListener('load', () => { if (load) load.remove(); });
+      setTimeout(() => { if (msg && bodyEl.querySelector('#xlv-of-load')) msg.textContent = 'Aperçu long à venir ? Essaie « 🔁 Autre moteur » ou « ⬇️ Télécharger ».'; }, 6000);
+      const g = bodyEl.querySelector('[data-xlv-gview]');
+      if (g) g.onclick = () => { if (!frame) return; if (load) load.style.display = 'flex'; if (msg) msg.textContent = 'Chargement (Google Viewer)…'; frame.src = (frame.src.indexOf('officeapps') >= 0) ? gUrl : officeUrl; };
+      const l = bodyEl.querySelector('[data-xlv-local]');
+      if (l) l.onclick = () => { bodyEl.style.padding = ''; delete this._b64cache[toolId + '/' + fileId]; this.viewExcel(toolId, fileId); };
+    },
+
     /** 🆕 Affiche le CONTENU d'un fichier Excel directement DANS LA PAGE (sans ouvrir Excel, sans redirection) */
     async viewExcel(toolId, fileId) {
       const f = this._all?.[toolId]?.[fileId] || {};
@@ -12097,16 +12141,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       try {
         const b64 = this._b64cache[toolId + '/' + fileId] || await this._getB64(toolId, fileId, f);
         if (!b64) {
+          // 🆕 Binaire inaccessible (CORS) → aperçu intégré via Office Online (aucun fetch, aucun CORS)
+          const dl = await this._directUrl(toolId, fileId, f);
+          if (dl) { this._renderOfficePreview(bodyEl, tabsEl, f, dl, toolId, fileId); return; }
           const why = this._lastB64Err ? ui.escape(this._lastB64Err) : null;
-          bodyEl.innerHTML = errorCard('📭', 'Aperçu intégré indisponible', why);
+          bodyEl.innerHTML = errorCard('📭', 'Aperçu indisponible', why);
           bindRetry();
-          // 🆕 Repli anti-CORS : proposer l'ouverture directe du fichier (sans fetch)
-          this._directUrl(toolId, fileId, f).then(dl => {
-            if (!dl) return;
-            const box = bodyEl.querySelector('[data-xlv-retry]')?.parentElement;
-            if (box) box.insertAdjacentHTML('beforeend',
-              `<a href="${dl}" target="_blank" rel="noopener" download="${ui.escape(f.name || 'fichier')}" class="xlv-btn" style="margin-top:.4rem;text-decoration:none;display:inline-flex;align-items:center;gap:.35rem;background:rgba(16,185,129,.12);color:#10b981;border-color:rgba(16,185,129,.4)">📂 Ouvrir / Télécharger le fichier</a>`);
-          }).catch(() => {});
           return;
         }
         // Onglets + rendu commun

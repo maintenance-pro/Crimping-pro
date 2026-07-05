@@ -9611,6 +9611,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     </div>
   </div>
 
+  <!-- Modal: discussion d'un ordre de mission -->
+  <div class="modal" id="modal-msn-chat" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:600px">
+      <header class="modal__header">
+        <h2 class="modal__title" id="msn-chat-title">💬 Discussion</h2>
+        <button class="modal__close" data-close aria-label="Fermer">×</button>
+      </header>
+      <div class="modal__body" id="msn-chat-body" style="max-height:58vh;overflow:auto;background:var(--bg-3);border-radius:10px"></div>
+      <footer class="modal__footer" style="gap:.5rem">
+        <input class="field__input" id="msn-chat-input" placeholder="Signaler un problème, répondre…" style="flex:1" autocomplete="off">
+        <button class="btn btn--primary" id="btn-msn-chat-send">Envoyer</button>
+      </footer>
+    </div>
+  </div>
+
   <!-- Modal: fiche QRQC / PDCA -->
   <div class="modal" id="modal-qrqc" role="dialog" aria-modal="true" hidden>
     <div class="modal__backdrop" data-close></div>
@@ -35078,6 +35094,11 @@ Erreur Firebase : ${e.message}`;
         modal?.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => { modal.hidden = true; }));
         document.getElementById('btn-msn-save')?.addEventListener('click', () => this.save());
         document.getElementById('btn-msn-delete')?.addEventListener('click', () => this.remove());
+        // Modal discussion
+        const chatModal = document.getElementById('modal-msn-chat');
+        chatModal?.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => { chatModal.hidden = true; this._chatId = null; }));
+        document.getElementById('btn-msn-chat-send')?.addEventListener('click', () => this._sendMessage());
+        document.getElementById('msn-chat-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); this._sendMessage(); } });
       },
 
       _all() {
@@ -35107,6 +35128,8 @@ Erreur Firebase : ${e.message}`;
       render() {
         const listEl = document.getElementById('msn-list');
         if (!listEl) return;
+        // Discussion ouverte → maj live du fil (nouveaux messages temps réel)
+        if (this._chatId && !document.getElementById('modal-msn-chat')?.hidden) this._renderChatBody(this._chatId);
         const newBtn = document.getElementById('btn-msn-new');
         if (newBtn) newBtn.style.display = this._canCreate() ? '' : 'none';
         const mineWrap = document.getElementById('msn-mine-wrap');
@@ -35171,6 +35194,7 @@ Erreur Firebase : ${e.message}`;
 
         listEl.querySelectorAll('.msn-card').forEach(card => {
           const id = card.dataset.id;
+          card.querySelector('[data-act="chat"]')?.addEventListener('click', () => this._openChat(id));
           card.querySelector('[data-act="take"]')?.addEventListener('click', () => this._setStatus(id, 'in_progress'));
           card.querySelector('[data-act="done"]')?.addEventListener('click', () => this._complete(id));
           card.querySelector('[data-act="validate"]')?.addEventListener('click', () => this._setStatus(id, 'validated'));
@@ -35182,14 +35206,19 @@ Erreur Firebase : ${e.message}`;
       _actions(m, st) {
         const a = [];
         const isTL = this._isTL(), mine = this._mine(m), canV = this._canValidate();
-        // TL assigné : prendre / réaliser
-        if (isTL && mine) {
-          if (st === 'requested') a.push('<button class="btn btn--secondary" data-act="take" style="background:rgba(245,158,11,.14);color:#f59e0b;border:1px solid rgba(245,158,11,.35)">▶️ Prendre en charge</button>');
-          if (st === 'requested' || st === 'in_progress') a.push('<button class="btn btn--primary" data-act="done">✅ Marquer réalisée</button>');
+        const msgN = this._msgCount(m);
+        // 💬 Discussion — accessible à l'admin et au TL assigné, tout au long de la mission
+        if (canV || (isTL && mine)) {
+          a.push(`<button class="btn btn--ghost" data-act="chat">💬 Discussion${msgN ? ' (' + msgN + ')' : ''}</button>`);
         }
-        // Admin/Responsable : valider / modifier / rouvrir
+        // TL assigné : la RÉALISATION reste disponible jusqu'à la validation finale
+        if (isTL && mine && st !== 'validated') {
+          if (st === 'requested') a.push('<button class="btn btn--secondary" data-act="take" style="background:rgba(245,158,11,.14);color:#f59e0b;border:1px solid rgba(245,158,11,.35)">▶️ Prendre en charge</button>');
+          a.push('<button class="btn btn--primary" data-act="done">✅ Réalisation</button>');
+        }
+        // Admin/Responsable : VALIDER n'apparaît qu'APRÈS la réalisation (fin de mission)
         if (canV) {
-          if (st === 'done') a.push('<button class="btn btn--secondary" data-act="validate" style="background:rgba(167,139,250,.14);color:#a78bfa;border:1px solid rgba(167,139,250,.35)">🏁 Valider</button>');
+          if (st === 'done') a.push('<button class="btn btn--secondary" data-act="validate" style="background:rgba(167,139,250,.14);color:#a78bfa;border:1px solid rgba(167,139,250,.35)">🏁 Valider (fin)</button>');
           if (st === 'validated' || st === 'done') a.push('<button class="btn btn--ghost" data-act="reopen">↩️ Rouvrir</button>');
           a.push('<button class="btn btn--ghost" data-act="edit">✏️ Modifier</button>');
         }
@@ -35313,6 +35342,68 @@ Erreur Firebase : ${e.message}`;
           });
           try { db.audit('mission.done', id, {}); } catch (e) {}
           ui.toast('✅ Mission marquée réalisée — le responsable est notifié.', 'success');
+        } catch (e) { ui.toast('❌ ' + (e.message || e), 'danger'); }
+      },
+
+      /* ── 💬 Discussion de mission (TL ↔ admin, tout au long) ── */
+      _chatId: null,
+      _msgCount(m) { return m && m.messages ? Object.keys(m.messages).length : 0; },
+
+      _openChat(id) {
+        const m = state.missions?.[id]; if (!m) return;
+        this._chatId = id;
+        const t = document.getElementById('msn-chat-title');
+        if (t) t.textContent = '💬 ' + (m.title || 'Discussion');
+        this._renderChatBody(id);
+        const modal = document.getElementById('modal-msn-chat');
+        if (modal) modal.hidden = false;
+        const inp = document.getElementById('msn-chat-input');
+        if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 80); }
+      },
+
+      _renderChatBody(id) {
+        const body = document.getElementById('msn-chat-body'); if (!body) return;
+        const m = state.missions?.[id] || {};
+        const msgs = Object.entries(m.messages || {}).map(([mid, x]) => ({ ...x, mid })).sort((a, b) => (a.at || 0) - (b.at || 0));
+        if (!msgs.length) {
+          body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:2rem 1rem;font-size:.85rem">Aucun message.<br>Le TL peut signaler un point de blocage, l\'admin peut répondre — tout au long de la mission.</div>';
+          return;
+        }
+        const myUid = state.user?.uid;
+        const dt = ts => { try { return fmt.dateTime ? fmt.dateTime(ts) : fmt.date(ts); } catch (e) { return ''; } };
+        body.innerHTML = '<div style="display:flex;flex-direction:column;gap:.5rem;padding:.85rem">' + msgs.map(x => {
+          const mine = x.by && x.by === myUid;
+          const isAdmin = ['admin', 'super_admin', 'responsable'].includes(x.role);
+          const bg = mine ? 'rgba(0,180,255,.14)' : (isAdmin ? 'rgba(167,139,250,.12)' : 'rgba(148,163,184,.10)');
+          const bd = mine ? 'rgba(0,180,255,.4)' : 'var(--border-soft)';
+          const roleTag = isAdmin ? '👑 Admin' : (x.role === 'tl' ? '👷 TL' : '');
+          return `<div style="max-width:82%;${mine ? 'align-self:flex-end' : 'align-self:flex-start'};background:${bg};border:1px solid ${bd};border-radius:11px;padding:.5rem .7rem">
+            <div style="font-size:.67rem;color:var(--text-muted);margin-bottom:.22rem">${ui.escape(x.byName || 'Utilisateur')}${roleTag ? ' · ' + roleTag : ''} · ${dt(x.at)}</div>
+            <div style="font-size:.86rem;color:var(--text-primary);white-space:pre-wrap;word-break:break-word">${ui.escape(x.text || '')}</div>
+          </div>`;
+        }).join('') + '</div>';
+        body.scrollTop = body.scrollHeight;
+      },
+
+      async _sendMessage() {
+        const id = this._chatId; if (!id) return;
+        const inp = document.getElementById('msn-chat-input');
+        const text = (inp?.value || '').trim();
+        if (!text) return;
+        const m = state.missions?.[id] || {};
+        // Autorisé : admin/responsable OU le TL assigné
+        if (!(this._canValidate() || (this._isTL() && this._mine(m)))) { ui.toast('🔒 Non autorisé', 'warn'); return; }
+        try {
+          await fbDb.ref('missions/' + id + '/messages').push({
+            by: state.user?.uid || '',
+            byName: state.profile?.displayName || '',
+            role: state.role || '',
+            text,
+            at: Date.now()
+          });
+          await fbDb.ref('missions/' + id).update({ updatedAt: Date.now() });
+          if (inp) { inp.value = ''; inp.focus(); }
+          // le listener temps réel rafraîchit le fil
         } catch (e) { ui.toast('❌ ' + (e.message || e), 'danger'); }
       },
 

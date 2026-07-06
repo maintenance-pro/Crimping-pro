@@ -1877,6 +1877,39 @@ legend { padding: 0; }
   gap: var(--sp-5);
 }
 
+/* ── Bandeau d'information de rôle (ex: "Vue admin") ── */
+.role-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: .65rem;
+  padding: .7rem .95rem;
+  border-radius: var(--r-md);
+  font-size: .8rem;
+  line-height: 1.55;
+  margin-bottom: .8rem;
+}
+.role-banner__icon { flex-shrink: 0; font-size: 1.15rem; line-height: 1.3; }
+.role-banner--admin {
+  background: rgba(168, 85, 247, .14);
+  border: 1px solid rgba(168, 85, 247, .4);
+  color: #e9d5ff;
+}
+.role-banner--admin strong, .role-banner--admin b { color: #d8b4fe; }
+.role-banner--admin b { font-family: var(--font-mono); }
+
+/* ── Rangée de chips de filtre (client, etc.) : légende + wrap propre ── */
+.chip-row { margin-bottom: .8rem; }
+.chip-row__label {
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: .4rem;
+}
+.chip-row__items { display: flex; gap: .45rem; flex-wrap: wrap; }
+.chip-row__items button { white-space: nowrap; }
+
 .catalog__actions { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
 .catalog__search {
   height: 40px;
@@ -2021,6 +2054,34 @@ legend { padding: 0; }
   padding: var(--sp-5) var(--sp-6);
   background: var(--bg-2);
   border-top: 1px solid var(--border-base);
+}
+
+/* ── Slide-over : variante non bloquante du modal, panneau latéral ── */
+.modal--slideover { justify-content: flex-end; padding: 0; }
+.modal--slideover .modal__backdrop {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  background: rgba(5, 9, 18, .5);
+}
+.modal--slideover .modal__panel {
+  max-width: 480px;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border-radius: 16px 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  animation: slideOverIn .3s cubic-bezier(.32, .72, 0, 1);
+}
+.modal--slideover .modal__header,
+.modal--slideover .modal__footer { flex-shrink: 0; }
+.modal--slideover .modal__body { flex: 1; max-height: none; }
+@keyframes slideOverIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@media (max-width: 640px) {
+  .modal--slideover .modal__panel { max-width: 100%; border-radius: 0; }
 }
 
 /* ----------------------------------------------------------------------------
@@ -8290,10 +8351,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         </div>
 
         <!-- 🛡 Bandeau info rôle (Vague 5) — affiché dynamiquement selon le rôle -->
-        <div id="catalog-role-banner" style="display:none;margin-bottom:.8rem;padding:.6rem .85rem;border-radius:8px;font-size:.78rem;font-weight:600"></div>
+        <div id="catalog-role-banner" class="role-banner" style="display:none"></div>
 
         <!-- 🆕 Chips de filtre rapide par CLIENT -->
-        <div id="cat-client-chips" style="display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:.7rem"></div>
+        <div id="cat-client-chips" class="chip-row"></div>
 
         <!-- 🔧 Filters bar -->
         <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;padding:.65rem .85rem;background:var(--bg-elevated);border-radius:9px;border:1px solid var(--border-soft)">
@@ -9828,7 +9889,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
   </div>
 
   <!-- Modal: détails outil (lecture seule, toutes les informations) -->
-  <div class="modal" id="modal-tool-details" role="dialog" aria-modal="true" hidden>
+  <div class="modal modal--slideover" id="modal-tool-details" role="dialog" aria-modal="true" hidden>
     <div class="modal__backdrop" data-close></div>
     <div class="modal__panel modal__panel--lg">
       <header class="modal__header">
@@ -24645,7 +24706,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           html += chip(key, c.name, c.icon || '🏭', c.color || '#00d4ff', n, this._selectedClient === key);
         });
         if (noneCount > 0) html += chip('__none__', 'Non classé', '❓', '#9ca3af', noneCount, this._selectedClient === '__none__');
-        wrap.innerHTML = html;
+        wrap.innerHTML = `<div class="chip-row__label">🏢 Filtrer par client</div><div class="chip-row__items">${html}</div>`;
         // Wire
         wrap.querySelectorAll('[data-client-chip]').forEach(btn => {
           btn.addEventListener('click', () => {
@@ -25075,7 +25136,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         });
       },
       init() {
-        $('#catalog-search').addEventListener('input', debounce(() => { this._page = 1; this.render(); }, 200));
+        $('#catalog-search').addEventListener('input', debounce(() => { this._page = 1; this.render(); }, 120));
         $('#btn-catalog-add').addEventListener('click', () => this.openModal());
         // 🆕 Modèles d'Annexes par groupe (injection des données au clic)
         document.getElementById('btn-catalog-annex-templates')?.addEventListener('click', () => this.openAnnexTemplates());
@@ -26784,11 +26845,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const isAdminUser = ['admin', 'super_admin'].includes(state.role);
           if (isAdminUser && nonProductionCount > 0) {
             // Admin uniquement : info que tous statuts sont affichés
-            roleBanner.style.display = 'block';
-            roleBanner.style.background = 'rgba(168,85,247,.08)';
-            roleBanner.style.borderLeft = '3px solid #a855f7';
-            roleBanner.style.color = '#a78bfa';
-            roleBanner.innerHTML = `🛡 <strong>Vue admin</strong> — Vous voyez tous les statuts (${nonProductionCount} outil${nonProductionCount > 1 ? 's' : ''} non-production inclus dans la liste). Les autres rôles ne voient que les outils en production.`;
+            roleBanner.style.display = 'flex';
+            roleBanner.className = 'role-banner role-banner--admin';
+            roleBanner.innerHTML = `
+              <span class="role-banner__icon">🛡</span>
+              <span><strong>Vue admin</strong> — vous voyez tous les statuts (<b>${nonProductionCount}</b> outil${nonProductionCount > 1 ? 's' : ''} non-production inclus dans la liste). Les autres rôles ne voient que les outils en production.</span>`;
           } else {
             // Non-admin ou admin sans outils cachés : aucun bandeau
             roleBanner.style.display = 'none';
@@ -26921,6 +26982,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           return;
         }
 
+        // 🆕 Live search : surligne le terme recherché dans le texte affiché (échappé au préalable)
+        const highlight = (text) => {
+          const esc = ui.escape(text || '');
+          if (!q) return esc;
+          try { return esc.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'), '<mark>$1</mark>'); }
+          catch (e) { return esc; }
+        };
+
         grid.innerHTML = slice.map(t => {
           const tid = t.id || t.outilId || '';
           const complete = this._isComplete(t);
@@ -26988,7 +27057,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           return `
             <article class="card" data-tool-card data-tool-id="${ui.escape(tid)}" style="padding:1rem;border-left:3px solid ${accentBorder};display:flex;flex-direction:column;gap:.4rem;cursor:pointer;transition:transform .12s,box-shadow .12s" title="Cliquer pour voir tous les détails">
               <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
-                <strong style="font-size:.95rem;color:${complete ? 'var(--text-primary)' : '#ff3d5a'};word-break:break-word;font-family:var(--font-mono)">${ui.escape(titleText)}</strong>
+                <strong style="font-size:.95rem;color:${complete ? 'var(--text-primary)' : '#ff3d5a'};word-break:break-word;font-family:var(--font-mono)">${highlight(titleText)}</strong>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.18rem">
                   ${badge}
                 </div>

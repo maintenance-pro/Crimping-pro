@@ -13,9 +13,9 @@
   <!-- 📱 PWA réelle : manifest.json + icônes réelles + sw.js (voir bas de page).
        Ces 3 fichiers doivent être uploadés à côté de index.html sur GitHub Pages. -->
   <link rel="manifest" href="manifest.json" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230a1424'/%3E%3Cpath d='M30 25h12v45h28v10H30z' fill='%2300d4ff'/%3E%3Ccircle cx='75' cy='30' r='5' fill='%2300e5a0'/%3E%3C/svg%3E" />
-  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="assets/icon-192.png" />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <!-- Optimisation chargement réseau (Firebase + CDN) -->
   <link rel="preconnect" href="https://leoni-sertissage-labo-default-rtdb.europe-west1.firebasedatabase.app" crossorigin/>
@@ -156,6 +156,13 @@
   --sh-glow-warn:    0 0 0 1px rgba(245,158,11,0.4), 0 8px 32px var(--warn-glow);
   --sh-glow-danger:  0 0 0 1px rgba(239,68,68,0.4),  0 8px 32px var(--danger-glow);
   --sh-inset:        inset 0 1px 0 0 rgba(255,255,255,0.05);
+
+  /* Glass surfaces — glassmorphism premium (cards, modals, panneaux flottants) */
+  --glass-bg:        linear-gradient(160deg, rgba(14, 26, 46, 0.78), rgba(6, 12, 24, 0.85));
+  --glass-bg-soft:   linear-gradient(135deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+  --glass-border:    rgba(255, 255, 255, 0.09);
+  --glass-blur:      blur(22px) saturate(160%);
+  --glass-blur-sm:   blur(12px) saturate(140%);
 
   /* Transitions */
   --t-fast:   120ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -491,12 +498,15 @@ legend { padding: 0; }
   top: calc(100% + 8px);
   right: 0;
   min-width: 220px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-base);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: var(--r-md);
-  box-shadow: var(--sh-2xl);
+  box-shadow: var(--sh-2xl), var(--sh-inset);
   padding: var(--sp-2);
   z-index: var(--z-panel);
+  animation: panelIn 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .topbar__user-dropdown li button {
   display: block;
@@ -1760,8 +1770,8 @@ legend { padding: 0; }
 
 /* Data table */
 .history__tablewrap {
-  background: var(--bg-2);
-  border: 1px solid var(--border-base);
+  background: linear-gradient(160deg, rgba(255,255,255,.02), rgba(255,255,255,.005)), var(--bg-2);
+  border: 1px solid var(--glass-border);
   border-radius: var(--r-lg);
   overflow-x: auto;
   overflow-y: visible;
@@ -1896,9 +1906,11 @@ legend { padding: 0; }
   width: 400px;
   max-width: 100vw;
   height: calc(100vh - var(--topbar-h));
-  background: var(--bg-elevated);
-  border-left: 1px solid var(--border-base);
-  box-shadow: var(--sh-2xl);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-left: 1px solid var(--glass-border);
+  box-shadow: var(--sh-2xl), var(--sh-inset);
   z-index: var(--z-panel);
   display: flex;
   flex-direction: column;
@@ -1945,10 +1957,12 @@ legend { padding: 0; }
   position: relative;
   width: 100%;
   max-width: 480px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-base);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
   border-radius: var(--r-lg);
-  box-shadow: var(--sh-2xl);
+  box-shadow: var(--sh-2xl), var(--sh-inset);
   overflow: hidden;
   animation: panelIn 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -2080,9 +2094,7 @@ legend { padding: 0; }
 }
 
 @media (max-width: 900px) {
-  .shell {
-    /* mobile : la sidebar est cachée par défaut, pas besoin de marge */
-  }
+  /* .shell : mobile, la sidebar est cachée par défaut, pas besoin de marge */
   .sidebar {
     position: fixed;
     top: var(--topbar-h);
@@ -2462,6 +2474,11 @@ legend { padding: 0; }
   --border-accent: rgba(0,180,255,.5);
   --accent-500:  #0095cc;
   --accent-glow: rgba(0,150,210,.25);
+
+  /* Glass surfaces — variante claire (mêmes tokens que le thème sombre, valeurs adaptées) */
+  --glass-bg:        linear-gradient(160deg, rgba(255,255,255,.92), rgba(235,244,252,.88));
+  --glass-bg-soft:   linear-gradient(135deg, rgba(255,255,255,.75), rgba(255,255,255,.5));
+  --glass-border:    rgba(0,100,180,.14);
 }
 [data-theme="light"] .topbar {
   background: rgba(235,245,255,.95) !important;
@@ -4424,6 +4441,7 @@ select:focus {
   font-size: .92rem;
   text-align: center;
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 .dur-homolog__input::-webkit-outer-spin-button,
 .dur-homolog__input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -6049,13 +6067,17 @@ select:focus {
 .kpi-hero__delta--down { background: rgba(255, 61, 90, 0.15); color: #ff8b9b; }
 .kpi-hero__delta--flat { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); }
 
-/* — Boutons primaires aux contours cinetiques — */
+/* — Boutons (primaire/secondaire/danger) aux contours cinetiques — */
 .btn--primary:not(:disabled),
+.btn--secondary:not(:disabled),
+.btn--danger:not(:disabled),
 button[type="submit"]:not(:disabled) {
   position: relative;
   overflow: hidden;
 }
 .btn--primary::after,
+.btn--secondary::after,
+.btn--danger::after,
 button[type="submit"]::after {
   content: '';
   position: absolute;
@@ -6065,6 +6087,8 @@ button[type="submit"]::after {
   transition: left 0.5s ease;
 }
 .btn--primary:hover::after,
+.btn--secondary:hover::after,
+.btn--danger:hover::after,
 button[type="submit"]:hover::after {
   left: 100%;
 }
@@ -6660,11 +6684,14 @@ section[data-view] h1,
   border-color: rgba(0, 229, 160, .2) !important;
 }
 
-/* ── CARDS : section card style premium ── */
+/* ── CARDS : section card style premium (glassmorphism) ── */
 .card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, .01));
-  border: 1px solid rgba(255, 255, 255, .06);
+  background: var(--glass-bg-soft);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
   border-radius: 14px;
+  box-shadow: var(--sh-md), var(--sh-inset);
 }
 .card__header {
   border-bottom: 1px solid rgba(255, 255, 255, .05);
@@ -6783,11 +6810,7 @@ section[data-view] h1,
   .catalog__card {
     padding: .85rem !important;
   }
-  /* Cacher éléments décoratifs encombrants sur mobile */
-  .topbar__brand-subtitle,
-  .perf-period-btn[data-period="day"] {
-    /* préserver fonctionnalité, juste réduire texte */
-  }
+  /* Cacher éléments décoratifs encombrants sur mobile : .topbar__brand-subtitle, .perf-period-btn[data-period="day"] — préserver fonctionnalité, juste réduire texte */
 }
 
 /* 📱 FLOATING ACTION BUTTON (FAB) — Mobile uniquement, pour création rapide de bon */
@@ -6922,6 +6945,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <p style="text-align:center;margin-top:1.5rem;font-size:.78rem;color:var(--text-muted)">
           <span data-i18n="login.forgotten">Mot de passe oublié ? Contactez votre administrateur</span>
         </p>
+        <p style="text-align:center;margin-top:.5rem">
+          <button type="button" id="btn-open-repair-admin"
+                  style="background:none;border:none;color:var(--accent-500);font-size:.75rem;cursor:pointer;text-decoration:underline;padding:.25rem">
+            🔧 Compte admin non reconnu ? Outil de réparation
+          </button>
+        </p>
       </form>
 
       <!-- Form PIN caché pour compatibilité interne -->
@@ -6935,6 +6964,38 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       </footer>
     </div>
   </section>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL — RÉPARATION COMPTE ADMIN (fusionné depuis repair-admin.html)   -->
+  <!-- ===================================================================== -->
+  <div class="modal" id="modal-repair-admin" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:560px">
+      <header class="modal__header">
+        <h2 class="modal__title">🔧 Réparation compte admin</h2>
+        <button class="modal__close" data-close>×</button>
+      </header>
+      <div class="modal__body">
+        <p style="font-size:.85rem;color:var(--text-muted);margin-top:0">
+          Se connecte (ou crée) le compte admin, répare son profil dans <code>/users</code> avec le rôle
+          <code>admin</code>, puis resynchronise l'index de connexion pour tous les comptes.
+        </p>
+        <div class="login__field">
+          <label class="login__label" for="repair-email">Email administrateur</label>
+          <input class="login__input" id="repair-email" type="email" value="admin@leoni.com" autocomplete="username"/>
+        </div>
+        <div class="login__field">
+          <label class="login__label" for="repair-password">Mot de passe</label>
+          <input class="login__input" id="repair-password" type="password" autocomplete="current-password"/>
+        </div>
+        <div id="repair-output" style="font-size:.82rem;line-height:1.6;margin-top:.75rem"></div>
+      </div>
+      <footer class="modal__footer">
+        <button class="btn btn--ghost" data-close>Annuler</button>
+        <button class="btn btn--primary" id="btn-repair-admin-run">🚀 Réparer</button>
+      </footer>
+    </div>
+  </div>
 
 
   <!-- ===================================================================== -->
@@ -9222,7 +9283,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           .qrqc-card:hover{border-color:var(--accent-500,#00b4d8);transform:translateY(-1px)}
           .qrqc-card__main{flex:1;min-width:230px}
           .qrqc-card__num{font-family:var(--font-mono,monospace);font-weight:800;color:var(--accent-500,#00b4d8);font-size:.92rem}
-          .qrqc-card__defaut{font-size:.88rem;color:var(--text-primary);margin-top:.15rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+          .qrqc-card__defaut{font-size:.88rem;color:var(--text-primary);margin-top:.15rem;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
           .qrqc-card__meta{font-size:.74rem;color:var(--text-muted);margin-top:.3rem;display:flex;gap:.7rem;flex-wrap:wrap}
           .qrqc-pdca{display:flex;gap:.3rem}
           .qrqc-pdca__step{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem;font-family:var(--font-mono,monospace);border:1px solid var(--border-soft);color:var(--text-muted);background:var(--bg-3)}
@@ -12003,56 +12064,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       ui.toast('⛔ « ' + (f.name || 'fichier') + " » introuvable — " + diag + ' · Le fichier a peut-être été retiré de Storage : ré-importe l\'annexe.', 'danger', 12000);
     },
 
-    /** 🆕 SOLUTION PRO — Aperçu intégré via visualiseur Office Online.
-     *  Le fichier est chargé par Microsoft depuis l'URL Storage CÔTÉ SERVEUR :
-     *  aucun fetch navigateur → CORS totalement contourné, sans config ni migration.
-     *  Rendu Excel fidèle, dans un iframe plein écran, avec repli Google Viewer. */
-    _renderOfficePreview(bodyEl, tabsEl, f, url, toolId, fileId) {
-      if (tabsEl) tabsEl.innerHTML = '';
-      const pdfBtn = document.querySelector('#excel-viewer-overlay [data-xlv-pdf]');
-      if (pdfBtn) pdfBtn.style.display = 'none';   // export PDF local indispo sans binaire
-      const sub = document.getElementById('excel-viewer-subtitle');
-      if (sub) sub.innerHTML = '<span>Aperçu en ligne (Microsoft Office) — sans installation</span>';
-      // Cache-buster : force Microsoft à re-fetch le fichier (évite une URL/version en cache)
-      const bustedUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'cb=' + Date.now();
-      const enc = encodeURIComponent(bustedUrl);
-      const officeUrl = 'https://view.officeapps.live.com/op/embed.aspx?src=' + enc;
-      const gUrl = 'https://docs.google.com/gview?embedded=true&url=' + enc;
-      bodyEl.style.padding = '0';
-      bodyEl.innerHTML =
-        '<div style="position:absolute;inset:0;display:flex;flex-direction:column;background:#fff">' +
-          '<div style="display:flex;gap:.5rem;padding:.5rem .75rem;flex-wrap:wrap;align-items:center;background:var(--bg-2);border-bottom:1px solid var(--border-soft)">' +
-            '<span style="font-size:.72rem;color:var(--text-muted)">📄 ' + ui.escape(f.name || 'Annexe') + '</span>' +
-            '<div style="margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap">' +
-              '<button data-xlv-dl class="xlv-btn" style="background:rgba(16,185,129,.14);color:#10b981">⬇️ Télécharger</button>' +
-              '<button data-xlv-open class="xlv-btn" style="background:rgba(0,212,255,.1);color:#00d4ff">🔗 Ouvrir</button>' +
-              '<button data-xlv-gview class="xlv-btn" title="Basculer de moteur d\'aperçu">🔁 Autre moteur</button>' +
-              '<button data-xlv-local class="xlv-btn">🔄 Aperçu local</button>' +
-            '</div>' +
-          '</div>' +
-          '<div style="flex:1;position:relative;background:#f1f5f9">' +
-            '<div id="xlv-of-load" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.7rem;color:#64748b;text-align:center;padding:1rem">' +
-              '<div style="width:30px;height:30px;border:3px solid rgba(16,185,129,.2);border-top-color:#10b981;border-radius:50%;animation:xlvSpin .8s linear infinite"></div>' +
-              '<div id="xlv-of-msg" style="font-size:.82rem">Chargement de l’aperçu en ligne…</div>' +
-            '</div>' +
-            '<iframe id="xlv-of-frame" src="' + officeUrl + '" style="position:absolute;inset:0;width:100%;height:100%;border:0" allowfullscreen></iframe>' +
-          '</div>' +
-        '</div>';
-      const frame = bodyEl.querySelector('#xlv-of-frame');
-      const load = bodyEl.querySelector('#xlv-of-load');
-      const msg = bodyEl.querySelector('#xlv-of-msg');
-      if (frame) frame.addEventListener('load', () => { if (load) load.remove(); });
-      setTimeout(() => { if (msg && bodyEl.querySelector('#xlv-of-load')) msg.textContent = 'Aperçu long à venir ? Essaie « 🔁 Autre moteur » ou « ⬇️ Télécharger ».'; }, 6000);
-      const dlBtn = bodyEl.querySelector('[data-xlv-dl]');
-      if (dlBtn) dlBtn.onclick = () => this.download(toolId, fileId);
-      const opBtn = bodyEl.querySelector('[data-xlv-open]');
-      if (opBtn) opBtn.onclick = () => { try { window.open(url, '_blank', 'noopener'); } catch (e) {} };
-      const g = bodyEl.querySelector('[data-xlv-gview]');
-      if (g) g.onclick = () => { if (!frame) return; if (load) load.style.display = 'flex'; if (msg) msg.textContent = 'Chargement (Google Viewer)…'; frame.src = (frame.src.indexOf('officeapps') >= 0) ? gUrl : officeUrl; };
-      const l = bodyEl.querySelector('[data-xlv-local]');
-      if (l) l.onclick = () => { bodyEl.style.padding = ''; delete this._b64cache[toolId + '/' + fileId]; this.viewExcel(toolId, fileId); };
-    },
-
     /** 🆕 Affiche le CONTENU d'un fichier Excel directement DANS LA PAGE (sans ouvrir Excel, sans redirection) */
     async viewExcel(toolId, fileId) {
       const f = this._all?.[toolId]?.[fileId] || {};
@@ -12153,16 +12164,21 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <div style="font-size:2.4rem;line-height:1;filter:grayscale(.15)">${icon}</div>
           <div style="font-weight:800;color:#ff8b6b;font-size:.9rem">${title}</div>
           ${detail ? `<div style="font-size:.72rem;color:var(--text-muted);max-width:480px;word-break:break-word;background:rgba(255,255,255,.03);border:1px solid var(--border-soft);border-radius:8px;padding:.6rem .8rem">${detail}</div>` : ''}
-          <button data-xlv-retry class="xlv-btn" style="margin-top:.4rem;background:rgba(0,212,255,.1);color:#00d4ff;border-color:rgba(0,212,255,.35)">🔄 Réessayer</button>
+          <div style="display:flex;gap:.5rem;margin-top:.4rem">
+            <button data-xlv-retry class="xlv-btn" style="background:rgba(0,212,255,.1);color:#00d4ff;border-color:rgba(0,212,255,.35)">🔄 Réessayer</button>
+            <button data-xlv-dl-fallback class="xlv-btn" style="background:rgba(16,185,129,.14);color:#10b981">⬇️ Télécharger</button>
+          </div>
         </div>`;
-      const bindRetry = () => { const r = bodyEl.querySelector('[data-xlv-retry]'); if (r) r.onclick = () => { delete this._b64cache[toolId + '/' + fileId]; this.viewExcel(toolId, fileId); }; };
+      const bindRetry = () => {
+        const r = bodyEl.querySelector('[data-xlv-retry]'); if (r) r.onclick = () => { delete this._b64cache[toolId + '/' + fileId]; this.viewExcel(toolId, fileId); };
+        const d = bodyEl.querySelector('[data-xlv-dl-fallback]'); if (d) d.onclick = () => this.download(toolId, fileId);
+      };
       try {
         const b64 = this._b64cache[toolId + '/' + fileId] || await this._getB64(toolId, fileId, f);
         if (!b64) {
-          // 🆕 Binaire inaccessible (CORS) → aperçu intégré via Office Online (aucun fetch, aucun CORS)
-          const dl = await this._directUrl(toolId, fileId, f);
-          if (dl) { this._renderOfficePreview(bodyEl, tabsEl, f, dl, toolId, fileId); return; }
-          const why = this._lastB64Err ? ui.escape(this._lastB64Err) : null;
+          // 🆕 Aperçu 100% local (ExcelJS/SheetJS) : plus de repli vers un visualiseur externe
+          // (Office Online / Google Viewer), qui exige une URL publique et échouait ("File not found").
+          const why = this._lastB64Err ? ui.escape(this._lastB64Err) : "Le contenu du fichier n'a pas pu être récupéré.";
           bodyEl.innerHTML = errorCard('📭', 'Aperçu indisponible', why);
           bindRetry();
           return;
@@ -14747,6 +14763,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
      6. AUTH MODULE
      ========================================================================== */
   const auth = {
+    _repairBusy: false, // 🔧 true pendant l'exécution de l'outil de réparation admin (évite que le listener global interfère)
+
     init() {
       // ── Connexion par EMAIL + MOT DE PASSE ──
       $('#form-login')?.addEventListener('submit', this.handleLogin.bind(this));
@@ -14985,6 +15003,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
 
     async handleAuthChange(user) {
+      if (this._repairBusy) return; // 🔧 l'outil de réparation admin gère lui-même son cycle auth
       if (user) {
         state.user = user;
         // Charger profil
@@ -15019,7 +15038,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           await fbAuth.signOut();
           const errEl = document.getElementById('login-error');
           if (errEl) {
-            errEl.textContent = 'Compte non configuré. Contactez l\'administrateur ou utilisez repair-admin.html';
+            errEl.textContent = 'Compte non configuré. Contactez l\'administrateur ou utilisez l\'outil de réparation ci-dessous';
             errEl.hidden = false;
           }
           ui.hideLoader();
@@ -15170,6 +15189,130 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       };
       const userPerms = perms[state.role] || [];
       return userPerms.includes('*') || userPerms.includes(action);
+    }
+  };
+
+  /* ==========================================================================
+     6bis. RÉPARATION COMPTE ADMIN (fusionné depuis repair-admin.html)
+     ──────────────────────────────────────────────────────────────────────────
+     Outil de secours accessible depuis l'écran de connexion : reconnecte
+     (ou recrée) le compte admin, répare son profil dans /users avec le rôle
+     "admin", puis resynchronise loginIndex pour tous les comptes.
+     Réutilise fbAuth/fbDb déjà initialisés — aucune config Firebase dupliquée.
+     ========================================================================== */
+  const repairAdmin = {
+    init() {
+      const modal = $('#modal-repair-admin');
+      $('#btn-open-repair-admin')?.addEventListener('click', () => {
+        $('#repair-output').innerHTML = '';
+        modal.hidden = false;
+      });
+      modal?.querySelectorAll('[data-close]').forEach(el => {
+        el.addEventListener('click', () => { modal.hidden = true; });
+      });
+      $('#btn-repair-admin-run')?.addEventListener('click', () => this.run());
+    },
+
+    log(msg, type = 'info') {
+      const out = $('#repair-output');
+      if (!out) return;
+      const color = { ok: '#00e5a0', error: '#ff3d5a', warn: '#ffb547' }[type] || 'var(--text-muted)';
+      const p = document.createElement('p');
+      p.style.cssText = `color:${color};margin:.35rem 0`;
+      p.textContent = msg;
+      out.appendChild(p);
+    },
+
+    async run() {
+      const btn = $('#btn-repair-admin-run');
+      const emailInp = $('#repair-email');
+      const pwdInp = $('#repair-password');
+      $('#repair-output').innerHTML = '';
+      btn.disabled = true;
+      btn.textContent = '⏳ Réparation en cours…';
+      auth._repairBusy = true;
+
+      try {
+        const email = emailInp.value.trim();
+        const pwd = pwdInp.value;
+        if (!email || !pwd) throw new Error('Email et mot de passe requis');
+
+        this.log('🔄 Étape 1 : Authentification…');
+        let adminUser;
+        try {
+          const cred = await fbAuth.signInWithEmailAndPassword(email, pwd);
+          adminUser = cred.user;
+          this.log('✅ Connecté (UID: ' + adminUser.uid.substring(0, 8) + '…)', 'ok');
+        } catch (e) {
+          if (e.code === 'auth/user-not-found') {
+            this.log('⚠️ Compte inexistant, création…', 'warn');
+            const cred = await fbAuth.createUserWithEmailAndPassword(email, pwd);
+            adminUser = cred.user;
+            this.log('✅ Compte créé (UID: ' + adminUser.uid.substring(0, 8) + '…)', 'ok');
+          } else {
+            throw e;
+          }
+        }
+
+        const adminUid = adminUser.uid;
+
+        this.log('🔄 Étape 2 : Vérification du profil…');
+        const profileSnap = await fbDb.ref('users/' + adminUid).once('value');
+        const currentProfile = profileSnap.val();
+        this.log(currentProfile
+          ? 'ℹ️ Profil existant trouvé. Rôle actuel : ' + (currentProfile.role || '<vide>')
+          : '⚠️ Aucun profil — création nécessaire', 'warn');
+
+        this.log('🔄 Étape 3 : Création/réparation du profil admin…');
+        await fbDb.ref('users/' + adminUid).set({
+          uid: adminUid,
+          displayName: currentProfile?.displayName || 'master admin',
+          email,
+          password: pwd,
+          matricule: currentProfile?.matricule || '10541',
+          role: 'admin',
+          active: true,
+          createdAt: currentProfile?.createdAt || Date.now(),
+          lastLoginAt: Date.now()
+        });
+        this.log('✅ Profil admin réparé avec le rôle "admin"', 'ok');
+
+        this.log('🔄 Étape 4 : Synchronisation loginIndex…');
+        const usersSnap = await fbDb.ref('users').once('value');
+        const allUsers = usersSnap.val() || {};
+        let synced = 0;
+        for (const uid in allUsers) {
+          const u = allUsers[uid];
+          if (!u.email || !u.password) continue;
+          const key = String(u.matricule || u.displayName || u.email.split('@')[0]).toUpperCase().trim();
+          if (!key) continue;
+          await fbDb.ref('loginIndex/' + key).set({
+            uid: u.uid || uid,
+            email: u.email,
+            password: String(u.password),
+            pin: String(u.pin || ''),
+            displayName: u.displayName || '',
+            matricule: String(u.matricule || ''),
+            active: u.active !== false
+          });
+          synced++;
+        }
+        this.log('✅ ' + synced + ' utilisateur(s) synchronisé(s)', 'ok');
+        this.log('🎉 Réparation terminée ! Ferme cette fenêtre puis reconnecte-toi.', 'ok');
+        ui.toast('Compte admin réparé avec succès', 'success');
+        btn.textContent = '✅ Terminé';
+      } catch (e) {
+        this.log('❌ ERREUR : ' + e.message, 'error');
+        if (e.code) this.log('Code Firebase : ' + e.code, 'error');
+        btn.disabled = false;
+        btn.textContent = '🔄 Réessayer';
+      } finally {
+        // On se déconnecte systématiquement pour repartir sur un écran de login propre,
+        // puis on redonne la main au listener global d'authentification.
+        try { await fbAuth.signOut(); } catch (e) {}
+        auth._repairBusy = false;
+        btn.disabled = false;
+      }
     }
   };
 
@@ -38407,6 +38550,7 @@ Erreur Firebase : ${e.message}`;
 
     initFirebase();
     auth.init();
+    repairAdmin.init();
     app.initUI();
     router.init();
     if (typeof i18n !== 'undefined') i18n.init();

@@ -9904,7 +9904,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           📝 Choisir Annex 5
         </button>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          <button class="btn btn--secondary" id="btn-tool-details-inherit" style="background:rgba(34,211,238,.12);color:#22d3ee;border:1px solid rgba(34,211,238,.35);font-weight:700" title="Hériter les pièces (valeur consensus, même fournisseur) + Annexe 4 depuis les outils de MÊME connexion + MÊME groupe">🧬 Hériter famille</button>
+          <button class="btn btn--secondary" id="btn-tool-details-inherit" style="background:rgba(34,211,238,.12);color:#22d3ee;border:1px solid rgba(34,211,238,.35);font-weight:700" title="Hériter les pièces (valeur consensus, même fournisseur) + Annexe 4 depuis les outils de MÊME connexion + MÊME groupe + MÊME client">🧬 Hériter famille</button>
           <button class="btn btn--secondary" id="btn-tool-details-timeline" style="background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.3);font-weight:700" title="Voir l'historique chronologique complet de cet outil">📈 Timeline</button>
           <button class="btn btn--secondary" id="btn-tool-details-qr" style="background:rgba(0,229,160,.12);color:#00e5a0;border:1px solid rgba(0,229,160,.3);font-weight:700" title="Générer un QR code pour cet outil">📱 QR Code</button>
           <button class="btn btn--ghost" data-close>Fermer</button>
@@ -25821,6 +25821,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return dout + '/' + ser;          // ✅ STRICT "D'Outils/Serial" — Serial vide → "D'Outils/" (AUCUNE valeur de repli)
       },
 
+      /** 🆕 Nom de fichier standard d'une Annexe générée depuis un modèle : « {préfixe} - {Connexion} - {Outil ID}.xlsx »
+       *  (caractères interdits dans un nom de fichier remplacés par « - »). */
+      _annexFileName(tool, prefix, fallbackNum) {
+        const sanitize = s => String(s || '').replace(/[\\/:*?"<>|]/g, '-').trim();
+        const conn = sanitize(tool.connection) || '—';
+        const outilId = sanitize(tool.outilId || tool.doutils || tool.designation || fallbackNum || tool.id);
+        return `${prefix} - ${conn} - ${outilId}.xlsx`;
+      },
+
       /** 🆕 Gère le DERNIER segment « - XXXX » (le serial) d'un nom de fichier :
        *   • Serial présent + segment serial existant → on le REMPLACE (ex: …- 1005.xlsx → …- 2000.xlsx)
        *   • Serial présent + pas de segment serial (le nom finit par le n° d'outil) → on l'AJOUTE (…- WZ7190-03.xlsx → …- WZ7190-03 - 1005.xlsx)
@@ -25865,6 +25874,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         // Contenu : nom/numéro + Fournisseur (= FABRICANT de l'outil) + N° d'inventaire (du tool cible)
         const tgtFour = String(tgtTool.fabricant || tgtTool.fournisseur || '').trim();  // 🆕 FABRICANT en priorité (ex: SIROCO)
         const tgtInv  = this._invValue(tgtTool);                                        // 🆕 N° d'inventaire D'Outils (jamais vide)
+        const tgtOutilNum = String(tgtTool.doutils || tgtTool.designation || tgtTool.outilId || '').trim();  // 🆕 N° Outil = D'Outils
         const tgtSerial = String(tgtTool.serial || '').trim();                          // 🆕 serial de l'outil (ex: 1005)
         const TOOL_SECTION = /applicator|donn[eé]es?\s*outil/i;                         // 🆕 section « Données outil / Applicator datas »
         const excludeNums = [srcNum, tgtNum, srcNameR, tgtNameR];
@@ -25902,6 +25912,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (tgtFour) { try { newB64 = await this._setOfficeFieldByLabel(newB64, /fournisseur|supplier/i, tgtFour, TOOL_SECTION); } catch (e) {} }
           // 🆕 Forcer la cellule N° d'inventaire/Inventory-No (section outil) = numInventaire (ex: WZ7190-R09/1005)
           if (tgtInv)  { try { newB64 = await this._setOfficeFieldByLabel(newB64, /inventaire|inventory/i, tgtInv, TOOL_SECTION); } catch (e) {} }
+          // 🆕 Forcer la cellule N° Outil (section outil) = D'Outils cible
+          if (tgtOutilNum) { try { newB64 = await this._setOfficeFieldByLabel(newB64, /n°?\s*outil|outil\s*n°|num[eé]ro\s*d[’']?outil/i, tgtOutilNum, TOOL_SECTION); } catch (e) {} }
           // 🆕 Renommer l'onglet de feuille de la famille → numéro de l'outil cible
           if (baseFam) { try { newB64 = await this._renameFamilySheets(newB64, baseFam, tgtNum); } catch (e) {} }
         }
@@ -25909,7 +25921,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       /** 🧬 CŒUR de l'héritage de famille. silent=true → sans confirmation ni toast (pour le mode automatique).
-       *  Famille = MÊME connexion + MÊME groupe (comparaison tolérante). Retourne {pieces, docs} ou {skipped/error}. */
+       *  Famille = MÊME connexion + MÊME groupe (comparaison tolérante) + MÊME client (déduit du projet). Retourne {pieces, docs} ou {skipped/error}. */
       /** 🆕 Adapte les documents DÉJÀ présents sur un outil pour qu'ils portent SON numéro.
        *  Ex : un doc "…WZ7190-04…" sur l'outil WZ7190-R01 → renommé/adapté en "…WZ7190-01…".
        *  Ne touche que les tokens du type <base groupe>-<variante> différents du n° de l'outil. */
@@ -25941,6 +25953,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (isOffice && srcB64) {
             const tgtFour = String(tool.fabricant || tool.fournisseur || '').trim();  // 🆕 FABRICANT prioritaire (ex: SIROCO)
             const tgtInv  = this._invValue(tool);                                      // 🆕 N° d'inventaire D'Outils (jamais vide)
+            const tgtOutilNum = String(tool.doutils || tool.designation || tool.outilId || '').trim();  // 🆕 N° Outil = D'Outils
             const TOOL_SECTION = /applicator|donn[eé]es?\s*outil/i;                    // 🆕 section « Données outil »
             const contentPairs = [...namePairs];
             // 🆕 serial résiduel dans le contenu (dernier segment du nom) → serial cible
@@ -25959,6 +25972,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (tgtFour) { try { newB64 = await this._setOfficeFieldByLabel(newB64, /fournisseur|supplier/i, tgtFour, TOOL_SECTION); } catch (e) {} }
             // 🆕 Forcer la cellule N° d'inventaire/Inventory-No (section outil) = numInventaire
             if (tgtInv)  { try { newB64 = await this._setOfficeFieldByLabel(newB64, /inventaire|inventory/i, tgtInv, TOOL_SECTION); } catch (e) {} }
+            // 🆕 Forcer la cellule N° Outil (section outil) = D'Outils
+            if (tgtOutilNum) { try { newB64 = await this._setOfficeFieldByLabel(newB64, /n°?\s*outil|outil\s*n°|num[eé]ro\s*d[’']?outil/i, tgtOutilNum, TOOL_SECTION); } catch (e) {} }
             // 🆕 Renommer l'onglet de feuille de la famille → numéro de l'outil
             try { newB64 = await this._renameFamilySheets(newB64, baseFam, tgtNum); } catch (e) {}
           }
@@ -25982,7 +25997,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           return m ? m[1] : '';
         };
         const connOf = t => norm(t.connection);
-        const tConn = connOf(tool), tGroup = groupOf(tool);
+        // 🆕 (C) Client déduit du projet (via la config clients partagée) — '' si non classé
+        const clientOf = t => { const c = t.projet ? this._getClientForProject(t.projet) : null; return c ? c.key : ''; };
+        const tConn = connOf(tool), tGroup = groupOf(tool), tClient = clientOf(tool);
+        const clientLabel = tClient ? (this._clientsConfig()[tClient]?.name || tClient) : 'non classé';
         // 🆕 (B) groupe TOLÉRANT : égalité exacte OU l'un des numéros contient l'autre (≥ 3 chiffres) — ex. « 117 » ⊂ « 3117 »
         const groupMatch = s => {
           const gs = groupOf(s);
@@ -25994,13 +26012,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (!silent) ui.toast(`Connexion et groupe requis pour identifier la famille (connexion: « ${tool.connection || '—'} », groupe: « ${tGroup || '—'} »).`, 'warn', 7000);
           return { skipped: true, reason: 'no-conn-group' };
         }
-        // 🆕 (C) CLIENT OPTIONNEL : la famille = même connexion + même groupe (le client/projet n'est PLUS exigé)
+        // 🆕 La famille = MÊME connexion + MÊME groupe + MÊME client (déduit du projet)
         const compatible = Object.values(state.tools || {}).filter(s =>
-          s && s.id !== tool.id && connOf(s) === tConn && groupMatch(s)
+          s && s.id !== tool.id && connOf(s) === tConn && groupMatch(s) && clientOf(s) === tClient
         );
-        const base = `groupe ${tGroup} · ${tool.connection}`;
+        const base = `groupe ${tGroup} · ${tool.connection} · client ${clientLabel}`;
         if (!compatible.length) {
-          if (!silent) ui.toast(`Aucun autre outil avec la même connexion (« ${tool.connection} ») + groupe (« ${tGroup} »). Rien à hériter.`, 'info', 7000);
+          if (!silent) ui.toast(`Aucun autre outil avec la même connexion (« ${tool.connection} ») + groupe (« ${tGroup} ») + client (« ${clientLabel} »). Rien à hériter.`, 'info', 7000);
           return { skipped: true, reason: 'no-family' };
         }
         const supplierOf = t => String(t.fournisseur || t.fabricant || '').trim().toUpperCase();
@@ -26125,7 +26143,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!['admin','super_admin','responsable'].includes(state.role)) return ui.toast('🔒 Réservé aux responsables/admins', 'warn');
         const tools = Object.values(state.tools || {}).filter(t => t && this._getToolStatus(t) === 'production');
         if (!tools.length) return ui.toast('Aucun outil en production', 'info');
-        if (!confirm(`Héritage AUTOMATIQUE de famille sur ${tools.length} outil(s) en production ?\n\nChaque outil héritera, depuis sa famille (même connexion + groupe — comparaison tolérante) :\n• les pièces : valeur CONSENSUS des outils même fournisseur (les pièces existantes sont mises à jour)\n• les documents ADAPTÉS à son n° (nom de fichier + données internes)\n\nContinuer ?`)) return;
+        if (!confirm(`Héritage AUTOMATIQUE de famille sur ${tools.length} outil(s) en production ?\n\nChaque outil héritera, depuis sa famille (même connexion + même groupe — comparaison tolérante — + même client) :\n• les pièces : valeur CONSENSUS des outils même fournisseur (les pièces existantes sont mises à jour)\n• les documents ADAPTÉS à son n° (nom de fichier + données internes)\n\nContinuer ?`)) return;
         ui.showLoader(`Héritage automatique… 0/${tools.length}`);
         let okTools = 0, totPieces = 0, totDocs = 0, skipped = 0, invFilledTools = 0, i = 0;
         for (const t of tools) {
@@ -27526,8 +27544,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!piecesOnly) {
           const tgtFour = String(tool.fabricant || tool.fournisseur || '').trim();
           const tgtInv  = this._invValue(tool);
+          const tgtOutilNum = String(tool.doutils || tool.designation || tool.outilId || '').trim();
           if (tgtFour)   { try { b64 = await this._setOfficeFieldByLabel(b64, /fournisseur|supplier/i, tgtFour, TOOL_SECTION); } catch (e) {} }
           if (tgtInv)    { try { b64 = await this._setOfficeFieldByLabel(b64, /inventaire|invent[ou]ry|inventory/i, tgtInv, TOOL_SECTION); } catch (e) {} }
+          if (tgtOutilNum) { try { b64 = await this._setOfficeFieldByLabel(b64, /n°?\s*outil|outil\s*n°|num[eé]ro\s*d[’']?outil/i, tgtOutilNum, TOOL_SECTION); } catch (e) {} }
           if (tgtSerial) { try { b64 = await this._setOfficeFieldByLabel(b64, /\bserial\b|s[ée]rie/i, tgtSerial); } catch (e) {} }
         }
         if (includePieces !== false) {
@@ -27599,8 +27619,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             }
             const nameR = tool.doutils || tool.designation || tool.serial || '';
             const tgtNum = this._docNumberFromName(nameR);
-            const tgtSerial = String(tool.serial || '').trim();
-            const fname = `Annexe 4 - ${nameR || tgtNum || tool.id}${tgtSerial ? ' - ' + tgtSerial : ''}.xlsx`;
+            const fname = this._annexFileName(tool, 'Annexe 4', tgtNum);
             const fid = 'f_t4_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + '_' + done;
             await toolAttachments._writeDoc(tool.id, fid, {
               name: fname, category: 'Annexe 4', temoinAnnex4: true, fromTemplate: groupKey,
@@ -27760,7 +27779,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         for (const [slot, label, t] of jobs) {
           if (!t || !t.b64) continue;
           const r = await this._applyToolDataToDoc(t.b64, tool, true);
-          const fname = `${label} - ${r.nameR || r.tgtNum || tool.id}${r.tgtSerial ? ' - ' + r.tgtSerial : ''}.xlsx`;
+          const fname = this._annexFileName(tool, label, r.tgtNum);
           const fid = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + slot;
           await toolAttachments._writeDoc(tool.id, fid, {
             name: fname, category: label,
@@ -27787,7 +27806,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           });
           // Pour tool.pieces, charger chaque champ depuis l'objet imbriqué
           if (tool.pieces && typeof tool.pieces === 'object') {
-            ['pAr','pAv','eAr','eAv','cAr','cAv','ejector','couteauBanda'].forEach(k => {
+            ['pAr','pAv','eAr','eAv','cAr','cAv','ejector','couteauBanda','presseur','matriceAvant','matriceArriere'].forEach(k => {
               const inp = form.querySelector(`[name="${k}"]`);
               if (inp && tool.pieces[k]) inp.value = tool.pieces[k];
             });

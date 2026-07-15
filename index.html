@@ -756,27 +756,32 @@ legend { padding: 0; }
   max-width: calc(var(--max-content) + var(--sidebar-w));
   width: auto;
   min-height: calc(100vh - var(--topbar-h));
+  /* Pied de page "collant" (sticky footer) : la vue active occupe l'espace
+     disponible, le footer reste en bas même quand le contenu est très court
+     (ex. file d'attente vide) au lieu de coller juste sous le titre. */
+  display: flex;
+  flex-direction: column;
 }
 
 /* ----------------------------------------------------------------------------
    6bis. PIED DE PAGE DE MARQUE — reprend l'identité LEONI (tagline + copyright),
    commun à toutes les vues (posé une seule fois, en dernier enfant de <main>).
    ---------------------------------------------------------------------------- */
-.app-footer {
+.leoni-footer {
   position: relative;
-  margin-top: 3rem;
+  margin-top: auto;
   padding: 1.75rem 1rem 1.5rem;
   text-align: center;
   border-top: 1px solid var(--border-soft);
 }
-.app-footer__tagline {
+.leoni-footer__tagline {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 1.05rem;
   letter-spacing: .01em;
   color: var(--text-secondary);
 }
-.app-footer__tagline b {
+.leoni-footer__tagline b {
   font-weight: 700;
   color: var(--text-primary);
   background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-500) 70%, var(--success-500) 100%);
@@ -784,20 +789,20 @@ legend { padding: 0; }
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-.app-footer__dot { color: var(--accent-500); }
-.app-footer__meta {
+.leoni-footer__dot { color: var(--accent-500); }
+.leoni-footer__meta {
   margin-top: .55rem;
   font-size: .74rem;
   color: var(--text-muted);
   letter-spacing: .02em;
 }
-.app-footer__sep { margin: 0 .45rem; opacity: .45; }
-.app-footer__version {
+.leoni-footer__sep { margin: 0 .45rem; opacity: .45; }
+.leoni-footer__version {
   font-family: var(--font-mono, monospace);
   color: var(--accent-500);
   font-weight: 600;
 }
-@media (max-width: 640px) { .app-footer { margin-top: 2rem; } }
+@media (max-width: 640px) { .leoni-footer { padding-top: 1.25rem; } }
 
 /* ----------------------------------------------------------------------------
    7. LOGIN VIEW
@@ -7874,7 +7879,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <span class="status-pill status-pill--cancelled" data-status="cancelled" hidden data-i18n="t.annule">Annulé</span>
           </div>
 
-          <div class="intervention__qr">
+          <div class="intervention__qr" hidden>
             <canvas id="int-qrcode" width="80" height="80" aria-label="QR Code du bon"></canvas>
           </div>
         </header>
@@ -10000,14 +10005,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <div id="msn-list" style="display:grid;gap:.7rem"></div>
       </section>
 
-      <footer class="app-footer">
-        <p class="app-footer__tagline"><b>Empowering connections</b><span class="app-footer__dot">.</span></p>
-        <p class="app-footer__meta">
+      <footer class="leoni-footer">
+        <p class="leoni-footer__tagline"><b>Empowering connections</b><span class="leoni-footer__dot">.</span></p>
+        <p class="leoni-footer__meta">
           <span>© <span id="footer-year">2026</span> LEONI Wiring Systems</span>
-          <span class="app-footer__sep">·</span>
+          <span class="leoni-footer__sep">·</span>
           <span>Sertissage Lab</span>
-          <span class="app-footer__sep">·</span>
-          <span class="app-footer__version">v1.0.0</span>
+          <span class="leoni-footer__sep">·</span>
+          <span class="leoni-footer__version">v1.0.0</span>
         </p>
       </footer>
       <script>document.getElementById('footer-year').textContent = new Date().getFullYear();</script>
@@ -19841,10 +19846,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     /** Charge Chart.js si nécessaire (déjà utilisé ailleurs dans l'app) */
     _loadChartJs() {
       return new Promise((res, rej) => {
-        if (window.Chart) return res();
+        if (window.Chart) { applyChartDefaults(); return res(); }
         const s = document.createElement('script');
         s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
-        s.onload = res; s.onerror = rej;
+        s.onload = () => { applyChartDefaults(); res(); }; s.onerror = rej;
         document.head.appendChild(s);
       });
     },
@@ -20035,8 +20040,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 }
               },
               scales: {
-                x: { ticks: { color: '#888', maxRotation: 45, autoSkip: true, maxTicksLimit: 8 }, grid: { color: 'rgba(255,255,255,.05)' } },
-                y: { ticks: { color: '#888', callback: (v) => fmtN(v) }, grid: { color: 'rgba(255,255,255,.05)' } }
+                x: { ticks: { color: chartTickColor(), maxRotation: 45, autoSkip: true, maxTicksLimit: 8 }, grid: { color: chartGridColor() } },
+                y: { ticks: { color: chartTickColor(), callback: (v) => fmtN(v) }, grid: { color: chartGridColor() } }
               }
             }
           });
@@ -22257,10 +22262,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const canvas = document.getElementById('chart-weekly');
         if (!canvas) return;
         const loadChart = () => new Promise((res, rej) => {
-          if (window.Chart) return res();
+          if (window.Chart) { applyChartDefaults(); return res(); }
           const s = document.createElement('script');
           s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
-          s.onload = res; s.onerror = rej;
+          s.onload = () => { applyChartDefaults(); res(); }; s.onerror = rej;
           document.head.appendChild(s);
         });
         loadChart().then(() => {
@@ -22281,8 +22286,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               borderWidth: 1, borderRadius: 4 }] },
             options: { responsive: true, maintainAspectRatio: false,
               plugins: { legend: { display: false } },
-              scales: { x: { ticks: { color: '#8895b3', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,.04)' } },
-                y: { ticks: { color: '#8895b3', font: { size: 11 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true } } }
+              scales: { x: { ticks: { color: chartTickColor(), font: { size: 11 } }, grid: { color: chartGridColor() } },
+                y: { ticks: { color: chartTickColor(), font: { size: 11 }, stepSize: 1 }, grid: { color: chartGridColor() }, beginAtZero: true } } }
           });
         }).catch(() => {});
       }
@@ -22558,6 +22563,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         $('#form-intervention').reset();
         this._unlockForm();   // 🔓 lève TOUT verrou laissé par un bon validé ouvert juste avant (champs, boutons, bandeau)
         $('#int-num').textContent = '— (nouveau)';
+        // Pas de QR code tant que le bon n'a pas de numéro réel — sinon on affiche un
+        // simple carré blanc vide dans l'en-tête, qui a l'air d'un visuel cassé.
+        const qrWrapNew = document.querySelector('.intervention__qr'); if (qrWrapNew) qrWrapNew.hidden = true;
         $('#int-created').textContent = fmt.dateTime(Date.now());
         $('#int-date').valueAsDate = new Date();
         this.setStatus('draft');
@@ -22595,6 +22603,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         $('#int-created').textContent = fmt.dateTime(data.createdAt);
         this.setStatus(data.status);
         this._unlockForm();   // 🔓 repart d'un formulaire NEUF (sinon le verrou d'un bon validé précédent resterait), puis on ré-applique rôle + statut ci-dessous
+        const qrWrapOpen = document.querySelector('.intervention__qr'); if (qrWrapOpen) qrWrapOpen.hidden = false;
         drawQrPlaceholder($('#int-qrcode'), `#${data.numBon}`);
 
         // Outil
@@ -33224,8 +33233,8 @@ Erreur Firebase : ${e.message}`;
           responsive: true, maintainAspectRatio: false,
           plugins: { legend: { display: false } },
           scales: {
-            x: { ticks: { color: '#7a9bb5', font:{size:11} }, grid: { color: 'rgba(79, 144, 230,.04)' } },
-            y: { ticks: { color: '#7a9bb5', font:{size:11} }, grid: { color: 'rgba(79, 144, 230,.06)' }, beginAtZero: true }
+            x: { ticks: { color: chartTickColor(), font:{size:11} }, grid: { color: chartGridColor() } },
+            y: { ticks: { color: chartTickColor(), font:{size:11} }, grid: { color: chartGridColor() }, beginAtZero: true }
           }
         };
 
@@ -33240,7 +33249,7 @@ Erreur Firebase : ${e.message}`;
               borderColor:    labels.map((_,i) => COL[i%COL.length]),
               borderWidth: 1, borderRadius: 6 }] },
             options: { ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y,
-              title: { display: true, text: 'Heures', color: '#7a9bb5' } } } }
+              title: { display: true, text: 'Heures', color: chartTickColor() } } } }
           });
         }
 
@@ -33254,7 +33263,7 @@ Erreur Firebase : ${e.message}`;
               backgroundColor: 'rgba(79, 144, 230,.55)',
               borderColor: '#4f90e6', borderWidth: 1, borderRadius: 6 }] },
             options: { ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y,
-              title: { display: true, text: 'Minutes par bon', color: '#7a9bb5' } } } }
+              title: { display: true, text: 'Minutes par bon', color: chartTickColor() } } } }
           });
         }
 
@@ -33414,7 +33423,7 @@ Erreur Firebase : ${e.message}`;
           if (topTechs.length === 0) {
             const ctx2d = c3.getContext('2d');
             ctx2d.clearRect(0, 0, c3.width, c3.height);
-            ctx2d.fillStyle = '#7a9bb5';
+            ctx2d.fillStyle = chartTickColor();
             ctx2d.font = '14px sans-serif';
             ctx2d.textAlign = 'center';
             ctx2d.fillText('Aucune donnée pour ' + (teamFilter === 'all' ? 'cette période' : `l'équipe ${teamFilter}`),
@@ -33487,7 +33496,7 @@ Erreur Firebase : ${e.message}`;
               plugins: {
                 legend: {
                   labels: {
-                    color: '#a8c5d8',
+                    color: chartTickColor(),
                     font: { size: 12, weight: '600' },
                     padding: 12,
                     boxWidth: 14,
@@ -33528,14 +33537,14 @@ Erreur Firebase : ${e.message}`;
               scales: {
                 x: {
                   stacked: false,
-                  ticks: { color: '#a8c5d8', font: { size: 11, weight: '500' }, maxRotation: 45 },
+                  ticks: { color: chartTickColor(), font: { size: 11, weight: '500' }, maxRotation: 45 },
                   grid: { display: false }
                 },
                 y: {
-                  ticks: { color: '#a8c5d8', font: { size: 11 }, callback: v => v + 'h' },
-                  grid: { color: 'rgba(79, 144, 230, .06)' },
+                  ticks: { color: chartTickColor(), font: { size: 11 }, callback: v => v + 'h' },
+                  grid: { color: chartGridColor() },
                   beginAtZero: true,
-                  title: { display: true, text: 'Heures travaillées', color: '#a8c5d8', font: { size: 12, weight: '600' } }
+                  title: { display: true, text: 'Heures travaillées', color: chartTickColor(), font: { size: 12, weight: '600' } }
                 }
               }
             }
@@ -33714,10 +33723,10 @@ Erreur Firebase : ${e.message}`;
 
       _loadChart() {
         return new Promise((res, rej) => {
-          if (window.Chart) return res();
+          if (window.Chart) { applyChartDefaults(); return res(); }
           const s = document.createElement('script');
           s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
-          s.onload = res; s.onerror = rej; document.head.appendChild(s);
+          s.onload = () => { applyChartDefaults(); res(); }; s.onerror = rej; document.head.appendChild(s);
         });
       },
 
@@ -34068,7 +34077,7 @@ Erreur Firebase : ${e.message}`;
           const moreTools = item.tools.size > 3 ? ' <span style="color:var(--text-muted);font-size:.7rem">+' + (item.tools.size - 3) + '</span>' : '';
 
           // Couleur du rang
-          let rankColor = '#7a9bb5';
+          let rankColor = chartTickColor();
           if (rank === 0) rankColor = '#ffd700'; // or
           else if (rank === 1) rankColor = '#c0c0c0'; // argent
           else if (rank === 2) rankColor = '#cd7f32'; // bronze
@@ -34530,10 +34539,10 @@ Erreur Firebase : ${e.message}`;
     stats: {
       render() {
         const loadChart = () => new Promise((res,rej) => {
-          if (window.Chart) return res();
+          if (window.Chart) { applyChartDefaults(); return res(); }
           const s = document.createElement('script');
           s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
-          s.onload = res; s.onerror = rej; document.head.appendChild(s);
+          s.onload = () => { applyChartDefaults(); res(); }; s.onerror = rej; document.head.appendChild(s);
         });
 
         loadChart().then(() => {
@@ -34971,10 +34980,10 @@ Erreur Firebase : ${e.message}`;
 
       _loadChart() {
         return new Promise((res, rej) => {
-          if (window.Chart) return res();
+          if (window.Chart) { applyChartDefaults(); return res(); }
           const s = document.createElement('script');
           s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
-          s.onload = res; s.onerror = rej; document.head.appendChild(s);
+          s.onload = () => { applyChartDefaults(); res(); }; s.onerror = rej; document.head.appendChild(s);
         });
       },
 
@@ -35020,10 +35029,10 @@ Erreur Firebase : ${e.message}`;
           titleFont: { size: 12, weight: '700' }, bodyFont: { size: 11.5 }
         };
         const ANIM = { duration: 750, easing: 'easeOutQuart' };
-        const gridY = { color: 'rgba(148,163,184,.07)' };
-        const axCat  = { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { display: false }, border: { display: false } };
-        const axVal  = { ticks: { color: '#94a3b8', font: { size: 11 }, stepSize: 1, precision: 0 }, grid: gridY, border: { display: false }, beginAtZero: true };
-        const LEG = { color: '#94a3b8', font: { size: 10.5 }, usePointStyle: true, pointStyle: 'circle', padding: 12 };
+        const gridY = { color: chartGridColor() };
+        const axCat  = { ticks: { color: chartTickColor(), font: { size: 11 } }, grid: { display: false }, border: { display: false } };
+        const axVal  = { ticks: { color: chartTickColor(), font: { size: 11 }, stepSize: 1, precision: 0 }, grid: gridY, border: { display: false }, beginAtZero: true };
+        const LEG = { color: chartTickColor(), font: { size: 10.5 }, usePointStyle: true, pointStyle: 'circle', padding: 12 };
 
         // Plugin : total des fiches au centre du donut
         const centerText = {
@@ -35035,9 +35044,9 @@ Erreur Firebase : ${e.message}`;
             const ctx = chart.ctx;
             const cx = (ca.left + ca.right) / 2, cy = (ca.top + ca.bottom) / 2;
             ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#f1f5f9'; ctx.font = '800 28px ui-monospace,monospace';
+            ctx.fillStyle = _cssVar('--text-primary', '#f1f5f9'); ctx.font = '800 28px ui-monospace,monospace';
             ctx.fillText(String(total), cx, cy - 5);
-            ctx.fillStyle = '#64748b'; ctx.font = '700 9px sans-serif';
+            ctx.fillStyle = chartTickColor(); ctx.font = '700 9px sans-serif';
             ctx.fillText('FICHES', cx, cy + 15);
             ctx.restore();
           }
@@ -37962,6 +37971,17 @@ Erreur Firebase : ${e.message}`;
       fr: {
         // ── Sections (nouvelles) ──
         // ── Auto-traductions sweep ──
+        // 🆕 Clés manquantes trouvées à l'audit (le texte s'affichait sous forme de clé brute faute d'entrée)
+        't.p-ar_poincon_arriere': 'P-AR · Poinçon Arrière',
+        't.p-av_poincon_avant': 'P-AV · Poinçon Avant',
+        't.e-ar_enclume_arriere': 'E-AR · Enclume Arrière',
+        't.e-av_enclume_avant': 'E-AV · Enclume Avant',
+        't.c-ar_couteau_arriere': 'C-AR · Couteau Arrière',
+        't.c-av_couteau_avant': 'C-AV · Couteau Avant',
+        't.etes-vous_sur': 'Êtes-vous sûr ?',
+        't.notez_ce_mot_de_passe_et_communiquez-le_': '⚠ Notez ce mot de passe et communiquez-le à l\'utilisateur',
+        't.datalength_-_500_lignes_supplementaires_': '+ lignes supplémentaires (filtrer pour affiner)',
+        't.aucun_changement_de_piece_ce_mois-ci': 'Aucun changement de pièce ce mois-ci',
         't.demandes_pdr': 'Demandes PDR',
         't.nouvelle_notification': 'Nouvelle notification',
         't.4_dernieres_semaines': '4 dernières semaines',
@@ -38138,6 +38158,7 @@ Erreur Firebase : ${e.message}`;
         // Navigation
         'nav.hub': 'Hub',
         'nav.intervention': 'Bon d\'intervention',
+        'nav.preventive5j': 'Préventive 5 jours',
         'nav.history': 'Historique',
         'nav.queue': 'File d\'attente',
         'nav.catalog': 'Catalogue outils',
@@ -38431,6 +38452,17 @@ Erreur Firebase : ${e.message}`;
       en: {
         // ── Sections (new) ──
         // ── Auto-translation sweep ──
+        // 🆕 Missing keys found during audit (were rendering as raw key text)
+        't.p-ar_poincon_arriere': 'P-AR · Rear Punch',
+        't.p-av_poincon_avant': 'P-AV · Front Punch',
+        't.e-ar_enclume_arriere': 'E-AR · Rear Anvil',
+        't.e-av_enclume_avant': 'E-AV · Front Anvil',
+        't.c-ar_couteau_arriere': 'C-AR · Rear Blade',
+        't.c-av_couteau_avant': 'C-AV · Front Blade',
+        't.etes-vous_sur': 'Are you sure?',
+        't.notez_ce_mot_de_passe_et_communiquez-le_': '⚠ Write down this password and share it with the user',
+        't.datalength_-_500_lignes_supplementaires_': '+ more rows (filter to narrow down)',
+        't.aucun_changement_de_piece_ce_mois-ci': 'No part change this month',
         't.demandes_pdr': 'PDR Requests',
         't.nouvelle_notification': 'New notification',
         't.4_dernieres_semaines': 'Last 4 weeks',
@@ -38607,6 +38639,7 @@ Erreur Firebase : ${e.message}`;
         // Navigation
         'nav.hub': 'Dashboard',
         'nav.intervention': 'Maintenance Order',
+        'nav.preventive5j': '5-Day Preventive',
         'nav.history': 'History',
         'nav.queue': 'Queue',
         'nav.catalog': 'Tool Catalog',
@@ -39153,6 +39186,34 @@ Erreur Firebase : ${e.message}`;
     }
   };
   window.keyboardShortcuts = keyboardShortcuts;
+
+  /* ==========================================================================
+     14a. THÈME DES GRAPHIQUES — Chart.js aligné sur les jetons CSS du thème
+     --------------------------------------------------------------------------
+     Plusieurs graphiques codaient en dur des couleurs de grille/ticks (gris
+     fixe, blanc translucide) indépendantes du thème clair/sombre — correct en
+     sombre, quasi invisible en clair. On lit --text-muted / --border-soft en
+     direct (déjà utilisés partout ailleurs dans l'appli) et on les pousse en
+     Chart.defaults avant chaque création de graphique, pour un rendu toujours
+     cohérent avec le thème actif, sans dupliquer la palette dans chaque config.
+     ========================================================================== */
+  function _cssVar(name, fallback) {
+    try {
+      const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fallback;
+    } catch (e) { return fallback; }
+  }
+  function chartTickColor() { return _cssVar('--text-muted', '#8190a8'); }
+  function chartGridColor() { return _cssVar('--border-soft', 'rgba(148,177,255,.14)'); }
+  function applyChartDefaults() {
+    if (typeof Chart === 'undefined') return;
+    Chart.defaults.color = chartTickColor();
+    Chart.defaults.font.family = _cssVar('--font-sans', "'Inter', system-ui, sans-serif");
+    Chart.defaults.borderColor = chartGridColor();
+  }
+  window.chartTickColor = chartTickColor;
+  window.chartGridColor = chartGridColor;
+  window.applyChartDefaults = applyChartDefaults;
 
   /* ==========================================================================
      14bis. ICÔNES SVG — remplacement des emoji par des icônes vectorielles

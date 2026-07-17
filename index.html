@@ -6655,32 +6655,78 @@ fieldset[disabled] #btn-deliver-dossier {
   position: absolute;
   inset: 0;
   z-index: -2;
-  background-color: #04122b;
+  background-color: #050b18;
   background-image:
-    radial-gradient(1300px 700px at 78% -12%, #0a3d8f 0%, transparent 60%),
-    radial-gradient(900px 560px at 8% 108%, #0a2c5c 0%, transparent 62%),
-    radial-gradient(rgba(255,255,255,.05) 1px, transparent 1.3px),
+    radial-gradient(1100px 650px at 82% -10%, #0c1f42 0%, transparent 62%),
+    radial-gradient(rgba(255,255,255,.045) 1px, transparent 1.3px),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='500' viewBox='0 0 1000 500'%3E%3Cdefs%3E%3Cpattern id='ld' width='9' height='9' patternUnits='userSpaceOnUse'%3E%3Ccircle cx='1' cy='1' r='1' fill='%23ffffff' fill-opacity='.5'/%3E%3C/pattern%3E%3CclipPath id='lc'%3E%3Cpolygon points='72,68 128,50 178,56 222,68 246,95 250,120 228,138 232,165 210,195 188,222 160,232 138,212 118,178 92,188 68,158 52,118 60,88'/%3E%3Cpolygon points='196,248 232,238 262,255 282,300 278,345 262,385 240,418 216,432 200,410 192,375 186,330 190,285'/%3E%3Cpolygon points='458,58 480,52 508,60 528,55 546,75 542,102 520,116 502,138 480,146 462,120 448,90'/%3E%3Cpolygon points='456,152 498,146 530,158 552,190 548,225 558,255 548,290 530,325 512,362 495,382 480,378 470,340 458,300 448,258 442,215 444,180'/%3E%3Cpolygon points='548,78 598,50 655,44 715,52 775,48 828,66 868,86 888,116 878,146 850,162 820,152 800,172 772,186 742,172 712,188 690,218 664,222 640,198 624,172 598,178 578,158 560,128'/%3E%3Cpolygon points='628,186 658,190 664,228 646,250 624,232'/%3E%3Ccircle cx='790' cy='252' r='11'/%3E%3Ccircle cx='818' cy='264' r='9'/%3E%3Ccircle cx='846' cy='252' r='7'/%3E%3Ccircle cx='800' cy='278' r='6'/%3E%3Ccircle cx='905' cy='112' r='9'/%3E%3Ccircle cx='446' cy='46' r='8'/%3E%3Cpolygon points='772,326 816,316 856,326 882,348 876,378 848,394 808,394 778,374 766,350'/%3E%3C/clipPath%3E%3C/defs%3E%3Cg clip-path='url(%23lc)'%3E%3Crect width='1000' height='500' fill='url(%23ld)'/%3E%3C/g%3E%3C/svg%3E");
-  background-size: auto, auto, 26px 26px, 1900px 950px;
-  background-position: 0 0, 0 0, 0 0, 60% 30%;
-  background-repeat: no-repeat, no-repeat, repeat, no-repeat;
+  background-size: auto, 26px 26px, 1900px 950px;
+  background-position: 0 0, 0 0, 60% 30%;
+  background-repeat: no-repeat, repeat, no-repeat;
 }
 .login__backdrop::after {
   content: '';
   position: absolute;
   inset: -15%;
   pointer-events: none;
-  background:
-    radial-gradient(30% 40% at 65% 35%, rgba(79,144,230,.30), transparent 70%),
-    radial-gradient(24% 30% at 15% 80%, rgba(34,211,238,.14), transparent 70%);
-  filter: blur(10px);
-  animation: loginAmbient 26s ease-in-out infinite alternate;
+  background: radial-gradient(26% 32% at 62% 40%, rgba(79,144,230,.18), transparent 72%);
+  filter: blur(14px);
+  animation: loginAmbient 30s ease-in-out infinite alternate;
 }
 @keyframes loginAmbient {
   0%   { transform: translate3d(0,0,0) scale(1); }
   100% { transform: translate3d(-2%,2%,0) scale(1.08); }
 }
 @media (prefers-reduced-motion: reduce) { .login__backdrop::after { animation: none; } }
+
+/* Trame technique très discrète — esprit plan de câblage / calque de précision,
+   pas un décor "hacker". Isolée sur son propre calque, opacité faible, ne doit
+   jamais concurrencer le texte ni la carte de connexion. */
+.login__circuit {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  opacity: .22;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Cdefs%3E%3Cpattern id='ckt' width='220' height='220' patternUnits='userSpaceOnUse'%3E%3Cg fill='none' stroke='%234f90e6' stroke-width='1' stroke-linecap='round' opacity='.5'%3E%3Cpath d='M12,24 H72 V78 H132 V40'/%3E%3Cpath d='M168,14 V58 H120 V104'/%3E%3Cpath d='M24,138 H84 V178'/%3E%3Cpath d='M140,120 H188 M140,120 V168 H180'/%3E%3Cpath d='M0,100 H36 V60'/%3E%3Cpath d='M60,200 V160 H20'/%3E%3Cpath d='M200,180 H150'/%3E%3C/g%3E%3Cg fill='%234f90e6' opacity='.7'%3E%3Ccircle cx='72' cy='24' r='2'/%3E%3Ccircle cx='132' cy='78' r='2'/%3E%3Ccircle cx='168' cy='58' r='2'/%3E%3Ccircle cx='120' cy='104' r='2'/%3E%3Ccircle cx='84' cy='138' r='2'/%3E%3Ccircle cx='140' cy='120' r='2'/%3E%3Ccircle cx='188' cy='120' r='2'/%3E%3Ccircle cx='180' cy='168' r='2'/%3E%3Ccircle cx='36' cy='100' r='2'/%3E%3Ccircle cx='60' cy='160' r='2'/%3E%3Ccircle cx='150' cy='180' r='2'/%3E%3C/g%3E%3C/pattern%3E%3C/defs%3E%3Crect width='220' height='220' fill='url(%23ckt)'/%3E%3C/svg%3E");
+  background-size: 220px 220px;
+  background-position: 4% 8%;
+  -webkit-mask-image: linear-gradient(100deg, #000 0%, #000 40%, transparent 68%);
+  mask-image: linear-gradient(100deg, #000 0%, #000 40%, transparent 68%);
+}
+@media (max-width: 900px) { .login__circuit { opacity: .14; } }
+
+.login__pin {
+  position: absolute;
+  left: 57%; top: 71%;
+  z-index: 1;
+  pointer-events: none;
+  display: flex; align-items: center; gap: 6px;
+  animation: pinIn .5s ease .6s both;
+}
+.login__pin-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex: none;
+  background: #ff453a;
+  box-shadow: 0 0 0 3px rgba(255,69,58,.32), 0 0 12px 2px rgba(255,69,58,.85);
+  animation: pinPulse 2s ease-in-out infinite;
+}
+.login__pin-label {
+  font-family: var(--font-mono, monospace);
+  font-size: .66rem; font-weight: 700; letter-spacing: .03em;
+  color: #fff; white-space: nowrap;
+  background: rgba(4,14,32,.8);
+  border: 1px solid rgba(255,69,58,.4);
+  border-radius: 5px; padding: 3px 7px;
+  box-shadow: 0 3px 10px rgba(0,0,0,.5);
+  backdrop-filter: blur(2px);
+}
+@keyframes pinIn { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
+@keyframes pinPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(255,69,58,.32), 0 0 12px 2px rgba(255,69,58,.85); }
+  50%      { box-shadow: 0 0 0 7px rgba(255,69,58,.12), 0 0 16px 4px rgba(255,69,58,1); }
+}
+@media (prefers-reduced-motion: reduce) { .login__pin-dot { animation: none; } }
+@media (max-width: 900px) { .login__pin { display: none; } }
 
 /* ── colonne gauche : badge + accroche de marque ── */
 .login__hero {
@@ -6695,6 +6741,28 @@ fieldset[disabled] #btn-deliver-dossier {
   color: #fff;
 }
 .login__badge-row { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; }
+.login__topbadge {
+  position: absolute;
+  z-index: 1;
+  top: clamp(1rem, 3vh, 2rem);
+  left: clamp(1.25rem, 3vw, 3.5rem);
+}
+.login__topbadge-txt {
+  font-weight: 700;
+  font-size: .85rem;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0,0,0,.5);
+}
+.login__topbadge-sub {
+  margin: .5rem 0 0;
+  font-weight: 700;
+  font-size: .72rem;
+  line-height: 1.35;
+  letter-spacing: .01em;
+  color: rgba(255,255,255,.92);
+  text-shadow: 0 2px 8px rgba(0,0,0,.5);
+}
+@media (max-width: 900px) { .login__topbadge { display: none; } }
 .login__badge {
   display: inline-block;
   background: #e8622c;
@@ -7290,15 +7358,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
   <!-- ===================================================================== -->
   <section class="login" id="view-login" data-view="login" aria-label="Connexion">
     <div class="login__backdrop" aria-hidden="true"></div>
+    <div class="login__circuit" aria-hidden="true"></div>
+    <div class="login__pin" aria-hidden="true">
+      <span class="login__pin-dot"></span>
+      <span class="login__pin-label">LEONI · Annex 5</span>
+    </div>
+
+    <div class="login__topbadge" aria-hidden="true">
+      <div><span class="login__badge">Empowering</span><span class="login__topbadge-txt"> connections.</span></div>
+      <p class="login__topbadge-sub">LEONI x LUXSHARE -<br>strategic partnership</p>
+    </div>
 
     <div class="login__hero" aria-hidden="true">
-      <div class="login__badge-row">
-        <span class="login__badge">Empowering connections</span>
-      </div>
       <h2 class="login__tagline">Chaque sertissage<br><span class="hl">sous contrôle</span></h2>
       <div class="login__tags">
-        <span class="login__badge">Qualité</span>
-        <span class="sep">·</span><span>Maintenance</span>
+        <span>Qualité</span>
+        <span class="sep">·</span><span class="login__badge">Maintenance</span>
         <span class="sep">·</span><span>Production</span>
         <span class="sep">·</span><span>Méthode</span>
       </div>

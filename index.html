@@ -8921,7 +8921,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <option value="ok">✅ OK uniquement</option>
           </select>
           <button id="bl-import-btn" class="btn btn--secondary" style="background:rgba(52, 211, 153,.12);color:#34d399;border:1px solid rgba(52, 211, 153,.3);font-weight:700;font-size:.78rem">📥 Importer Excel</button>
-          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem" title="Télécharger un fichier Excel avec 4 feuilles — BINDING / COUPE / REQUALIF / VÉRIF 5J">📤 Exporter Excel (4 pages)</button>
+          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem" title="Télécharge UN SEUL fichier Excel contenant 4 onglets : BINDING · COUPE · REQUALIF · VÉRIF 5J">📤 Exporter Excel (1 fichier · 4 onglets)</button>
           <input type="file" id="bl-import-file" accept=".xlsx,.xls" hidden>
         </div>
 
@@ -30173,10 +30173,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           // ║ ASSEMBLAGE + ÉCRITURE : 1 FICHIER, 4 FEUILLES                    ║
           // ╚══════════════════════════════════════════════════════════════════╝
           const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, buildCauseSheet('binding'),  '🟡 BINDING');
-          XLSX.utils.book_append_sheet(wb, buildCauseSheet('coupe'),    '🟠 COUPE');
-          XLSX.utils.book_append_sheet(wb, buildCauseSheet('requalif'), '🔴 REQUALIF');
-          XLSX.utils.book_append_sheet(wb, buildCauseSheet('verif5j'),  '⚙️ VERIF-5J');
+          XLSX.utils.book_append_sheet(wb, buildCauseSheet('binding'),  'BINDING');
+          XLSX.utils.book_append_sheet(wb, buildCauseSheet('coupe'),    'COUPE');
+          XLSX.utils.book_append_sheet(wb, buildCauseSheet('requalif'), 'REQUALIF');
+          XLSX.utils.book_append_sheet(wb, buildCauseSheet('verif5j'),  'VERIF 5J');
 
           const dateStr = now.toISOString().slice(0, 10);
           const projTag = this._selectedProjects.size === 1 && !this._selectedProjects.has('__NONE__')

@@ -8921,7 +8921,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <option value="ok">✅ OK uniquement</option>
           </select>
           <button id="bl-import-btn" class="btn btn--secondary" style="background:rgba(52, 211, 153,.12);color:#34d399;border:1px solid rgba(52, 211, 153,.3);font-weight:700;font-size:.78rem">📥 Importer Excel</button>
-          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem" title="Télécharger 4 fichiers Excel — un par cause : BINDING / COUPE / REQUALIF / VÉRIF 5J">📤 Export 4 fichiers (par cause)</button>
+          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem" title="Télécharger un fichier Excel avec 4 feuilles — BINDING / COUPE / REQUALIF / VÉRIF 5J">📤 Exporter Excel (4 pages)</button>
           <input type="file" id="bl-import-file" accept=".xlsx,.xls" hidden>
         </div>
 
@@ -29936,8 +29936,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return 'OK';
       },
 
-      /** 🆕 Exporte les outils bloqués filtrés en 4 fichiers Excel séparés par cause
-       *  (BINDING / COUPE / REQUALIF / VÉRIF-5J) — chaque fichier = synthèse + liste stylisée */
+      /** 🆕 Exporte les outils bloqués filtrés en UN fichier Excel à 4 feuilles
+       *  (une par cause : BINDING / COUPE / REQUALIF / VÉRIF-5J) */
       async exportFiltered() {
         const filtered = this._getFiltered();
         if (!filtered.length) {
@@ -29967,12 +29967,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             bottom: { style: "thin", color: { rgb: "D1D5DB" } },
             left:   { style: "thin", color: { rgb: "D1D5DB" } },
             right:  { style: "thin", color: { rgb: "D1D5DB" } }
-          };
-          const BORDER_THICK = {
-            top:    { style: "medium", color: { rgb: "1F2937" } },
-            bottom: { style: "medium", color: { rgb: "1F2937" } },
-            left:   { style: "medium", color: { rgb: "1F2937" } },
-            right:  { style: "medium", color: { rgb: "1F2937" } }
           };
           const styleHeader = (rgb) => ({
             fill: { patternType: "solid", fgColor: { rgb } },
@@ -30101,11 +30095,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
           // ╔══════════════════════════════════════════════════════════════════╗
           // ║ DONNÉES DE BASE + CLASSIFICATION PAR CAUSE                       ║
-          // ║ 🆕 Export séparé en 4 fichiers : BINDING / COUPE / REQUALIF /    ║
-          // ║    VÉRIF-5J (un classeur autonome par cause, prêt à distribuer)  ║
+          // ║ 🆕 Un seul fichier, 4 feuilles : BINDING / COUPE / REQUALIF /    ║
+          // ║    VÉRIF-5J (une feuille par cause)                              ║
           // ╚══════════════════════════════════════════════════════════════════╝
           const now = new Date();
-          const dateFr = now.toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' });
           const blocked = filtered.filter(r => this._isBlocked(r));
           if (!blocked.length) {
             ui.hideLoader?.();
@@ -30134,59 +30127,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const groups = { binding: [], coupe: [], requalif: [], verif5j: [] };
           blocked.forEach(r => { groups[causeKeyOf(r)].push(r); });
 
-          // ── Styles réutilisés pour la feuille synthèse de chaque fichier ──
-          const STYLE_TITLE = {
-            fill: { patternType: "solid", fgColor: { rgb: "1E3A8A" } },
-            font: { color: { rgb: "FFFFFF" }, bold: true, sz: 16, name: "Calibri" },
-            border: BORDER_THICK,
-            alignment: { horizontal: "center", vertical: "center" }
-          };
-          const STYLE_META = {
-            fill: { patternType: "solid", fgColor: { rgb: "EFF6FF" } },
-            font: { color: { rgb: "1E40AF" }, italic: true, sz: 10, name: "Calibri" },
-            border: BORDER_LIGHT,
-            alignment: { horizontal: "center", vertical: "center" }
-          };
-
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ CONSTRUCTION D'UN CLASSEUR AUTONOME PAR CAUSE                    ║
-          // ║ (feuille synthèse compacte + liste détaillée des outils)         ║
+          // ║ UN CLASSEUR UNIQUE — 1 FEUILLE PAR CAUSE                         ║
+          // ║ (BINDING / COUPE / REQUALIF / VÉRIF-5J)                          ║
           // ╚══════════════════════════════════════════════════════════════════╝
-          const buildCauseWb = (key) => {
+          const buildCauseSheet = (key) => {
             const meta = CAUSES[key];
             const tools = groups[key];
-
-            // ── Feuille 1 : synthèse compacte de la cause ──
-            const syn = [
-              [`LEONI Wiring System — Outils Bloqués — ${meta.tag}`],
-              [`Date export : ${dateFr}`],
-              [`Exporté par : ${state.user?.name || state.user?.email || 'admin'}`],
-              [],
-              ['Cause', meta.label],
-              ['Nombre d\'outils', tools.length],
-              ['Traité par', meta.handler],
-              ['Action recommandée', meta.action]
-            ];
-            const wsSyn = XLSX.utils.aoa_to_sheet(syn);
-            wsSyn['!cols'] = [{ wch: 26 }, { wch: 58 }];
-            wsSyn['!merges'] = [
-              { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
-              { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
-              { s: { r: 2, c: 0 }, e: { r: 2, c: 1 } }
-            ];
-            const synRange = XLSX.utils.decode_range(wsSyn['!ref']);
-            for (let row = synRange.s.r; row <= synRange.e.r; row++) {
-              for (let col = synRange.s.c; col <= synRange.e.c; col++) {
-                const addr = XLSX.utils.encode_cell({ r: row, c: col });
-                if (!wsSyn[addr]) wsSyn[addr] = { t: 's', v: '' };
-                if (row === 0) wsSyn[addr].s = STYLE_TITLE;
-                else if (row === 1 || row === 2) wsSyn[addr].s = STYLE_META;
-                else if (row >= 4) wsSyn[addr].s = styleZebra(col === 0 ? 'F3F4F6' : 'FFFFFF', col === 0);
-              }
-            }
-            wsSyn['!rows'] = [{ hpt: 36 }, { hpt: 20 }, { hpt: 20 }, { hpt: 10 }, { hpt: 24 }, { hpt: 24 }, { hpt: 24 }, { hpt: 24 }];
-
-            // ── Feuille 2 : liste détaillée des outils de cette cause ──
             const headers = ['Inventory No.','Description','Client','Projet','Groupe','Type marquage','Maintenance Counter','Total Counter','Cause','Action recommandée','Requalif Time','Requalif Strokes','Maintenance','Days In Use','Manufacturer','Last Maintenance'];
             const aoa = [headers];
             tools.forEach(r => {
@@ -30202,6 +30149,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 r.manufacturer || '', r.lastMaintenance || ''
               ]);
             });
+            if (!tools.length) aoa.push(['— Aucun outil bloqué pour cette cause —']);
             const ws = XLSX.utils.aoa_to_sheet(aoa);
             ws['!cols'] = [
               { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 10 },
@@ -30218,37 +30166,31 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               invCol: 0,
               numCols: [6, 7]
             });
-
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, wsSyn, '📊 Synthèse');
-            XLSX.utils.book_append_sheet(wb, ws, `📋 ${meta.tag}`);
-            return wb;
+            return ws;
           };
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ ÉCRITURE : UN FICHIER PAR CAUSE (BINDING/COUPE/REQUALIF/VÉRIF-5J)║
+          // ║ ASSEMBLAGE + ÉCRITURE : 1 FICHIER, 4 FEUILLES                    ║
           // ╚══════════════════════════════════════════════════════════════════╝
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, buildCauseSheet('binding'),  '🟡 BINDING');
+          XLSX.utils.book_append_sheet(wb, buildCauseSheet('coupe'),    '🟠 COUPE');
+          XLSX.utils.book_append_sheet(wb, buildCauseSheet('requalif'), '🔴 REQUALIF');
+          XLSX.utils.book_append_sheet(wb, buildCauseSheet('verif5j'),  '⚙️ VERIF-5J');
+
           const dateStr = now.toISOString().slice(0, 10);
           const projTag = this._selectedProjects.size === 1 && !this._selectedProjects.has('__NONE__')
             ? '_' + [...this._selectedProjects][0]
             : (this._selectedProjects.size > 1 && !this._selectedProjects.has('__NONE__'))
               ? `_${this._selectedProjects.size}projets` : '';
-          const written = [];
-          const emptyCauses = [];
-          for (const key of ['binding', 'coupe', 'requalif', 'verif5j']) {
-            const meta = CAUSES[key];
-            if (!groups[key].length) { emptyCauses.push(meta.tag); continue; }
-            const filename = `LEONI_OutilsBloques${projTag}_${meta.tag}_${dateStr}.xlsx`;
-            XLSX.writeFile(buildCauseWb(key), filename, { bookType: 'xlsx', cellStyles: true });
-            written.push(`${meta.tag} (${groups[key].length})`);
-            // Petit délai entre deux téléchargements pour ne pas être bloqué par le navigateur
-            await new Promise(res => setTimeout(res, 500));
-          }
+          const filename = `LEONI_OutilsBloques${projTag}_${dateStr}.xlsx`;
+          XLSX.writeFile(wb, filename, { bookType: 'xlsx', cellStyles: true });
 
           ui.hideLoader?.();
           ui.toast(
-            `✅ ${blocked.length} outils bloqués exportés en ${written.length} fichier(s) : ${written.join(' · ')}` +
-            (emptyCauses.length ? ` — aucun outil : ${emptyCauses.join(', ')}` : ''),
+            `✅ ${blocked.length} outils bloqués exportés → ${filename} — ` +
+            `BINDING (${groups.binding.length}) · COUPE (${groups.coupe.length}) · ` +
+            `REQUALIF (${groups.requalif.length}) · VÉRIF-5J (${groups.verif5j.length})`,
             'success', 9000
           );
         } catch (e) {

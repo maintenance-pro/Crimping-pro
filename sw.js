@@ -3,7 +3,7 @@
    avec un handler 'fetch' pour proposer l'installation native).
    Aucune donnée Firebase n'est mise en cache : uniquement le shell (index.html + icônes). */
 
-const CACHE_NAME = 'leoni-crimping-shell-v2'; // ⚠️ incrémenter à chaque déploiement majeur
+const CACHE_NAME = 'leoni-crimping-shell-v3'; // ⚠️ incrémenter à chaque déploiement majeur
 
 const SHELL_ASSETS = [
   './index.html',
@@ -32,6 +32,10 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
+  // ⚠️ L'API Cache n'accepte que http/https : les schémas file:, blob:, data:,
+  // chrome-extension:… doivent être laissés au navigateur (sinon TypeError sur cache.put)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
   // Jamais de cache pour Firebase / APIs externes → toujours réseau frais (données live)
   const isFirebase = /firebaseio\.com|firebasedatabase\.app|firebasestorage\.googleapis\.com|googleapis\.com|firebaseapp\.com/.test(url.hostname);
   if (event.request.method !== 'GET' || isFirebase) {
@@ -43,9 +47,10 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((resp) => {
-        if (resp && resp.status === 200) {
+        // On ne met en cache que les réponses complètes et cacheables (pas d'opaque/partielles)
+        if (resp && resp.status === 200 && (resp.type === 'basic' || resp.type === 'cors')) {
           const clone = resp.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)).catch(() => {});
         }
         return resp;
       })

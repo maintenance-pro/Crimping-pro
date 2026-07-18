@@ -8921,7 +8921,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <option value="ok">✅ OK uniquement</option>
           </select>
           <button id="bl-import-btn" class="btn btn--secondary" style="background:rgba(52, 211, 153,.12);color:#34d399;border:1px solid rgba(52, 211, 153,.3);font-weight:700;font-size:.78rem">📥 Importer Excel</button>
-          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem" title="Télécharge UN SEUL fichier Excel contenant 4 onglets : BINDING · COUPE · REQUALIF · VÉRIF 5J">📤 Exporter Excel (1 fichier · 4 onglets)</button>
+          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem" title="Télécharge UN SEUL fichier Excel : rapport SYNTHÈSE + 4 onglets BINDING · COUPE · REQUALIF · VÉRIF 5J">📤 Exporter Excel (Synthèse + 4 onglets)</button>
           <input type="file" id="bl-import-file" accept=".xlsx,.xls" hidden>
         </div>
 
@@ -29936,8 +29936,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return 'OK';
       },
 
-      /** 🆕 Exporte les outils bloqués filtrés en UN fichier Excel à 4 feuilles
-       *  (une par cause : BINDING / COUPE / REQUALIF / VÉRIF-5J) */
+      /** 🆕 Exporte les outils bloqués filtrés en UN fichier Excel :
+       *  feuille SYNTHÈSE (rapport) + 4 feuilles par cause (BINDING / COUPE / REQUALIF / VÉRIF-5J) */
       async exportFiltered() {
         const filtered = this._getFiltered();
         if (!filtered.length) {
@@ -29967,6 +29967,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             bottom: { style: "thin", color: { rgb: "D1D5DB" } },
             left:   { style: "thin", color: { rgb: "D1D5DB" } },
             right:  { style: "thin", color: { rgb: "D1D5DB" } }
+          };
+          const BORDER_THICK = {
+            top:    { style: "medium", color: { rgb: "1F2937" } },
+            bottom: { style: "medium", color: { rgb: "1F2937" } },
+            left:   { style: "medium", color: { rgb: "1F2937" } },
+            right:  { style: "medium", color: { rgb: "1F2937" } }
           };
           const styleHeader = (rgb) => ({
             fill: { patternType: "solid", fgColor: { rgb } },
@@ -30065,40 +30071,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           };
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ HELPERS POUR DONNÉES (recommandation + type)                    ║
-          // ╚══════════════════════════════════════════════════════════════════╝
-          const getRecommendedAction = (r) => {
-            if (!this._isBlocked(r)) return '—';
-            const unlock = this._getUnlockHandler(r);
-            const reqT = String(r.requalifTimeStatus||'').toLowerCase();
-            const reqS = String(r.requalifStrokesStatus||'').toLowerCase();
-            const m    = String(r.maintenanceStatus||'').toLowerCase();
-            const d    = String(r.daysInUseStatus||'').toLowerCase();
-            if (unlock.handler === 'crimping-cell') return '⚙️ Effectuer vérification visuelle 5J en cellule';
-            if (reqT === 'overrun' || reqS === 'overrun') {
-              const t = []; if (reqT === 'overrun') t.push('TIME'); if (reqS === 'overrun') t.push('STROKES');
-              return `🧪 Envoyer au labo pour REQUALIF (${t.join(' + ')})`;
-            }
-            if (m === 'overrun')   return '🧪 Envoyer au labo pour COUPE (maintenance overrun)';
-            if (m === 'warning')   return '🧪 Envoyer au labo pour COUPE (maintenance warning)';
-            if (d === 'overrun')   return '🧪 Envoyer au labo pour BINDING (days in use)';
-            return '—';
-          };
-          const getStellantisType = (r) => {
-            const client = this._getClientForProject(r.masterLocation);
-            if (!client || client.key !== 'stellantis') return '';
-            const unlock = this._getUnlockHandler(r);
-            if (unlock.critical && unlock.reason === 'group') return `Critique (groupe ${unlock.group})`;
-            if (unlock.coupeToLab) return `Section 0.35² (groupe ${unlock.group})`;
-            return 'Standard';
-          };
-
-          // ╔══════════════════════════════════════════════════════════════════╗
           // ║ DONNÉES DE BASE + CLASSIFICATION PAR CAUSE                       ║
-          // ║ 🆕 Un seul fichier, 4 feuilles : BINDING / COUPE / REQUALIF /    ║
-          // ║    VÉRIF-5J (une feuille par cause)                              ║
+          // ║ 🆕 Un seul fichier : SYNTHÈSE (rapport) + 4 feuilles par cause   ║
+          // ║    BINDING / COUPE / REQUALIF / VÉRIF-5J                         ║
           // ╚══════════════════════════════════════════════════════════════════╝
           const now = new Date();
+          const dateFr = now.toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' });
           const blocked = filtered.filter(r => this._isBlocked(r));
           if (!blocked.length) {
             ui.hideLoader?.();
@@ -30126,24 +30104,136 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           };
           const groups = { binding: [], coupe: [], requalif: [], verif5j: [] };
           blocked.forEach(r => { groups[causeKeyOf(r)].push(r); });
+          const labCount  = groups.binding.length + groups.coupe.length + groups.requalif.length;
+          const cellCount = groups.verif5j.length;
+          const totalCntSum = filtered.reduce((s, r) => s + (Number(r.totalCounter) || 0), 0);
+          const byClient = {};
+          filtered.forEach(r => {
+            const c = this._getClientForProject(r.masterLocation);
+            const key = c ? c.name : 'Non classé';
+            if (!byClient[key]) byClient[key] = { total: 0, blocked: 0, lab: 0, cell: 0 };
+            byClient[key].total++;
+            if (this._isBlocked(r)) {
+              byClient[key].blocked++;
+              if (causeKeyOf(r) === 'verif5j') byClient[key].cell++;
+              else byClient[key].lab++;
+            }
+          });
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ UN CLASSEUR UNIQUE — 1 FEUILLE PAR CAUSE                         ║
+          // ║ FEUILLE 1 : 📊 SYNTHÈSE (le rapport)                             ║
+          // ╚══════════════════════════════════════════════════════════════════╝
+          const synthese = [
+            ['LEONI Wiring System — Rapport Outils Bloqués'],
+            [`Date export : ${dateFr}`],
+            [`Exporté par : ${state.user?.name || state.user?.email || 'admin'}`],
+            [],
+            ['RÉSUMÉ GÉNÉRAL'],
+            ['Indicateur', 'Valeur', 'Pourcentage'],
+            ['Total outils', filtered.length, '100%'],
+            ['Outils bloqués', blocked.length, Math.round(blocked.length / filtered.length * 100) + '%'],
+            ['→ À traiter au Laboratoire 🧪', labCount, Math.round(labCount / (blocked.length||1) * 100) + '% des bloqués'],
+            ['→ À traiter en Cellule Sertissage ⚙️', cellCount, Math.round(cellCount / (blocked.length||1) * 100) + '% des bloqués'],
+            ['Total Compteur cumulé', totalCntSum, 'cycles'],
+            [],
+            ['RÉPARTITION PAR CAUSE'],
+            ['Cause', 'Nombre', 'Action recommandée'],
+            ['🟡 BINDING (Days In Use)', groups.binding.length, 'Envoyer au labo pour contrôle binding'],
+            ['🟠 COUPE (Maintenance)', groups.coupe.length, 'Envoyer au labo pour coupe métallographique'],
+            ['🔴 REQUALIF (Time/Strokes)', groups.requalif.length, 'Envoyer au labo pour requalification'],
+            ['⚙️ VÉRIFICATION 5J (Cellule)', groups.verif5j.length, 'Effectuer vérification visuelle 5 jours en cellule'],
+            [],
+            ['RÉPARTITION PAR CLIENT'],
+            ['Client', 'Total outils', 'Bloqués', 'À Labo', 'À Cellule']
+          ];
+          Object.entries(byClient).forEach(([name, s]) => {
+            synthese.push([name, s.total, s.blocked, s.lab, s.cell]);
+          });
+
+          const wsSynthese = XLSX.utils.aoa_to_sheet(synthese);
+          wsSynthese['!cols'] = [{ wch: 42 }, { wch: 14 }, { wch: 38 }, { wch: 14 }, { wch: 14 }];
+          wsSynthese['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+            { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+            { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+            { s: { r: 4, c: 0 }, e: { r: 4, c: 4 } },
+            { s: { r: 12, c: 0 }, e: { r: 12, c: 4 } },
+            { s: { r: 19, c: 0 }, e: { r: 19, c: 4 } }
+          ];
+          const STYLE_TITLE = {
+            fill: { patternType: "solid", fgColor: { rgb: "1E3A8A" } },
+            font: { color: { rgb: "FFFFFF" }, bold: true, sz: 16, name: "Calibri" },
+            border: BORDER_THICK,
+            alignment: { horizontal: "center", vertical: "center" }
+          };
+          const STYLE_META = {
+            fill: { patternType: "solid", fgColor: { rgb: "EFF6FF" } },
+            font: { color: { rgb: "1E40AF" }, italic: true, sz: 10, name: "Calibri" },
+            border: BORDER_LIGHT,
+            alignment: { horizontal: "center", vertical: "center" }
+          };
+          const STYLE_SECTION = {
+            fill: { patternType: "solid", fgColor: { rgb: "1F2937" } },
+            font: { color: { rgb: "FFFFFF" }, bold: true, sz: 12, name: "Calibri" },
+            border: BORDER_THICK,
+            alignment: { horizontal: "center", vertical: "center" }
+          };
+          const STYLE_SUBHEADER = {
+            fill: { patternType: "solid", fgColor: { rgb: "374151" } },
+            font: { color: { rgb: "FFFFFF" }, bold: true, sz: 11, name: "Calibri" },
+            border: BORDER_LIGHT,
+            alignment: { horizontal: "center", vertical: "center" }
+          };
+          const synRange = XLSX.utils.decode_range(wsSynthese['!ref']);
+          for (let row = synRange.s.r; row <= synRange.e.r; row++) {
+            for (let col = synRange.s.c; col <= synRange.e.c; col++) {
+              const addr = XLSX.utils.encode_cell({ r: row, c: col });
+              if (!wsSynthese[addr]) wsSynthese[addr] = { t: 's', v: '' };
+              if (row === 0) wsSynthese[addr].s = STYLE_TITLE;
+              else if (row === 1 || row === 2) wsSynthese[addr].s = STYLE_META;
+              else if (row === 4 || row === 12 || row === 19) wsSynthese[addr].s = STYLE_SECTION;
+              else if (row === 5 || row === 13 || row === 20) wsSynthese[addr].s = STYLE_SUBHEADER;
+              else {
+                const zebra = row % 2 === 0;
+                const bg = zebra ? "F9FAFB" : "FFFFFF";
+                if (col === 0) {
+                  wsSynthese[addr].s = styleZebra(bg, true);
+                } else if (col === 1 && typeof wsSynthese[addr].v === 'number') {
+                  wsSynthese[addr].s = {
+                    fill: { patternType: "solid", fgColor: { rgb: bg } },
+                    font: { sz: 11, bold: true, color: { rgb: "1E40AF" }, name: "Consolas" },
+                    border: BORDER_LIGHT,
+                    alignment: { horizontal: "right", vertical: "center" }
+                  };
+                  wsSynthese[addr].z = '#,##0';
+                } else {
+                  wsSynthese[addr].s = styleZebra(bg);
+                }
+              }
+            }
+          }
+          wsSynthese['!rows'] = [
+            { hpt: 38 }, { hpt: 22 }, { hpt: 22 }, { hpt: 14 },
+            { hpt: 30 }, { hpt: 24 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 },
+            { hpt: 14 }, { hpt: 30 }, { hpt: 24 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 },
+            { hpt: 14 }, { hpt: 30 }, { hpt: 24 }
+          ];
+
+          // ╔══════════════════════════════════════════════════════════════════╗
+          // ║ FEUILLES 2 À 5 — 1 FEUILLE PAR CAUSE                             ║
           // ║ (BINDING / COUPE / REQUALIF / VÉRIF-5J)                          ║
           // ╚══════════════════════════════════════════════════════════════════╝
           const buildCauseSheet = (key) => {
             const meta = CAUSES[key];
             const tools = groups[key];
-            const headers = ['Inventory No.','Description','Client','Projet','Groupe','Type marquage','Maintenance Counter','Total Counter','Cause','Action recommandée','Requalif Time','Requalif Strokes','Maintenance','Days In Use','Manufacturer','Last Maintenance'];
+            const headers = ['Inventory No.','Client','Projet','Maintenance Counter','Total Counter','Cause','Requalif Time','Requalif Strokes','Maintenance','Days In Use','Manufacturer','Last Maintenance'];
             const aoa = [headers];
             tools.forEach(r => {
               const client = this._getClientForProject(r.masterLocation);
               aoa.push([
-                r.inventoryNo || '', r.description || '', client ? client.name : '—',
-                r.masterLocation || '', this._extractGroup(r.inventoryNo) || '—',
-                getStellantisType(r),
+                r.inventoryNo || '', client ? client.name : '—', r.masterLocation || '',
                 Number(r.maintenanceCounter) || 0, Number(r.totalCounter) || 0,
-                this._causeText(r), getRecommendedAction(r),
+                this._causeText(r),
                 r.requalifTimeStatus || '', r.requalifStrokesStatus || '',
                 r.maintenanceStatus || '', r.daysInUseStatus || '',
                 r.manufacturer || '', r.lastMaintenance || ''
@@ -30152,27 +30242,28 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (!tools.length) aoa.push(['— Aucun outil bloqué pour cette cause —']);
             const ws = XLSX.utils.aoa_to_sheet(aoa);
             ws['!cols'] = [
-              { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 10 },
-              { wch: 22 }, { wch: 16 }, { wch: 16 }, { wch: 28 }, { wch: 50 },
-              { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }
+              { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 16 },
+              { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
+              { wch: 16 }, { wch: 16 }
             ];
             ws['!freeze'] = { xSplit: 1, ySplit: 1 };
-            ws['!autofilter'] = { ref: `A1:P${aoa.length}` };
+            ws['!autofilter'] = { ref: `A1:L${aoa.length}` };
             applyDataStyles(ws, {
               headerColor: meta.color,   // couleur d'en-tête propre à la cause
-              statusCols: [10, 11, 12, 13],
-              causeCol: 8,
-              clientCol: 2,
+              statusCols: [6, 7, 8, 9],
+              causeCol: 5,
+              clientCol: 1,
               invCol: 0,
-              numCols: [6, 7]
+              numCols: [3, 4]
             });
             return ws;
           };
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ ASSEMBLAGE + ÉCRITURE : 1 FICHIER, 4 FEUILLES                    ║
+          // ║ ASSEMBLAGE + ÉCRITURE : 1 FICHIER = SYNTHÈSE + 4 FEUILLES CAUSE  ║
           // ╚══════════════════════════════════════════════════════════════════╝
           const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, wsSynthese, 'SYNTHÈSE');
           XLSX.utils.book_append_sheet(wb, buildCauseSheet('binding'),  'BINDING');
           XLSX.utils.book_append_sheet(wb, buildCauseSheet('coupe'),    'COUPE');
           XLSX.utils.book_append_sheet(wb, buildCauseSheet('requalif'), 'REQUALIF');

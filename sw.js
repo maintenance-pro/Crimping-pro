@@ -3,13 +3,15 @@
    avec un handler 'fetch' pour proposer l'installation native).
    Aucune donnée Firebase n'est mise en cache : uniquement le shell (index.html + icônes). */
 
-const CACHE_NAME = 'leoni-crimping-shell-v3'; // ⚠️ incrémenter à chaque déploiement majeur
+const CACHE_NAME = 'leoni-crimping-shell-v5'; // ⚠️ incrémenter à chaque déploiement majeur
 
 const SHELL_ASSETS = [
   './index.html',
   './manifest.json',
   './assets/icon-192.png',
-  './assets/icon-512.png'
+  './assets/icon-512.png',
+  './assets/login-bg.jpg',
+  './assets/login-bg-mobile.jpg'
 ];
 
 self.addEventListener('install', (event) => {

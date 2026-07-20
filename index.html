@@ -40040,7 +40040,12 @@ Erreur Firebase : ${e.message}`;
     // 📍 FOOTER PRO : injecte version + dernière synchro Firebase
     // ════════════════════════════════════════════════════════════════════
     (function initFooter() {
-      const main = document.querySelector('.app__main, main, body');
+      // ⚠️ Ciblage précis de #main (l'espace applicatif post-connexion, masqué
+      // tant que .shell a l'attribut [hidden]). L'ancien sélecteur groupé
+      // '.app__main, main, body' se résolvait à <body> en ordre de document
+      // (un parent précède toujours ses descendants) : le footer s'affichait
+      // alors DERRIÈRE l'écran de connexion (décalage visible sous la carte).
+      const main = document.getElementById('main');
       if (!main || document.querySelector('.app-footer')) return;
       const footer = document.createElement('footer');
       footer.className = 'app-footer';

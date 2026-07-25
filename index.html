@@ -30242,12 +30242,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const buildCauseSheet = (key) => {
             const meta = CAUSES[key];
             const tools = groups[key];
-            const headers = ['Inventory No.','Client','Projet','Maintenance Counter','Total Counter','Cause','Requalif Time','Requalif Strokes','Maintenance','Days In Use','Manufacturer','Last Maintenance'];
+            const headers = ['Inventory No.','Client','Emplacement','Maintenance Counter','Total Counter','Cause','Requalif Time','Requalif Strokes','Maintenance','Days In Use','Manufacturer','Last Maintenance'];
             const aoa = [headers];
             tools.forEach(r => {
               const client = this._getClientForProject(r.masterLocation);
               aoa.push([
-                r.inventoryNo || '', client ? client.name : '—', r.masterLocation || '',
+                r.inventoryNo || '', client ? client.name : '—',
+                r.location || '—',
                 Number(r.maintenanceCounter) || 0, Number(r.totalCounter) || 0,
                 this._causeText(r),
                 r.requalifTimeStatus || '', r.requalifStrokesStatus || '',
@@ -30258,9 +30259,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (!tools.length) aoa.push(['— Aucun outil bloqué pour cette cause —']);
             const ws = XLSX.utils.aoa_to_sheet(aoa);
             ws['!cols'] = [
-              { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 16 },
-              { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 },
-              { wch: 16 }, { wch: 16 }
+              { wch: 18 }, { wch: 14 }, { wch: 16 },
+              { wch: 16 }, { wch: 16 }, { wch: 28 }, { wch: 14 }, { wch: 16 },
+              { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }
             ];
             ws['!freeze'] = { xSplit: 1, ySplit: 1 };
             ws['!autofilter'] = { ref: `A1:L${aoa.length}` };

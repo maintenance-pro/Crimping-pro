@@ -7650,11 +7650,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <span class="sidebar__pill" id="nav-doc-count" style="background:rgba(56,189,248,.18);color:#38bdf8">0</span>
             </button>
           </li>
-          <!-- 🎯 ORDRE DE MISSION — Admin ↔ TL -->
+          <!-- 🗓️ PLANIFICATEUR D'ACTIONS -->
           <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,tl">
             <button class="sidebar__link" data-nav="missions">
-              <span class="sidebar__icon">🎯</span><span class="sidebar__label">Ordre de mission</span>
-              <span class="sidebar__pill sidebar__pill--warn" id="nav-missions-count" style="background:rgba(247, 183, 51,.18);color:#f7b733">0</span>
+              <span class="sidebar__icon">🗓️</span><span class="sidebar__label">Planificateur d'Actions</span>
+              <span class="sidebar__pill sidebar__pill--warn" id="nav-missions-count" style="background:rgba(251, 90, 106,.18);color:#fb5a6a">0</span>
             </button>
           </li>
           <!-- 👥 ÉQUIPE — Utilisateurs + Techniciens fusionnés -->
@@ -10020,80 +10020,132 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       </section>
 
       <!-- ================================================================= -->
-      <!-- VIEW — ORDRE DE MISSION · Admin demande, TL réalise               -->
+      <!-- VIEW — PLANIFICATEUR D'ACTIONS · Calendrier + Index                -->
       <!-- ================================================================= -->
       <section class="history" id="view-missions" data-view="missions" hidden>
         <style>
-          .msn-card{background:var(--bg-elevated,var(--bg-2));border:1px solid var(--border-soft);border-left:4px solid var(--border-soft);border-radius:12px;padding:.9rem 1rem;transition:border-color .15s ease,transform .15s ease}
-          .msn-card:hover{transform:translateY(-1px)}
-          .msn-card--requested{border-left-color:#22d3ee}
-          .msn-card--in_progress{border-left-color:#f7b733}
-          .msn-card--done{border-left-color:#34d399}
-          .msn-card--validated{border-left-color:#a78bfa}
-          .msn-status{padding:.2rem .6rem;border-radius:999px;font-size:.72rem;font-weight:700;white-space:nowrap}
-          .msn-status--requested{background:rgba(0,180,255,.16);color:#22d3ee}
-          .msn-status--in_progress{background:rgba(247, 183, 51,.16);color:#f7b733}
-          .msn-status--done{background:rgba(52, 211, 153,.16);color:#34d399}
-          .msn-status--validated{background:rgba(167,139,250,.16);color:#a78bfa}
-          .msn-prio{padding:.16rem .5rem;border-radius:999px;font-size:.68rem;font-weight:700}
-          .msn-prio--haute{background:rgba(251, 90, 106,.16);color:#fb5a6a}
-          .msn-prio--normale{background:rgba(148,163,184,.16);color:#94a3b8}
-          .msn-prio--basse{background:rgba(56,189,248,.14);color:#38bdf8}
-          .msn-meta{font-size:.75rem;color:var(--text-muted);margin-top:.4rem;display:flex;gap:.8rem;flex-wrap:wrap;align-items:center}
+          .act-subtab{background:transparent;border:none;border-bottom:2px solid transparent;color:var(--text-muted);padding:.6rem 1rem;font-size:.85rem;font-weight:700;cursor:pointer}
+          .act-subtab:hover{color:var(--text-primary)}
+          .act-subtab--on{color:var(--accent-500);border-bottom-color:var(--accent-500)}
+          .act-cal-head,.act-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+          .act-cal-head div{text-align:center;color:var(--text-muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;padding:.4rem 0;font-weight:700}
+          .act-day{background:var(--bg-3,var(--bg-elevated));border:1px solid var(--border-soft);border-radius:8px;min-height:104px;padding:.4rem;position:relative;cursor:pointer;transition:border-color .15s}
+          .act-day:hover{border-color:var(--accent-500)}
+          .act-day--off{opacity:.3;cursor:default}
+          .act-day--we{background:rgba(148,163,184,.05)}
+          .act-day--today{border-color:var(--accent-500);box-shadow:inset 0 0 0 1px var(--accent-500)}
+          .act-day__n{font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);margin-bottom:.3rem}
+          .act-day--today .act-day__n{color:var(--accent-500);font-weight:700}
+          .act-chip{display:block;width:100%;text-align:left;border:none;border-left:3px solid;border-radius:4px;padding:.18rem .4rem;margin-bottom:.2rem;font-size:.68rem;line-height:1.3;color:var(--text-primary);background:var(--bg-elevated);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+          .act-chip--haute{border-color:var(--danger-500)} .act-chip--moyenne{border-color:var(--warn-500)} .act-chip--basse{border-color:var(--accent-500)}
+          .act-chip--done{opacity:.45;text-decoration:line-through}
+          .act-chip--late{background:rgba(251, 90, 106,.14)}
+          .act-more{font-size:.62rem;color:var(--text-muted);padding-left:.2rem}
+          .act-led{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:.4rem;vertical-align:-1px}
+          .act-led--haute{background:var(--danger-500);box-shadow:0 0 6px var(--danger-500)}
+          .act-led--moyenne{background:var(--warn-500);box-shadow:0 0 6px var(--warn-500)}
+          .act-led--basse{background:var(--accent-500);box-shadow:0 0 6px var(--accent-500)}
+          .act-pill{display:inline-block;padding:.15rem .6rem;border-radius:999px;font-size:.7rem;font-weight:700;border:1px solid}
+          .act-pill--late{color:var(--danger-500);border-color:rgba(251, 90, 106,.5);background:rgba(251, 90, 106,.1)}
+          .act-pill--run{color:var(--accent-500);border-color:rgba(79, 144, 230,.5);background:rgba(79, 144, 230,.08)}
+          .act-pill--done{color:var(--success-500);border-color:rgba(52, 211, 153,.5);background:rgba(52, 211, 153,.08)}
+          .act-jr{font-family:var(--font-mono);font-size:.76rem}
+          .act-jr.jr--neg{color:var(--danger-500);font-weight:700} .act-jr.jr--soon{color:var(--warn-500)} .act-jr.jr--ok{color:var(--text-secondary)}
+          @media (max-width:760px){ .act-day{min-height:60px} .act-chip{font-size:0;height:8px;border-left-width:0;border-radius:4px} .act-chip--haute{background:var(--danger-500)} .act-chip--moyenne{background:var(--warn-500)} .act-chip--basse{background:var(--accent-500)} }
         </style>
 
         <div class="control-center__title-block" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
           <div>
-            <h1 class="control-center__title">🎯 Ordre de mission</h1>
-            <p class="control-center__sub">Missions confiées aux chefs de cellule (TL) — demande, prise en charge, réalisation, validation</p>
+            <h1 class="control-center__title">🗓️ Planificateur d'Actions</h1>
+            <p class="control-center__sub">Suivi des actions, échéances et priorités de l'équipe</p>
           </div>
-          <button class="btn btn--primary" id="btn-msn-new" data-edit-module="missions" style="font-weight:700">➕ Nouvel ordre de mission</button>
+          <button class="btn btn--primary" id="btn-msn-new" data-edit-module="missions" style="font-weight:700">➕ Nouvelle action</button>
         </div>
 
         <!-- KPIs -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.7rem;margin-bottom:1.1rem">
-          <div class="bl-kpi msn-kpi" data-mstatus="requested" title="Filtrer : demandées" style="cursor:pointer;background:linear-gradient(135deg,rgba(0,180,255,.11),var(--bg-elevated));border-color:rgba(0,180,255,.30)">
-            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#22d3ee,transparent)"></div>
-            <div class="bl-kpi__label">🔵 Demandées</div>
-            <div id="msn-kpi-requested" class="bl-kpi__value" style="color:#22d3ee">—</div>
-            <div class="bl-kpi__wm">📨</div>
+          <div class="bl-kpi" style="background:linear-gradient(135deg,rgba(79, 144, 230,.11),var(--bg-elevated));border-color:rgba(79, 144, 230,.30)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,var(--accent-500),transparent)"></div>
+            <div class="bl-kpi__label">📋 Total</div>
+            <div id="msn-kpi-total" class="bl-kpi__value" style="color:var(--accent-500)">—</div>
+            <div class="bl-kpi__wm">📋</div>
           </div>
-          <div class="bl-kpi msn-kpi" data-mstatus="in_progress" title="Filtrer : en cours" style="cursor:pointer;background:linear-gradient(135deg,rgba(247, 183, 51,.12),var(--bg-elevated));border-color:rgba(247, 183, 51,.30)">
-            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#f7b733,transparent)"></div>
-            <div class="bl-kpi__label">🟠 En cours</div>
-            <div id="msn-kpi-progress" class="bl-kpi__value" style="color:#f7b733">—</div>
-            <div class="bl-kpi__wm">🔧</div>
+          <div class="bl-kpi" data-mfilter="late" title="Filtrer : en retard" style="cursor:pointer;background:linear-gradient(135deg,rgba(251, 90, 106,.11),var(--bg-elevated));border-color:rgba(251, 90, 106,.30)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,var(--danger-500),transparent)"></div>
+            <div class="bl-kpi__label">🔴 En retard</div>
+            <div id="msn-kpi-late" class="bl-kpi__value" style="color:var(--danger-500)">—</div>
+            <div class="bl-kpi__wm">⚠️</div>
           </div>
-          <div class="bl-kpi msn-kpi" data-mstatus="done" title="Filtrer : réalisées" style="cursor:pointer;background:linear-gradient(135deg,rgba(52, 211, 153,.12),var(--bg-elevated));border-color:rgba(52, 211, 153,.30)">
-            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#34d399,transparent)"></div>
-            <div class="bl-kpi__label">🟢 Réalisées</div>
-            <div id="msn-kpi-done" class="bl-kpi__value" style="color:#34d399">—</div>
+          <div class="bl-kpi" data-mfilter="week" title="Filtrer : échéance ≤ 7 jours" style="cursor:pointer;background:linear-gradient(135deg,rgba(247, 183, 51,.12),var(--bg-elevated));border-color:rgba(247, 183, 51,.30)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,var(--warn-500),transparent)"></div>
+            <div class="bl-kpi__label">🟠 ≤ 7 jours</div>
+            <div id="msn-kpi-week" class="bl-kpi__value" style="color:var(--warn-500)">—</div>
+            <div class="bl-kpi__wm">⏳</div>
+          </div>
+          <div class="bl-kpi" data-mfilter="done" title="Filtrer : terminées" style="cursor:pointer;background:linear-gradient(135deg,rgba(52, 211, 153,.12),var(--bg-elevated));border-color:rgba(52, 211, 153,.30)">
+            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,var(--success-500),transparent)"></div>
+            <div class="bl-kpi__label">🟢 Terminées</div>
+            <div id="msn-kpi-done" class="bl-kpi__value" style="color:var(--success-500)">—</div>
             <div class="bl-kpi__wm">✅</div>
           </div>
-          <div class="bl-kpi msn-kpi" data-mstatus="validated" title="Filtrer : validées" style="cursor:pointer;background:linear-gradient(135deg,rgba(167,139,250,.12),var(--bg-elevated));border-color:rgba(167,139,250,.30)">
-            <div class="bl-kpi__bar" style="background:linear-gradient(90deg,#a78bfa,transparent)"></div>
-            <div class="bl-kpi__label">🟣 Validées</div>
-            <div id="msn-kpi-validated" class="bl-kpi__value" style="color:#a78bfa">—</div>
-            <div class="bl-kpi__wm">🏁</div>
+        </div>
+
+        <!-- Sous-onglets -->
+        <div style="display:flex;gap:.3rem;margin-bottom:1rem;border-bottom:1px solid var(--border-soft)">
+          <button type="button" class="act-subtab act-subtab--on" id="msn-subtab-cal">📅 Calendrier</button>
+          <button type="button" class="act-subtab" id="msn-subtab-idx">📋 Index</button>
+        </div>
+
+        <!-- Vue Calendrier -->
+        <div id="msn-view-cal">
+          <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1rem;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <button type="button" class="btn" id="msn-cal-prev">◀</button>
+              <h2 id="msn-cal-title" style="font-size:1.1rem;min-width:170px;text-align:center">—</h2>
+              <button type="button" class="btn" id="msn-cal-next">▶</button>
+            </div>
+            <button type="button" class="btn" id="msn-cal-today">Aujourd'hui</button>
+          </div>
+          <div class="act-cal-head" id="msn-cal-head"></div>
+          <div class="act-cal-grid" id="msn-cal-grid"></div>
+        </div>
+
+        <!-- Vue Index -->
+        <div id="msn-view-idx" hidden>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+            <input type="search" class="filter__input" id="msn-search" placeholder="🔍 Titre, description, responsable…" style="flex:1;min-width:220px" autocomplete="off">
+            <select class="filter__input" id="msn-filter-prio">
+              <option value="">Priorité : toutes</option>
+              <option value="haute">🔴 Haute</option>
+              <option value="moyenne">🟠 Moyenne</option>
+              <option value="basse">🔵 Basse</option>
+            </select>
+            <select class="filter__input" id="msn-filter-status">
+              <option value="">Statut : tous</option>
+              <option value="retard">En retard</option>
+              <option value="semaine">≤ 7 jours</option>
+              <option value="en_cours">En cours</option>
+              <option value="terminee">Terminée</option>
+            </select>
+            <select class="filter__input" id="msn-sort">
+              <option value="deadline">Tri : échéance</option>
+              <option value="priorite">Tri : priorité</option>
+            </select>
+          </div>
+          <div class="history__tablewrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Action</th><th>Responsable</th><th>Priorité</th><th>Échéance</th><th>Restant</th><th>Statut</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="msn-idx-body"></tbody>
+            </table>
+          </div>
+          <div id="msn-idx-empty" style="display:none;text-align:center;padding:2.5rem;color:var(--text-muted)">
+            Aucune action. Cliquez sur « ➕ Nouvelle action ».
           </div>
         </div>
-
-        <!-- Filtres -->
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
-          <input type="search" class="filter__input" id="msn-search" placeholder="🔍 Titre, description, TL…" style="flex:1;min-width:220px" autocomplete="off">
-          <select class="filter__input" id="msn-filter-status" style="min-width:150px">
-            <option value="">Tous statuts</option>
-            <option value="requested">🔵 Demandées</option>
-            <option value="in_progress">🟠 En cours</option>
-            <option value="done">🟢 Réalisées</option>
-            <option value="validated">🟣 Validées</option>
-          </select>
-          <label style="display:flex;align-items:center;gap:.35rem;font-size:.8rem;color:var(--text-muted);cursor:pointer" id="msn-mine-wrap">
-            <input type="checkbox" id="msn-mine" style="width:16px;height:16px;accent-color:#f7b733"> Mes missions
-          </label>
-        </div>
-
-        <div id="msn-list" style="display:grid;gap:.7rem"></div>
       </section>
 
       <footer class="leoni-footer">
@@ -10216,12 +10268,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     </div>
   </div>
 
-  <!-- Modal: ordre de mission -->
+  <!-- Modal: action (Planificateur d'Actions) -->
   <div class="modal" id="modal-msn" role="dialog" aria-modal="true" hidden>
     <div class="modal__backdrop" data-close></div>
-    <div class="modal__panel" style="max-width:600px">
+    <div class="modal__panel" style="max-width:560px">
       <header class="modal__header">
-        <h2 class="modal__title" id="msn-modal-title">🎯 Nouvel ordre de mission</h2>
+        <h2 class="modal__title" id="msn-modal-title">🗓️ Nouvelle action</h2>
         <button class="modal__close" data-close aria-label="Fermer">×</button>
       </header>
       <div class="modal__body" id="msn-modal-body" style="display:grid;gap:.75rem;max-height:70vh;overflow:auto"></div>
@@ -10229,22 +10281,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <button class="btn btn--danger" id="btn-msn-delete" style="margin-right:auto" hidden>🗑 Supprimer</button>
         <button class="btn btn--ghost" data-close>Fermer</button>
         <button class="btn btn--primary" id="btn-msn-save" hidden>💾 Enregistrer</button>
-      </footer>
-    </div>
-  </div>
-
-  <!-- Modal: discussion d'un ordre de mission -->
-  <div class="modal" id="modal-msn-chat" role="dialog" aria-modal="true" hidden>
-    <div class="modal__backdrop" data-close></div>
-    <div class="modal__panel" style="max-width:600px">
-      <header class="modal__header">
-        <h2 class="modal__title" id="msn-chat-title">💬 Discussion</h2>
-        <button class="modal__close" data-close aria-label="Fermer">×</button>
-      </header>
-      <div class="modal__body" id="msn-chat-body" style="max-height:58vh;overflow:auto;background:var(--bg-3);border-radius:10px"></div>
-      <footer class="modal__footer" style="gap:.5rem">
-        <input class="field__input" id="msn-chat-input" placeholder="Signaler un problème, répondre…" style="flex:1" autocomplete="off">
-        <button class="btn btn--primary" id="btn-msn-chat-send">Envoyer</button>
       </footer>
     </div>
   </div>
@@ -11402,7 +11438,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     toolsLoaded: false,
     qrqc: {},             // 🆕 fiches QRQC / PDCA (réclamations qualité)
     documentation: {},    // 🆕 bibliothèque documentaire (métadonnées)
-    missions: {},         // 🆕 ordres de mission (admin ↔ TL)
+    missions: {},         // 🆕 actions planifiées (Planificateur d'Actions)
   };
 
   /* ==========================================================================
@@ -15141,7 +15177,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       { key: 'qrqc',         label: 'QRQC / PDCA',          icon: '🔄', nav: 'qrqc',         views: ['qrqc'] },
       { key: 'preparations', label: 'Préparations',         icon: '🧰', nav: 'preparations', views: ['preparations'] },
       { key: 'documentation', label: 'Documentation',        icon: '📚', nav: 'documentation', views: ['documentation'] },
-      { key: 'missions',      label: 'Ordre de mission',     icon: '🎯', nav: 'missions',      views: ['missions'] },
+      { key: 'missions',      label: "Planificateur d'Actions", icon: '🗓️', nav: 'missions',   views: ['missions'] },
     ],
     // Rôles gérables (admin/super_admin exclus = toujours total)
     ROLES: [
@@ -15974,7 +16010,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
     /* --- 🆕 QRQC / PDCA (réclamations qualité) --- */
     /* --- 🆕 DOCUMENTATION (métadonnées seules ; fichiers b64 dans documentationFiles) --- */
-    /* --- 🆕 ORDRES DE MISSION (admin ↔ TL) --- */
+    /* --- 🆕 PLANIFICATEUR D'ACTIONS --- */
     listenMissions() {
       const ref = fbDb.ref('missions');
       const handler = (snap) => {
@@ -36107,365 +36143,298 @@ Erreur Firebase : ${e.message}`;
       }
     },
     /* ═══════════════════════════════════════════════════════════════════
-       🎯 ORDRE DE MISSION — Admin/Responsable demande, TL prend & réalise, Admin valide
-       Données : missions/{id} · Statuts : requested → in_progress → done → validated
+       🗓️ PLANIFICATEUR D'ACTIONS — Calendrier + Index, échéances & priorités
+       Données : missions/{id} (chemin Firebase historique, conservé)
        ═══════════════════════════════════════════════════════════════════ */
     missions: {
       _editingId: null,
-      _tls: null,        // cache de la liste des TL
+      _subtab: 'cal',
+      _calY: null, _calM: null,
 
-      STATUS: {
-        requested:   { label: '🔵 Demandée',   short: 'Demandée' },
-        in_progress: { label: '🟠 En cours',    short: 'En cours' },
-        done:        { label: '🟢 Réalisée',    short: 'Réalisée' },
-        validated:   { label: '🟣 Validée',     short: 'Validée' }
-      },
+      MONTHS: ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'],
+      DAYS: ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'],
+      PRIO_ORD: { haute: 0, moyenne: 1, basse: 2 },
+      PRIO_LABEL: { haute: 'Haute', moyenne: 'Moyenne', basse: 'Basse' },
 
-      _canCreate() { return ['admin', 'super_admin', 'responsable'].includes(state.role); },
-      _canValidate() { return ['admin', 'super_admin', 'responsable'].includes(state.role); },
-      _isTL() { return state.role === 'tl'; },
-      _mine(m) { return m.assignedTo && state.user && m.assignedTo === state.user.uid; },
+      _canCreate() { return typeof access !== 'undefined' ? access.canEdit('missions') : true; },
 
       init() {
+        const now = new Date();
+        this._calY = now.getFullYear();
+        this._calM = now.getMonth();
         document.getElementById('btn-msn-new')?.addEventListener('click', () => this.openCreate());
-        document.getElementById('msn-search')?.addEventListener('input', debounce(() => this.render(), 200));
-        document.getElementById('msn-filter-status')?.addEventListener('change', () => this.render());
-        document.getElementById('msn-mine')?.addEventListener('change', () => this.render());
-        document.querySelectorAll('#view-missions .msn-kpi[data-mstatus]').forEach(card => {
+        document.getElementById('msn-search')?.addEventListener('input', debounce(() => this.renderIndex(), 200));
+        document.getElementById('msn-filter-prio')?.addEventListener('change', () => this.renderIndex());
+        document.getElementById('msn-filter-status')?.addEventListener('change', () => this.renderIndex());
+        document.getElementById('msn-sort')?.addEventListener('change', () => this.renderIndex());
+        document.getElementById('msn-cal-prev')?.addEventListener('click', () => this._moveMonth(-1));
+        document.getElementById('msn-cal-next')?.addEventListener('click', () => this._moveMonth(1));
+        document.getElementById('msn-cal-today')?.addEventListener('click', () => {
+          const n = new Date(); this._calY = n.getFullYear(); this._calM = n.getMonth(); this.renderCal();
+        });
+        document.getElementById('msn-subtab-cal')?.addEventListener('click', () => this._showSubtab('cal'));
+        document.getElementById('msn-subtab-idx')?.addEventListener('click', () => this._showSubtab('idx'));
+        document.querySelectorAll('#view-missions .bl-kpi[data-mfilter]').forEach(card => {
           card.addEventListener('click', () => {
+            this._showSubtab('idx');
             const sel = document.getElementById('msn-filter-status');
-            const v = card.dataset.mstatus;
-            sel.value = (sel.value === v) ? '' : v;
-            this.render();
+            const map = { late: 'retard', week: 'semaine', done: 'terminee' };
+            const v = map[card.dataset.mfilter] || '';
+            if (v) sel.value = (sel.value === v) ? '' : v;
+            this.renderIndex();
           });
         });
         const modal = document.getElementById('modal-msn');
         modal?.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => { modal.hidden = true; }));
         document.getElementById('btn-msn-save')?.addEventListener('click', () => this.save());
         document.getElementById('btn-msn-delete')?.addEventListener('click', () => this.remove());
-        // Modal discussion
-        const chatModal = document.getElementById('modal-msn-chat');
-        chatModal?.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => { chatModal.hidden = true; this._chatId = null; }));
-        document.getElementById('btn-msn-chat-send')?.addEventListener('click', () => this._sendMessage());
-        document.getElementById('msn-chat-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); this._sendMessage(); } });
+        const head = document.getElementById('msn-cal-head');
+        if (head) head.innerHTML = this.DAYS.map(d => `<div>${d}</div>`).join('');
       },
+
+      _iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); },
 
       _all() {
-        return Object.entries(state.missions || {}).map(([id, m]) => ({ ...(m || {}), id }))
-          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        return Object.entries(state.missions || {}).map(([id, m]) => ({ ...(m || {}), id }));
       },
 
-      async _loadTLs() {
-        try {
-          const snap = await fbDb.ref('users').orderByChild('role').equalTo('tl').once('value');
-          const v = snap.val() || {};
-          this._tls = Object.entries(v).map(([uid, u]) => ({ uid, name: u.displayName || u.name || u.email || uid }));
-        } catch (e) { this._tls = []; }
-        return this._tls;
+      _daysLeft(dl) {
+        if (!dl) return 999;
+        const [y, mo, d] = dl.split('-').map(Number);
+        const target = new Date(y, mo - 1, d);
+        const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+        return Math.round((target - t0) / 86400000);
       },
+      _isLate(m) { return m.status !== 'terminee' && this._daysLeft(m.deadline) < 0; },
+      actId(m) { return 'ACT-' + String(m.num || 0).padStart(3, '0'); },
 
       updateBadge() {
-        // Badge = missions actives me concernant (TL) ou toutes non validées (admin)
-        const all = this._all();
-        let n;
-        if (this._isTL()) n = all.filter(m => this._mine(m) && m.status !== 'validated').length;
-        else n = all.filter(m => m.status !== 'validated').length;
+        // Badge = actions en retard (le plus actionnable pour une pastille d'alerte)
+        const n = this._all().filter(m => this._isLate(m)).length;
         const b = document.getElementById('nav-missions-count');
         if (b) { b.textContent = n; b.style.display = n > 0 ? '' : 'none'; }
       },
 
+      /** Point d'entrée appelé par le listener temps réel Firebase + navigation */
       render() {
-        const listEl = document.getElementById('msn-list');
-        if (!listEl) return;
-        // Discussion ouverte → maj live du fil (nouveaux messages temps réel)
-        if (this._chatId && !document.getElementById('modal-msn-chat')?.hidden) this._renderChatBody(this._chatId);
         const newBtn = document.getElementById('btn-msn-new');
         if (newBtn) newBtn.style.display = this._canCreate() ? '' : 'none';
-        const mineWrap = document.getElementById('msn-mine-wrap');
-        if (mineWrap) mineWrap.style.display = this._isTL() ? '' : 'none';
+        this._renderKPIs();
+        if (this._subtab === 'idx') this.renderIndex(); else this.renderCal();
+      },
 
-        let all = this._all();
-        // Un TL ne voit que ses missions assignées
-        if (this._isTL()) all = all.filter(m => this._mine(m));
-
-        // KPIs
-        const k = { requested: 0, in_progress: 0, done: 0, validated: 0 };
-        all.forEach(m => { k[m.status || 'requested'] = (k[m.status || 'requested'] || 0) + 1; });
+      _renderKPIs() {
+        const all = this._all();
+        const open = all.filter(m => m.status !== 'terminee');
         const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
-        set('msn-kpi-requested', k.requested); set('msn-kpi-progress', k.in_progress);
-        set('msn-kpi-done', k.done); set('msn-kpi-validated', k.validated);
+        set('msn-kpi-total', all.length);
+        set('msn-kpi-late', open.filter(m => this._isLate(m)).length);
+        set('msn-kpi-week', open.filter(m => { const j = this._daysLeft(m.deadline); return j >= 0 && j <= 7; }).length);
+        set('msn-kpi-done', all.filter(m => m.status === 'terminee').length);
+      },
 
-        // Filtres
-        let list = all;
-        const q = (document.getElementById('msn-search')?.value || '').trim().toLowerCase();
-        const fs = document.getElementById('msn-filter-status')?.value || '';
-        const mine = document.getElementById('msn-mine')?.checked;
-        if (fs) list = list.filter(m => (m.status || 'requested') === fs);
-        if (mine && this._isTL()) list = list.filter(m => this._mine(m));
-        if (q) list = list.filter(m => [m.title, m.description, m.assignedToName, m.createdByName].some(v => (v || '').toString().toLowerCase().includes(q)));
+      /* ── Sous-onglets ── */
+      _showSubtab(v) {
+        this._subtab = v;
+        document.getElementById('msn-subtab-cal')?.classList.toggle('act-subtab--on', v === 'cal');
+        document.getElementById('msn-subtab-idx')?.classList.toggle('act-subtab--on', v === 'idx');
+        const calView = document.getElementById('msn-view-cal'), idxView = document.getElementById('msn-view-idx');
+        if (calView) calView.hidden = v !== 'cal';
+        if (idxView) idxView.hidden = v !== 'idx';
+        if (v === 'idx') this.renderIndex(); else this.renderCal();
+      },
 
-        if (!list.length) {
-          listEl.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--text-muted);background:var(--bg-elevated);border-radius:10px">
-            <div style="font-size:2.5rem;opacity:.5">📭</div>
-            <div style="margin-top:.5rem">Aucun ordre de mission${(q || fs) ? ' pour ces filtres' : ''}</div>
-            ${this._canCreate() ? '<div style="margin-top:.35rem;font-size:.78rem">« ➕ Nouvel ordre de mission » pour confier une tâche à un chef de cellule.</div>' : ''}
-          </div>`;
-          return;
+      /* ── Calendrier ── */
+      _moveMonth(d) {
+        this._calM += d;
+        if (this._calM < 0) { this._calM = 11; this._calY--; }
+        if (this._calM > 11) { this._calM = 0; this._calY++; }
+        this.renderCal();
+      },
+      renderCal() {
+        const titleEl = document.getElementById('msn-cal-title');
+        if (titleEl) titleEl.textContent = this.MONTHS[this._calM] + ' ' + this._calY;
+        const grid = document.getElementById('msn-cal-grid');
+        if (!grid) return;
+        grid.innerHTML = '';
+        const first = new Date(this._calY, this._calM, 1);
+        const offset = (first.getDay() + 6) % 7;
+        const nbDays = new Date(this._calY, this._calM + 1, 0).getDate();
+        const todayISO = this._iso(new Date());
+        const byDate = {};
+        this._all().forEach(m => { if (m.deadline) (byDate[m.deadline] = byDate[m.deadline] || []).push(m); });
+        for (let i = 0; i < offset; i++) { const c = document.createElement('div'); c.className = 'act-day act-day--off'; grid.appendChild(c); }
+        for (let d = 1; d <= nbDays; d++) {
+          const ds = this._iso(new Date(this._calY, this._calM, d));
+          const dow = (offset + d - 1) % 7;
+          const cell = document.createElement('div');
+          cell.className = 'act-day' + (ds === todayISO ? ' act-day--today' : '') + (dow >= 5 ? ' act-day--we' : '');
+          cell.innerHTML = `<div class="act-day__n">${String(d).padStart(2, '0')}</div>`;
+          cell.addEventListener('click', (e) => { if (e.target === cell || e.target.classList.contains('act-day__n')) this.openCreate(ds); });
+          const list = (byDate[ds] || []).slice().sort((a, b) => this.PRIO_ORD[a.priority] - this.PRIO_ORD[b.priority]);
+          list.slice(0, 3).forEach(m => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'act-chip act-chip--' + (m.priority || 'moyenne') + (m.status === 'terminee' ? ' act-chip--done' : '') + (this._isLate(m) ? ' act-chip--late' : '');
+            chip.textContent = m.title || 'Action';
+            chip.title = this.actId(m) + ' — ' + (m.title || '') + (m.responsable ? ' — ' + m.responsable : '');
+            chip.addEventListener('click', (ev) => { ev.stopPropagation(); this.openEdit(m.id); });
+            cell.appendChild(chip);
+          });
+          if (list.length > 3) { const more = document.createElement('div'); more.className = 'act-more'; more.textContent = '+' + (list.length - 3) + ' autres'; cell.appendChild(more); }
+          grid.appendChild(cell);
         }
+      },
 
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        listEl.innerHTML = list.map(m => {
-          const st = m.status || 'requested';
-          const S = this.STATUS[st];
-          const prio = m.priority || 'normale';
-          const overdue = m.deadline && st !== 'done' && st !== 'validated' && new Date(m.deadline) < today;
-          return `<article class="msn-card msn-card--${st}" data-id="${ui.escape(m.id)}">
-            <div style="display:flex;justify-content:space-between;gap:.6rem;align-items:flex-start;flex-wrap:wrap">
-              <div style="flex:1;min-width:220px">
-                <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-                  <span style="font-weight:700;color:var(--text-primary)">${ui.escape(m.title || 'Mission')}</span>
-                  <span class="msn-status msn-status--${st}">${S.label}</span>
-                  <span class="msn-prio msn-prio--${prio}">${prio === 'haute' ? '🔴' : prio === 'basse' ? '🔵' : '⚪'} ${prio}</span>
-                  ${overdue ? '<span class="msn-status" style="background:rgba(251, 90, 106,.16);color:#fb5a6a">⚠️ en retard</span>' : ''}
-                </div>
-                ${m.description ? `<div style="font-size:.82rem;color:var(--text-secondary,#b9c4dc);margin-top:.35rem;white-space:pre-wrap">${ui.escape(m.description)}</div>` : ''}
-                <div class="msn-meta">
-                  <span>👷 TL : <strong style="color:var(--text-primary)">${ui.escape(m.assignedToName || '—')}</strong></span>
-                  ${m.deadline ? `<span>📅 échéance ${fmt.date(new Date(m.deadline).getTime())}</span>` : ''}
-                  <span>✍️ ${ui.escape(m.createdByName || '')} · ${fmt.date(m.createdAt)}</span>
-                </div>
-                ${m.completionNote ? `<div style="font-size:.8rem;color:#34d399;background:rgba(52, 211, 153,.08);border-left:3px solid #34d399;border-radius:5px;padding:.4rem .55rem;margin-top:.5rem"><strong>Compte-rendu TL :</strong> ${ui.escape(m.completionNote)}${m.completedAt ? ' <span style="color:var(--text-muted)">· ' + fmt.date(m.completedAt) + '</span>' : ''}</div>` : ''}
-              </div>
-            </div>
-            <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem">${this._actions(m, st).join('')}</div>
-          </article>`;
+      /* ── Index ── */
+      renderIndex() {
+        const tb = document.getElementById('msn-idx-body');
+        if (!tb) return;
+        const q = (document.getElementById('msn-search')?.value || '').trim().toLowerCase();
+        const fp = document.getElementById('msn-filter-prio')?.value || '';
+        const fs = document.getElementById('msn-filter-status')?.value || '';
+        const srt = document.getElementById('msn-sort')?.value || 'deadline';
+        let list = this._all().filter(m => {
+          if (fp && m.priority !== fp) return false;
+          if (fs === 'retard' && !this._isLate(m)) return false;
+          if (fs === 'semaine') { const j = this._daysLeft(m.deadline); if (!(m.status !== 'terminee' && j >= 0 && j <= 7)) return false; }
+          if (fs === 'en_cours' && (m.status === 'terminee' || this._isLate(m))) return false;
+          if (fs === 'terminee' && m.status !== 'terminee') return false;
+          if (q && ![m.title, m.responsable, m.description, this.actId(m)].join(' ').toLowerCase().includes(q)) return false;
+          return true;
+        });
+        list.sort((a, b) => {
+          if (srt === 'priorite') return this.PRIO_ORD[a.priority] - this.PRIO_ORD[b.priority] || (a.deadline || '').localeCompare(b.deadline || '');
+          return (a.deadline || '').localeCompare(b.deadline || '');
+        });
+        const emptyEl = document.getElementById('msn-idx-empty');
+        if (emptyEl) emptyEl.style.display = list.length ? 'none' : 'block';
+        tb.innerHTML = list.map(m => {
+          const j = this._daysLeft(m.deadline);
+          const late = this._isLate(m);
+          const jrCls = m.status === 'terminee' ? 'jr--ok' : (late ? 'jr--neg' : (j <= 3 ? 'jr--soon' : 'jr--ok'));
+          const jrTxt = m.status === 'terminee' ? '—' : (j < 0 ? `retard J+${-j}` : (j === 0 ? "aujourd'hui" : `J-${j}`));
+          const [stLbl, stCls] = m.status === 'terminee' ? ['Terminée', 'done'] : (late ? ['En retard', 'late'] : ['En cours', 'run']);
+          return `<tr data-id="${ui.escape(m.id)}">
+            <td><b style="color:var(--text-primary)">${ui.escape(m.title || '')}</b>${m.description ? `<div style="color:var(--text-muted);font-size:.78rem;margin-top:.2rem">${ui.escape(m.description)}</div>` : ''}</td>
+            <td>${ui.escape(m.responsable || '—')}</td>
+            <td><span class="act-led act-led--${m.priority || 'moyenne'}"></span>${this.PRIO_LABEL[m.priority] || 'Moyenne'}</td>
+            <td class="mono">${m.deadline ? fmt.date(new Date(m.deadline).getTime()) : '—'}</td>
+            <td><span class="act-jr ${jrCls}">${jrTxt}</span></td>
+            <td><span class="act-pill act-pill--${stCls}">${stLbl}</span></td>
+            <td style="white-space:nowrap">
+              <button class="rowbtn" data-act="toggle" title="${m.status === 'terminee' ? 'Rouvrir' : 'Marquer terminée'}">${m.status === 'terminee' ? '↩️' : '✅'}</button>
+              <button class="rowbtn" data-act="edit" title="Modifier">✏️</button>
+            </td>
+          </tr>`;
         }).join('');
-
-        listEl.querySelectorAll('.msn-card').forEach(card => {
-          const id = card.dataset.id;
-          card.querySelector('[data-act="chat"]')?.addEventListener('click', () => this._openChat(id));
-          card.querySelector('[data-act="take"]')?.addEventListener('click', () => this._setStatus(id, 'in_progress'));
-          card.querySelector('[data-act="done"]')?.addEventListener('click', () => this._complete(id));
-          card.querySelector('[data-act="validate"]')?.addEventListener('click', () => this._setStatus(id, 'validated'));
-          card.querySelector('[data-act="edit"]')?.addEventListener('click', () => this.openEdit(id));
-          card.querySelector('[data-act="reopen"]')?.addEventListener('click', () => this._setStatus(id, 'in_progress'));
+        tb.querySelectorAll('tr').forEach(tr => {
+          const id = tr.dataset.id;
+          tr.querySelector('[data-act="toggle"]')?.addEventListener('click', () => this.toggleDone(id));
+          tr.querySelector('[data-act="edit"]')?.addEventListener('click', () => this.openEdit(id));
         });
       },
 
-      _actions(m, st) {
-        const a = [];
-        const isTL = this._isTL(), mine = this._mine(m), canV = this._canValidate();
-        const msgN = this._msgCount(m);
-        // 💬 Discussion — accessible à l'admin et au TL assigné, tout au long de la mission
-        if (canV || (isTL && mine)) {
-          a.push(`<button class="btn btn--ghost" data-act="chat">💬 Discussion${msgN ? ' (' + msgN + ')' : ''}</button>`);
-        }
-        // TL assigné : la RÉALISATION reste disponible jusqu'à la validation finale
-        if (isTL && mine && st !== 'validated') {
-          if (st === 'requested') a.push('<button class="btn btn--secondary" data-act="take" style="background:rgba(247, 183, 51,.14);color:#f7b733;border:1px solid rgba(247, 183, 51,.35)">▶️ Prendre en charge</button>');
-          a.push('<button class="btn btn--primary" data-act="done">✅ Réalisation</button>');
-        }
-        // Admin/Responsable : VALIDER n'apparaît qu'APRÈS la réalisation (fin de mission)
-        if (canV) {
-          if (st === 'done') a.push('<button class="btn btn--secondary" data-act="validate" style="background:rgba(167,139,250,.14);color:#a78bfa;border:1px solid rgba(167,139,250,.35)">🏁 Valider (fin)</button>');
-          if (st === 'validated' || st === 'done') a.push('<button class="btn btn--ghost" data-act="reopen">↩️ Rouvrir</button>');
-          a.push('<button class="btn btn--ghost" data-act="edit">✏️ Modifier</button>');
-        }
-        return a;
+      async toggleDone(id) {
+        const m = state.missions?.[id]; if (!m) return;
+        const newStatus = m.status === 'terminee' ? 'en_cours' : 'terminee';
+        try {
+          await fbDb.ref('missions/' + id).update({ status: newStatus, updatedAt: Date.now() });
+          try { db.audit(newStatus === 'terminee' ? 'mission.done' : 'mission.update', id, { status: newStatus }); } catch (e) {}
+          ui.toast(newStatus === 'terminee' ? '✅ Action terminée' : '↩️ Action rouverte', 'success');
+        } catch (e) { ui.toast('❌ ' + (e.message || e), 'danger'); }
       },
 
-      /* ── Création (admin) ── */
-      async openCreate() {
-        if (!this._canCreate()) { ui.toast('🔒 Réservé aux gestionnaires', 'warn'); return; }
+      /* ── Création / édition ── */
+      openCreate(presetDate) {
+        if (!this._canCreate()) { ui.toast('🔒 Vous n\'avez pas les droits pour créer une action', 'warn'); return; }
         this._editingId = null;
-        await this._renderForm({});
+        this._renderForm({ deadline: presetDate || this._iso(new Date()) });
       },
-      async openEdit(id) {
-        if (!this._canCreate()) return;
+      openEdit(id) {
         this._editingId = id;
-        await this._renderForm(state.missions?.[id] || {});
+        this._renderForm(state.missions?.[id] || {});
       },
 
-      async _renderForm(m) {
+      _renderForm(m) {
         const body = document.getElementById('msn-modal-body');
         const modal = document.getElementById('modal-msn');
         if (!body || !modal) return;
-        document.getElementById('msn-modal-title').textContent = this._editingId ? '🎯 Modifier l\'ordre de mission' : '🎯 Nouvel ordre de mission';
-        const tls = await this._loadTLs();
-        const dl = m.deadline ? m.deadline : '';
+        document.getElementById('msn-modal-title').textContent = this._editingId ? '🗓️ Modifier l\'action' : '🗓️ Nouvelle action';
         body.innerHTML = `
-          <div class="field"><label class="field__label">Intitulé de la mission *</label>
-            <input class="field__input" id="m-title" value="${ui.escape(m.title || '')}" placeholder="ex : Contrôle applicateurs cellule B"></div>
-          <div class="field"><label class="field__label">Description / consignes</label>
-            <textarea class="field__input field__input--area" id="m-desc" rows="4" placeholder="Détail de la tâche, attendus, points de contrôle…">${ui.escape(m.description || '')}</textarea></div>
-          <div style="display:grid;grid-template-columns:1fr 140px 150px;gap:.6rem">
-            <div class="field"><label class="field__label">Assigner au TL *</label>
-              <select class="field__input" id="m-tl">
-                <option value="">— Choisir —</option>
-                ${tls.map(t => `<option value="${ui.escape(t.uid)}" ${m.assignedTo === t.uid ? 'selected' : ''}>${ui.escape(t.name)}</option>`).join('')}
-              </select></div>
+          <div class="field"><label class="field__label">Titre de l'action *</label>
+            <input class="field__input" id="m-title" value="${ui.escape(m.title || '')}" placeholder="ex : Contrôler les applicateurs cellule B"></div>
+          <div class="field"><label class="field__label">Description</label>
+            <textarea class="field__input field__input--area" id="m-desc" rows="4" placeholder="Détails, contexte, documents nécessaires…">${ui.escape(m.description || '')}</textarea></div>
+          <div style="display:grid;grid-template-columns:1fr 150px;gap:.6rem">
+            <div class="field"><label class="field__label">Responsable</label>
+              <input class="field__input" id="m-resp" value="${ui.escape(m.responsable || '')}" placeholder="Nom (optionnel)"></div>
+            <div class="field"><label class="field__label">Échéance *</label>
+              <input class="field__input" id="m-deadline" type="date" value="${m.deadline || ''}"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
             <div class="field"><label class="field__label">Priorité</label>
               <select class="field__input" id="m-prio">
-                <option value="basse" ${m.priority === 'basse' ? 'selected' : ''}>🔵 Basse</option>
-                <option value="normale" ${!m.priority || m.priority === 'normale' ? 'selected' : ''}>⚪ Normale</option>
                 <option value="haute" ${m.priority === 'haute' ? 'selected' : ''}>🔴 Haute</option>
+                <option value="moyenne" ${!m.priority || m.priority === 'moyenne' ? 'selected' : ''}>🟠 Moyenne</option>
+                <option value="basse" ${m.priority === 'basse' ? 'selected' : ''}>🔵 Basse</option>
               </select></div>
-            <div class="field"><label class="field__label">Échéance</label>
-              <input class="field__input" id="m-deadline" type="date" value="${dl}"></div>
-          </div>
-          ${!tls.length ? '<div style="font-size:.76rem;color:#f7b733;background:rgba(247, 183, 51,.1);border-radius:6px;padding:.5rem .7rem">⚠️ Aucun utilisateur avec le rôle « TL Cellule ». Crée d\'abord un compte TL dans Utilisateurs.</div>' : ''}`;
+            <div class="field"><label class="field__label">Statut</label>
+              <select class="field__input" id="m-stat">
+                <option value="en_cours" ${(!m.status || m.status === 'en_cours') ? 'selected' : ''}>🟠 En cours</option>
+                <option value="terminee" ${m.status === 'terminee' ? 'selected' : ''}>🟢 Terminée</option>
+              </select></div>
+          </div>`;
         document.getElementById('btn-msn-save').hidden = false;
         document.getElementById('btn-msn-delete').hidden = !this._editingId;
         modal.hidden = false;
+        setTimeout(() => document.getElementById('m-title')?.focus(), 60);
       },
 
       async save() {
-        if (!this._canCreate()) return;
         const body = document.getElementById('msn-modal-body');
         const val = id => (body.querySelector('#' + id)?.value || '').trim();
         const title = val('m-title');
-        const tlUid = val('m-tl');
-        if (!title) { ui.toast('⚠️ Donne un intitulé à la mission.', 'warn'); return; }
-        if (!tlUid) { ui.toast('⚠️ Assigne la mission à un TL.', 'warn'); return; }
-        const tl = (this._tls || []).find(t => t.uid === tlUid);
+        const deadline = val('m-deadline');
+        if (!title || !deadline) { ui.toast('⚠️ Titre et échéance sont obligatoires', 'warn'); return; }
         try {
           const now = Date.now();
           const isNew = !this._editingId;
           const id = this._editingId || fbDb.ref('missions').push().key;
           const prev = this._editingId ? (state.missions?.[id] || {}) : {};
+          const num = prev.num || (this._all().reduce((mx, m) => Math.max(mx, m.num || 0), 0) + 1);
           const data = {
+            num,
             title,
             description: val('m-desc'),
-            assignedTo: tlUid,
-            assignedToName: tl ? tl.name : (prev.assignedToName || ''),
-            priority: val('m-prio') || 'normale',
-            deadline: val('m-deadline') || '',
-            status: prev.status || 'requested',
+            responsable: val('m-resp'),
+            priority: val('m-prio') || 'moyenne',
+            deadline,
+            status: val('m-stat') || 'en_cours',
             createdBy: prev.createdBy || state.user?.uid || '',
             createdByName: prev.createdByName || state.profile?.displayName || '',
             createdAt: prev.createdAt || now,
             updatedAt: now
           };
-          if (prev.startedAt) data.startedAt = prev.startedAt;
-          if (prev.completedAt) { data.completedAt = prev.completedAt; data.completionNote = prev.completionNote || ''; }
-          if (prev.validatedAt) data.validatedAt = prev.validatedAt;
-          // 🆕 update() (pas set()) : préserve les frères non listés ici, notamment messages/{...} (chat de la mission)
           await fbDb.ref('missions/' + id).update(data);
           try { db.audit(isNew ? 'mission.create' : 'mission.update', id, { title }); } catch (e) {}
-          ui.toast(isNew ? '🎯 Ordre de mission envoyé au TL.' : '💾 Mission mise à jour.', 'success');
+          ui.toast(isNew ? '🗓️ Action créée' : '💾 Action mise à jour', 'success');
           document.getElementById('modal-msn').hidden = true;
         } catch (e) {
-          console.error('[mission] save', e);
+          console.error('[planificateur] save', e);
           ui.toast('❌ Échec : ' + (e.message || e), 'danger');
         }
       },
 
-      /* ── Transitions de statut ── */
-      async _setStatus(id, newStatus) {
-        const m = state.missions?.[id]; if (!m) return;
-        // Contrôle des droits selon la transition
-        if (newStatus === 'in_progress' && !(this._canValidate() || (this._isTL() && this._mine(m)))) return;
-        if (newStatus === 'validated' && !this._canValidate()) { ui.toast('🔒 Seul un gestionnaire peut valider', 'warn'); return; }
-        try {
-          const patch = { status: newStatus, updatedAt: Date.now() };
-          if (newStatus === 'in_progress' && !m.startedAt) patch.startedAt = Date.now();
-          if (newStatus === 'validated') patch.validatedAt = Date.now();
-          await fbDb.ref('missions/' + id).update(patch);
-          try { db.audit('mission.status', id, { status: newStatus }); } catch (e) {}
-          const lbl = { in_progress: '▶️ Mission prise en charge', validated: '🏁 Mission validée' }[newStatus] || 'Statut mis à jour';
-          ui.toast(lbl, 'success');
-        } catch (e) { ui.toast('❌ ' + (e.message || e), 'danger'); }
-      },
-
-      /* ── Le TL marque la mission réalisée (avec compte-rendu) ── */
-      async _complete(id) {
-        const m = state.missions?.[id]; if (!m) return;
-        if (!(this._isTL() && this._mine(m))) { ui.toast('🔒 Seul le TL assigné peut réaliser', 'warn'); return; }
-        const note = window.prompt('Compte-rendu de réalisation (ce que tu as fait) :', m.completionNote || '');
-        if (note === null) return;   // annulé
-        try {
-          await fbDb.ref('missions/' + id).update({
-            status: 'done',
-            completionNote: note.trim(),
-            completedAt: Date.now(),
-            updatedAt: Date.now()
-          });
-          try { db.audit('mission.done', id, {}); } catch (e) {}
-          ui.toast('✅ Mission marquée réalisée — le responsable est notifié.', 'success');
-        } catch (e) { ui.toast('❌ ' + (e.message || e), 'danger'); }
-      },
-
-      /* ── 💬 Discussion de mission (TL ↔ admin, tout au long) ── */
-      _chatId: null,
-      _msgCount(m) { return m && m.messages ? Object.keys(m.messages).length : 0; },
-
-      _openChat(id) {
-        const m = state.missions?.[id]; if (!m) return;
-        this._chatId = id;
-        const t = document.getElementById('msn-chat-title');
-        if (t) t.textContent = '💬 ' + (m.title || 'Discussion');
-        this._renderChatBody(id);
-        const modal = document.getElementById('modal-msn-chat');
-        if (modal) modal.hidden = false;
-        const inp = document.getElementById('msn-chat-input');
-        if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 80); }
-      },
-
-      _renderChatBody(id) {
-        const body = document.getElementById('msn-chat-body'); if (!body) return;
-        const m = state.missions?.[id] || {};
-        const msgs = Object.entries(m.messages || {}).map(([mid, x]) => ({ ...x, mid })).sort((a, b) => (a.at || 0) - (b.at || 0));
-        if (!msgs.length) {
-          body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:2rem 1rem;font-size:.85rem">Aucun message.<br>Le TL peut signaler un point de blocage, l\'admin peut répondre — tout au long de la mission.</div>';
-          return;
-        }
-        const myUid = state.user?.uid;
-        const dt = ts => { try { return fmt.dateTime ? fmt.dateTime(ts) : fmt.date(ts); } catch (e) { return ''; } };
-        body.innerHTML = '<div style="display:flex;flex-direction:column;gap:.5rem;padding:.85rem">' + msgs.map(x => {
-          const mine = x.by && x.by === myUid;
-          const isAdmin = ['admin', 'super_admin', 'responsable'].includes(x.role);
-          const bg = mine ? 'rgba(0,180,255,.14)' : (isAdmin ? 'rgba(167,139,250,.12)' : 'rgba(148,163,184,.10)');
-          const bd = mine ? 'rgba(0,180,255,.4)' : 'var(--border-soft)';
-          const roleTag = isAdmin ? '👑 Admin' : (x.role === 'tl' ? '👷 TL' : '');
-          return `<div style="max-width:82%;${mine ? 'align-self:flex-end' : 'align-self:flex-start'};background:${bg};border:1px solid ${bd};border-radius:11px;padding:.5rem .7rem">
-            <div style="font-size:.67rem;color:var(--text-muted);margin-bottom:.22rem">${ui.escape(x.byName || 'Utilisateur')}${roleTag ? ' · ' + roleTag : ''} · ${dt(x.at)}</div>
-            <div style="font-size:.86rem;color:var(--text-primary);white-space:pre-wrap;word-break:break-word">${ui.escape(x.text || '')}</div>
-          </div>`;
-        }).join('') + '</div>';
-        body.scrollTop = body.scrollHeight;
-      },
-
-      async _sendMessage() {
-        const id = this._chatId; if (!id) return;
-        const inp = document.getElementById('msn-chat-input');
-        const text = (inp?.value || '').trim();
-        if (!text) return;
-        const m = state.missions?.[id] || {};
-        // Autorisé : admin/responsable OU le TL assigné
-        if (!(this._canValidate() || (this._isTL() && this._mine(m)))) { ui.toast('🔒 Non autorisé', 'warn'); return; }
-        try {
-          await fbDb.ref('missions/' + id + '/messages').push({
-            by: state.user?.uid || '',
-            byName: state.profile?.displayName || '',
-            role: state.role || '',
-            text,
-            at: Date.now()
-          });
-          await fbDb.ref('missions/' + id).update({ updatedAt: Date.now() });
-          if (inp) { inp.value = ''; inp.focus(); }
-          // le listener temps réel rafraîchit le fil
-        } catch (e) { ui.toast('❌ ' + (e.message || e), 'danger'); }
-      },
-
       async remove() {
         const id = this._editingId;
-        if (!id || !this._canCreate()) return;
+        if (!id) return;
         const m = state.missions?.[id] || {};
-        if (!window.confirm('Supprimer l\'ordre de mission « ' + (m.title || '') + ' » ?')) return;
+        if (!window.confirm('Supprimer définitivement « ' + (m.title || '') + ' » ?')) return;
         try {
           await fbDb.ref('missions/' + id).remove();
           try { db.audit('mission.delete', id, {}); } catch (e) {}
-          ui.toast('🗑 Mission supprimée.', 'success');
+          ui.toast('🗑 Action supprimée', 'success');
           document.getElementById('modal-msn').hidden = true;
         } catch (e) { ui.toast('❌ ' + (e.message || e), 'danger'); }
       }
@@ -36770,7 +36739,7 @@ Erreur Firebase : ${e.message}`;
       db.listenStock();
       db.listenQrqc();           // 🆕 fiches QRQC / PDCA (réclamations qualité)
       db.listenDocumentation();  // 🆕 bibliothèque documentaire
-      db.listenMissions();       // 🆕 ordres de mission
+      db.listenMissions();       // 🆕 planificateur d'actions
       db.listenNotifications();
       try { toolAttachments.init(); } catch(e) {}  // 🆕 charger les pièces jointes dès le départ (badges 📎 fiables)
       ui.hideLoader();

@@ -11556,18 +11556,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     volvo: {
       name: 'Volvo (AA V 3417)',
       pageSize: { w: 612, h: 792 },
+      // Lignes du gabarit AA V 3417 : 1=N° contact … 11=Presseur (les valeurs
+      // s'écrivaient 2 lignes trop bas → échelle des Y remontée de 2 positions)
       fields: {
-        numContact:     { x: 305, y: 687, size: 9.5 },
-        numInventaire:  { x: 305, y: 673, size: 9.5 },
-        pAr:            { x: 305, y: 656, size: 9.5 },
-        pAv:            { x: 305, y: 640, size: 9.5 },
-        eAr:            { x: 305, y: 625, size: 9.5 },
-        eAv:            { x: 305, y: 610, size: 9.5 },
-        cAr:            { x: 305, y: 594, size: 9.5 },
-        cAv:            { x: 305, y: 579, size: 9.5 },
-        matriceAvant:   { x: 305, y: 564, size: 9.5 },
-        matriceArriere: { x: 305, y: 549, size: 9.5 },
-        presseur:       { x: 305, y: 533, size: 9.5 }
+        numContact:     { x: 305, y: 718, size: 9.5 },
+        numInventaire:  { x: 305, y: 702, size: 9.5 },
+        pAr:            { x: 305, y: 687, size: 9.5 },
+        pAv:            { x: 305, y: 673, size: 9.5 },
+        eAr:            { x: 305, y: 656, size: 9.5 },
+        eAv:            { x: 305, y: 640, size: 9.5 },
+        cAr:            { x: 305, y: 625, size: 9.5 },
+        cAv:            { x: 305, y: 610, size: 9.5 },
+        matriceAvant:   { x: 305, y: 594, size: 9.5 },
+        matriceArriere: { x: 305, y: 579, size: 9.5 },
+        presseur:       { x: 305, y: 564, size: 9.5 }
       }
     },
     psa: {
@@ -11841,6 +11843,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             accent: '#FFCC00',
             pdfB64,
             fields,
+            presetKey,
             createdAt: Date.now(),
             createdBy: state.user?.uid || '',
             sizeKB: Math.round(pdfB64.length / 1024)
@@ -11893,9 +11896,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           presseur:       tool.presseur || ''
         };
 
+        // Coordonnées : celles du preset LIVE si le modèle en référence un
+        // (les fields stockés dans Firebase sont figés à l'upload — un preset
+        // corrigé dans le code doit s'appliquer sans ré-uploader le modèle)
+        const livePreset = tpl.presetKey && PDF_FIELD_PRESETS[tpl.presetKey];
+        // 🩹 Modèles Volvo enregistrés AVANT l'ajout de presetKey : on reconnaît
+        // l'ancienne grille figée (numContact 305/687, pAr 305/656) → grille corrigée
+        const sf = tpl.fields || {};
+        const isOldVolvo = !tpl.presetKey && sf.numContact && sf.numContact.x === 305 && sf.numContact.y === 687 && sf.pAr && sf.pAr.y === 656;
+        const fieldCoords = (livePreset && livePreset.fields) || (isOldVolvo ? PDF_FIELD_PRESETS.volvo.fields : sf);
+
         // Dessiner chaque champ : EFFACE d'abord l'ancien texte, PUIS écrit le nouveau
         // Pour les champs sans valeur, on EFFACE quand même les anciens placeholders du PDF
-        for (const [field, pos] of Object.entries(tpl.fields || {})) {
+        for (const [field, pos] of Object.entries(fieldCoords)) {
           if (!pos) continue;
           const value = fieldValues[field];
 

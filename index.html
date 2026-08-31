@@ -11556,20 +11556,21 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     volvo: {
       name: 'Volvo (AA V 3417)',
       pageSize: { w: 612, h: 792 },
-      // Lignes du gabarit AA V 3417 : 1=N° contact … 11=Presseur (les valeurs
-      // s'écrivaient 2 lignes trop bas → échelle des Y remontée de 2 positions)
+      // Lignes du gabarit AA V 3417 : 1=N° contact … 11=Presseur
+      // Positions vérifiées empiriquement (test du 31/08/2026) : ligne 2 = 718,
+      // ligne 3 = 702 … ligne 11 = 579 ; ligne 1 extrapolée à 734
       fields: {
-        numContact:     { x: 305, y: 718, size: 9.5 },
-        numInventaire:  { x: 305, y: 702, size: 9.5 },
-        pAr:            { x: 305, y: 687, size: 9.5 },
-        pAv:            { x: 305, y: 673, size: 9.5 },
-        eAr:            { x: 305, y: 656, size: 9.5 },
-        eAv:            { x: 305, y: 640, size: 9.5 },
-        cAr:            { x: 305, y: 625, size: 9.5 },
-        cAv:            { x: 305, y: 610, size: 9.5 },
-        matriceAvant:   { x: 305, y: 594, size: 9.5 },
-        matriceArriere: { x: 305, y: 579, size: 9.5 },
-        presseur:       { x: 305, y: 564, size: 9.5 }
+        numContact:     { x: 305, y: 734, size: 9.5 },
+        numInventaire:  { x: 305, y: 718, size: 9.5 },
+        pAr:            { x: 305, y: 702, size: 9.5 },
+        pAv:            { x: 305, y: 687, size: 9.5 },
+        eAr:            { x: 305, y: 673, size: 9.5 },
+        eAv:            { x: 305, y: 656, size: 9.5 },
+        cAr:            { x: 305, y: 640, size: 9.5 },
+        cAv:            { x: 305, y: 625, size: 9.5 },
+        matriceAvant:   { x: 305, y: 610, size: 9.5 },
+        matriceArriere: { x: 305, y: 594, size: 9.5 },
+        presseur:       { x: 305, y: 579, size: 9.5 }
       }
     },
     psa: {

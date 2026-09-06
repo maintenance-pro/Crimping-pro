@@ -15993,6 +15993,28 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       return null;
     },
 
+    /** 🆕 CONFLIT DE NOMINATION : retrouve une fiche ACTIVE (ni Obsolète ni
+     *  Endommagée) qui porte déjà ce nom avec un serial DIFFÉRENT.
+     *  Deux outils ACTIFS ne doivent jamais partager un nom → il faut renommer
+     *  l'un des deux. (Un outil retiré + son remplaçant du même nom = légitime.) */
+    findNameConflictId(tool, excludeId) {
+      const slug = this._slugToolId;
+      const serial = slug(tool.serial);
+      if (!serial) return null; // sans serial → cas doublon (fusion), pas conflit
+      const names = [tool.doutils, tool.outilId].map(slug).filter(Boolean);
+      if (!names.length) return null;
+      for (const [eid, et] of Object.entries(state.tools || {})) {
+        if (!et || eid === excludeId) continue;
+        const eSerial = slug(et.serial);
+        if (!eSerial || eSerial === serial) continue;
+        const st = et.status || 'production';
+        if (st === 'obsolete' || st === 'endommage') continue; // retiré → remplacement légitime
+        const eNames = [et.doutils, et.outilId].map(slug).filter(Boolean);
+        if (names.some(n => eNames.includes(n))) return eid;
+      }
+      return null;
+    },
+
     async saveTool(tool) {
       // Génération ID intelligente : SERIAL > doutils > outilId > refOutil
       let id = tool.id;
@@ -25655,6 +25677,29 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return this.DEFAULT_STATUS;
       },
 
+      /** 🆕 CONFLITS DE NOMINATION — même nom porté par PLUSIEURS outils ACTIFS
+       *  avec des serials différents. Légitime uniquement quand un seul est actif
+       *  (l'autre Obsolète/Endommagé = remplacement). Retourne un Set d'ids. */
+      _computeNameConflicts() {
+        const RETIRED = ['obsolete', 'endommage'];
+        const slug = db._slugToolId;
+        const byName = {};
+        for (const [id, t] of Object.entries(state.tools || {})) {
+          if (!t || typeof t !== 'object') continue;
+          if (RETIRED.includes(this._getToolStatus(t))) continue;
+          const key = slug(t.doutils) || slug(t.outilId) || slug(t.refOutil);
+          if (!key) continue;
+          (byName[key] = byName[key] || []).push([id, slug(t.serial)]);
+        }
+        const ids = new Set();
+        for (const list of Object.values(byName)) {
+          if (list.length < 2) continue;
+          const serials = new Set(list.map(([, s]) => s).filter(Boolean));
+          if (serials.size > 1) list.forEach(([id]) => ids.add(id));
+        }
+        return ids;
+      },
+
       /** Statuts qu'un rôle a le droit d'APPLIQUER à un outil.
        *  • Admin / Super Admin / TL Cellule : tous les statuts.
        *  • Techniciens (crimp / crimping / labo) : signaler uniquement « En maintenance » ou « Endommagé ».
@@ -26069,12 +26114,26 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const score = (t) => ['doutils','serial','connection','terminal','fournisseur','fabricant','refOutil','projet','groupe']
           .filter(f => t[f] != null && String(t[f]).trim() !== '').length;
 
+        const RETIRED = ['obsolete', 'endommage']; // statuts « retirés » → remplacement légitime
         const mergeable = [];   // { keeper:[id,t], dups:[[id,t],…] }
-        let ambiguous = 0;      // groupes avec plusieurs serials = copies distinctes
+        const conflicts = [];   // 🆕 même nom, serials ≠, PLUSIEURS outils ACTIFS → à déclarer
+        let legit = 0;          // même nom, serials ≠, mais un seul actif → remplacement normal
         for (const list of Object.values(groups)) {
           if (list.length < 2) continue;
           const serials = [...new Set(list.map(([, t]) => slug(t.serial)).filter(Boolean))];
-          if (serials.length > 1) { ambiguous++; continue; }
+          if (serials.length > 1) {
+            // 🆕 Copies physiques distinctes → jamais fusionnées. LÉGITIME seulement
+            // si au plus UNE est encore active (l'autre Obsolète/Endommagée). Sinon
+            // c'est un CONFLIT DE NOMINATION : il faut renommer l'un des outils.
+            const actives = list.filter(([, t]) => !RETIRED.includes(this._getToolStatus(t)));
+            if (actives.length > 1) {
+              const name = actives[0][1].doutils || actives[0][1].outilId || actives[0][0];
+              conflicts.push(`• ${name} : ${actives.map(([, t]) => `serial ${t.serial || '—'} (${this.TOOL_STATUSES[this._getToolStatus(t)].label})`).join('  /  ')}`);
+            } else {
+              legit++;
+            }
+            continue;
+          }
           const sorted = list.slice().sort((a, b) =>
             ((slug(b[1].serial) ? 1 : 0) - (slug(a[1].serial) ? 1 : 0)) ||
             (score(b[1]) - score(a[1])) ||
@@ -26082,10 +26141,28 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           mergeable.push({ keeper: sorted[0], dups: sorted.slice(1) });
         }
 
+        // 🆕 Déclaration des conflits de nomination (jamais fusionnés automatiquement)
+        const declareConflicts = () => {
+          if (!conflicts.length) return;
+          alert(
+            `⚠️ CONFLIT DE NOMINATION — ${conflicts.length} nom(s) portés par PLUSIEURS outils ACTIFS :\n\n` +
+            conflicts.slice(0, 15).join('\n') +
+            (conflicts.length > 15 ? `\n… et ${conflicts.length - 15} autre(s)` : '') +
+            `\n\nDeux outils ACTIFS ne doivent pas porter le même nom avec des serials différents.\n` +
+            `→ Renommez l'un des deux (champ D'Outils), ou marquez l'ancien Obsolète/Endommagé.\n` +
+            `Ces fiches portent le badge « ⚠️ NOM EN CONFLIT » dans le catalogue.`
+          );
+        };
+
         if (!mergeable.length) {
-          ui.toast(ambiguous
-            ? `✨ Aucun doublon fusionnable (${ambiguous} groupe(s) avec serials distincts = copies différentes)`
-            : '✨ Aucun doublon détecté dans le catalogue', 'success', 6000);
+          declareConflicts();
+          if (conflicts.length) {
+            ui.toast(`⚠️ ${conflicts.length} conflit(s) de nomination à corriger — aucun doublon fusionnable`, 'warn', 7000);
+          } else {
+            ui.toast(legit
+              ? `✨ Aucun doublon à fusionner (${legit} remplacement(s) légitime(s) : un actif + un retiré)`
+              : '✨ Aucun doublon détecté dans le catalogue', 'success', 6000);
+          }
           return;
         }
 
@@ -26100,7 +26177,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           `La fiche la plus complète est CONSERVÉE, ses champs vides sont complétés\n` +
           `depuis les doublons, les compteurs de cycles gardent la valeur MAX et\n` +
           `les documents joints sont ré-attribués. Les doublons sont ensuite SUPPRIMÉS.\n\n` +
-          (ambiguous ? `ℹ️ ${ambiguous} groupe(s) avec serials différents = copies distinctes → intacts.\n\n` : '') +
+          (legit ? `ℹ️ ${legit} groupe(s) « un actif + un retiré » = remplacement légitime → intacts.\n\n` : '') +
+          (conflicts.length ? `⚠️ ${conflicts.length} conflit(s) de nomination (2 outils ACTIFS, même nom) → détail après la fusion.\n\n` : '') +
           `⚠️ Cette action est IRRÉVERSIBLE. Continuer ?`
         );
         if (!ok) return;
@@ -26153,6 +26231,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           ui.hideLoader();
           ui.toast(`🧬 ${totalDup} doublon(s) fusionné(s) — ${mergeable.length} outil(s) consolidé(s)`, 'success', 6000);
           this.render();
+          declareConflicts(); // 🆕 signaler les conflits de nomination restants
         } catch (e) {
           ui.hideLoader();
           console.error('[bulkMergeDuplicates]', e);
@@ -27479,6 +27558,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
             let created = 0, updated = 0, skipped = 0;
             const errors = [];
+            const importConflicts = []; // 🆕 conflits de nomination détectés pendant l'import
 
             for (const [idx, row] of rows.entries()) {
               const tool = {};
@@ -27507,6 +27587,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               if (!(state.tools && state.tools[tool.id])) {
                 const dupId = db.findExistingToolId(tool);
                 if (dupId) tool.id = dupId;
+              }
+
+              // 🆕 CONFLIT DE NOMINATION : ce serial est NOUVEAU mais un outil ACTIF
+              // porte déjà ce nom avec un AUTRE serial. L'import continue, mais le
+              // conflit est DÉCLARÉ à la fin → il faudra renommer l'un des deux
+              // (sauf si la ligne est importée en statut Obsolète/Endommagé).
+              if (!(state.tools && state.tools[tool.id]) && !['obsolete', 'endommage'].includes(importStatus)) {
+                const confId = db.findNameConflictId(tool);
+                if (confId) {
+                  const ct = state.tools[confId] || {};
+                  importConflicts.push(`• ${tool.doutils || tool.outilId} : serial ${tool.serial} importé, mais le serial ${ct.serial || '—'} (actif) porte déjà ce nom`);
+                }
               }
 
               // Si on a un serial et pas d'outilId, on remplit outilId = doutils-serial pour rétro-compat
@@ -27566,6 +27658,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             ui.toast(msg, 'success', 7000);
             if (errors.length) console.warn('[Import] Erreurs:', errors.slice(0, 10));
             this.render();
+
+            // 🆕 Déclaration des conflits de nomination détectés pendant l'import
+            if (importConflicts.length) {
+              alert(
+                `⚠️ CONFLIT DE NOMINATION — ${importConflicts.length} outil(s) importé(s) sous un nom déjà porté par un outil ACTIF :\n\n` +
+                importConflicts.slice(0, 15).join('\n') +
+                (importConflicts.length > 15 ? `\n… et ${importConflicts.length - 15} autre(s)` : '') +
+                `\n\nDeux outils ACTIFS ne doivent pas porter le même nom avec des serials différents.\n` +
+                `→ Renommez l'un des deux (champ D'Outils), ou marquez l'ancien Obsolète/Endommagé.\n` +
+                `Les fiches concernées portent le badge « ⚠️ NOM EN CONFLIT » dans le catalogue.`
+              );
+            }
 
           } catch (err) {
             ui.hideLoader();
@@ -27775,6 +27879,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           catch (e) { return esc; }
         };
 
+        // 🆕 Conflits de nomination : même nom porté par ≥2 outils ACTIFS (serials ≠)
+        const nameConflictIds = this._computeNameConflicts();
+
         grid.innerHTML = slice.map(t => {
           const tid = t.id || t.outilId || '';
           const complete = this._isComplete(t);
@@ -27812,6 +27919,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           // 🆕 Badge STATUT (toujours affiché)
           const statusBadge = this._renderStatusBadge(t, { clickable: false, size: 'small' });
 
+          // 🆕 Badge CONFLIT DE NOMINATION (même nom, serials différents, tous deux ACTIFS)
+          const conflictBadge = nameConflictIds.has(tid)
+            ? `<span title="Deux outils ACTIFS portent ce nom avec des serials différents. Renommez l'un des deux (champ D'Outils) ou marquez l'ancien Obsolète/Endommagé." style="background:rgba(251,90,106,.15);color:#fb5a6a;font-size:.62rem;padding:.12rem .45rem;border-radius:5px;font-weight:800;letter-spacing:.04em;border:1px solid rgba(251,90,106,.5)">⚠️ NOM EN CONFLIT</span>`
+            : '';
+
           // 🆕 Badge PIÈCES JOINTES (📎) — toujours affiché pour voir l'état (avec / sans docs)
           const attSummary = toolAttachments.summaryFor(tid);
           let attachBadge = '';
@@ -27847,7 +27959,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                   ${badge}
                 </div>
               </header>
-              ${clientBadge || groupeBadge || projetBadge || statusBadge || attachBadge ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">${statusBadge}${attachBadge}${clientBadge}${groupeBadge}${projetBadge}</div>` : ''}
+              ${clientBadge || groupeBadge || projetBadge || statusBadge || attachBadge || conflictBadge ? `<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center">${conflictBadge}${statusBadge}${attachBadge}${clientBadge}${groupeBadge}${projetBadge}</div>` : ''}
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:.2rem .55rem;font-size:.7rem;font-family:var(--font-mono);color:var(--text-secondary)">
                 ${specCell('🔌', 'Conn', t.connection)}
                 ${specCell('🔗', 'Term', t.terminal)}

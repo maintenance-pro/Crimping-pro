@@ -2974,7 +2974,7 @@ legend { padding: 0; }
 #access-matrix thead th:first-child { left: 0; z-index: 5; }
 #access-matrix tbody td:first-child { z-index: 2; }
 #access-matrix th span { font-size: .72rem !important; }
-#access-matrix select { font-size: .8rem !important; padding: .4rem .3rem !important; min-width: 64px; }
+#access-matrix select { font-size: .8rem !important; padding: .4rem .3rem !important; min-width: 104px; }
 /* Options du menu déroulant natif : fond/texte explicites, sinon le popup
    Windows hérite d'un texte sombre sur fond sombre (illisible). */
 #access-matrix select option {
@@ -8851,6 +8851,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <option value="recent" data-i18n="t.recents_dabord">🕒 Récents d'abord</option>
           </select>
           <span id="cat-result-count" style="margin-left:auto;font-size:.78rem;color:var(--text-muted);font-weight:600" data-i18n="t.resultats_2">— résultat(s)</span>
+          <button class="btn btn--secondary" id="btn-catalog-merge-dups" data-requires-role="admin,super_admin"
+                  title="Détecter les fiches en double (même outil sous deux identifiants) et les fusionner en une seule"
+                  style="background:rgba(247,183,51,.12);color:#f7b733;border:1px solid rgba(247,183,51,.3);font-size:.78rem;padding:.4rem .8rem">
+            🧬 Fusionner doublons
+          </button>
           <button class="btn btn--secondary" id="btn-catalog-clean" data-requires-role="admin,super_admin"
                   title="Supprimer tous les outils sans réf, sans fab et sans nom"
                   style="background:rgba(251, 90, 106,.12);color:#fb5a6a;border:1px solid rgba(251, 90, 106,.3);font-size:.78rem;padding:.4rem .8rem">
@@ -15961,9 +15966,54 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       state.listeners.push(() => ref.off('value', handler));
     },
 
+    /* 🆕 Slug d'identifiant outil — MÊME normalisation que la génération d'id */
+    _slugToolId(v) {
+      return String(v == null ? '' : v).toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    },
+
+    /** 🆕 ANTI-DOUBLON : retrouve la fiche EXISTANTE du même outil physique, sinon null.
+     *  Règles : même serial → même outil. Même nom (doutils/outilId) → même outil
+     *  SEULEMENT si les serials ne se contredisent pas (deux serials différents
+     *  = deux copies physiques distinctes, jamais fusionnées). */
+    findExistingToolId(tool, excludeId) {
+      const slug = this._slugToolId;
+      const serial = slug(tool.serial);
+      const names = [tool.doutils, tool.outilId].map(slug).filter(Boolean);
+      for (const [eid, et] of Object.entries(state.tools || {})) {
+        if (!et || eid === excludeId) continue;
+        const eSerial = slug(et.serial);
+        if (serial && eSerial) {
+          if (serial === eSerial) return eid;
+          continue; // serials différents → copies distinctes
+        }
+        if (!names.length) continue;
+        const eNames = [et.doutils, et.outilId, eid].map(slug).filter(Boolean);
+        if (names.some(n => eNames.includes(n))) return eid;
+      }
+      return null;
+    },
+
     async saveTool(tool) {
       // Génération ID intelligente : SERIAL > doutils > outilId > refOutil
       let id = tool.id;
+      if (!id) {
+        // 🆕 ANTI-DOUBLON : si une fiche du MÊME outil existe déjà sous un autre id
+        // (ex: créée à l'import avec id = serial), on complète et réutilise CETTE
+        // fiche au lieu de créer une seconde carte portant le même nom.
+        const dupId = this.findExistingToolId(tool);
+        if (dupId) {
+          const existing = state.tools[dupId] || {};
+          for (const [k, v] of Object.entries(existing)) {
+            if (k === 'pieces') continue;
+            if (tool[k] == null || String(tool[k]).trim() === '') tool[k] = v;
+          }
+          if (existing.pieces || tool.pieces) {
+            const own = Object.fromEntries(Object.entries(tool.pieces || {}).filter(([, pv]) => pv !== '' && pv != null));
+            tool.pieces = Object.assign({}, existing.pieces || {}, own);
+          }
+          id = dupId;
+        }
+      }
       if (!id) {
         const idSource = (tool.serial || tool.doutils || tool.outilId || tool.refOutil || '').toString().trim();
         id = idSource.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
@@ -25768,6 +25818,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           this._selectedProjects = new Set(['__NONE__']); this._renderProjectOptions(); this._updateProjectLabel(); this._page = 1; this.render();
         });
 
+        // 🆕 ── Fusionner les fiches outils en double ──
+        document.getElementById('btn-catalog-merge-dups')?.addEventListener('click', () => this.bulkMergeDuplicates());
+
         // ── Nettoyer outils incomplets ──
         document.getElementById('btn-catalog-clean')?.addEventListener('click', () => this.bulkCleanIncomplete());
 
@@ -25982,6 +26035,128 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           ui.hideLoader();
           console.error('[bulkCleanIncomplete]', e);
           ui.toast(`⛔ Refusé par Firebase (${e.code || e.message})`, 'danger');
+        }
+      },
+
+      /**
+       * 🆕 🧬 FUSION DES DOUBLONS — deux fiches représentant le MÊME outil physique
+       * créées sous des ids différents (typiquement : import AVEC serial → id = serial,
+       * puis réimport SANS la colonne serial → id = doutils).
+       * Règles :
+       *   • même nom (doutils/outilId/refOutil) et au plus UN serial dans le groupe → doublons
+       *   • plusieurs serials distincts dans un groupe → copies physiques distinctes → intact
+       * La fiche la plus renseignée est CONSERVÉE (priorité à celle qui a un serial),
+       * ses champs vides sont complétés depuis les doublons, les compteurs de cycles
+       * prennent le MAX, les documents joints sont ré-attribués, puis les doublons
+       * sont supprimés (multi-update atomique).
+       */
+      async bulkMergeDuplicates() {
+        if (!['admin','super_admin'].includes(state.role)) {
+          ui.toast('🚫 Réservé aux admins', 'danger');
+          return;
+        }
+        const slug = db._slugToolId;
+        const entries = Object.entries(state.tools || {}).filter(([, t]) => t && typeof t === 'object');
+
+        // ── Grouper par identité (nom lisible de l'outil) ──
+        const groups = {};
+        for (const [id, t] of entries) {
+          const key = slug(t.doutils) || slug(t.outilId) || slug(t.refOutil);
+          if (!key) continue;
+          (groups[key] = groups[key] || []).push([id, t]);
+        }
+
+        const score = (t) => ['doutils','serial','connection','terminal','fournisseur','fabricant','refOutil','projet','groupe']
+          .filter(f => t[f] != null && String(t[f]).trim() !== '').length;
+
+        const mergeable = [];   // { keeper:[id,t], dups:[[id,t],…] }
+        let ambiguous = 0;      // groupes avec plusieurs serials = copies distinctes
+        for (const list of Object.values(groups)) {
+          if (list.length < 2) continue;
+          const serials = [...new Set(list.map(([, t]) => slug(t.serial)).filter(Boolean))];
+          if (serials.length > 1) { ambiguous++; continue; }
+          const sorted = list.slice().sort((a, b) =>
+            ((slug(b[1].serial) ? 1 : 0) - (slug(a[1].serial) ? 1 : 0)) ||
+            (score(b[1]) - score(a[1])) ||
+            ((b[1].updatedAt || 0) - (a[1].updatedAt || 0)));
+          mergeable.push({ keeper: sorted[0], dups: sorted.slice(1) });
+        }
+
+        if (!mergeable.length) {
+          ui.toast(ambiguous
+            ? `✨ Aucun doublon fusionnable (${ambiguous} groupe(s) avec serials distincts = copies différentes)`
+            : '✨ Aucun doublon détecté dans le catalogue', 'success', 6000);
+          return;
+        }
+
+        const totalDup = mergeable.reduce((s, g) => s + g.dups.length, 0);
+        const lines = mergeable.slice(0, 12).map(g => {
+          const name = g.keeper[1].doutils || g.keeper[1].designation || g.keeper[0];
+          return `• ${name} : ${g.dups.length + 1} fiches → 1`;
+        });
+        if (mergeable.length > 12) lines.push(`… et ${mergeable.length - 12} autre(s) groupe(s)`);
+        const ok = confirm(
+          `🧬 ${totalDup} doublon(s) détecté(s) dans ${mergeable.length} groupe(s) :\n\n${lines.join('\n')}\n\n` +
+          `La fiche la plus complète est CONSERVÉE, ses champs vides sont complétés\n` +
+          `depuis les doublons, les compteurs de cycles gardent la valeur MAX et\n` +
+          `les documents joints sont ré-attribués. Les doublons sont ensuite SUPPRIMÉS.\n\n` +
+          (ambiguous ? `ℹ️ ${ambiguous} groupe(s) avec serials différents = copies distinctes → intacts.\n\n` : '') +
+          `⚠️ Cette action est IRRÉVERSIBLE. Continuer ?`
+        );
+        if (!ok) return;
+
+        ui.showLoader(`Fusion de ${totalDup} doublon(s)…`);
+        try {
+          const updates = {};
+          for (const g of mergeable) {
+            const [keepId, keepT] = g.keeper;
+            const merged = Object.assign({}, keepT);
+            for (const [dupId, dupT] of g.dups) {
+              for (const [k, v] of Object.entries(dupT)) {
+                if (k === 'id' || k === 'pieces') continue;
+                const cur = merged[k];
+                if ((cur == null || String(cur).trim() === '') && v != null && String(v).trim() !== '') merged[k] = v;
+              }
+              // pieces : compléter les sous-champs manquants (le conservé garde les siens)
+              if (dupT.pieces && typeof dupT.pieces === 'object') {
+                const keepPieces = {};
+                for (const [pk, pv] of Object.entries(merged.pieces || {})) { if (pv !== '' && pv != null) keepPieces[pk] = pv; }
+                merged.pieces = Object.assign({}, dupT.pieces, keepPieces);
+              }
+              // compteurs : garder le MAX — ne jamais perdre de cycles
+              const maxTotal = Math.max(Number(merged.totalCounter) || 0, Number(dupT.totalCounter) || 0);
+              if (maxTotal) merged.totalCounter = maxTotal;
+              const maxFreq = Math.max(Number(merged.frequenceCycle) || 0, Number(dupT.frequenceCycle) || 0);
+              if (maxFreq) merged.frequenceCycle = maxFreq;
+              if (dupT.createdAt) merged.createdAt = Math.min(merged.createdAt || dupT.createdAt, dupT.createdAt);
+              // documents joints : ré-attribuer au conservé (métadonnées + fichiers inline)
+              const dupDocs = toolAttachments._all?.[dupId];
+              if (dupDocs && Object.keys(dupDocs).length) {
+                for (const [fid, m] of Object.entries(dupDocs)) updates[`toolAttachments/${keepId}/${fid}`] = m;
+                updates[`toolAttachments/${dupId}`] = null;
+                try {
+                  const b64val = (await fbDb.ref('toolAttachmentsB64/' + dupId).once('value')).val();
+                  if (b64val) {
+                    for (const [fid, v] of Object.entries(b64val)) updates[`toolAttachmentsB64/${keepId}/${fid}`] = v;
+                    updates[`toolAttachmentsB64/${dupId}`] = null;
+                  }
+                } catch (e) {}
+              }
+              updates[`tools/${dupId}`] = null;
+            }
+            merged.id = keepId;
+            merged.updatedAt = Date.now();
+            updates[`tools/${keepId}`] = merged;
+          }
+          await fbDb.ref().update(updates);
+          try { db.audit('tools.mergeDuplicates', '', { groups: mergeable.length, removed: totalDup }); } catch (e) {}
+          ui.hideLoader();
+          ui.toast(`🧬 ${totalDup} doublon(s) fusionné(s) — ${mergeable.length} outil(s) consolidé(s)`, 'success', 6000);
+          this.render();
+        } catch (e) {
+          ui.hideLoader();
+          console.error('[bulkMergeDuplicates]', e);
+          ui.toast(`⛔ Fusion refusée par Firebase (${e.code || e.message})`, 'danger');
         }
       },
 
@@ -27324,6 +27499,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
               const id = idSource.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
               tool.id = id || ('tool-' + Date.now() + '-' + idx);
+
+              // 🆕 ANTI-DOUBLON : le même outil peut déjà exister sous un AUTRE id
+              // (importé avant AVEC serial → id = serial, réimporté SANS la colonne
+              // serial → id = doutils, ou l'inverse). On retombe alors sur la fiche
+              // existante → FUSION au lieu d'un doublon dans le catalogue.
+              if (!(state.tools && state.tools[tool.id])) {
+                const dupId = db.findExistingToolId(tool);
+                if (dupId) tool.id = dupId;
+              }
 
               // Si on a un serial et pas d'outilId, on remplit outilId = doutils-serial pour rétro-compat
               if (!tool.outilId && tool.serial) {

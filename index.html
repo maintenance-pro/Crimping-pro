@@ -32440,9 +32440,42 @@ Erreur Firebase : ${e.message}`;
         document.getElementById('pc-sync-count').textContent = done + ' / ' + total;
       },
 
-      /** Pièces sous le seuil minimum (même règle que le KPI "Alertes Stock") */
+      /** Quantité en commande pour une référence : commande en cours = Qté commandée > 0
+       *  et statut ni « Reçue » ni « Annulée » (la réception sera dans le prochain import du stock) */
+      _orderedQty(nom) {
+        const o = state.stockOrders && state.stockOrders[this._orderKey(String(nom || '').trim())];
+        if (!o || o.statutCom === 'recue' || o.statutCom === 'annulee') return 0;
+        const n = parseInt(o.qcom);
+        return n > 0 ? n : 0;
+      },
+
+      /** Sous le seuil minimum (qté physique + qté en commande ≤ qté min) */
+      _isLow(r) {
+        const q = parseInt(r.qty), m = parseInt(r.qmin);
+        return !isNaN(q) && !isNaN(m) && m > 0 && q + this._orderedQty(r.nom) <= m;
+      },
+
+      /** Sous le seuil SANS tenir compte des commandes, mais couverte par une commande en cours */
+      _isCoveredByOrder(r) {
+        const q = parseInt(r.qty), m = parseInt(r.qmin);
+        return !isNaN(q) && !isNaN(m) && m > 0 && q <= m && !this._isLow(r);
+      },
+
+      /** Met à jour le KPI "Alertes Stock" (appelé aussi quand les commandes changent) */
+      _updateAlertKpi(data) {
+        data = data || this._lastData || this.pieces || [];
+        const alerts  = data.filter(r => this._isLow(r)).length;
+        const covered = data.filter(r => this._isCoveredByOrder(r)).length;
+        const rk4 = document.getElementById('rk4');
+        if (rk4) rk4.textContent = alerts;
+        const rk4Delta = document.getElementById('rk4-delta');
+        if (rk4Delta) rk4Delta.textContent = (alerts > 0 ? '⚠ ' + alerts + ' alertes' : '✅ Aucune alerte')
+          + (covered ? ' · 🚚 ' + covered + ' en commande' : '');
+      },
+
+      /** Pièces à commander : sous le seuil minimum, commandes en cours déduites */
       _lowStock() {
-        return (this.pieces || []).filter(r => { const q = parseInt(r.qty), m = parseInt(r.qmin); return !isNaN(q) && !isNaN(m) && m > 0 && q <= m; });
+        return (this.pieces || []).filter(r => this._isLow(r));
       },
 
       /** Télécharge la liste des pièces sous seuil avec la quantité suggérée à commander */
@@ -32453,15 +32486,16 @@ Erreur Firebase : ${e.message}`;
           await this._loadXLSX();
           const rows = low.map(r => {
             const q = parseInt(r.qty) || 0, mn = parseInt(r.qmin) || 0, mx = parseInt(r.qmax) || 0;
+            const oq = this._orderedQty(r.nom);
             return {
               'Référence': r.nom || '', 'N° Stock': r.nstock || '', 'Emplacement': r.empl || '',
-              'Qté physique': q, 'Qté min': mn, 'Qté max': mx || '',
-              'Qté à commander': Math.max((mx > mn ? mx : mn) - q, 1),
+              'Qté physique': q, 'Qté en commande': oq, 'Qté min': mn, 'Qté max': mx || '',
+              'Qté à commander': Math.max((mx > mn ? mx : mn) - q - oq, 1),
               'Fournisseur': r.nomFour || r.codeFour || ''
             };
           }).sort((a, b) => String(a['Référence']).localeCompare(String(b['Référence']), 'fr', { numeric: true }));
           const ws = XLSX.utils.json_to_sheet(rows);
-          ws['!cols'] = [{wch:24},{wch:28},{wch:18},{wch:12},{wch:9},{wch:9},{wch:15},{wch:26}];
+          ws['!cols'] = [{wch:24},{wch:28},{wch:18},{wch:12},{wch:15},{wch:9},{wch:9},{wch:15},{wch:26}];
           const wb = XLSX.utils.book_new();
           XLSX.utils.book_append_sheet(wb, ws, 'Stock bas');
           XLSX.writeFile(wb, 'LEONI_Stock_Bas_' + new Date().toISOString().slice(0, 10) + '.xlsx');
@@ -32551,16 +32585,11 @@ Erreur Firebase : ${e.message}`;
         const total = data.length;
         const empls = new Set(data.map(r => r.empl).filter(Boolean));
         const enStock = data.filter(r => { const q = parseInt(r.qty); return !isNaN(q) && q > 0; }).length;
-        const alerts = data.filter(r => { const q = parseInt(r.qty), m = parseInt(r.qmin); return !isNaN(q) && !isNaN(m) && m > 0 && q <= m; }).length;
 
         document.getElementById('rk1').textContent = total;
         document.getElementById('rk2').textContent = empls.size;
         document.getElementById('rk3').textContent = enStock;
-        document.getElementById('rk4').textContent = alerts;
-
-        // Mettre à jour les sous-textes des KPIs
-        const rk4Delta = document.getElementById('rk4-delta');
-        if (rk4Delta) rk4Delta.textContent = alerts > 0 ? '⚠ ' + alerts + ' alertes' : '✅ Aucune alerte';
+        this._updateAlertKpi(data);
 
         // Mettre à jour le compteur historique
         const histCount = document.getElementById('pc-history-count');
@@ -32986,7 +33015,7 @@ Erreur Firebase : ${e.message}`;
         if (fFour)  data = data.filter(r => (r.codeFour||r.nomFour||'') === fFour);
         if (fType)  data = data.filter(r => (r.typePiece||r.groupePiece||'') === fType);
 
-        if (fEtat === '__alert') data = data.filter(r => { const q = parseInt(r.qty), m = parseInt(r.qmin); return !isNaN(q) && !isNaN(m) && m > 0 && q <= m; });
+        if (fEtat === '__alert') data = data.filter(r => this._isLow(r));
         if (fEtat === '__zero')  data = data.filter(r => parseInt(r.qty) === 0);
         if (fEtat === '__ok')    data = data.filter(r => { const q = parseInt(r.qty), m = parseInt(r.qmin); return !isNaN(q) && q > 0 && (isNaN(m) || q > m); });
 
@@ -33045,7 +33074,11 @@ Erreur Firebase : ${e.message}`;
           const mergedBadge = (r._count && r._count > 1)
             ? `<span style="display:inline-block;background:rgba(79, 144, 230,.12);color:var(--accent-500);font-size:.62rem;font-weight:700;padding:.08rem .35rem;border-radius:4px;margin-right:.3rem;border:1px solid rgba(79, 144, 230,.2)" title="Fusionné depuis ${r._count} stocks">🔗 ${r._count}×</span>`
             : '';
-          if (!isNaN(qty)) {
+          const orderedQty = this._orderedQty(r.nom);
+          if (!isNaN(qty) && orderedQty > 0 && !this._isLow(r) && (qty === 0 || (!isNaN(qmin) && qmin > 0 && qty <= qmin))) {
+            // Sous le seuil mais couverte par une commande en cours → ne pas recommander
+            status = mergedBadge + `<span class="badge" title="Stock ${qty} · ${orderedQty} en commande — ne pas recommander" style="background:rgba(79, 144, 230,.15);color:#4f90e6;border:1px solid rgba(79, 144, 230,.35);padding:.18rem .55rem;border-radius:5px;font-size:.7rem;font-weight:700;white-space:nowrap">🚚 EN COMMANDE</span>`;
+          } else if (!isNaN(qty)) {
             if (qty === 0) status = mergedBadge + '<span class="badge" style="background:rgba(251, 90, 106,.15);color:#fb5a6a;border:1px solid rgba(251, 90, 106,.3);padding:.18rem .55rem;border-radius:5px;font-size:.7rem;font-weight:700">🔴 RUPTURE</span>';
             else if (!isNaN(qmin) && qmin > 0 && qty <= qmin) status = mergedBadge + '<span class="badge" style="background:rgba(247, 183, 51,.15);color:#f7b733;border:1px solid rgba(247, 183, 51,.3);padding:.18rem .55rem;border-radius:5px;font-size:.7rem;font-weight:700">⚠️ FAIBLE</span>';
             else status = mergedBadge + '<span class="badge" style="background:rgba(52, 211, 153,.13);color:#34d399;border:1px solid rgba(52, 211, 153,.28);padding:.18rem .55rem;border-radius:5px;font-size:.7rem;font-weight:700">✅ OK</span>';
@@ -33479,9 +33512,12 @@ Erreur Firebase : ${e.message}`;
           const ref = fbDb.ref('stockOrders');
           ref.on('value', snap => {
             state.stockOrders = snap.val() || {};
+            this.updateStockBadge();  // les commandes en cours changent les alertes
             // Re-render uniquement si on est sur la vue magasin (évite renders inutiles)
             if (state.currentView === 'magasin') {
-              this.renderRows(this.filtered || []);
+              this._updateAlertKpi();
+              if (document.getElementById('pc-etat-filter')?.value === '__alert') this.applyFilters();
+              else this.renderRows(this.filtered || []);
             }
           });
         } catch(e) {
@@ -33620,8 +33656,8 @@ Erreur Firebase : ${e.message}`;
       updateStockBadge() {
         const data = this.pieces;
         const alerts = data.filter(r => {
-          const q = parseInt(r.qty), m = parseInt(r.qmin);
-          return !isNaN(q) && (q === 0 || (!isNaN(m) && m > 0 && q <= m));
+          const q = parseInt(r.qty);
+          return !isNaN(q) && ((q + this._orderedQty(r.nom)) === 0 || this._isLow(r));
         }).length;
         const badge = document.getElementById('stock-alert-badge');
         if (badge) {

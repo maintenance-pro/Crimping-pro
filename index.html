@@ -9576,6 +9576,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <span style="margin-left:auto;font-size:.74rem;color:var(--text-muted)" id="pc-inj-sheet">—</span>
         </div>
 
+        <!-- Progression de l'import / synchronisation -->
+        <div id="pc-sync-progress" style="display:none;padding:.7rem .9rem;border:1px solid var(--border, rgba(127,127,127,.25));border-radius:9px;margin-bottom:1rem;font-size:.82rem">
+          <div style="display:flex;justify-content:space-between;gap:.6rem;margin-bottom:.45rem">
+            <span id="pc-sync-label">Import en cours…</span>
+            <strong id="pc-sync-count">0 / 0</strong>
+          </div>
+          <div style="height:10px;border-radius:6px;background:rgba(127,127,127,.18);overflow:hidden">
+            <div id="pc-sync-bar" style="height:100%;width:0%;background:#3b82f6;transition:width .25s ease"></div>
+          </div>
+        </div>
+
         <!-- KPIs -->
         <div class="hub__kpis" style="margin-bottom:1.5rem">
           <article class="kpi kpi--primary">
@@ -32131,9 +32142,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       async syncToFirebase() {
-        const N = this.pieces.length;
+        // ⚠️ Copie figée : le listener 'stockPieces' se déclenche après chaque chunk et
+        // remplacerait this.pieces par la version partielle (200 pièces) en cours d'envoi
+        const pieces = this.pieces.slice();
+        const N = pieces.length;
+        this._syncing = true;
         console.log(`[Magasin] 📤 Début sync Firebase — ${N} pièces`);
         ui.toast(`📤 Synchronisation de ${N} pièces vers Firebase…`, 'info');
+        this._syncProgress(0, N, 'Import en cours…', '#3b82f6');
 
         try {
           // ── 1. Test de connectivité Firebase ──
@@ -32142,6 +32158,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           console.log('[Magasin] Connexion Firebase :', connSnap.val() ? '✅ OK' : '❌ DÉCONNECTÉ');
           if (!connSnap.val()) {
             ui.toast('❌ Pas de connexion à Firebase — Vérifiez votre internet', 'danger');
+            this._syncProgress(0, N, '❌ Import échoué — pas de connexion Firebase', '#ef4444');
             return;
           }
 
@@ -32172,7 +32189,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const CHUNK = 200;
           await fbDb.ref('stockPieces/pieces').remove(); // clean avant
           for (let i = 0; i < N; i += CHUNK) {
-            const slice = this.pieces.slice(i, i + CHUNK);
+            const slice = pieces.slice(i, i + CHUNK);
             const updates = {};
             slice.forEach((piece, idx) => {
               updates[`stockPieces/pieces/${i + idx}`] = piece;
@@ -32180,6 +32197,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             await fbDb.ref().update(updates);
             const pct = Math.round(((i + CHUNK) / N) * 100);
             console.log(`[Magasin]   → ${Math.min(i + CHUNK, N)}/${N} (${Math.min(pct, 100)}%)`);
+            this._syncProgress(Math.min(i + CHUNK, N), N, 'Import en cours…', '#3b82f6');
+          }
+
+          // ── Vérification : relire le nombre réel de pièces enregistrées ──
+          this._syncProgress(N, N, 'Vérification…', '#3b82f6');
+          const verifSnap = await fbDb.ref('stockPieces/pieces').once('value');
+          const saved = verifSnap.numChildren();
+          if (saved === N) {
+            this._syncProgress(saved, N, '✅ Import COMPLET', '#22c55e');
+          } else {
+            this._syncProgress(saved, N, `❌ Import INCOMPLET — ${N - saved} pièces manquantes`, '#ef4444');
+            ui.toast(`❌ Import incomplet : ${saved} / ${N} pièces enregistrées`, 'danger', 8000);
           }
 
           // ── 5. Ajouter à l'historique des imports ──
@@ -32234,7 +32263,24 @@ Erreur Firebase : ${e.message}`;
 
           alert(diagnostic);
           ui.toast(`❌ Sauvegarde refusée — Voir console (F12)`, 'danger');
+          this._syncProgress(0, N, '❌ Import échoué — ' + (e.code || e.message || 'erreur'), '#ef4444');
+        } finally {
+          this._syncing = false;
         }
+      },
+
+      // Barre de progression de l'import (pc-sync-progress)
+      _syncProgress(done, total, label, color) {
+        const box = document.getElementById('pc-sync-progress');
+        if (!box) return;
+        box.style.display = 'block';
+        const pct = total ? Math.min(100, Math.round(done / total * 100)) : 0;
+        const bar = document.getElementById('pc-sync-bar');
+        bar.style.width = pct + '%';
+        bar.style.background = color;
+        document.getElementById('pc-sync-label').textContent = label + ' (' + pct + '%)';
+        document.getElementById('pc-sync-label').style.color = color;
+        document.getElementById('pc-sync-count').textContent = done + ' / ' + total;
       },
 
       persist() {
@@ -33411,6 +33457,8 @@ Erreur Firebase : ${e.message}`;
           const ref = fbDb.ref('stockPieces');
           ref.on('value', snap => {
             const data = snap.val();
+            // Pendant un envoi par chunks, ignorer les versions partielles
+            if (this._syncing) return;
             if (data && data.pieces && Array.isArray(data.pieces) && data.pieces.length > 0) {
               this.pieces = data.pieces;
               this.piecesFile = data.file;

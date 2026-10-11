@@ -11638,6 +11638,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
   const formTemplates = {
     _all: {},
     _listenerAttached: false,
+    _loaded: false,   // true dès la 1re réponse de Firebase (évite "Aucun modèle" au 1er clic)
 
     /** Récupère une pièce avec fallback */
     _piece(tool, k) {
@@ -11666,8 +11667,30 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this._listenerAttached = true;
       fbDb.ref('pdfTemplates').on('value', snap => {
         this._all = snap.val() || {};
+        this._loaded = true;
         console.log(`[formTemplates] 📥 ${Object.keys(this._all).length} modèle(s) chargé(s)`);
+        this._refreshOpenModals();
+      }, err => {
+        console.warn('[formTemplates] lecture pdfTemplates impossible :', err.code || err.message);
+        this._loaded = true;
+        this._refreshOpenModals();
       });
+    },
+
+    /** Re-dessine les fenêtres ouvertes (1er chargement, ou modèle ajouté/supprimé ailleurs) */
+    _refreshOpenModals() {
+      const chooser = document.getElementById('modal-form-chooser');
+      if (chooser && !chooser.hidden && this._currentTool) this._renderChooser(this._currentTool);
+      const manage = document.getElementById('modal-form-manage');
+      if (manage && !manage.hidden) this._renderManageList();
+    },
+
+    /** Contenu affiché pendant le chargement des modèles */
+    _loadingHtml() {
+      return `<div style="text-align:center;padding:2rem;color:var(--text-muted)">
+          <div style="font-size:2rem">⏳</div>
+          <div style="margin-top:.5rem">Chargement des modèles…</div>
+        </div>`;
     },
 
     /** Conversion base64 → Uint8Array */
@@ -11699,7 +11722,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       if (nameSpan) nameSpan.textContent = tool.serial || tool.doutils || tool.outilId || tool.refOutil || '?';
       this._currentTool = tool;
 
+      modal.querySelectorAll('[data-close]').forEach(el => {
+        el.addEventListener('click', () => { modal.hidden = true; }, { once: true });
+      });
+      modal.hidden = false;
+      this._renderChooser(tool);
+    },
+
+    /** Rendu de la liste des modèles dans la fenêtre "Choisir un formulaire" */
+    _renderChooser(tool) {
+      const modal = document.getElementById('modal-form-chooser');
       const listEl = document.getElementById('form-chooser-list');
+      if (!modal || !listEl) return;
+      if (!this._loaded) { listEl.innerHTML = this._loadingHtml(); return; }
       const all = Object.entries(this._all);
 
       const manageBtn = `
@@ -11758,15 +11793,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           this.openManage();
         });
       }
-
-      modal.querySelectorAll('[data-close]').forEach(el => {
-        el.addEventListener('click', () => { modal.hidden = true; }, { once: true });
-      });
-      modal.hidden = false;
     },
 
     /** Ouvre la modal de gestion (liste + ajout + suppression) */
     openManage() {
+      this.init();                                     // lazy init du listener Firebase
       const modal = document.getElementById('modal-form-manage');
       if (!modal) return;
       this._renderManageList();
@@ -11785,6 +11816,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     _renderManageList() {
       const container = document.getElementById('form-manage-list');
       if (!container) return;
+      if (!this._loaded) { container.innerHTML = this._loadingHtml(); return; }
       const all = Object.entries(this._all);
       const canManage = ['admin','super_admin','responsable'].includes(state.role);
       if (all.length === 0) {

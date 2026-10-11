@@ -9613,12 +9613,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <div class="kpi__delta">disponibles</div>
             </div>
           </article>
-          <article class="kpi kpi--danger">
+          <article class="kpi kpi--danger" id="pc-kpi-alerts" style="cursor:pointer" title="Cliquer pour afficher uniquement les pièces sous le seuil minimum">
             <div class="kpi__icon">⚠️</div>
             <div class="kpi__body">
               <div class="kpi__label">Alertes Stock</div>
               <div class="kpi__value" id="rk4">—</div>
               <div class="kpi__delta" id="rk4-delta">sous seuil min</div>
+              <button type="button" class="btn btn--secondary" id="pc-low-xlsx" style="margin-top:.4rem;padding:.25rem .6rem;font-size:.72rem" title="Télécharger la liste des pièces sous le seuil minimum avec la quantité à commander">⬇️ Liste à commander</button>
             </div>
           </article>
         </div>
@@ -10253,6 +10254,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       <footer class="modal__footer">
         <button class="btn btn--ghost" data-close data-i18n="t.annuler">Annuler</button>
         <button class="btn btn--primary" id="confirm-ok" data-i18n="t.confirmer">Confirmer</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: aperçu avant import du stock (pièces de rechange) -->
+  <div class="modal" id="modal-stock-preview" role="dialog" aria-modal="true" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__panel" style="max-width:640px">
+      <header class="modal__header">
+        <h2 class="modal__title">📋 Aperçu avant import</h2>
+      </header>
+      <div class="modal__body" id="stock-preview-body" style="max-height:65vh;overflow:auto;font-size:.84rem"></div>
+      <footer class="modal__footer" style="flex-wrap:wrap;gap:.5rem">
+        <button class="btn btn--ghost" data-close>Annuler</button>
+        <button class="btn btn--secondary" id="stock-preview-diff-xlsx">⬇️ Détail des changements</button>
+        <button class="btn btn--primary" id="stock-preview-ok">✅ Importer</button>
       </footer>
     </div>
   </div>
@@ -32036,15 +32053,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
 
+      /** En-tête Excel → clé interne (ou undefined si colonne non reconnue) */
+      _mapHeader(k) {
+        const n = String(k).trim().toUpperCase();
+        if (!n) return undefined;
+        let mk = this._COLMAP[n];
+        if (!mk) {
+          const f = Object.keys(this._COLMAP).find(c => n.includes(c) || c.includes(n));
+          if (f) mk = this._COLMAP[f];
+        }
+        return mk;
+      },
+
       mapRow(row) {
         const out = {};
         Object.keys(row).forEach(k => {
-          const n = String(k).trim().toUpperCase();
-          let mk = this._COLMAP[n];
-          if (!mk) {
-            const f = Object.keys(this._COLMAP).find(c => n.includes(c) || c.includes(n));
-            if (f) mk = this._COLMAP[f];
-          }
+          const mk = this._mapHeader(k);
           if (mk) {
             let v = String(row[k] ?? '').trim();
             if ((mk === 'qty' || mk === 'qmin' || mk === 'qmax') && v) {
@@ -32117,102 +32141,244 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!file) return;
         await this._loadXLSX();
         const r = new FileReader();
-        r.onload = (e) => {
+        r.onload = async (e) => {
           try {
             const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
             const sn = wb.SheetNames.find(n => /pièce|piece|stock|rechange|spare/i.test(n)) || wb.SheetNames[0];
-            const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval:'', raw:false });
-            if (!raw.length) { ui.toast('Fichier vide', 'warn'); return; }
+            const ws = wb.Sheets[sn];
+            const raw = XLSX.utils.sheet_to_json(ws, { defval:'', raw:false });
+            if (!raw.length) { ui.toast('Fichier vide', 'warn'); event.target.value = ''; return; }
             const mapped = raw.map(row => this.mapRow(row)).filter(r => r.nom || r.empl || r.qty);
-            if (!mapped.length) { ui.toast('Aucune colonne reconnue — vérifiez les en-têtes', 'warn'); return; }
+            if (!mapped.length) { ui.toast('Aucune colonne reconnue — vérifiez les en-têtes', 'warn'); event.target.value = ''; return; }
+
+            // ── Aperçu : colonnes reconnues / ignorées, doublons, changements ──
+            const headers = (XLSX.utils.sheet_to_json(ws, { header:1, blankrows:false })[0] || [])
+              .map(h => String(h || '').trim()).filter(Boolean);
+            const recognized = [], unknown = [];
+            headers.forEach(h => (this._mapHeader(h) ? recognized : unknown).push(h));
+            const seen = new Set(); let duplicates = 0;
+            mapped.forEach(p => { const k = this._rowKey(p); if (seen.has(k)) duplicates++; else seen.add(k); });
+            const diff = this._diffPieces(this.pieces, mapped);
+            const confirmed = await this._showImportPreview({
+              fileName: file.name, sheet: sn, read: raw.length, kept: mapped.length,
+              ignored: raw.length - mapped.length, recognized, unknown, duplicates, diff,
+              hasNom: mapped.some(p => p.nom), hasQty: mapped.some(p => p.qty !== undefined && p.qty !== '')
+            });
+            event.target.value = '';
+            if (!confirmed) { ui.toast('Import annulé — stock inchangé', 'info'); return; }
+
+            // Conserver l'état précédent : si l'envoi échoue, on revient en arrière
+            const prev = { pieces: this.pieces, file: this.piecesFile, xl: this.piecesXL };
             this.pieces = mapped;
             this.piecesXL = true;
             this.piecesFile = { name:file.name, rows:mapped.length, date:new Date().toLocaleDateString('fr-FR'), sheet:sn };
-            this.persist();
             this.render();
-            event.target.value = '';
-            ui.toast('✅ ' + mapped.length + ' pièces importées', 'success');
-            // Push to Firebase for cross-device sync
-            this.syncToFirebase();
+            ui.toast('✅ ' + mapped.length + ' pièces lues — envoi en cours…', 'success');
+            const ok = await this.syncToFirebase(diff);
+            if (ok) {
+              this.persist();
+            } else {
+              this.pieces = prev.pieces; this.piecesFile = prev.file; this.piecesXL = prev.xl;
+              this.render();
+              ui.toast('↩️ Import annulé — l\'ancien stock est conservé', 'warn', 8000);
+            }
           } catch(err) {
+            event.target.value = '';
             ui.toast('Erreur : ' + err.message, 'danger');
           }
         };
         r.readAsArrayBuffer(file);
       },
 
-      async syncToFirebase() {
-        // ⚠️ Copie figée : le listener 'stockPieces' se déclenche après chaque chunk et
-        // remplacerait this.pieces par la version partielle (200 pièces) en cours d'envoi
+      /** Clé d'identité d'une ligne de stock : référence + N° stock + emplacement */
+      _rowKey(r) {
+        return [(r.nom || '').trim(), (r.nstock || '').trim(), (r.empl || '').trim()].join('|');
+      },
+
+      /** Compare l'ancien stock au nouveau : références ajoutées / supprimées, quantités modifiées */
+      _diffPieces(oldP, newP) {
+        const refOf = r => (r.nom || '').trim();
+        const oldRefs = new Set((oldP || []).map(refOf).filter(Boolean));
+        const newRefs = new Set((newP || []).map(refOf).filter(Boolean));
+        const added   = [...newRefs].filter(x => !oldRefs.has(x));
+        const removed = [...oldRefs].filter(x => !newRefs.has(x));
+        const oldQty = new Map();
+        (oldP || []).forEach(r => { const k = this._rowKey(r); if (!oldQty.has(k)) oldQty.set(k, String(r.qty ?? '')); });
+        const changed = [], seen = new Set();
+        (newP || []).forEach(r => {
+          const k = this._rowKey(r);
+          if (seen.has(k)) return; seen.add(k);
+          const after = String(r.qty ?? '');
+          if (oldQty.has(k) && oldQty.get(k) !== after) {
+            changed.push({ ref: refOf(r), nstock: r.nstock || '', empl: r.empl || '', avant: oldQty.get(k), apres: after });
+          }
+        });
+        return { added, removed, changed, first: !(oldP || []).length, oldCount: oldRefs.size };
+      },
+
+      /** Affiche la modale d'aperçu ; résout true si l'utilisateur confirme l'import */
+      _showImportPreview(p) {
+        return new Promise(resolve => {
+          const modal = document.getElementById('modal-stock-preview');
+          const body  = document.getElementById('stock-preview-body');
+          if (!modal || !body) return resolve(true);
+          const esc = s => ui.escape(String(s));
+          const chips = (list, color) => list.map(h =>
+            `<span style="display:inline-block;margin:.12rem;padding:.12rem .45rem;border-radius:5px;font-size:.72rem;background:${color}22;color:${color};border:1px solid ${color}55">${esc(h)}</span>`).join('');
+          const examples = list => list.length
+            ? `<div style="color:var(--text-muted);font-size:.74rem;margin:.15rem 0 .4rem 1rem">${list.slice(0, 5).map(esc).join(' · ')}${list.length > 5 ? ' · …' : ''}</div>` : '';
+          const d = p.diff;
+          const warnings = [];
+          if (!p.hasNom) warnings.push('Colonne <b>NOM</b> (référence) introuvable');
+          if (!p.hasQty) warnings.push('Colonne <b>QUANTITÉ PHYSIQ.</b> introuvable');
+          if (!d.first && d.oldCount && d.removed.length / d.oldCount > 0.3) {
+            warnings.push(`<b>${d.removed.length}</b> références actuelles vont disparaître (${Math.round(d.removed.length / d.oldCount * 100)} %) — vérifiez que c'est le bon fichier`);
+          }
+
+          body.innerHTML = `
+            <div style="margin-bottom:.7rem"><b>${esc(p.fileName)}</b> · feuille « ${esc(p.sheet)} »</div>
+            ${warnings.length ? `<div style="background:rgba(251,90,106,.1);border:1px solid rgba(251,90,106,.35);color:#fb5a6a;border-radius:8px;padding:.55rem .75rem;margin-bottom:.8rem">${warnings.map(w => '⚠️ ' + w).join('<br>')}</div>` : ''}
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:.9rem;text-align:center">
+              <div style="border:1px solid var(--border-base);border-radius:8px;padding:.5rem"><div style="font-size:1.25rem;font-weight:800">${p.read}</div><div style="font-size:.7rem;color:var(--text-muted)">lignes lues</div></div>
+              <div style="border:1px solid var(--border-base);border-radius:8px;padding:.5rem"><div style="font-size:1.25rem;font-weight:800;color:#22c55e">${p.kept}</div><div style="font-size:.7rem;color:var(--text-muted)">pièces à importer</div></div>
+              <div style="border:1px solid var(--border-base);border-radius:8px;padding:.5rem"><div style="font-size:1.25rem;font-weight:800;color:${p.ignored ? '#f7b733' : 'inherit'}">${p.ignored}</div><div style="font-size:.7rem;color:var(--text-muted)">lignes vides ignorées</div></div>
+            </div>
+            <div style="font-weight:700;margin-bottom:.2rem">Colonnes reconnues (${p.recognized.length})</div>
+            <div style="margin-bottom:.5rem">${chips(p.recognized, '#22c55e') || '<span style="color:var(--text-muted)">aucune</span>'}</div>
+            ${p.unknown.length ? `<div style="font-weight:700;margin-bottom:.2rem">Colonnes ignorées (${p.unknown.length})</div><div style="margin-bottom:.5rem">${chips(p.unknown, '#94a3b8')}</div>` : ''}
+            <div style="margin:.4rem 0 .8rem">${p.duplicates
+              ? `🔁 <b>${p.duplicates}</b> ligne(s) en double (même référence + N° stock + emplacement)`
+              : '✅ Aucune ligne en double'}</div>
+            <div style="font-weight:700;margin-bottom:.3rem">Changements par rapport au stock actuel</div>
+            ${d.first ? '<div style="color:var(--text-muted)">Premier import — aucun stock existant à comparer.</div>' : `
+              <div>🟢 <b>+${d.added.length}</b> nouvelle(s) référence(s)</div>${examples(d.added)}
+              <div>🔴 <b>−${d.removed.length}</b> référence(s) supprimée(s)</div>${examples(d.removed)}
+              <div>🔵 <b>${d.changed.length}</b> quantité(s) modifiée(s)</div>${examples(d.changed.map(c => `${c.ref} : ${c.avant || 0} → ${c.apres || 0}`))}`}
+          `;
+
+          const ok = document.getElementById('stock-preview-ok');
+          const dl = document.getElementById('stock-preview-diff-xlsx');
+          ok.textContent = `✅ Importer ${p.kept} pièces`;
+          dl.style.display = (d.first || !(d.added.length + d.removed.length + d.changed.length)) ? 'none' : '';
+          modal.hidden = false;
+
+          const close = (val) => {
+            modal.hidden = true;
+            ok.removeEventListener('click', onOk);
+            dl.removeEventListener('click', onDl);
+            modal.querySelectorAll('[data-close]').forEach(el => el.removeEventListener('click', onCancel));
+            document.removeEventListener('keydown', onEsc);
+            resolve(val);
+          };
+          const onOk = () => close(true);
+          const onCancel = () => close(false);
+          const onEsc = (e) => { if (e.key === 'Escape') close(false); };
+          const onDl = () => this._downloadDiff(d, p.fileName);
+          ok.addEventListener('click', onOk);
+          dl.addEventListener('click', onDl);
+          modal.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', onCancel));
+          document.addEventListener('keydown', onEsc);
+          setTimeout(() => ok.focus(), 50);
+        });
+      },
+
+      /** Télécharge le détail des changements (ajouts / suppressions / quantités) en Excel */
+      async _downloadDiff(d, fileName) {
+        try {
+          await this._loadXLSX();
+          const wb = XLSX.utils.book_new();
+          const add = (rows, name, cols) => {
+            if (!rows.length) return;
+            const ws = XLSX.utils.json_to_sheet(rows);
+            ws['!cols'] = cols;
+            XLSX.utils.book_append_sheet(wb, ws, name);
+          };
+          add(d.added.map(r => ({ 'Référence': r, 'Changement': 'NOUVELLE' })), 'Nouvelles', [{wch:24},{wch:14}]);
+          add(d.removed.map(r => ({ 'Référence': r, 'Changement': 'SUPPRIMÉE' })), 'Supprimees', [{wch:24},{wch:14}]);
+          add(d.changed.map(c => ({ 'Référence': c.ref, 'N° Stock': c.nstock, 'Emplacement': c.empl, 'Qté avant': Number(c.avant) || 0, 'Qté après': Number(c.apres) || 0, 'Écart': (Number(c.apres) || 0) - (Number(c.avant) || 0) })),
+              'Quantites modifiees', [{wch:24},{wch:28},{wch:18},{wch:11},{wch:11},{wch:9}]);
+          if (!wb.SheetNames.length) return ui.toast('Aucun changement', 'info');
+          const date = new Date().toISOString().slice(0, 10);
+          XLSX.writeFile(wb, 'LEONI_Changements_Stock_' + date + '.xlsx');
+        } catch (e) {
+          ui.toast('⛔ Export impossible : ' + e.message, 'danger');
+        }
+      },
+
+      /** Envoie le stock vers Firebase SANS toucher à l'ancien tant que le nouveau n'est pas complet :
+       *  1. écriture dans stockPieces/versions/{vid} (par chunks)
+       *  2. vérification du nombre réel enregistré
+       *  3. bascule atomique de stockPieces/activeVersion → vid
+       *  4. suppression de l'ancienne version
+       *  Retourne true si le nouveau stock est actif. */
+      async syncToFirebase(diff) {
+        // ⚠️ Copie figée : this.pieces peut être remplacé par le listener pendant l'envoi
         const pieces = this.pieces.slice();
         const N = pieces.length;
+        const vid = 'v' + Date.now();
+        const base = 'stockPieces/versions/' + vid;
+        let written = false;
         this._syncing = true;
-        console.log(`[Magasin] 📤 Début sync Firebase — ${N} pièces`);
-        ui.toast(`📤 Synchronisation de ${N} pièces vers Firebase…`, 'info');
+        console.log(`[Magasin] 📤 Début sync Firebase — ${N} pièces (version ${vid})`);
         this._syncProgress(0, N, 'Import en cours…', '#3b82f6');
 
         try {
           // ── 1. Test de connectivité Firebase ──
-          const testRef = fbDb.ref('.info/connected');
-          const connSnap = await testRef.once('value');
-          console.log('[Magasin] Connexion Firebase :', connSnap.val() ? '✅ OK' : '❌ DÉCONNECTÉ');
+          const connSnap = await fbDb.ref('.info/connected').once('value');
           if (!connSnap.val()) {
             ui.toast('❌ Pas de connexion à Firebase — Vérifiez votre internet', 'danger');
-            this._syncProgress(0, N, '❌ Import échoué — pas de connexion Firebase', '#ef4444');
-            return;
+            this._syncProgress(0, N, '❌ Import échoué — pas de connexion Firebase (ancien stock conservé)', '#ef4444');
+            return false;
           }
 
-          // ── 2. Test des permissions (lecture) ──
-          try {
-            await fbDb.ref('stockPieces').limitToFirst(1).once('value');
-            console.log('[Magasin] Lecture Firebase ✅ autorisée');
-          } catch(readErr) {
-            console.error('[Magasin] ❌ Lecture refusée :', readErr.code, readErr.message);
-            ui.toast(`❌ Firebase Rules : lecture refusée (${readErr.code})`, 'danger');
-            throw readErr;
-          }
-
-          // ── 3. Sauvegarder le fichier (métadonnées) ──
-          console.log('[Magasin] Étape 1/4 : sauvegarde métadonnées…');
-          await fbDb.ref('stockPieces/file').set({
-            name: this.piecesFile?.name || 'sans-nom',
-            rows: N,
-            sheet: this.piecesFile?.sheet || '',
-            date: this.piecesFile?.date || '',
-            updatedAt: Date.now(),
-            updatedBy: state.profile?.displayName || state.user?.email || 'system',
-            updatedByUid: state.user?.uid || ''
-          });
-
-          // ── 4. Sauvegarder les pièces par CHUNKS (200 par fois) pour éviter timeout ──
-          console.log('[Magasin] Étape 2/4 : sauvegarde pièces par chunks…');
+          // ── 2. Écriture de la NOUVELLE version, à côté de l'ancienne ──
           const CHUNK = 200;
-          await fbDb.ref('stockPieces/pieces').remove(); // clean avant
+          written = true;
           for (let i = 0; i < N; i += CHUNK) {
-            const slice = pieces.slice(i, i + CHUNK);
             const updates = {};
-            slice.forEach((piece, idx) => {
-              updates[`stockPieces/pieces/${i + idx}`] = piece;
-            });
+            pieces.slice(i, i + CHUNK).forEach((piece, idx) => { updates[`${base}/${i + idx}`] = piece; });
             await fbDb.ref().update(updates);
-            const pct = Math.round(((i + CHUNK) / N) * 100);
-            console.log(`[Magasin]   → ${Math.min(i + CHUNK, N)}/${N} (${Math.min(pct, 100)}%)`);
             this._syncProgress(Math.min(i + CHUNK, N), N, 'Import en cours…', '#3b82f6');
           }
 
-          // ── Vérification : relire le nombre réel de pièces enregistrées ──
+          // ── 3. Vérification : relire le nombre réel de pièces enregistrées ──
           this._syncProgress(N, N, 'Vérification…', '#3b82f6');
-          const verifSnap = await fbDb.ref('stockPieces/pieces').once('value');
-          const saved = verifSnap.numChildren();
-          if (saved === N) {
-            this._syncProgress(saved, N, '✅ Import COMPLET', '#22c55e');
-          } else {
-            this._syncProgress(saved, N, `❌ Import INCOMPLET — ${N - saved} pièces manquantes`, '#ef4444');
-            ui.toast(`❌ Import incomplet : ${saved} / ${N} pièces enregistrées`, 'danger', 8000);
+          const saved = (await fbDb.ref(base).once('value')).numChildren();
+          if (saved !== N) {
+            this._syncProgress(saved, N, `❌ Import INCOMPLET — ${N - saved} pièces manquantes (ancien stock conservé)`, '#ef4444');
+            ui.toast(`❌ Import incomplet : ${saved} / ${N} — l'ancien stock reste actif`, 'danger', 8000);
+            await fbDb.ref(base).remove().catch(() => {});
+            return false;
           }
 
-          // ── 5. Ajouter à l'historique des imports ──
-          console.log('[Magasin] Étape 3/4 : historique des imports…');
+          // ── 4. Bascule atomique vers la nouvelle version ──
+          const prevVid = (await fbDb.ref('stockPieces/activeVersion').once('value')).val();
+          await fbDb.ref('stockPieces').update({
+            activeVersion: vid,
+            file: {
+              name: this.piecesFile?.name || 'sans-nom',
+              rows: N,
+              sheet: this.piecesFile?.sheet || '',
+              date: this.piecesFile?.date || '',
+              version: vid,
+              updatedAt: Date.now(),
+              updatedBy: state.profile?.displayName || state.user?.email || 'system',
+              updatedByUid: state.user?.uid || ''
+            }
+          });
+          this.piecesVersion = vid;
+          this._syncProgress(N, N, '✅ Import COMPLET', '#22c55e');
+          ui.toast(`✅ ${N} pièces synchronisées sur Firebase !`, 'success');
+
+          // ── 5. Nettoyage : ancienne version + ancien format (non bloquant) ──
+          const cleanup = { pieces: null };
+          if (prevVid && prevVid !== vid) cleanup['versions/' + prevVid] = null;
+          fbDb.ref('stockPieces').update(cleanup).catch(e => console.warn('[Magasin] nettoyage ancienne version :', e.message));
+
+          // ── 6. Historique des imports (avec résumé des changements) + audit ──
+          const changes = diff && !diff.first
+            ? { added: diff.added.length, removed: diff.removed.length, qtyChanged: diff.changed.length }
+            : null;
           await fbDb.ref('stockImportHistory').push({
             timestamp: Date.now(),
             userId: state.user?.uid || '',
@@ -32221,33 +32387,25 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             fileName: this.piecesFile?.name || '',
             rows: N,
             sheet: this.piecesFile?.sheet || '',
-            date: this.piecesFile?.date || ''
-          });
-
-          // ── 6. Audit log ──
-          console.log('[Magasin] Étape 4/4 : audit log…');
-          await fbDb.ref('auditLog').push({
+            date: this.piecesFile?.date || '',
+            ...(changes ? { changes } : {})
+          }).catch(() => {});
+          fbDb.ref('auditLog').push({
             timestamp: Date.now(),
             uid: state.user?.uid || '',
             userName: state.profile?.displayName || '',
             action: 'stock.import',
             entity: 'stockPieces',
-            meta: { rows: N, file: this.piecesFile?.name }
-          });
-
-          console.log('[Magasin] ✅ Sync TERMINÉ avec succès');
-          ui.toast(`✅ ${N} pièces synchronisées sur Firebase !`, 'success');
+            meta: { rows: N, file: this.piecesFile?.name, version: vid, ...(changes || {}) }
+          }).catch(() => {});
+          return true;
 
         } catch(e) {
           console.error('[Magasin] ❌ ERREUR sync Firebase:', e);
-          console.error('  Code:', e.code);
-          console.error('  Message:', e.message);
-          console.error('  Détails:', e);
-
-          // Diagnostic clair selon le code d'erreur
-          let diagnostic = '';
+          if (written) fbDb.ref(base).remove().catch(() => {});
+          let diagnostic;
           if (e.code === 'PERMISSION_DENIED') {
-            diagnostic = `❌ FIREBASE RULES BLOQUE L\'ÉCRITURE !
+            diagnostic = `❌ FIREBASE RULES BLOQUE L'ÉCRITURE !
 
 Action requise :
 1. Console Firebase → Realtime Database → Rules
@@ -32260,10 +32418,9 @@ Erreur Firebase : ${e.message}`;
           } else {
             diagnostic = `❌ Erreur Firebase : ${e.code || 'inconnue'}\n${e.message}`;
           }
-
-          alert(diagnostic);
-          ui.toast(`❌ Sauvegarde refusée — Voir console (F12)`, 'danger');
-          this._syncProgress(0, N, '❌ Import échoué — ' + (e.code || e.message || 'erreur'), '#ef4444');
+          alert(diagnostic + '\n\nL\'ancien stock est conservé.');
+          this._syncProgress(0, N, '❌ Import échoué — ' + (e.code || e.message || 'erreur') + ' (ancien stock conservé)', '#ef4444');
+          return false;
         } finally {
           this._syncing = false;
         }
@@ -32283,10 +32440,41 @@ Erreur Firebase : ${e.message}`;
         document.getElementById('pc-sync-count').textContent = done + ' / ' + total;
       },
 
+      /** Pièces sous le seuil minimum (même règle que le KPI "Alertes Stock") */
+      _lowStock() {
+        return (this.pieces || []).filter(r => { const q = parseInt(r.qty), m = parseInt(r.qmin); return !isNaN(q) && !isNaN(m) && m > 0 && q <= m; });
+      },
+
+      /** Télécharge la liste des pièces sous seuil avec la quantité suggérée à commander */
+      async _downloadLowStock() {
+        const low = this._lowStock();
+        if (!low.length) return ui.toast('✅ Aucune pièce sous le seuil minimum', 'success');
+        try {
+          await this._loadXLSX();
+          const rows = low.map(r => {
+            const q = parseInt(r.qty) || 0, mn = parseInt(r.qmin) || 0, mx = parseInt(r.qmax) || 0;
+            return {
+              'Référence': r.nom || '', 'N° Stock': r.nstock || '', 'Emplacement': r.empl || '',
+              'Qté physique': q, 'Qté min': mn, 'Qté max': mx || '',
+              'Qté à commander': Math.max((mx > mn ? mx : mn) - q, 1),
+              'Fournisseur': r.nomFour || r.codeFour || ''
+            };
+          }).sort((a, b) => String(a['Référence']).localeCompare(String(b['Référence']), 'fr', { numeric: true }));
+          const ws = XLSX.utils.json_to_sheet(rows);
+          ws['!cols'] = [{wch:24},{wch:28},{wch:18},{wch:12},{wch:9},{wch:9},{wch:15},{wch:26}];
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Stock bas');
+          XLSX.writeFile(wb, 'LEONI_Stock_Bas_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+          ui.toast(`⬇️ ${rows.length} pièce(s) à commander exportée(s)`, 'success');
+        } catch (e) {
+          ui.toast('⛔ Export impossible : ' + e.message, 'danger');
+        }
+      },
+
       persist() {
         try {
           localStorage.setItem('leoni-stock-pieces', JSON.stringify({
-            pieces: this.pieces, file: this.piecesFile, xl: this.piecesXL
+            pieces: this.pieces, file: this.piecesFile, xl: this.piecesXL, version: this.piecesVersion || null
           }));
         } catch(e) {
           console.warn('[magasin.persist] échec localStorage (quota / navigation privée) :', e.message || e);
@@ -32302,6 +32490,7 @@ Erreur Firebase : ${e.message}`;
             this.pieces = data.pieces || [];
             this.piecesFile = data.file || null;
             this.piecesXL = data.xl || false;
+            this.piecesVersion = data.version || null;
           }
         } catch(e) {
           console.warn('[magasin.restore] échec lecture localStorage :', e.message || e);
@@ -32313,6 +32502,7 @@ Erreur Firebase : ${e.message}`;
         this.pieces = [];
         this.piecesFile = null;
         this.piecesXL = false;
+        this.piecesVersion = null;
         this.persist();
         this.render();
         // Remove from Firebase
@@ -33454,18 +33644,38 @@ Erreur Firebase : ${e.message}`;
 
         try {
           // ─── Listener temps réel : tous les utilisateurs voient les mêmes données ───
-          const ref = fbDb.ref('stockPieces');
-          ref.on('value', snap => {
-            const data = snap.val();
-            // Pendant un envoi par chunks, ignorer les versions partielles
-            if (this._syncing) return;
-            if (data && data.pieces && Array.isArray(data.pieces) && data.pieces.length > 0) {
-              this.pieces = data.pieces;
-              this.piecesFile = data.file;
-              this.piecesXL = true;
-              this.persist();
-              this.updateStockBadge();
-              if (state.currentView === 'magasin') this.render();
+          // On n'écoute que le petit identifiant de version : le stock complet (~5000 pièces)
+          // n'est téléchargé que lorsqu'il change, sinon le cache local est utilisé.
+          const apply = (pieces, file, vid) => {
+            this.pieces = pieces;
+            this.piecesFile = file;
+            this.piecesXL = true;
+            this.piecesVersion = vid;
+            this.persist();
+            this.updateStockBadge();
+            if (state.currentView === 'magasin') this.render();
+          };
+          fbDb.ref('stockPieces/activeVersion').on('value', async snap => {
+            if (this._syncing) return;  // envoi en cours depuis ce poste
+            const vid = snap.val();
+            try {
+              if (!vid) {
+                // Ancien format (avant le stockage par version) : stockPieces/pieces
+                const legacy = (await fbDb.ref('stockPieces/pieces').once('value')).val();
+                const arr = Array.isArray(legacy) ? legacy : Object.values(legacy || {});
+                if (arr.length) apply(arr, (await fbDb.ref('stockPieces/file').once('value')).val(), null);
+                return;
+              }
+              if (vid === this.piecesVersion && this.pieces.length) return;  // cache local à jour
+              const [pSnap, fSnap] = await Promise.all([
+                fbDb.ref('stockPieces/versions/' + vid).once('value'),
+                fbDb.ref('stockPieces/file').once('value')
+              ]);
+              const val = pSnap.val();
+              const arr = Array.isArray(val) ? val : Object.values(val || {});
+              if (arr.length && !this._syncing) apply(arr, fSnap.val(), vid);
+            } catch (e) {
+              if (e.code !== 'PERMISSION_DENIED') console.warn('[Magasin] chargement stock :', e.code || e.message);
             }
           }, err => {
             // Silencieux : le warning n'apparaît que si vraiment problème de rules
@@ -33500,6 +33710,7 @@ Erreur Firebase : ${e.message}`;
             <div style="flex:1;min-width:0">
               <div style="font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ui.escape(h.fileName||'—')}</div>
               <div style="color:var(--text-muted);font-size:.72rem">${h.rows||0} lignes · feuille "${ui.escape(h.sheet||'—')}"</div>
+              ${h.changes ? `<div style="font-size:.72rem;margin-top:.1rem"><span style="color:#22c55e">+${h.changes.added||0} nouvelles</span> · <span style="color:#fb5a6a">−${h.changes.removed||0} supprimées</span> · <span style="color:#4f90e6">${h.changes.qtyChanged||0} qtés modifiées</span></div>` : ''}
             </div>
             <div style="text-align:right;font-size:.7rem;color:var(--text-muted)">
               <div>${ui.escape(h.userName||'inconnu')}</div>
@@ -33523,6 +33734,16 @@ Erreur Firebase : ${e.message}`;
         document.getElementById('pc-clr-btn')?.addEventListener('click', () => this.clear());
         document.getElementById('pc-refresh-btn')?.addEventListener('click', () => this.render());
         document.getElementById('pc-export-btn')?.addEventListener('click', () => this.exportExcel());
+
+        // ⚠️ KPI Alertes : clic = filtrer les pièces sous seuil · bouton = export Excel à commander
+        document.getElementById('pc-low-xlsx')?.addEventListener('click', e => { e.stopPropagation(); this._downloadLowStock(); });
+        document.getElementById('pc-kpi-alerts')?.addEventListener('click', () => {
+          const sel = document.getElementById('pc-etat-filter');
+          if (!sel) return;
+          sel.value = sel.value === '__alert' ? '' : '__alert';
+          this.applyFilters();
+          if (sel.value) document.getElementById('pc-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
 
         // 📦 Boutons Commandes (import + template + effacer)
         document.getElementById('pc-orders-xl-input')?.addEventListener('change', e => this.importOrdersExcel(e));

@@ -30250,11 +30250,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         });
       },
 
-      /** 🆕 Outil TERMINÉ sur la machine ? (localisation « Terminé sur la machine », PAS « En transit ») */
+      /** Code machine Komax (M24, T118…) : colonne machine dédiée si présente, sinon « Location » (emplacement actuel) */
+      _machineOf(r) {
+        if (!r) return '';
+        if (r.machine) return String(r.machine).trim();
+        const loc = String(r.location || '').trim();
+        return /^[MT]\d{1,4}[A-Z]?$/i.test(loc) ? loc.toUpperCase() : '';
+      },
+
+      /** 🆕 Outil TERMINÉ sur la machine ? (emplacement actuel = machine M…/T…, ou « Terminé sur la machine », PAS « En transit ») */
       _isFinishedOnMachine(r) {
         const loc = String((r && r.location) || '').toLowerCase();
         if (!loc || /transit/.test(loc)) return false;
-        return /machine|termin|finish|complet|done/.test(loc);
+        return /^[mt]\d{1,4}[a-z]?$/.test(loc.trim()) || /machine|termin|finish|complet|done/.test(loc);
       },
 
       /** Clé Firebase sûre pour un Inventory No. (interdit . # $ [ ] /) */
@@ -30303,11 +30311,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return this._parseKomaxDate(r.lastUsage);
       },
 
-      /** Outils « Terminé sur la machine » utilisés pour la dernière fois il y a moins de `hours` heures
-       *  (filtre projet respecté), plus récents d'abord */
+      /** Outils dont la DERNIÈRE UTILISATION date des `hours` dernières heures
+       *  (quelle que soit la localisation · filtre projet respecté), plus récents d'abord */
       _finishedRecent(hours = 24) {
-        const limit = Date.now() - hours * 3600 * 1000;
-        let rows = (this._data || []).filter(r => this._isFinishedOnMachine(r) && (this._lastUsageTs(r) || 0) >= limit);
+        const now = Date.now();
+        const limit = now - hours * 3600 * 1000;
+        let rows = (this._data || []).filter(r => { const t = this._lastUsageTs(r); return t && t >= limit && t <= now + 3600 * 1000; });
         if (this._selectedProjects && this._selectedProjects.size > 0) {
           if (this._selectedProjects.has('__NONE__')) rows = [];
           else rows = rows.filter(r => this._selectedProjects.has(r.masterLocation));
@@ -30360,10 +30369,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (cnt) cnt.textContent = rows.length;
         const recentEl = document.getElementById('bl-finished-24h');
         const DAY = 24 * 3600 * 1000;
-        const nRecent = rows.filter(r => (this._lastUsageTs(r) || 0) >= Date.now() - DAY).length;
+        const nRecent = this._finishedRecent(24).length;
         if (recentEl) recentEl.textContent = !this._hasLastUsage()
           ? '· ⚠️ colonne « dernière utilisation » absente — réimportez le fichier Komax'
-          : (nRecent ? '· 🆕 ' + nRecent + ' dans les dernières 24 h' : '');
+          : (nRecent ? '· 🆕 ' + nRecent + ' outil(s) utilisé(s) dans les dernières 24 h (onglet Excel TERMINÉS 24H)' : '');
         if (!rows.length) { sec.style.display = 'none'; tb.innerHTML = ''; return; }
         sec.style.display = '';
         tb.innerHTML = rows.slice(0, 300).map(r => {
@@ -30375,7 +30384,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <td style="padding:.5rem .75rem;font-family:var(--font-mono);font-weight:800;color:#0084c7">${ui.escape(r.inventoryNo||'?')}</td>
             <td style="padding:.5rem .75rem;color:var(--text-secondary)"><div style="font-weight:700;color:var(--text-primary)">${ui.escape(r.masterLocation||'—')}</div>${clientBadge}</td>
             <td style="padding:.5rem .75rem">${this._locationBadge(r)}</td>
-            <td style="padding:.5rem .75rem;font-family:var(--font-mono);font-weight:800;color:var(--text-primary);white-space:nowrap">${r.machine ? '🏭 ' + ui.escape(String(r.machine)) : '<span style="color:var(--text-muted)">—</span>'}</td>
+            <td style="padding:.5rem .75rem;font-family:var(--font-mono);font-weight:800;color:var(--text-primary);white-space:nowrap">${this._machineOf(r) ? '🏭 ' + ui.escape(this._machineOf(r)) : '<span style="color:var(--text-muted)">—</span>'}</td>
             <td style="padding:.5rem .75rem;text-align:center">${this._stateBadge(r)}</td>
             <td style="padding:.5rem .75rem;text-align:right;font-family:var(--font-mono);font-weight:700;color:var(--text-primary)">${this._fmtNum(r.totalCounter)}</td>
             <td style="padding:.5rem .75rem;text-align:right;white-space:nowrap;font-family:var(--font-mono);${isRecent ? 'font-weight:800;color:#2563eb' : 'color:var(--text-muted)'}" title="Dernière utilisation il y a ${this._ago(since)}">${since ? (isRecent ? '🆕 ' : '') + new Date(since).toLocaleDateString('fr-FR') : '—'}</td>
@@ -30800,7 +30809,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               const since = this._lastUsageTs(r);
               aoa.push([
                 r.inventoryNo || '', client ? client.name : '—',
-                r.masterLocation || '—', r.machine || '—', r.location || '—',
+                r.masterLocation || '—', this._machineOf(r) || '—', r.location || '—',
                 since ? new Date(since).toLocaleDateString('fr-FR') : '—',
                 since ? new Date(since).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—',
                 this._machineStatusText(r), this._causeText(r),
@@ -30808,7 +30817,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               ]);
             });
             if (!finished24.length) aoa.push([this._hasLastUsage()
-              ? '— Aucun outil terminé sur la machine utilisé dans les dernières 24 h —'
+              ? '— Aucun outil utilisé dans les dernières 24 h (vérifiez que le fichier Komax importé est récent) —'
               : '— Colonne « dernière utilisation » absente : réimportez le fichier Komax complet —']);
             const ws = XLSX.utils.aoa_to_sheet(aoa);
             ws['!cols'] = [
@@ -31629,7 +31638,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (sync.matched) syncMsg = ` · 🔄 ${sync.updated} cycle(s) catalogue mis à jour (${sync.matched} outil(s) reconnu(s))`;
           } catch (e) { console.warn('[blocked] sync cycles', e); }
           ui.toast(`✅ ${cleaned.length} outils importés et sauvegardés${syncMsg}`, 'success', 6000);
-          if (!machineCol) ui.toast('⚠️ Colonne « Emplacement actuel » (machine) introuvable dans le fichier Komax', 'warn', 9000);
           if (!lastUsageCol) ui.toast('⚠️ Colonne « dernière utilisation » introuvable dans le fichier Komax — l\'onglet TERMINÉS 24H restera vide', 'warn', 9000);
           // 🆕 Audit : import Komax (action fréquente, était non tracée)
           try { db.audit('blocked.import', '', { rowCount: cleaned.length, sourceFile: file.name }); } catch(e) {}

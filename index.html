@@ -8952,7 +8952,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <option value="ok">✅ OK uniquement</option>
           </select>
           <button id="bl-import-btn" class="btn btn--secondary" style="background:rgba(52, 211, 153,.12);color:#34d399;border:1px solid rgba(52, 211, 153,.3);font-weight:700;font-size:.78rem">📥 Importer Excel</button>
-          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem" title="Télécharge UN SEUL fichier Excel : rapport SYNTHÈSE + 5 onglets BINDING · COUPE · REQUALIF · VÉRIF 5J · TERMINÉS 24H">📤 Exporter Excel (Synthèse + 4 onglets)</button>
+          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem" title="Télécharge UN SEUL fichier Excel : SYNTHÈSE + OUTILS BLOQUÉS (BINDING · COUPE · REQUALIF · VÉRIF 5J) + TERMINÉS 24H">📤 Exporter Excel (Synthèse + 4 onglets)</button>
           <input type="file" id="bl-import-file" accept=".xlsx,.xls" hidden>
         </div>
 
@@ -30444,6 +30444,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return `<span class="bl-pill bl-pill--ok">OK</span>`;
       },
 
+      /** Valeur de compteur pour l'export Excel : nombre, ou vide si absent du fichier Komax (jamais un faux 0) */
+      _counterCell(v) {
+        if (v === null || v === undefined || v === '') return '';
+        const n = Number(String(v).replace(/[\s,]/g, ''));
+        return isNaN(n) ? String(v) : n;
+      },
+
       /** Formate un nombre avec séparateurs (5368 → 5,368) */
       _fmtNum(v) {
         if (v === null || v === undefined || v === '') return '—';
@@ -30476,7 +30483,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       /** 🆕 Exporte les outils bloqués filtrés en UN fichier Excel :
-       *  feuille SYNTHÈSE (rapport) + 4 feuilles par cause (BINDING / COUPE / REQUALIF / VÉRIF-5J) */
+       *  feuille SYNTHÈSE (rapport) + OUTILS BLOQUÉS (BINDING / COUPE / REQUALIF / VÉRIF-5J) + TERMINÉS 24H */
       async exportFiltered() {
         const filtered = this._getFiltered();
         if (!filtered.length) {
@@ -30611,7 +30618,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
           // ╔══════════════════════════════════════════════════════════════════╗
           // ║ DONNÉES DE BASE + CLASSIFICATION PAR CAUSE                       ║
-          // ║ 🆕 Un seul fichier : SYNTHÈSE (rapport) + 4 feuilles par cause   ║
+          // ║ 🆕 Un seul fichier : SYNTHÈSE + OUTILS BLOQUÉS (4 causes) + 24H  ║
           // ║    BINDING / COUPE / REQUALIF / VÉRIF-5J                         ║
           // ╚══════════════════════════════════════════════════════════════════╝
           const now = new Date();
@@ -30759,12 +30766,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           ];
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ FEUILLES 2 À 5 — 1 FEUILLE PAR CAUSE                             ║
-          // ║ (BINDING / COUPE / REQUALIF / VÉRIF-5J)                          ║
+          // ║ FEUILLE 2 — OUTILS BLOQUÉS : BINDING + COUPE + REQUALIF + 5J      ║
+          // ║ (regroupés dans cet ordre · colonne Cause colorée + filtre)       ║
           // ╚══════════════════════════════════════════════════════════════════╝
-          const buildCauseSheet = (key) => {
-            const meta = CAUSES[key];
-            const tools = groups[key];
+          const buildCauseSheet = (keys) => {
+            const tools = keys.flatMap(k => groups[k]);
+            const headerColor = keys.length === 1 ? CAUSES[keys[0]].color : '1F2937';
             const headers = ['Inventory No.','Client','Emplacement','Maintenance Counter','Total Counter','Cause','Requalif Time','Requalif Strokes','Maintenance','Days In Use','Manufacturer','Last Maintenance'];
             const aoa = [headers];
             tools.forEach(r => {
@@ -30772,14 +30779,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               aoa.push([
                 r.inventoryNo || '', client ? client.name : '—',
                 r.location || '—',
-                Number(r.maintenanceCounter) || 0, Number(r.totalCounter) || 0,
+                this._counterCell(r.maintenanceCounter), this._counterCell(r.totalCounter),
                 this._causeText(r),
                 r.requalifTimeStatus || '', r.requalifStrokesStatus || '',
                 r.maintenanceStatus || '', r.daysInUseStatus || '',
                 r.manufacturer || '', r.lastMaintenance || ''
               ]);
             });
-            if (!tools.length) aoa.push(['— Aucun outil bloqué pour cette cause —']);
+            if (!tools.length) aoa.push(['— Aucun outil bloqué —']);
             const ws = XLSX.utils.aoa_to_sheet(aoa);
             ws['!cols'] = [
               { wch: 18 }, { wch: 14 }, { wch: 16 },
@@ -30789,7 +30796,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             ws['!freeze'] = { xSplit: 1, ySplit: 1 };
             ws['!autofilter'] = { ref: `A1:L${aoa.length}` };
             applyDataStyles(ws, {
-              headerColor: meta.color,   // couleur d'en-tête propre à la cause
+              headerColor,
               statusCols: [6, 7, 8, 9],
               causeCol: 5,
               clientCol: 1,
@@ -30832,15 +30839,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           };
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ ASSEMBLAGE + ÉCRITURE : SYNTHÈSE + 4 FEUILLES CAUSE + TERMINÉS   ║
+          // ║ ASSEMBLAGE + ÉCRITURE : SYNTHÈSE + OUTILS BLOQUÉS + TERMINÉS 24H ║
           // ╚══════════════════════════════════════════════════════════════════╝
           const wb = XLSX.utils.book_new();
           XLSX.utils.book_append_sheet(wb, wsSynthese, 'SYNTHÈSE');
-          XLSX.utils.book_append_sheet(wb, buildCauseSheet('binding'),  'BINDING');
-          XLSX.utils.book_append_sheet(wb, buildCauseSheet('coupe'),    'COUPE');
-          XLSX.utils.book_append_sheet(wb, buildCauseSheet('requalif'), 'REQUALIF');
-          XLSX.utils.book_append_sheet(wb, buildCauseSheet('verif5j'),  'VERIF 5J');
-          XLSX.utils.book_append_sheet(wb, buildFinishedSheet(),        'TERMINÉS 24H');
+          XLSX.utils.book_append_sheet(wb, buildCauseSheet(['binding', 'coupe', 'requalif', 'verif5j']), 'OUTILS BLOQUÉS');
+          XLSX.utils.book_append_sheet(wb, buildFinishedSheet(), 'TERMINÉS 24H');
 
           const dateStr = now.toISOString().slice(0, 10);
           const projTag = this._selectedProjects.size === 1 && !this._selectedProjects.has('__NONE__')
@@ -31580,12 +31584,25 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
           // 🔑 Normalisation : on renomme les colonnes Excel en clés Firebase-safe
           //    Firebase refuse les caractères . # $ / [ ] dans les clés
+          // En-tête réel du fichier pour chaque colonne attendue (« maintenance counter », « Maintenance Counter. »… acceptés)
+          const normH = h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const fileHeaders = Object.keys(firstRow);
+          const headerOf = {};
+          Object.keys(this.FIELD_MAP).forEach(excelKey => {
+            headerOf[excelKey] = fileHeaders.includes(excelKey) ? excelKey
+              : fileHeaders.find(h => normH(h) === normH(excelKey));
+          });
+          const missingCols = ['Maintenance Counter', 'Total Counter', 'Location Type', 'Maintenance Status',
+            'Requalification by Time Status', 'Requalification by Strokes Status', 'Days In Use Status']
+            .filter(k => !headerOf[k]);
+
           const cleaned = rows.map(r => {
             const out = {};
             Object.entries(this.FIELD_MAP).forEach(([excelKey, fbKey]) => {
-              if (r[excelKey] !== undefined && r[excelKey] !== null && r[excelKey] !== '') {
+              const h = headerOf[excelKey];
+              if (h && r[h] !== undefined && r[h] !== null && r[h] !== '') {
                 // Convertir en string pour éviter les soucis de type Firebase
-                const val = r[excelKey];
+                const val = r[h];
                 out[fbKey] = (typeof val === 'object') ? String(val) : val;
               }
             });
@@ -31643,6 +31660,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (sync.matched) syncMsg = ` · 🔄 ${sync.updated} cycle(s) catalogue mis à jour (${sync.matched} outil(s) reconnu(s))`;
           } catch (e) { console.warn('[blocked] sync cycles', e); }
           ui.toast(`✅ ${cleaned.length} outils importés et sauvegardés${syncMsg}`, 'success', 6000);
+          if (missingCols.length) ui.toast('⚠️ Colonnes absentes du fichier Komax : ' + missingCols.join(', ') + ' — ajoutez-les à l\'export Komax', 'warn', 12000);
           if (!lastUsageCol) ui.toast('⚠️ Colonne « dernière utilisation » introuvable dans le fichier Komax — l\'onglet TERMINÉS 24H restera vide', 'warn', 9000);
           // 🆕 Audit : import Komax (action fréquente, était non tracée)
           try { db.audit('blocked.import', '', { rowCount: cleaned.length, sourceFile: file.name }); } catch(e) {}

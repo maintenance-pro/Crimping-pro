@@ -30805,18 +30805,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           // ╚══════════════════════════════════════════════════════════════════╝
           const finished24 = this._finishedRecent(24);
           const buildFinishedSheet = () => {
-            const headers = ['Inventory No.','Client','Projet','Machine','Date','Heure','Statut','Tool Status','Total Counter'];
+            const headers = ['Inventory No.','Client','Machine','Date','Heure','Statut'];
             const aoa = [headers];
             finished24.forEach(r => {
               const client = this._getClientForProject(r.masterLocation);
               const since = this._lastUsageTs(r);
               aoa.push([
-                r.inventoryNo || '', client ? client.name : '—',
-                r.masterLocation || '—', this._machineOf(r) || r.location || '—',
+                String(r.inventoryNo || ''), client ? client.name : '—',
+                this._machineOf(r) || r.location || '—',
                 since ? new Date(since).toLocaleDateString('fr-FR') : '—',
                 since ? new Date(since).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—',
-                this._machineStatusText(r), r.toolStatus || '—',
-                Number(r.totalCounter) || 0
+                this._machineStatusText(r)
               ]);
             });
             if (!finished24.length) aoa.push([this._hasLastUsage()
@@ -30824,12 +30823,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               : '— Colonne « dernière utilisation » absente : réimportez le fichier Komax complet —']);
             const ws = XLSX.utils.aoa_to_sheet(aoa);
             ws['!cols'] = [
-              { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 11 },
-              { wch: 12 }, { wch: 9 }, { wch: 22 }, { wch: 12 }, { wch: 14 }
+              { wch: 18 }, { wch: 14 }, { wch: 11 }, { wch: 12 }, { wch: 9 }, { wch: 28 }
             ];
             ws['!freeze'] = { xSplit: 1, ySplit: 1 };
-            ws['!autofilter'] = { ref: `A1:I${aoa.length}` };
-            applyDataStyles(ws, { headerColor: '2563EB', causeCol: 6, clientCol: 1, invCol: 0, numCols: [8] });
+            ws['!autofilter'] = { ref: `A1:F${aoa.length}` };
+            applyDataStyles(ws, { headerColor: '2563EB', causeCol: 5, clientCol: 1, invCol: 0 });
             return ws;
           };
 
@@ -31592,6 +31590,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               }
             });
             if (machineCol && r[machineCol] !== undefined && r[machineCol] !== null && r[machineCol] !== '') out.machine = String(r[machineCol]);
+            if (!out.locationType) {
+              const ltCol = Object.keys(r).find(k => /^\s*location\s*type\s*$/i.test(k));
+              if (ltCol && r[ltCol] !== '' && r[ltCol] != null) out.locationType = String(r[ltCol]).trim();
+            }
             if (lastUsageCol && r[lastUsageCol] !== undefined && r[lastUsageCol] !== null && r[lastUsageCol] !== '') {
               const ts = this._parseKomaxDate(r[lastUsageCol]);
               out.lastUsage = ts ? new Date(ts).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : String(r[lastUsageCol]);

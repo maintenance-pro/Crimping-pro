@@ -8952,7 +8952,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <option value="ok">✅ OK uniquement</option>
           </select>
           <button id="bl-import-btn" class="btn btn--secondary" style="background:rgba(52, 211, 153,.12);color:#34d399;border:1px solid rgba(52, 211, 153,.3);font-weight:700;font-size:.78rem">📥 Importer Excel</button>
-          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem" title="Télécharge UN SEUL fichier Excel : rapport SYNTHÈSE + 4 onglets BINDING · COUPE · REQUALIF · VÉRIF 5J">📤 Exporter Excel (Synthèse + 4 onglets)</button>
+          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem" title="Télécharge UN SEUL fichier Excel : rapport SYNTHÈSE + 5 onglets BINDING · COUPE · REQUALIF · VÉRIF 5J · TERMINÉS 24H">📤 Exporter Excel (Synthèse + 4 onglets)</button>
           <input type="file" id="bl-import-file" accept=".xlsx,.xls" hidden>
         </div>
 
@@ -8984,7 +8984,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <div id="bl-finished-section" style="display:none;margin-bottom:1rem;background:rgba(79, 144, 230,.05);border:1px solid rgba(79, 144, 230,.3);border-radius:10px;overflow:hidden">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.7rem 1rem;background:rgba(79, 144, 230,.12);border-bottom:1px solid rgba(79, 144, 230,.25)">
             <span style="font-size:.82rem;font-weight:800;color:#2563eb;letter-spacing:.03em">🏁 Tous les outils terminés sur la machine <span id="bl-finished-count" style="background:#2563eb;color:#fff;border-radius:20px;padding:.05rem .55rem;font-size:.72rem;margin-left:.3rem">0</span></span>
-            <span style="font-size:.68rem;color:var(--text-muted)">Bloqués ou non · localisation « Terminé sur la machine »</span>
+            <span style="font-size:.68rem;color:var(--text-muted)">Bloqués ou non · localisation « Terminé sur la machine »<span id="bl-finished-24h" style="margin-left:.4rem;font-weight:800;color:#2563eb"></span></span>
           </div>
           <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:32vh;overflow-y:auto">
             <table style="width:100%;border-collapse:collapse;font-size:.76rem;min-width:720px">
@@ -8993,8 +8993,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                   <th style="text-align:left;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">📋 Inventory</th>
                   <th style="text-align:left;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">📍 Projet</th>
                   <th style="text-align:left;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">📍 Localisation</th>
+                  <th style="text-align:left;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800" title="Emplacement actuel (fichier Komax)">🏭 Machine</th>
                   <th style="text-align:center;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">🚦 État</th>
                   <th style="text-align:right;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800">📊 Total Cnt</th>
+                  <th style="text-align:right;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800" title="Date de dernière utilisation (fichier Komax)">📅 Date</th>
+                  <th style="text-align:right;padding:.55rem .75rem;font-size:.66rem;text-transform:uppercase;color:var(--text-muted);font-weight:800" title="Heure de dernière utilisation (fichier Komax)">🕐 Heure</th>
                 </tr>
               </thead>
               <tbody id="bl-finished-tbody"></tbody>
@@ -30254,6 +30257,87 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return /machine|termin|finish|complet|done/.test(loc);
       },
 
+      /** Clé Firebase sûre pour un Inventory No. (interdit . # $ [ ] /) */
+      _fbKey(inv) {
+        return String(inv || '').trim().replace(/[.#$\[\]\/]/g, '_');
+      },
+
+      /** Convertit la « dernière utilisation » Komax en timestamp (ms), ou null.
+       *  Accepte : date Excel (nombre), ISO « 2026-10-19 14:32 », « 10/19/2026 2:32 PM »
+       *  (format Komax = mois/jour/année), « 19.10.2026 14:32 » (jour.mois.année). */
+      _parseKomaxDate(v) {
+        if (v === null || v === undefined || v === '') return null;
+        if (typeof v === 'number' && isFinite(v)) {
+          if (v > 1e11) return v;  // déjà un timestamp en ms
+          if (window.XLSX && XLSX.SSF && XLSX.SSF.parse_date_code) {
+            const d = XLSX.SSF.parse_date_code(v);
+            if (d) return new Date(d.y, d.m - 1, d.d, d.H, d.M, Math.floor(d.S)).getTime();
+          }
+          const utc = new Date(Math.round((v - 25569) * 86400000));
+          return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate(), utc.getUTCHours(), utc.getUTCMinutes(), utc.getUTCSeconds()).getTime();
+        }
+        const str = String(v).trim();
+        const m = str.match(/^(\d{1,4})([\/.\-])(\d{1,2})\2(\d{1,4})(?:[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?)?/);
+        if (m) {
+          let [, a, sep, b, c, H, M, S, ap] = m;
+          let y, mo, d;
+          if (a.length === 4) { y = +a; mo = +b; d = +c; }                 // 2026-10-19
+          else {
+            y = +c; if (y < 100) y += 2000;
+            if (sep === '.' || +a > 12) { d = +a; mo = +b; }                 // 19.10.2026 · 19/10/2026
+            else { mo = +a; d = +b; }                                        // 10/19/2026 (Komax)
+          }
+          let h = +(H || 0);
+          if (ap) { const pm = /p/i.test(ap); if (pm && h < 12) h += 12; if (!pm && h === 12) h = 0; }
+          const t = new Date(y, mo - 1, d, h, +(M || 0), +(S || 0)).getTime();
+          return isNaN(t) ? null : t;
+        }
+        const t = Date.parse(str);
+        return isNaN(t) ? null : t;
+      },
+
+      /** Date/heure de dernière utilisation (= fin sur la machine) d'un outil, ou null */
+      _lastUsageTs(r) {
+        if (!r) return null;
+        if (typeof r.lastUsageTs === 'number') return r.lastUsageTs;
+        return this._parseKomaxDate(r.lastUsage);
+      },
+
+      /** Outils « Terminé sur la machine » utilisés pour la dernière fois il y a moins de `hours` heures
+       *  (filtre projet respecté), plus récents d'abord */
+      _finishedRecent(hours = 24) {
+        const limit = Date.now() - hours * 3600 * 1000;
+        let rows = (this._data || []).filter(r => this._isFinishedOnMachine(r) && (this._lastUsageTs(r) || 0) >= limit);
+        if (this._selectedProjects && this._selectedProjects.size > 0) {
+          if (this._selectedProjects.has('__NONE__')) rows = [];
+          else rows = rows.filter(r => this._selectedProjects.has(r.masterLocation));
+        }
+        return rows.sort((a, b) => (this._lastUsageTs(b) || 0) - (this._lastUsageTs(a) || 0));
+      },
+
+      /** Le fichier importé contient-il la dernière utilisation ? */
+      _hasLastUsage() {
+        return (this._data || []).some(r => r.lastUsage !== undefined && r.lastUsage !== '');
+      },
+
+      /** Statut d'un outil terminé : BINDING · COUPE · REQUALIF · VÉRIF 5J · BON */
+      _machineStatusText(r) {
+        const c = this._causeText(r);
+        if (c === 'OK') return this._isBlocked(r) ? 'BLOQUÉ' : 'BON';
+        if (c === 'ALERTE') return 'BON (alerte)';
+        if (c.startsWith('VÉRIFICATION')) return 'VÉRIF 5J';
+        return c;
+      },
+
+      /** Durée écoulée lisible : 25 min · 3 h · 2 j */
+      _ago(ts) {
+        if (!ts) return '—';
+        const min = Math.max(0, Math.round((Date.now() - ts) / 60000));
+        if (min < 60) return min + ' min';
+        const h = Math.round(min / 60);
+        return h < 48 ? h + ' h' : Math.round(h / 24) + ' j';
+      },
+
       /** 🆕 État court d'un outil pour la liste : 🔴 Bloqué · ⚠️ Warning · ✅ OK */
       _stateBadge(r) {
         if (this._isBlocked(r)) return `<span class="bl-pill bl-pill--overrun">🔴 Bloqué</span>`;
@@ -30274,17 +30358,28 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
         rows = this._sortData(rows);
         if (cnt) cnt.textContent = rows.length;
+        const recentEl = document.getElementById('bl-finished-24h');
+        const DAY = 24 * 3600 * 1000;
+        const nRecent = rows.filter(r => (this._lastUsageTs(r) || 0) >= Date.now() - DAY).length;
+        if (recentEl) recentEl.textContent = !this._hasLastUsage()
+          ? '· ⚠️ colonne « dernière utilisation » absente — réimportez le fichier Komax'
+          : (nRecent ? '· 🆕 ' + nRecent + ' dans les dernières 24 h' : '');
         if (!rows.length) { sec.style.display = 'none'; tb.innerHTML = ''; return; }
         sec.style.display = '';
         tb.innerHTML = rows.slice(0, 300).map(r => {
+          const since = this._lastUsageTs(r);
+          const isRecent = since && since >= Date.now() - DAY;
           const client = this._getClientForProject(r.masterLocation);
           const clientBadge = client ? `<span class="bl-pill" style="color:${client.color};background:${client.color}1a">${client.icon} ${client.name.toUpperCase()}</span>` : '';
           return `<tr data-bl-frow="${ui.escape(r.inventoryNo||'')}" style="border-bottom:1px solid var(--border-soft);cursor:pointer" onmouseover="this.style.background='rgba(79, 144, 230,.06)'" onmouseout="this.style.background=''">
             <td style="padding:.5rem .75rem;font-family:var(--font-mono);font-weight:800;color:#0084c7">${ui.escape(r.inventoryNo||'?')}</td>
             <td style="padding:.5rem .75rem;color:var(--text-secondary)"><div style="font-weight:700;color:var(--text-primary)">${ui.escape(r.masterLocation||'—')}</div>${clientBadge}</td>
             <td style="padding:.5rem .75rem">${this._locationBadge(r)}</td>
+            <td style="padding:.5rem .75rem;font-family:var(--font-mono);font-weight:800;color:var(--text-primary);white-space:nowrap">${r.machine ? '🏭 ' + ui.escape(String(r.machine)) : '<span style="color:var(--text-muted)">—</span>'}</td>
             <td style="padding:.5rem .75rem;text-align:center">${this._stateBadge(r)}</td>
             <td style="padding:.5rem .75rem;text-align:right;font-family:var(--font-mono);font-weight:700;color:var(--text-primary)">${this._fmtNum(r.totalCounter)}</td>
+            <td style="padding:.5rem .75rem;text-align:right;white-space:nowrap;font-family:var(--font-mono);${isRecent ? 'font-weight:800;color:#2563eb' : 'color:var(--text-muted)'}" title="Dernière utilisation il y a ${this._ago(since)}">${since ? (isRecent ? '🆕 ' : '') + new Date(since).toLocaleDateString('fr-FR') : '—'}</td>
+            <td style="padding:.5rem .75rem;text-align:right;white-space:nowrap;font-family:var(--font-mono);${isRecent ? 'font-weight:800;color:#2563eb' : 'color:var(--text-muted)'}" title="Dernière utilisation il y a ${this._ago(since)}">${since ? new Date(since).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
           </tr>`;
         }).join('');
         tb.querySelectorAll('[data-bl-frow]').forEach(tr => {
@@ -30430,8 +30525,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (c.startsWith('REQUALIF'))     return { fill: { patternType: "solid", fgColor: { rgb: "FECACA" } }, font: { color: { rgb: "991B1B" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
             if (c.startsWith('COUPE'))        return { fill: { patternType: "solid", fgColor: { rgb: "FED7AA" } }, font: { color: { rgb: "9A3412" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
             if (c.startsWith('BINDING'))      return { fill: { patternType: "solid", fgColor: { rgb: "FEF08A" } }, font: { color: { rgb: "854D0E" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
-            if (c.startsWith('VÉRIFICATION')) return { fill: { patternType: "solid", fgColor: { rgb: "CFFAFE" } }, font: { color: { rgb: "155E75" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
-            if (c === 'OK')                   return { fill: { patternType: "solid", fgColor: { rgb: "D1FAE5" } }, font: { color: { rgb: "065F46" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+            if (c.startsWith('VÉRIF'))        return { fill: { patternType: "solid", fgColor: { rgb: "CFFAFE" } }, font: { color: { rgb: "155E75" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+            if (c === 'OK' || c.startsWith('BON')) return { fill: { patternType: "solid", fgColor: { rgb: "D1FAE5" } }, font: { color: { rgb: "065F46" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
             if (c === 'ALERTE')               return { fill: { patternType: "solid", fgColor: { rgb: "FEF3C7" } }, font: { color: { rgb: "92400E" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
             return styleZebra("FFFFFF");
           };
@@ -30693,7 +30788,41 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           };
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ ASSEMBLAGE + ÉCRITURE : 1 FICHIER = SYNTHÈSE + 4 FEUILLES CAUSE  ║
+          // ║ FEUILLE 6 — OUTILS TERMINÉS SUR LA MACHINE (DERNIÈRES 24 H)      ║
+          // ║ Bloqués ou non · statut BINDING / COUPE / REQUALIF / BON         ║
+          // ╚══════════════════════════════════════════════════════════════════╝
+          const finished24 = this._finishedRecent(24);
+          const buildFinishedSheet = () => {
+            const headers = ['Inventory No.','Client','Projet','Machine','Localisation','Date','Heure','Statut','Détail cause','Total Counter','Maintenance Counter'];
+            const aoa = [headers];
+            finished24.forEach(r => {
+              const client = this._getClientForProject(r.masterLocation);
+              const since = this._lastUsageTs(r);
+              aoa.push([
+                r.inventoryNo || '', client ? client.name : '—',
+                r.masterLocation || '—', r.machine || '—', r.location || '—',
+                since ? new Date(since).toLocaleDateString('fr-FR') : '—',
+                since ? new Date(since).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—',
+                this._machineStatusText(r), this._causeText(r),
+                Number(r.totalCounter) || 0, Number(r.maintenanceCounter) || 0
+              ]);
+            });
+            if (!finished24.length) aoa.push([this._hasLastUsage()
+              ? '— Aucun outil terminé sur la machine utilisé dans les dernières 24 h —'
+              : '— Colonne « dernière utilisation » absente : réimportez le fichier Komax complet —']);
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = [
+              { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 18 }, { wch: 24 },
+              { wch: 12 }, { wch: 9 }, { wch: 14 }, { wch: 26 }, { wch: 14 }, { wch: 18 }
+            ];
+            ws['!freeze'] = { xSplit: 1, ySplit: 1 };
+            ws['!autofilter'] = { ref: `A1:K${aoa.length}` };
+            applyDataStyles(ws, { headerColor: '2563EB', causeCol: 7, clientCol: 1, invCol: 0, numCols: [9, 10] });
+            return ws;
+          };
+
+          // ╔══════════════════════════════════════════════════════════════════╗
+          // ║ ASSEMBLAGE + ÉCRITURE : SYNTHÈSE + 4 FEUILLES CAUSE + TERMINÉS   ║
           // ╚══════════════════════════════════════════════════════════════════╝
           const wb = XLSX.utils.book_new();
           XLSX.utils.book_append_sheet(wb, wsSynthese, 'SYNTHÈSE');
@@ -30701,6 +30830,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           XLSX.utils.book_append_sheet(wb, buildCauseSheet('coupe'),    'COUPE');
           XLSX.utils.book_append_sheet(wb, buildCauseSheet('requalif'), 'REQUALIF');
           XLSX.utils.book_append_sheet(wb, buildCauseSheet('verif5j'),  'VERIF 5J');
+          XLSX.utils.book_append_sheet(wb, buildFinishedSheet(),        'TERMINÉS 24H');
 
           const dateStr = now.toISOString().slice(0, 10);
           const projTag = this._selectedProjects.size === 1 && !this._selectedProjects.has('__NONE__')
@@ -30714,7 +30844,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           ui.toast(
             `✅ ${blocked.length} outils bloqués exportés → ${filename} — ` +
             `BINDING (${groups.binding.length}) · COUPE (${groups.coupe.length}) · ` +
-            `REQUALIF (${groups.requalif.length}) · VÉRIF-5J (${groups.verif5j.length})`,
+            `REQUALIF (${groups.requalif.length}) · VÉRIF-5J (${groups.verif5j.length}) · TERMINÉS 24H (${finished24.length})`,
             'success', 9000
           );
         } catch (e) {
@@ -31427,6 +31557,17 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           }
           ui.showLoader?.(`Import de ${rows.length} outils...`);
 
+          // Colonne machine (non prévue dans FIELD_MAP) : « Emplacement actuel » (M24, T118…) en priorité,
+          // sinon Current Location, Machine, Workplace, Poste…
+          const extraCols = Object.keys(firstRow).filter(k => !this.FIELD_MAP[k]);
+          const machineCol = [
+            /emplacement\s*actuel|current\s*location|actual\s*location/i,
+            /machine|work\s?place|poste|equipment|équipement|station|resource|ressource/i
+          ].reduce((found, re) => found || extraCols.find(k => re.test(k)), undefined);
+          // Colonne « dernière utilisation » : Last Usage, Last Used, Dernière utilisation…
+          const lastUsageCol = Object.keys(firstRow).find(k => !this.FIELD_MAP[k] &&
+            /last\s*(usage|use|used|utili)|derni[eè]re?\s*utili|date\s*derni[eè]re/i.test(k));
+
           // 🔑 Normalisation : on renomme les colonnes Excel en clés Firebase-safe
           //    Firebase refuse les caractères . # $ / [ ] dans les clés
           const cleaned = rows.map(r => {
@@ -31438,6 +31579,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 out[fbKey] = (typeof val === 'object') ? String(val) : val;
               }
             });
+            if (machineCol && r[machineCol] !== undefined && r[machineCol] !== null && r[machineCol] !== '') out.machine = String(r[machineCol]);
+            if (lastUsageCol && r[lastUsageCol] !== undefined && r[lastUsageCol] !== null && r[lastUsageCol] !== '') {
+              const ts = this._parseKomaxDate(r[lastUsageCol]);
+              out.lastUsage = ts ? new Date(ts).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : String(r[lastUsageCol]);
+              if (ts) out.lastUsageTs = ts;
+            }
             // Skip rows without inventoryNo
             return out.inventoryNo ? out : null;
           }).filter(Boolean);
@@ -31482,6 +31629,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (sync.matched) syncMsg = ` · 🔄 ${sync.updated} cycle(s) catalogue mis à jour (${sync.matched} outil(s) reconnu(s))`;
           } catch (e) { console.warn('[blocked] sync cycles', e); }
           ui.toast(`✅ ${cleaned.length} outils importés et sauvegardés${syncMsg}`, 'success', 6000);
+          if (!machineCol) ui.toast('⚠️ Colonne « Emplacement actuel » (machine) introuvable dans le fichier Komax', 'warn', 9000);
+          if (!lastUsageCol) ui.toast('⚠️ Colonne « dernière utilisation » introuvable dans le fichier Komax — l\'onglet TERMINÉS 24H restera vide', 'warn', 9000);
           // 🆕 Audit : import Komax (action fréquente, était non tracée)
           try { db.audit('blocked.import', '', { rowCount: cleaned.length, sourceFile: file.name }); } catch(e) {}
           this._renderProjectOptions();

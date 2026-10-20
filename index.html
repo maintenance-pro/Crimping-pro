@@ -30772,7 +30772,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const buildCauseSheet = (keys) => {
             const tools = keys.flatMap(k => groups[k]);
             const headerColor = keys.length === 1 ? CAUSES[keys[0]].color : '1F2937';
-            const headers = ['Inventory No.','Client','Emplacement','Maintenance Counter','Total Counter','Cause','Requalif Time','Requalif Strokes','Maintenance','Days In Use','Manufacturer','Last Maintenance'];
+            const headers = ['Inventory No.','Client','Emplacement','Maintenance Counter','Total Counter','Cause'];
             const aoa = [headers];
             tools.forEach(r => {
               const client = this._getClientForProject(r.masterLocation);
@@ -30780,24 +30780,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 r.inventoryNo || '', client ? client.name : '—',
                 r.location || '—',
                 this._counterCell(r.maintenanceCounter), this._counterCell(r.totalCounter),
-                this._causeText(r),
-                r.requalifTimeStatus || '', r.requalifStrokesStatus || '',
-                r.maintenanceStatus || '', r.daysInUseStatus || '',
-                r.manufacturer || '', r.lastMaintenance || ''
+                this._causeText(r)
               ]);
             });
             if (!tools.length) aoa.push(['— Aucun outil bloqué —']);
             const ws = XLSX.utils.aoa_to_sheet(aoa);
             ws['!cols'] = [
               { wch: 18 }, { wch: 14 }, { wch: 16 },
-              { wch: 16 }, { wch: 16 }, { wch: 28 }, { wch: 14 }, { wch: 16 },
-              { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }
+              { wch: 16 }, { wch: 16 }, { wch: 28 }
             ];
             ws['!freeze'] = { xSplit: 1, ySplit: 1 };
-            ws['!autofilter'] = { ref: `A1:L${aoa.length}` };
+            ws['!autofilter'] = { ref: `A1:F${aoa.length}` };
             applyDataStyles(ws, {
               headerColor,
-              statusCols: [6, 7, 8, 9],
               causeCol: 5,
               clientCol: 1,
               invCol: 0,

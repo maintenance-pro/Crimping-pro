@@ -30178,6 +30178,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         'Inventory No.':                       'inventoryNo',
         'Master Location':                     'masterLocation',
         'Location':                            'location',
+        'Location Type':                       'locationType',
         'Tool Status':                         'toolStatus',
         'Maintenance Status':                  'maintenanceStatus',
         'Requalification by Strokes Status':   'requalifStrokesStatus',
@@ -30253,13 +30254,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       /** Code machine Komax (M24, T118…) : colonne machine dédiée si présente, sinon « Location » (emplacement actuel) */
       _machineOf(r) {
         if (!r) return '';
-        if (r.machine) return String(r.machine).trim();
         const loc = String(r.location || '').trim();
-        return /^[MT]\d{1,4}[A-Z]?$/i.test(loc) ? loc.toUpperCase() : '';
+        if (/^[MT]\d{1,4}[A-Z]?$/i.test(loc)) return loc.toUpperCase();   // Location Komax = machine (M94, T86…)
+        return r.machine ? String(r.machine).trim() : '';
       },
 
       /** 🆕 Outil TERMINÉ sur la machine ? (emplacement actuel = machine M…/T…, ou « Terminé sur la machine », PAS « En transit ») */
       _isFinishedOnMachine(r) {
+        if (r && r.locationType) return /finished\s*at\s*machine/i.test(String(r.locationType));
         const loc = String((r && r.location) || '').toLowerCase();
         if (!loc || /transit/.test(loc)) return false;
         return /^[mt]\d{1,4}[a-z]?$/.test(loc.trim()) || /machine|termin|finish|complet|done/.test(loc);
@@ -30311,12 +30313,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return this._parseKomaxDate(r.lastUsage);
       },
 
-      /** Outils dont la DERNIÈRE UTILISATION date des `hours` dernières heures
-       *  (quelle que soit la localisation · filtre projet respecté), plus récents d'abord */
+      /** Onglet TERMINÉS 24H : « Last Used » dans les `hours` dernières heures
+       *  ET « Location Type » = Finished At Machine (filtre projet respecté), plus récents d'abord */
       _finishedRecent(hours = 24) {
         const now = Date.now();
         const limit = now - hours * 3600 * 1000;
-        let rows = (this._data || []).filter(r => { const t = this._lastUsageTs(r); return t && t >= limit && t <= now + 3600 * 1000; });
+        let rows = (this._data || []).filter(r => {
+          const t = this._lastUsageTs(r);
+          return t && t >= limit && t <= now + 3600 * 1000 && this._isFinishedOnMachine(r);
+        });
         if (this._selectedProjects && this._selectedProjects.size > 0) {
           if (this._selectedProjects.has('__NONE__')) rows = [];
           else rows = rows.filter(r => this._selectedProjects.has(r.masterLocation));
@@ -30329,13 +30334,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return (this._data || []).some(r => r.lastUsage !== undefined && r.lastUsage !== '');
       },
 
-      /** Statut d'un outil terminé : BINDING · COUPE · REQUALIF · VÉRIF 5J · BON */
+      /** Statut d'un outil terminé — même classification que les onglets BINDING / COUPE / REQUALIF / VERIF 5J
+       *  (_causeText : règles de déblocage client/groupe) ; non bloqué (OK ou simple warning) → BON */
       _machineStatusText(r) {
         const c = this._causeText(r);
-        if (c === 'OK') return this._isBlocked(r) ? 'BLOQUÉ' : 'BON';
-        if (c === 'ALERTE') return 'BON (alerte)';
-        if (c.startsWith('VÉRIFICATION')) return 'VÉRIF 5J';
-        return c;
+        return (c === 'OK' || c === 'ALERTE') ? 'BON' : c;
       },
 
       /** Durée écoulée lisible : 25 min · 3 h · 2 j */
@@ -30802,31 +30805,31 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           // ╚══════════════════════════════════════════════════════════════════╝
           const finished24 = this._finishedRecent(24);
           const buildFinishedSheet = () => {
-            const headers = ['Inventory No.','Client','Projet','Machine','Localisation','Date','Heure','Statut','Détail cause','Total Counter','Maintenance Counter'];
+            const headers = ['Inventory No.','Client','Projet','Machine','Date','Heure','Statut','Tool Status','Total Counter'];
             const aoa = [headers];
             finished24.forEach(r => {
               const client = this._getClientForProject(r.masterLocation);
               const since = this._lastUsageTs(r);
               aoa.push([
                 r.inventoryNo || '', client ? client.name : '—',
-                r.masterLocation || '—', this._machineOf(r) || '—', r.location || '—',
+                r.masterLocation || '—', this._machineOf(r) || r.location || '—',
                 since ? new Date(since).toLocaleDateString('fr-FR') : '—',
                 since ? new Date(since).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—',
-                this._machineStatusText(r), this._causeText(r),
-                Number(r.totalCounter) || 0, Number(r.maintenanceCounter) || 0
+                this._machineStatusText(r), r.toolStatus || '—',
+                Number(r.totalCounter) || 0
               ]);
             });
             if (!finished24.length) aoa.push([this._hasLastUsage()
-              ? '— Aucun outil utilisé dans les dernières 24 h (vérifiez que le fichier Komax importé est récent) —'
+              ? '— Aucun outil « Finished At Machine » utilisé dans les dernières 24 h (vérifiez que le fichier Komax importé est récent) —'
               : '— Colonne « dernière utilisation » absente : réimportez le fichier Komax complet —']);
             const ws = XLSX.utils.aoa_to_sheet(aoa);
             ws['!cols'] = [
-              { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 18 }, { wch: 24 },
-              { wch: 12 }, { wch: 9 }, { wch: 14 }, { wch: 26 }, { wch: 14 }, { wch: 18 }
+              { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 11 },
+              { wch: 12 }, { wch: 9 }, { wch: 22 }, { wch: 12 }, { wch: 14 }
             ];
             ws['!freeze'] = { xSplit: 1, ySplit: 1 };
-            ws['!autofilter'] = { ref: `A1:K${aoa.length}` };
-            applyDataStyles(ws, { headerColor: '2563EB', causeCol: 7, clientCol: 1, invCol: 0, numCols: [9, 10] });
+            ws['!autofilter'] = { ref: `A1:I${aoa.length}` };
+            applyDataStyles(ws, { headerColor: '2563EB', causeCol: 6, clientCol: 1, invCol: 0, numCols: [8] });
             return ws;
           };
 

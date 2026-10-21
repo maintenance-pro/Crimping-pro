@@ -9865,7 +9865,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       <section class="catalog" id="view-dispatch" data-view="dispatch" hidden>
         <header class="catalog__header" style="margin-bottom:1rem">
           <h1 style="margin:0;font-size:1.4rem;color:#7c5cdb">🚚 Dispatcheur Suivi</h1>
-          <p style="margin:.3rem 0 0;color:var(--text-secondary);font-size:.85rem">Chaque extraction Komax importée compte les <strong>Tool supply</strong> et <strong>Tool return</strong> de la colonne <strong>Event</strong> et note les prénoms (First Name) de l'équipe · Outils finis sur la machine = outils <strong>Finished At Machine</strong> des Outils Bloqués (TERMINÉS 24H) dont la dernière utilisation tombe dans le poste · <strong>Total = Tool Return − (Tool Supply + Finis sur la machine)</strong></p>
+          <p style="margin:.3rem 0 0;color:var(--text-secondary);font-size:.85rem">Chaque extraction Komax importée compte les <strong>Tool supply</strong> et <strong>Tool return</strong> de la colonne <strong>Event</strong> et note le prénom et le nom (First Name, Name) de l'équipe · Outils finis sur la machine = <strong>reste de l'équipe précédente (−8 h)</strong> : outils <strong>Finished At Machine</strong> des Outils Bloqués (TERMINÉS 24H) finis pendant le poste d'avant — <strong>B dans C, A dans B, C de la veille dans A</strong> · <strong>Total = Tool Return − (Tool Supply + Finis sur la machine)</strong></p>
         </header>
 
         <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:.6rem">
@@ -9884,7 +9884,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 <th style="padding:.7rem .6rem;text-align:center;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Équipe</th>
                 <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Tool Supply</th>
                 <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Tool Return</th>
-                <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Outils finis sur la machine</th>
+                <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Outils finis sur la machine (équipe −8 h)</th>
                 <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Total</th>
                 <th style="width:40px"></th>
               </tr>
@@ -29980,16 +29980,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     /* ==========================================================================
        🚚 DISPATCHEUR SUIVI — par date et équipe (A / B / C) :
           Tool supply / Tool return de la colonne « Event » de l'extraction Komax, rangés par poste
-          d'après « Insert Time » (A 06h–14h · B 14h–22h · C 22h–06h), avec les prénoms (First Name),
-          Outils finis sur la machine = Finished At Machine des Outils Bloqués, dernière utilisation dans le poste,
+          d'après « Insert Time » (A 06h–14h · B 14h–22h · C 22h–06h), avec prénom + nom (First Name, Name),
+          Outils finis sur la machine d'un poste = reste de l'équipe précédente (−8 h : C de la veille → A,
+          A → B, B → C) = Finished At Machine des Outils Bloqués dont la dernière utilisation tombe dans ce poste précédent,
           Total = Tool Return − (Tool Supply + Finis sur la machine)
        Firebase : dispatchSuivi/{AAAA-MM-JJ}/{A|B|C} =
-          { supply, ret, finished, staff: [{ name, supply, ret }], from, to, v: 2, importedAt, importedBy, sourceFile }
-          dispatchEvents/{AAAA-MM-JJ}/{A|B|C}/{ts_s|r_inventaire} = prénom (anti double comptage)
+          { supply, ret, staff: [{ name, supply, ret }], from, to, v: 2, importedAt, importedBy, sourceFile }
+          dispatchEvents/{AAAA-MM-JJ}/{A|B|C}/{ts_s|r_inventaire} = PRÉNOM NOM (anti double comptage)
+          dispatchFinished/{AAAA-MM-JJ}/{A|B|C} = outils finis sur la machine pendant ce poste (maximum observé)
        ========================================================================== */
     dispatch: {
       TEAMS: ['A', 'B', 'C'],
       _entries: {},
+      _finished: {},
       _subscribed: false,
 
       init() {
@@ -30011,13 +30014,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         fbAuth.onAuthStateChanged(u => {
           if (!u || this._subscribed) return;
           this._subscribed = true;
+          const onErr = err => {
+            this._subscribed = false;
+            console.warn('[dispatch] lecture Firebase :', err.message);
+          };
           fbDb.ref('dispatchSuivi').on('value', snap => {
             this._entries = snap.val() || {};
             if (state.currentView === 'dispatch') this.render();
-          }, err => {
-            this._subscribed = false;
-            console.warn('[dispatch] lecture Firebase :', err.message);
-          });
+          }, onErr);
+          fbDb.ref('dispatchFinished').on('value', snap => {
+            this._finished = snap.val() || {};
+            if (state.currentView === 'dispatch') this.render();
+          }, onErr);
         });
       },
 
@@ -30085,8 +30093,40 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       /** Total = Tool Return − (Tool Supply + Finis sur la machine) */
-      _total(e) {
-        return (Number(e.ret) || 0) - ((Number(e.supply) || 0) + (Number(e.finished) || 0));
+      _total(e, finished) {
+        return (Number(e.ret) || 0) - ((Number(e.supply) || 0) + (Number(finished) || 0));
+      },
+
+      /** Poste précédent (−8 h) : C de la veille → A, A → B, B → C */
+      _prevShift(date, team) {
+        if (team === 'B') return { date, team: 'A' };
+        if (team === 'C') return { date, team: 'B' };
+        const [y, m, d] = String(date).split('-').map(Number);
+        return { date: this._isoDate(new Date(y, m - 1, d - 1)), team: 'C' };
+      },
+
+      /** Outils finis sur la machine PENDANT un poste (maximum observé).
+       *  Les saisies v2 importées avant le décalage −8 h gardaient ce nombre dans `finished`. */
+      _finishedOwn(date, team) {
+        const e = this._entries?.[date]?.[team];
+        return Math.max(Number(this._finished?.[date]?.[team]) || 0, e && e.v === 2 ? Number(e.finished) || 0 : 0);
+      },
+
+      /** Mémorise pour chaque poste les outils finis sur la machine pendant ce poste (Finished At Machine des
+       *  Outils Bloqués, dernière utilisation dans le poste). On garde le maximum observé : un outil fini quitte
+       *  ensuite cet état quand il est retourné. Par défaut : poste en cours + les 2 précédents. */
+      async recordFinished(shifts) {
+        if (!shifts) {
+          const cur = this._shiftOf(Date.now());
+          const p1 = this._prevShift(cur.date, cur.team);
+          shifts = [cur, p1, this._prevShift(p1.date, p1.team)];
+        }
+        const updates = {};
+        shifts.forEach(({ date, team }) => {
+          const n = Math.max(this._finishedIn(date, team) || 0, this._finishedOwn(date, team));
+          if (n > (Number(this._finished?.[date]?.[team]) || 0)) updates[`dispatchFinished/${date}/${team}`] = n;
+        });
+        if (Object.keys(updates).length) await fbDb.ref().update(updates);
       },
 
       /** Saisies réparties par poste (v: 2) — { date: { équipe: saisie } }.
@@ -30112,18 +30152,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return paths;
       },
 
-      /** Prénoms de l'équipe [{ name, supply, ret }] (Firebase peut rendre un objet au lieu d'un tableau) */
+      /** Personnes de l'équipe [{ name: 'PRÉNOM NOM', supply, ret }] (Firebase peut rendre un objet au lieu d'un tableau) */
       _staff(e) {
         const s = e && e.staff;
         return Array.isArray(s) ? s.filter(Boolean) : (s ? Object.values(s) : []);
-      },
-
-      /** « ABDELHADI · 4 sorties · 3 retours » */
-      _staffLine(p) {
-        const parts = [p.name];
-        if (p.supply) parts.push(`${p.supply} sortie${p.supply > 1 ? 's' : ''}`);
-        if (p.ret) parts.push(`${p.ret} retour${p.ret > 1 ? 's' : ''}`);
-        return parts.join(' · ');
       },
 
       /** Outils finis sur la machine = onglet TERMINÉS 24H des Outils Bloqués (tous projets), null si rien d'importé */
@@ -30144,9 +30176,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       /** Import d'une extraction Komax : chaque Tool supply / Tool return (colonne « Event ») est rangé
-       *  dans son poste (date + équipe) d'après « Insert Time », avec le prénom (« First Name »).
+       *  dans son poste (date + équipe) d'après « Insert Time », avec le prénom et le nom (« First Name », « Name »).
        *  Un mouvement déjà importé (même heure, même événement, même outil) n'est pas recompté :
-       *  dispatchEvents/{AAAA-MM-JJ}/{A|B|C}/{ts_s|r_inventaire} = prénom */
+       *  dispatchEvents/{AAAA-MM-JJ}/{A|B|C}/{ts_s|r_inventaire} = PRÉNOM NOM */
       async importExcel(file) {
         try {
           await this._loadXlsx();
@@ -30162,7 +30194,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           };
           const eventCol = col('event');
           const timeCol  = col('inserttime');
-          const nameCol  = col('firstname', 'prenom', 'name');
+          const firstCol = col('firstname', 'prenom');
+          const lastCol  = col('name', 'nom', 'lastname');
           const invCol   = col('inventoryno', 'inventory');
           if (!eventCol || !timeCol) {
             ui.toast(`⛔ Colonne « ${!eventCol ? 'Event' : 'Insert Time'} » introuvable — vérifiez l'extraction Komax`, 'danger');
@@ -30180,7 +30213,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (!kind) { if (raw && others.size < 8) others.add(raw); return; }
             const ts = views.blocked._parseKomaxDate(r[timeCol]);
             if (!ts) { noTime++; return; }
-            const who = String((nameCol && r[nameCol]) || '').trim().toUpperCase() || '?';
+            const who = [firstCol && r[firstCol], lastCol && r[lastCol]]
+              .map(x => String(x || '').trim().toUpperCase()).filter(Boolean).join(' ') || '?';
             const inv = String((invCol && r[invCol]) || who).trim().replace(/[.#$\[\]\/\s]/g, '-');
             const { date, team } = this._shiftOf(ts);
             const g = groups[date + '|' + team] || (groups[date + '|' + team] = { date, team, events: {} });
@@ -30195,26 +30229,30 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (!views.blocked._data?.length) ui.toast('⚠️ Aucune donnée Outils Bloqués : importez d\'abord le fichier Komax dans Outils Bloqués — finis sur la machine compté à 0', 'warn', 9000);
 
           ui.showLoader?.(`Import de ${moves} mouvements (${list.length} poste(s))...`);
+          // Finis sur la machine des postes importés et de leurs postes précédents (avant d'écraser les saisies v2)
+          const measure = {};
+          list.forEach(g => {
+            const p = this._prevShift(g.date, g.team);
+            measure[g.date + '|' + g.team] = g;
+            measure[p.date + '|' + p.team] = p;
+          });
+          await this.recordFinished(Object.values(measure));
           const importedAt = Date.now();
           const importedBy = state.user?.name || state.user?.email || 'admin';
           let added = 0;
           for (const g of list) {
             const ref = fbDb.ref(`dispatchEvents/${g.date}/${g.team}`);
             const known = (await ref.once('value')).val() || {};
-            const fresh = {};
-            Object.keys(g.events).forEach(k => { if (!(k in known)) fresh[k] = g.events[k]; });
-            const keys = Object.keys(fresh);
+            const keys = Object.keys(g.events);
+            added += keys.filter(k => !(k in known)).length;
+            // Toutes les lignes du fichier sont (ré)écrites : une réimportation met aussi à jour le prénom + nom
             for (let i = 0; i < keys.length; i += 2000) {
               const chunk = {};
-              keys.slice(i, i + 2000).forEach(k => { chunk[k] = fresh[k]; });
+              keys.slice(i, i + 2000).forEach(k => { chunk[k] = g.events[k]; });
               await ref.update(chunk);
             }
-            added += keys.length;
-            // Finis sur la machine : maximum observé (un outil fini ne peut ensuite que quitter cet état)
-            const prev = this._entries?.[g.date]?.[g.team];
-            const finished = Math.max(this._finishedIn(g.date, g.team) || 0, prev && prev.v === 2 ? Number(prev.finished) || 0 : 0);
             await fbDb.ref(`dispatchSuivi/${g.date}/${g.team}`).set({
-              ...this._aggregate({ ...known, ...fresh }), finished, v: 2,
+              ...this._aggregate({ ...known, ...g.events }), v: 2,
               importedAt, importedBy, sourceFile: file.name
             });
           }
@@ -30273,7 +30311,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const num = 'text-align:right;font-family:var(--font-mono);font-weight:700';
         tb.innerHTML = dates.map(date => this.TEAMS.map((team, i) => {
           const e = (entries[date] || {})[team];
-          const total = e ? this._total(e) : null;
+          const p = this._prevShift(date, team);
+          const fin = this._finishedOwn(p.date, p.team);   // reste de l'équipe précédente (−8 h)
+          const total = e ? this._total(e, fin) : null;
           const fmt = ts => new Date(ts).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
           const tip = e ? (e.from ? `Extraction du ${fmt(e.from)} au ${fmt(e.to)} · ` : '')
             + `Importé par ${e.importedBy || '?'} le ${fmt(e.importedAt)} · ${e.sourceFile || ''}` : '';
@@ -30282,11 +30322,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             ${i === 0 ? `<td rowspan="${this.TEAMS.length}" style="${td};text-align:center;font-weight:800;color:var(--text-primary);border-right:1px solid var(--border-soft)">${ui.escape(this._fmtDate(date))}</td>` : ''}
             <td style="${td};text-align:center">
               <div style="font-weight:800;color:#7c5cdb">${team}</div>
-              ${staff.map(p => `<div style="font-size:.7rem;font-weight:600;color:var(--text-secondary);white-space:nowrap;margin-top:.1rem">${ui.escape(this._staffLine(p))}</div>`).join('')}
+              ${staff.map(s => `<div style="font-size:.7rem;font-weight:600;color:var(--text-secondary);white-space:nowrap;margin-top:.1rem">${ui.escape(s.name)}</div>`).join('')}
             </td>
             <td style="${td};${num}">${e ? Number(e.supply) || 0 : ''}</td>
             <td style="${td};${num}">${e ? Number(e.ret) || 0 : ''}</td>
-            <td style="${td};${num}">${e ? Number(e.finished) || 0 : ''}</td>
+            <td style="${td};${num}" title="Outils finis sur la machine par l'équipe ${p.team} du ${ui.escape(this._fmtDate(p.date))}">${e ? `${fin}<div style="font-size:.66rem;font-weight:600;color:var(--text-muted);font-family:inherit">reste équipe ${p.team}${p.date !== date ? ' (veille)' : ''}</div>` : ''}</td>
             <td style="${td};${num};color:${total === null ? 'inherit' : total < 0 ? '#fb5a6a' : '#34d399'}">${e ? total : ''}</td>
             <td style="${td};text-align:center">${e && canEdit ? `<button data-ds-del="${ui.escape(date)}" data-ds-team="${team}" title="Supprimer cette saisie" style="background:none;border:none;cursor:pointer;font-size:.9rem">🗑</button>` : ''}</td>
           </tr>`;
@@ -30299,21 +30339,23 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!dates.length) { ui.toast('⚠️ Aucune donnée à exporter', 'warn'); return; }
         try {
           await this._loadXlsx();
-          const aoa = [['Date', 'Équipe', 'Tool Supply', 'Tool Return', 'Outils finis sur la machine', 'Total']];
+          const aoa = [['Date', 'Équipe', 'Tool Supply', 'Tool Return', 'Outils finis sur la machine (équipe −8 h)', 'Total']];
           const merges = [];
           dates.forEach(date => {
             merges.push({ s: { r: aoa.length, c: 0 }, e: { r: aoa.length + this.TEAMS.length - 1, c: 0 } });
             this.TEAMS.forEach((team, i) => {
               const e = (entries[date] || {})[team];
               const staff = this._staff(e);
+              const p = this._prevShift(date, team);
+              const fin = this._finishedOwn(p.date, p.team);
               aoa.push([i === 0 ? this._fmtDate(date) : '',
-                staff.length ? `${team} : ${staff.map(p => this._staffLine(p)).join(' ; ')}` : team,
+                staff.length ? `${team} : ${staff.map(s => s.name).join(' ; ')}` : team,
                 e ? Number(e.supply) || 0 : '', e ? Number(e.ret) || 0 : '',
-                e ? Number(e.finished) || 0 : '', e ? this._total(e) : '']);
+                e ? `${fin} (reste équipe ${p.team}${p.date !== date ? ' veille' : ''})` : '', e ? this._total(e, fin) : '']);
             });
           });
           const ws = XLSX.utils.aoa_to_sheet(aoa);
-          ws['!cols'] = [{ wch: 12 }, { wch: 50 }, { wch: 13 }, { wch: 13 }, { wch: 26 }, { wch: 10 }];
+          ws['!cols'] = [{ wch: 12 }, { wch: 50 }, { wch: 13 }, { wch: 13 }, { wch: 36 }, { wch: 10 }];
           ws['!merges'] = merges;
           const wb = XLSX.utils.book_new();
           XLSX.utils.book_append_sheet(wb, ws, 'DISPATCHEUR SUIVI');
@@ -32077,6 +32119,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           this._updateProjectLabel();
           this.render();
           this._updateNavBadge();
+          // 🚚 Dispatcheur Suivi : mémoriser les outils finis sur la machine des derniers postes
+          views.dispatch?.recordFinished?.().catch(e => console.warn('[dispatch] finis machine', e));
         } catch (e) {
           ui.hideLoader?.();
           console.error('[blocked import]', e);

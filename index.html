@@ -9818,8 +9818,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <article class="card" id="perf-dispatch-card" style="margin-top:1.5rem;padding:1.25rem 1.5rem">
           <header class="card__header" style="margin-bottom:.6rem">
             <h2 class="card__title">🚚 Performance Dispatcheurs par équipe</h2>
-            <div style="font-size:.78rem;color:var(--text-muted);margin-top:.2rem">Chaque outil sorti (Tool supply) ou rentré (Tool return) = <strong>5 min</strong> · 2 dispatcheurs par équipe : <strong>temps de l'équipe ÷ 2</strong> · objectif <strong>7 h par jour</strong> · chaque jour compté séparément</div>
+            <div style="font-size:.78rem;color:var(--text-muted);margin-top:.2rem">Temps de travail = <strong>tranches de 5 min</strong> où le dispatcheur sort (Tool supply) ou rentre (Tool return) au moins un outil — 10 outils dans la même tranche = 5 min · 2 dispatcheurs par équipe : <strong>temps de l'équipe ÷ 2</strong> · objectif <strong>7 h par jour</strong></div>
           </header>
+          <p id="perf-dispatch-pending" hidden style="margin:0 0 .5rem;font-size:.8rem;color:var(--text-secondary)"></p>
           <div id="perf-dispatch-legend" style="display:flex;gap:.9rem;flex-wrap:wrap;font-size:.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:.4rem"></div>
           <div id="perf-dispatch-scroll" style="overflow-x:auto"><div id="perf-dispatch-inner" style="min-width:100%"><div style="position:relative;height:300px"><canvas id="chart-perf-dispatch" role="img" aria-label="Heures par dispatcheur de chaque équipe, jour par jour, comparées à l'objectif de 7 h"></canvas></div></div></div>
           <p id="perf-dispatch-empty" hidden style="margin:0;font-size:.85rem;color:var(--text-muted)">Aucune donnée sur la période — importez une extraction dans 🚚 Dispatcheur Suivi.</p>
@@ -9848,7 +9849,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                     <th>Équipe</th>
                     <th>Dispatcheurs</th>
                     <th style="text-align:right">Mouvements</th>
-                    <th style="text-align:right">Temps équipe</th>
+                    <th style="text-align:right">Temps actif équipe</th>
                     <th style="text-align:right">÷ 2 = par dispatcheur</th>
                     <th style="text-align:right">Objectif 7 h</th>
                   </tr>
@@ -30196,20 +30197,27 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }).length;
       },
 
-      /** Compteurs d'un poste depuis ses mouvements { 'ts_s|r_inventaire': prénom } */
-      _aggregate(events) {
+      /** Compteurs d'un poste depuis ses mouvements { 'ts_s|r_inventaire': prénom nom } ; par personne :
+       *  sorties, retours et `slots` = tranches de 5 min avec au moins un mouvement (temps de travail) */
+      _aggregate(events, normalize = n => n) {
         let supply = 0, ret = 0, from = null, to = null;
         const people = {};
+        const slots = {};
         Object.entries(events || {}).forEach(([key, who]) => {
           const [tsStr, kind] = key.split('_');
           if (kind !== 's' && kind !== 'r') return;
           if (kind === 's') supply++; else ret++;
-          const name = String(who || '?');
-          if (!people[name]) people[name] = { name, supply: 0, ret: 0 };
+          const name = normalize(String(who || '?'));
+          if (!people[name]) { people[name] = { name, supply: 0, ret: 0, slots: 0 }; slots[name] = new Set(); }
           people[name][kind === 's' ? 'supply' : 'ret']++;
           const ts = Number(tsStr);
-          if (ts) { from = from === null ? ts : Math.min(from, ts); to = to === null ? ts : Math.max(to, ts); }
+          if (ts) {
+            slots[name].add(Math.floor(ts / (this.SLOT_MIN * 60000)));
+            from = from === null ? ts : Math.min(from, ts);
+            to = to === null ? ts : Math.max(to, ts);
+          }
         });
+        Object.values(people).forEach(p => { p.slots = slots[p.name].size; });
         const staff = Object.values(people).sort((a, b) => (b.supply + b.ret) - (a.supply + a.ret));
         const agg = { supply, ret, staff };
         if (from !== null) { agg.from = from; agg.to = to; }   // Firebase refuse les undefined
@@ -30293,37 +30301,45 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return Array.isArray(s) ? s.filter(Boolean) : (s ? Object.values(s) : []);
       },
 
-      /** Personnes de l'équipe [{ name: 'PRÉNOM NOM', supply, ret }], prénoms seuls complétés et fusionnés */
+      /** Personnes de l'équipe [{ name: 'PRÉNOM NOM', supply, ret, slots }], prénoms seuls complétés et fusionnés
+       *  (slots = null : poste importé avant le comptage par tranches de 5 min, à recalculer) */
       _staff(e, names = this._knownNames()) {
         const merged = {};
         this._staffRaw(e).forEach(s => {
           const name = this._fullName(s.name, names);
-          const m = merged[name] || (merged[name] = { name, supply: 0, ret: 0 });
+          const m = merged[name] || (merged[name] = { name, supply: 0, ret: 0, slots: 0 });
           m.supply += Number(s.supply) || 0;
           m.ret += Number(s.ret) || 0;
+          m.slots = (m.slots === null || s.slots === undefined || s.slots === null) ? null : m.slots + (Number(s.slots) || 0);
         });
         return Object.values(merged).sort((a, b) => (b.supply + b.ret) - (a.supply + a.ret));
       },
 
-      MIN_PER_MOVE: 5,           // 1 outil sorti ou rentré = 5 min de travail
+      SLOT_MIN: 5,               // temps de travail compté par tranches de 5 min : une tranche avec au moins
+                                 // un outil sorti ou rentré = 5 min (10 outils dans la même tranche = 5 min)
       DISPATCHERS_PER_TEAM: 2,   // chaque équipe a 2 dispatcheurs : temps de l'équipe ÷ 2
       TARGET_H: 7,               // objectif : 7 h de travail par jour et par dispatcheur
 
       /** Performance par équipe depuis `since` (ms), chaque jour compté séparément.
-       *  Par poste (date + équipe) : temps = mouvements × 5 min, ÷ 2 dispatcheurs = heures par dispatcheur,
-       *  face à l'objectif 7 h ; avec les noms des dispatcheurs du poste.
-       *  Par équipe : jours, jours à 7 h, moyenne par dispatcheur et performance = moyenne / 7 h. */
+       *  Par poste (date + équipe) : temps de chaque dispatcheur = ses tranches de 5 min actives,
+       *  temps de l'équipe = somme ÷ 2 dispatcheurs = heures par dispatcheur, face à l'objectif 7 h.
+       *  Par équipe : jours, jours à 7 h, moyenne par dispatcheur et performance = moyenne / 7 h.
+       *  `pending` = postes importés avant le comptage par tranches (recalculés par ensureSlots). */
       teamPerformance(since = 0) {
         const names = this._knownNames();
         const shifts = [];
+        let pending = 0;
         Object.entries(this._valid()).forEach(([date, teams]) => Object.entries(teams).forEach(([team, e]) => {
           if (this._shiftWindow(date, team).start < since) return;
+          const staff = this._staff(e, names);
+          if (!staff.length || staff.some(s => s.slots === null)) { pending++; return; }
           const moves = (Number(e.supply) || 0) + (Number(e.ret) || 0);
-          const minutes = moves * this.MIN_PER_MOVE;
+          const minutes = staff.reduce((t, s) => t + s.slots * this.SLOT_MIN, 0);
           const perH = minutes / 60 / this.DISPATCHERS_PER_TEAM;
+          const people = staff.filter(s => s.name && s.name !== '?').map(s => ({ name: s.name, hours: s.slots * this.SLOT_MIN / 60 }));
           shifts.push({
             date, team, moves, minutes, perH, perf: perH / this.TARGET_H, ok: perH >= this.TARGET_H,
-            names: this._staff(e, names).map(s => s.name).filter(n => n && n !== '?')
+            people, names: people.map(p => p.name)
           });
         }));
         shifts.sort((a, b) => a.date.localeCompare(b.date) || a.team.localeCompare(b.team));
@@ -30337,7 +30353,33 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             names: [...new Set(list.flatMap(s => s.names))]
           };
         }).filter(t => t.days);
-        return { shifts, teams };
+        return { shifts, teams, pending };
+      },
+
+      /** Postes importés avant le comptage par tranches de 5 min : relit leurs mouvements (dispatchEvents)
+       *  et complète `staff[].slots`. Une seule fois par poste ; la mise à jour Firebase relance l'affichage. */
+      async ensureSlots() {
+        if (this._slotsRunning) return;
+        this._slotsTried = this._slotsTried || new Set();
+        const names = this._knownNames();
+        const todo = [];
+        Object.entries(this._valid()).forEach(([date, teams]) => Object.entries(teams).forEach(([team, e]) => {
+          const key = date + '|' + team;
+          if (!this._slotsTried.has(key) && this._staffRaw(e).some(s => s.slots === undefined || s.slots === null)) todo.push({ date, team, key });
+        }));
+        if (!todo.length) return;
+        this._slotsRunning = true;
+        try {
+          for (const { date, team, key } of todo) {
+            this._slotsTried.add(key);
+            const events = (await fbDb.ref(`dispatchEvents/${date}/${team}`).once('value')).val();
+            if (!events) continue;
+            const { staff } = this._aggregate(events, n => this._fullName(n, names));
+            await fbDb.ref(`dispatchSuivi/${date}/${team}`).update({ staff });
+          }
+        } finally {
+          this._slotsRunning = false;
+        }
       },
 
       /** Noms connus : saisies enregistrées + `extra` */
@@ -35024,7 +35066,14 @@ Erreur Firebase : ${e.message}`;
         const count = document.getElementById('perf-dispatch-count');
         const d = views.dispatch;
         if (!canvas || !scroll || !inner || !body || !d) return;
-        const { shifts, teams } = d.teamPerformance(this._periodStart(document.getElementById('perf-period')?.value || 'month'));
+        const { shifts, teams, pending } = d.teamPerformance(this._periodStart(document.getElementById('perf-period')?.value || 'month'));
+        // Postes importés avant le comptage par tranches de 5 min : recalcul automatique (réaffiche à la fin)
+        const pendingEl = document.getElementById('perf-dispatch-pending');
+        if (pendingEl) {
+          pendingEl.hidden = !pending;
+          pendingEl.textContent = pending ? `⏳ Calcul des tranches de 5 min en cours pour ${pending} poste(s) importé(s) avant ce mode de calcul…` : '';
+        }
+        if (pending) d.ensureSlots().catch(e => console.warn('[performance] tranches 5 min', e));
         const TARGET = d.TARGET_H;
         const PER = d.DISPATCHERS_PER_TEAM;
         const HOURS = { A: '06h–14h', B: '14h–22h', C: '22h–06h' };
@@ -35032,13 +35081,16 @@ Erreur Firebase : ${e.message}`;
         const pct = v => Math.round(v * 100) + ' %';
         const pill = (ok, text) => `<span style="display:inline-block;padding:.15rem .5rem;border-radius:999px;font-weight:800;white-space:nowrap;${ok ? 'background:rgba(12,163,12,.15);color:#18a518' : 'background:rgba(208,59,59,.15);color:#e05252'}">${ok ? '✓' : '✗'} ${text}</span>`;
         const who = list => (list.length ? list.map(n => ui.escape(n)).join(' + ') : '<span style="color:var(--text-muted)">—</span>');
+        const whoHours = list => (list.length
+          ? list.map(p => `${ui.escape(p.name)} <span style="color:var(--text-muted)">${h(p.hours)}</span>`).join(' + ')
+          : '<span style="color:var(--text-muted)">—</span>');
         const teamCell = team => `<strong>Équipe ${team}</strong> <span style="color:var(--text-muted);font-size:.8em;white-space:nowrap">${HOURS[team]}</span>`;
         const days = [...new Set(shifts.map(s => s.date))].sort();
         const dayLabel = iso => d._fmtDate(iso).slice(0, 5);
 
         scroll.style.display = shifts.length ? '' : 'none';
         if (legend) legend.style.display = shifts.length ? 'flex' : 'none';
-        if (empty) empty.hidden = shifts.length > 0;
+        if (empty) empty.hidden = shifts.length > 0 || pending > 0;
 
         // Bilan par équipe : les dispatcheurs, jours à 7 h, moyenne par dispatcheur (temps ÷ 2)
         body.innerHTML = teams.length ? teams.map(t => `<tr>
@@ -35055,8 +35107,8 @@ Erreur Firebase : ${e.message}`;
         if (count) count.textContent = shifts.length ? `(${shifts.length} poste${shifts.length > 1 ? 's' : ''})` : '';
         if (detail) detail.innerHTML = [...shifts].reverse().map(s => `<tr>
             <td style="white-space:nowrap">${d._fmtDate(s.date)}</td>
-            <td style="white-space:nowrap">${teamCell(s.team)}</td>
-            <td style="white-space:nowrap">${who(s.names)}</td>
+            <td style="white-space:nowrap"><strong>${s.team}</strong> <span style="color:var(--text-muted);font-size:.8em">${HOURS[s.team]}</span></td>
+            <td style="white-space:nowrap">${whoHours(s.people)}</td>
             <td style="text-align:right">${s.moves}</td>
             <td style="text-align:right;white-space:nowrap">${this._fmtMin(s.minutes)}</td>
             <td style="text-align:right;font-weight:700;white-space:nowrap">${h(s.perH)}</td>
@@ -35144,8 +35196,8 @@ Erreur Firebase : ${e.message}`;
                   const s = byKey[days[it.dataIndex] + d.TEAMS[it.datasetIndex]];
                   return [
                     ` Équipe ${s.team} : ${h(s.perH)} par dispatcheur (${pct(s.perf)})`,
-                    `   ${s.names.join(' + ') || '—'}`,
-                    `   ${s.moves} mouvements × 5 min = ${this._fmtMin(s.minutes)} ÷ ${PER}`
+                    `   ${s.people.map(p => `${p.name} ${h(p.hours)}`).join(' + ') || '—'}`,
+                    `   Temps actif de l'équipe ${h(s.minutes / 60)} ÷ ${PER} · ${s.moves} mouvements`
                   ];
                 }
               }

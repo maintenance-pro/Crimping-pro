@@ -30566,6 +30566,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             if (c.startsWith('VÉRIF'))        return { fill: { patternType: "solid", fgColor: { rgb: "CFFAFE" } }, font: { color: { rgb: "155E75" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
             if (c === 'OK' || c.startsWith('BON')) return { fill: { patternType: "solid", fgColor: { rgb: "D1FAE5" } }, font: { color: { rgb: "065F46" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
             if (c === 'ALERTE')               return { fill: { patternType: "solid", fgColor: { rgb: "FEF3C7" } }, font: { color: { rgb: "92400E" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
+            if (c === 'EN TRANSIT')           return { fill: { patternType: "solid", fgColor: { rgb: "EDE9FE" } }, font: { color: { rgb: "5B21B6" }, bold: true, sz: 10, name: "Calibri" }, border: BORDER_LIGHT, alignment: { horizontal: "center", vertical: "center" } };
             return styleZebra("FFFFFF");
           };
           const styleClient = (clientName) => {
@@ -30826,7 +30827,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           // ╚══════════════════════════════════════════════════════════════════╝
           const finished24 = this._finishedRecent(24);
           const transit24  = this._transitRecent(24);
-          const buildRecentSheet = (rows, placeHeader, typeLabel, headerColor) => {
+          // okLabel : statut d'un outil non bloqué (BON sur la machine, EN TRANSIT en transit)
+          const buildRecentSheet = (rows, placeHeader, typeLabel, headerColor, okLabel = 'BON') => {
             const headers = ['Inventory No.','Client',placeHeader,'Date','Heure','Statut'];
             const aoa = [headers];
             rows.forEach(r => {
@@ -30837,7 +30839,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 this._machineOf(r) || r.location || '—',
                 since ? new Date(since).toLocaleDateString('fr-FR') : '—',
                 since ? new Date(since).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—',
-                this._machineStatusText(r)
+                this._machineStatusText(r).replace(/^BON$/, okLabel)
               ]);
             });
             if (!rows.length) aoa.push([this._hasLastUsage()
@@ -30860,7 +30862,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           XLSX.utils.book_append_sheet(wb, wsSynthese, 'SYNTHÈSE');
           XLSX.utils.book_append_sheet(wb, buildCauseSheet(['binding', 'coupe', 'requalif', 'verif5j']), 'OUTILS BLOQUÉS');
           XLSX.utils.book_append_sheet(wb, buildRecentSheet(finished24, 'Machine', 'Finished At Machine', '2563EB'), 'TERMINÉS 24H');
-          XLSX.utils.book_append_sheet(wb, buildRecentSheet(transit24, 'Emplacement', 'In Transit', '7C3AED'), 'EN TRANSIT 24H');
+          XLSX.utils.book_append_sheet(wb, buildRecentSheet(transit24, 'Emplacement', 'In Transit', '7C3AED', 'EN TRANSIT'), 'EN TRANSIT 24H');
 
           const dateStr = now.toISOString().slice(0, 10);
           const projTag = this._selectedProjects.size === 1 && !this._selectedProjects.has('__NONE__')

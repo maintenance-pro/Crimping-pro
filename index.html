@@ -9896,6 +9896,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           #view-dispatch .ds-help ul{margin:.5rem 0 0;padding-left:1.1rem;font-size:.78rem;color:var(--text-secondary);line-height:1.5}
           #view-dispatch .ds-chart-title{font-weight:800;color:var(--text-primary);font-size:.95rem}
           #view-dispatch .ds-chart-sub{font-size:.74rem;color:var(--text-muted)}
+          #view-dispatch .ds-legend{display:flex;gap:.9rem;flex-wrap:wrap;font-size:.8rem;font-weight:600;color:var(--text-secondary)}
+          #view-dispatch .ds-scroll{overflow-x:auto;margin-top:.5rem}
+          #view-dispatch .ds-scroll__inner{min-width:100%}
         </style>
         <header class="catalog__header" style="margin-bottom:1rem">
           <h1 style="margin:0;font-size:1.4rem;color:#7c5cdb">🚚 Dispatcheur Suivi</h1>
@@ -9930,20 +9933,26 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <!-- Diagrammes alignés poste par poste : mouvements (colonnes) puis écart (positif / négatif) -->
         <div class="ds-card" style="padding:.85rem 1rem 1rem;margin-bottom:1rem">
           <div id="ds-charts">
-            <div class="ds-chart-title">Mouvements par poste</div>
-            <div class="ds-chart-sub" style="margin-bottom:.4rem">Sorties, retours et outils finis sur la machine (reste de l'équipe −8 h)</div>
-            <div style="position:relative;height:260px"><canvas id="ds-chart" role="img" aria-label="Mouvements par poste : sorties, retours et outils finis sur la machine"></canvas></div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:.6rem;flex-wrap:wrap">
+              <div>
+                <div class="ds-chart-title">Mouvements par poste</div>
+                <div class="ds-chart-sub">Sorties, retours et outils finis sur la machine (reste de l'équipe −8 h)</div>
+              </div>
+              <div id="ds-moves-legend" class="ds-legend"></div>
+            </div>
+            <div class="ds-scroll" id="ds-scroll-moves"><div class="ds-scroll__inner"><div style="position:relative;height:300px"><canvas id="ds-chart" role="img" aria-label="Mouvements par poste : sorties, retours et outils finis sur la machine"></canvas></div></div></div>
             <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:.6rem;flex-wrap:wrap;margin-top:1.1rem">
               <div>
                 <div class="ds-chart-title">Écart par poste</div>
                 <div class="ds-chart-sub">Retours − (Sorties + Finis)</div>
               </div>
-              <div style="font-size:.74rem;color:var(--text-secondary);display:flex;gap:.9rem">
+              <div class="ds-legend">
                 <span><span class="ds-key" style="background:#0ca30c"></span>▲ Écart positif</span>
                 <span><span class="ds-key" style="background:#d03b3b"></span>▼ Écart négatif</span>
               </div>
             </div>
-            <div style="position:relative;height:180px;margin-top:.4rem"><canvas id="ds-gap-chart" role="img" aria-label="Écart par poste : retours moins sorties et outils finis"></canvas></div>
+            <div class="ds-scroll" id="ds-scroll-gap"><div class="ds-scroll__inner"><div style="position:relative;height:220px"><canvas id="ds-gap-chart" role="img" aria-label="Écart par poste : retours moins sorties et outils finis"></canvas></div></div></div>
+            <div id="ds-scroll-hint" class="ds-chart-sub" hidden style="margin-top:.35rem">↔ Faites défiler les diagrammes vers la gauche pour voir les postes précédents</div>
           </div>
           <p id="ds-chart-empty" hidden style="margin:0;font-size:.8rem;color:var(--text-muted)">Aucune saisie sur la période choisie.</p>
         </div>
@@ -30078,6 +30087,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         });
         document.getElementById('ds-export-btn')?.addEventListener('click', () => this.exportExcel());
         document.getElementById('ds-period')?.addEventListener('change', () => this.render());
+        // Les deux diagrammes défilent ensemble : les postes restent alignés
+        const sa = document.getElementById('ds-scroll-moves');
+        const sb = document.getElementById('ds-scroll-gap');
+        if (sa && sb) {
+          sa.addEventListener('scroll', () => { if (sb.scrollLeft !== sa.scrollLeft) sb.scrollLeft = sa.scrollLeft; }, { passive: true });
+          sb.addEventListener('scroll', () => { if (sa.scrollLeft !== sb.scrollLeft) sa.scrollLeft = sb.scrollLeft; }, { passive: true });
+        }
         document.getElementById('ds-tbody')?.addEventListener('click', (e) => {
           const btn = e.target.closest('[data-ds-del]');
           if (btn) this.remove(btn.dataset.dsDel, btn.dataset.dsTeam);
@@ -30442,6 +30458,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           series: light ? ['#2a78d6', '#eb6834', '#1baf7a'] : ['#3987e5', '#d95926', '#199e70'],
           good: '#0ca30c',
           critical: '#d03b3b',
+          ink: css('--text-primary', light ? '#05070d' : '#f3f6ff'),
           inkSoft: css('--text-secondary', light ? '#3d566e' : '#9fb0d6'),
           muted: css('--text-muted', light ? '#6b7d8f' : '#64749c'),
           grid: css('--border-soft', light ? 'rgba(0,80,120,.1)' : 'rgba(148,177,255,.14)')
@@ -30481,8 +30498,38 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }));
       },
 
+      /** Valeurs écrites au bout de chaque colonne (au-dessus, en dessous si négative), en encre de texte.
+       *  Une valeur qui ne tient pas dans la largeur de sa colonne n'est pas écrite (bulle + tableau). */
+      _valueLabels: {
+        id: 'dsValueLabels',
+        afterDatasetsDraw(chart, args, opts) {
+          if (!opts || opts.display === false) return;
+          const n = chart.data.labels.length || 1;
+          const shown = chart.data.datasets.filter((ds, i) => chart.isDatasetVisible(i)).length || 1;
+          const avail = (chart.scales.x.width / n) * 0.72 / shown + 6;
+          const { ctx } = chart;
+          ctx.save();
+          ctx.font = `700 ${opts.size || 11}px ${Chart.defaults.font.family}`;
+          ctx.fillStyle = opts.color || '#000';
+          ctx.textAlign = 'center';
+          chart.data.datasets.forEach((ds, di) => {
+            if (!chart.isDatasetVisible(di)) return;
+            chart.getDatasetMeta(di).data.forEach((el, i) => {
+              const v = ds.data[i];
+              if (v === null || v === undefined) return;
+              const text = opts.format ? opts.format(v) : String(v);
+              if (ctx.measureText(text).width > avail) return;
+              ctx.textBaseline = v < 0 ? 'top' : 'bottom';
+              ctx.fillText(text, el.x, v < 0 ? el.y + 4 : el.y - 4);
+            });
+          });
+          ctx.restore();
+        }
+      },
+
       /** Deux diagrammes alignés poste par poste (même axe X, même largeur d'axe Y) :
-       *  colonnes Sorties / Retours / Finis, puis Écart (vert positif, rouge négatif) */
+       *  colonnes Sorties / Retours / Finis, puis Écart (vert positif, rouge négatif).
+       *  Valeurs écrites sur les colonnes ; quand les postes ne tiennent plus, les deux diagrammes défilent ensemble. */
       async renderChart(rows) {
         const box = document.getElementById('ds-charts');
         const empty = document.getElementById('ds-chart-empty');
@@ -30500,17 +30547,34 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         await this._loadChart();
         if (typeof applyChartDefaults === 'function') applyChartDefaults();
         const c = this._colors();
+
+        // Largeur minimale par poste : les valeurs restent lisibles, sinon défilement horizontal
+        const scrollers = ['ds-scroll-moves', 'ds-scroll-gap'].map(id => document.getElementById(id)).filter(Boolean);
+        const minW = rows.length * 104 + 64;
+        const needScroll = scrollers.length > 0 && minW > scrollers[0].clientWidth;
+        scrollers.forEach(s => { s.firstElementChild.style.width = needScroll ? minW + 'px' : ''; });
+        const hint = document.getElementById('ds-scroll-hint');
+        if (hint) hint.hidden = !needScroll;
+
+        // Légende en HTML : reste visible pendant le défilement
+        const names = ['Sorties (Tool Supply)', 'Retours (Tool Return)', 'Finis sur la machine (équipe −8 h)'];
+        const legend = document.getElementById('ds-moves-legend');
+        if (legend) legend.innerHTML = names.map((l, i) => `<span><span class="ds-key" style="background:${c.series[i]}"></span>${l}</span>`).join('');
+
         const HOURS = { A: '06h–14h', B: '14h–22h', C: '22h–06h' };
         const labels = rows.map(r => `${this._fmtDate(r.date).slice(0, 5)} ${r.team}`);
         const title = items => { const r = rows[items[0].dataIndex]; return `${this._fmtDate(r.date)} · Équipe ${r.team} (${HOURS[r.team]})`; };
-        const xAxis = () => ({ grid: { display: false }, border: { color: c.grid }, ticks: { color: c.muted, maxRotation: 0, autoSkip: true } });
+        const font = { size: 12 };
+        const xAxis = () => ({ grid: { display: false }, border: { color: c.grid }, ticks: { color: c.muted, font, maxRotation: 0, autoSkip: false } });
         const yAxis = () => ({
           beginAtZero: true,
+          grace: '12%',   // place pour les valeurs écrites au bout des colonnes
           border: { display: false },
-          ticks: { color: c.muted, precision: 0 },
+          ticks: { color: c.muted, font, precision: 0 },
           grid: { color: g => (g.tick && g.tick.value === 0 ? c.muted : c.grid), lineWidth: 1 },   // zéro marqué
           afterFit: s => { s.width = 52; }   // même largeur dans les deux diagrammes : postes alignés
         });
+        const tooltip = label => ({ titleFont: { size: 13, weight: '700' }, bodyFont: { size: 13 }, padding: 10, boxPadding: 4, callbacks: { title, label } });
         const bar = (label, data, color) => ({
           label, data, backgroundColor: color, hoverBackgroundColor: color, borderWidth: 0,
           borderRadius: 4, borderSkipped: 'start', maxBarThickness: 24, barPercentage: 0.86, categoryPercentage: 0.72
@@ -30519,17 +30583,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const configs = {
           moves: {
             canvas: cMoves,
-            data: {
-              labels,
-              datasets: [
-                bar('Sorties (Tool Supply)', rows.map(r => r.supply), c.series[0]),
-                bar('Retours (Tool Return)', rows.map(r => r.ret), c.series[1]),
-                bar('Finis sur la machine (équipe −8 h)', rows.map(r => r.fin), c.series[2])
-              ]
-            },
+            data: { labels, datasets: names.map((l, i) => bar(l, rows.map(r => [r.supply, r.ret, r.fin][i]), c.series[i])) },
             plugins: {
-              legend: { position: 'top', align: 'start', labels: { color: c.inkSoft, usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 10, boxHeight: 10, padding: 14 } },
-              tooltip: { callbacks: { title, label: it => ` ${it.dataset.label} : ${this._num(it.raw)}` + (it.datasetIndex === 2 ? ` (reste équipe ${rows[it.dataIndex].prev.team})` : '') } }
+              legend: { display: false },
+              tooltip: tooltip(it => ` ${it.dataset.label} : ${this._num(it.raw)}` + (it.datasetIndex === 2 ? ` (reste équipe ${rows[it.dataIndex].prev.team})` : '')),
+              dsValueLabels: { color: c.ink, size: 11, format: v => this._num(v) }
             }
           },
           gap: {
@@ -30537,7 +30595,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             data: { labels, datasets: [{ ...bar('Écart', rows.map(r => r.total), c.good), backgroundColor: gapColors, hoverBackgroundColor: gapColors }] },
             plugins: {
               legend: { display: false },
-              tooltip: { callbacks: { title, label: it => { const r = rows[it.dataIndex]; return ` Écart : ${this._signed(r.total)} = ${r.ret} − (${r.supply} + ${r.fin})`; } } }
+              tooltip: tooltip(it => { const r = rows[it.dataIndex]; return ` Écart : ${this._signed(r.total)} = ${r.ret} − (${r.supply} + ${r.fin})`; }),
+              dsValueLabels: { color: c.ink, size: 12, format: v => this._signed(v) }
             }
           }
         };
@@ -30553,9 +30612,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (ch && ch.canvas === cfg.canvas) { ch.data = cfg.data; ch.options = options; ch.update(); }
           else {
             if (ch) ch.destroy();
-            this._charts[key] = new Chart(cfg.canvas, { type: 'bar', data: cfg.data, options });
+            this._charts[key] = new Chart(cfg.canvas, { type: 'bar', data: cfg.data, options, plugins: [this._valueLabels] });
           }
         });
+
+        // S'ouvre sur les postes les plus récents (à chaque changement de période ou nouveau poste)
+        const last = rows[rows.length - 1];
+        const key = `${document.getElementById('ds-period')?.value}|${rows.length}|${last.date}${last.team}`;
+        if (needScroll && key !== this._scrollKey) requestAnimationFrame(() => scrollers.forEach(s => { s.scrollLeft = s.scrollWidth; }));
+        this._scrollKey = key;
       },
 
       render() {

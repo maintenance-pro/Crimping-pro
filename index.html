@@ -8952,7 +8952,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <option value="ok">✅ OK uniquement</option>
           </select>
           <button id="bl-import-btn" class="btn btn--secondary" style="background:rgba(52, 211, 153,.12);color:#34d399;border:1px solid rgba(52, 211, 153,.3);font-weight:700;font-size:.78rem">📥 Importer Excel</button>
-          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem" title="Télécharge UN SEUL fichier Excel : SYNTHÈSE + OUTILS BLOQUÉS (BINDING · COUPE · REQUALIF · VÉRIF 5J) + TERMINÉS 24H">📤 Exporter Excel (Synthèse + 4 onglets)</button>
+          <button id="bl-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem" title="Télécharge UN SEUL fichier Excel : SYNTHÈSE + OUTILS BLOQUÉS (BINDING · COUPE · REQUALIF · VÉRIF 5J) + TERMINÉS 24H + EN TRANSIT 24H">📤 Exporter Excel (Synthèse + 4 onglets)</button>
           <input type="file" id="bl-import-file" accept=".xlsx,.xls" hidden>
         </div>
 
@@ -30267,6 +30267,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return /^[mt]\d{1,4}[a-z]?$/.test(loc.trim()) || /machine|termin|finish|complet|done/.test(loc);
       },
 
+      /** 🆕 Outil EN TRANSIT ? (« Location Type » = In Transit, sinon « transit » dans l'emplacement) */
+      _isInTransit(r) {
+        if (r && r.locationType) return /transit/i.test(String(r.locationType));
+        return /transit/i.test(String((r && r.location) || ''));
+      },
+
       /** Clé Firebase sûre pour un Inventory No. (interdit . # $ [ ] /) */
       _fbKey(inv) {
         return String(inv || '').trim().replace(/[.#$\[\]\/]/g, '_');
@@ -30316,11 +30322,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       /** Onglet TERMINÉS 24H : « Last Used » dans les `hours` dernières heures
        *  ET « Location Type » = Finished At Machine (filtre projet respecté), plus récents d'abord */
       _finishedRecent(hours = 24) {
+        return this._usedRecent(hours, r => this._isFinishedOnMachine(r));
+      },
+
+      /** 🆕 Onglet EN TRANSIT 24H : même méthode, « Location Type » = In Transit */
+      _transitRecent(hours = 24) {
+        return this._usedRecent(hours, r => this._isInTransit(r));
+      },
+
+      /** Outils dont « Last Used » date des `hours` dernières heures et qui vérifient `test`
+       *  (filtre projet respecté), plus récents d'abord */
+      _usedRecent(hours, test) {
         const now = Date.now();
         const limit = now - hours * 3600 * 1000;
         let rows = (this._data || []).filter(r => {
           const t = this._lastUsageTs(r);
-          return t && t >= limit && t <= now + 3600 * 1000 && this._isFinishedOnMachine(r);
+          return t && t >= limit && t <= now + 3600 * 1000 && test(r);
         });
         if (this._selectedProjects && this._selectedProjects.size > 0) {
           if (this._selectedProjects.has('__NONE__')) rows = [];
@@ -30373,9 +30390,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const recentEl = document.getElementById('bl-finished-24h');
         const DAY = 24 * 3600 * 1000;
         const nRecent = this._finishedRecent(24).length;
+        const nTransit = this._transitRecent(24).length;
         if (recentEl) recentEl.textContent = !this._hasLastUsage()
           ? '· ⚠️ colonne « dernière utilisation » absente — réimportez le fichier Komax'
-          : (nRecent ? '· 🆕 ' + nRecent + ' outil(s) utilisé(s) dans les dernières 24 h (onglet Excel TERMINÉS 24H)' : '');
+          : (nRecent ? '· 🆕 ' + nRecent + ' outil(s) utilisé(s) dans les dernières 24 h (onglet Excel TERMINÉS 24H)' : '')
+            + (nTransit ? ' · 🚚 ' + nTransit + ' outil(s) en transit (onglet Excel EN TRANSIT 24H)' : '');
         if (!rows.length) { sec.style.display = 'none'; tb.innerHTML = ''; return; }
         sec.style.display = '';
         tb.innerHTML = rows.slice(0, 300).map(r => {
@@ -30483,7 +30502,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       /** 🆕 Exporte les outils bloqués filtrés en UN fichier Excel :
-       *  feuille SYNTHÈSE (rapport) + OUTILS BLOQUÉS (BINDING / COUPE / REQUALIF / VÉRIF-5J) + TERMINÉS 24H */
+       *  feuille SYNTHÈSE (rapport) + OUTILS BLOQUÉS (BINDING / COUPE / REQUALIF / VÉRIF-5J) + TERMINÉS 24H + EN TRANSIT 24H */
       async exportFiltered() {
         const filtered = this._getFiltered();
         if (!filtered.length) {
@@ -30802,14 +30821,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           };
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ FEUILLE 6 — OUTILS TERMINÉS SUR LA MACHINE (DERNIÈRES 24 H)      ║
+          // ║ FEUILLES 3 & 4 — TERMINÉS SUR LA MACHINE / EN TRANSIT (24 H)     ║
           // ║ Bloqués ou non · statut BINDING / COUPE / REQUALIF / BON         ║
           // ╚══════════════════════════════════════════════════════════════════╝
           const finished24 = this._finishedRecent(24);
-          const buildFinishedSheet = () => {
-            const headers = ['Inventory No.','Client','Machine','Date','Heure','Statut'];
+          const transit24  = this._transitRecent(24);
+          const buildRecentSheet = (rows, placeHeader, typeLabel, headerColor) => {
+            const headers = ['Inventory No.','Client',placeHeader,'Date','Heure','Statut'];
             const aoa = [headers];
-            finished24.forEach(r => {
+            rows.forEach(r => {
               const client = this._getClientForProject(r.masterLocation);
               const since = this._lastUsageTs(r);
               aoa.push([
@@ -30820,26 +30840,27 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 this._machineStatusText(r)
               ]);
             });
-            if (!finished24.length) aoa.push([this._hasLastUsage()
-              ? '— Aucun outil « Finished At Machine » utilisé dans les dernières 24 h (vérifiez que le fichier Komax importé est récent) —'
+            if (!rows.length) aoa.push([this._hasLastUsage()
+              ? `— Aucun outil « ${typeLabel} » utilisé dans les dernières 24 h (vérifiez que le fichier Komax importé est récent) —`
               : '— Colonne « dernière utilisation » absente : réimportez le fichier Komax complet —']);
             const ws = XLSX.utils.aoa_to_sheet(aoa);
             ws['!cols'] = [
-              { wch: 18 }, { wch: 14 }, { wch: 11 }, { wch: 12 }, { wch: 9 }, { wch: 28 }
+              { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 9 }, { wch: 28 }
             ];
             ws['!freeze'] = { xSplit: 1, ySplit: 1 };
             ws['!autofilter'] = { ref: `A1:F${aoa.length}` };
-            applyDataStyles(ws, { headerColor: '2563EB', causeCol: 5, clientCol: 1, invCol: 0 });
+            applyDataStyles(ws, { headerColor, causeCol: 5, clientCol: 1, invCol: 0 });
             return ws;
           };
 
           // ╔══════════════════════════════════════════════════════════════════╗
-          // ║ ASSEMBLAGE + ÉCRITURE : SYNTHÈSE + OUTILS BLOQUÉS + TERMINÉS 24H ║
+          // ║ ASSEMBLAGE : SYNTHÈSE + OUTILS BLOQUÉS + TERMINÉS 24H + TRANSIT  ║
           // ╚══════════════════════════════════════════════════════════════════╝
           const wb = XLSX.utils.book_new();
           XLSX.utils.book_append_sheet(wb, wsSynthese, 'SYNTHÈSE');
           XLSX.utils.book_append_sheet(wb, buildCauseSheet(['binding', 'coupe', 'requalif', 'verif5j']), 'OUTILS BLOQUÉS');
-          XLSX.utils.book_append_sheet(wb, buildFinishedSheet(), 'TERMINÉS 24H');
+          XLSX.utils.book_append_sheet(wb, buildRecentSheet(finished24, 'Machine', 'Finished At Machine', '2563EB'), 'TERMINÉS 24H');
+          XLSX.utils.book_append_sheet(wb, buildRecentSheet(transit24, 'Emplacement', 'In Transit', '7C3AED'), 'EN TRANSIT 24H');
 
           const dateStr = now.toISOString().slice(0, 10);
           const projTag = this._selectedProjects.size === 1 && !this._selectedProjects.has('__NONE__')
@@ -30853,7 +30874,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           ui.toast(
             `✅ ${blocked.length} outils bloqués exportés → ${filename} — ` +
             `BINDING (${groups.binding.length}) · COUPE (${groups.coupe.length}) · ` +
-            `REQUALIF (${groups.requalif.length}) · VÉRIF-5J (${groups.verif5j.length}) · TERMINÉS 24H (${finished24.length})`,
+            `REQUALIF (${groups.requalif.length}) · VÉRIF-5J (${groups.verif5j.length}) · TERMINÉS 24H (${finished24.length}) · ` +
+            `EN TRANSIT 24H (${transit24.length})`,
             'success', 9000
           );
         } catch (e) {

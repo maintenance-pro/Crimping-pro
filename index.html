@@ -7646,6 +7646,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <span class="sidebar__pill sidebar__pill--danger" id="nav-blocked-count" style="background:rgba(251, 90, 106,.18);color:#fb5a6a">0</span>
             </button>
           </li>
+          <!-- 🚚 DISPATCHEUR SUIVI — Tool Supply / Tool Return / Finis sur machine par équipe -->
+          <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping">
+            <button class="sidebar__link" data-nav="dispatch">
+              <span class="sidebar__icon">🚚</span><span class="sidebar__label">Dispatcheur Suivi</span>
+            </button>
+          </li>
           <!-- 🔄 QRQC / PDCA — Traitement des réclamations qualité -->
           <li class="sidebar__item" data-requires-role="admin,super_admin,responsable,crimp,crimping,labo">
             <button class="sidebar__link" data-nav="qrqc">
@@ -9851,6 +9857,50 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             </table>
           </div>
         </article>
+      </section>
+
+      <!-- ================================================================= -->
+      <!-- VIEW — DISPATCHEUR SUIVI · Tool Supply / Tool Return / Finis      -->
+      <!-- ================================================================= -->
+      <section class="catalog" id="view-dispatch" data-view="dispatch" hidden>
+        <header class="catalog__header" style="margin-bottom:1rem">
+          <h1 style="margin:0;font-size:1.4rem;color:#7c5cdb">🚚 Dispatcheur Suivi</h1>
+          <p style="margin:.3rem 0 0;color:var(--text-secondary);font-size:.85rem">Chaque extraction Komax importée compte les outils <strong>Tool Supply</strong> et <strong>Tool Return</strong> · Outils finis sur la machine = onglet <strong>TERMINÉS 24H</strong> des Outils Bloqués · <strong>Total = Tool Return − (Tool Supply + Finis sur la machine)</strong></p>
+        </header>
+
+        <div style="display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:.6rem">
+          <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.72rem;font-weight:700;color:var(--text-muted)">DATE
+            <input type="date" id="ds-date" class="input" style="padding:.45rem .6rem;border-radius:6px;border:1px solid var(--border-soft);background:var(--bg-2);color:var(--text-primary)">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:.25rem;font-size:.72rem;font-weight:700;color:var(--text-muted)">ÉQUIPE
+            <select id="ds-team" style="padding:.45rem .6rem;border-radius:6px;border:1px solid var(--border-soft);background:var(--bg-2);color:var(--text-primary);min-width:110px">
+              <option value="A">A (06h–14h)</option>
+              <option value="B">B (14h–22h)</option>
+              <option value="C">C (22h–06h)</option>
+            </select>
+          </label>
+          <button id="ds-import-btn" class="btn btn--secondary" data-edit-module="dispatch" style="background:rgba(52, 211, 153,.12);color:#34d399;border:1px solid rgba(52, 211, 153,.3);font-weight:700;font-size:.78rem">📥 Importer extraction</button>
+          <input type="file" id="ds-import-file" accept=".xlsx,.xls,.csv" hidden>
+          <button id="ds-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem">📤 Exporter Excel</button>
+        </div>
+        <p id="ds-finished-info" style="margin:0 0 1rem;font-size:.75rem;color:var(--text-muted)"></p>
+
+        <div style="overflow-x:auto;border:1px solid var(--border-soft);border-radius:10px">
+          <table style="width:100%;border-collapse:collapse;font-size:.85rem;min-width:640px">
+            <thead>
+              <tr style="background:rgba(124, 92, 219,.12)">
+                <th style="padding:.7rem .6rem;text-align:center;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Date</th>
+                <th style="padding:.7rem .6rem;text-align:center;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Équipe</th>
+                <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Tool Supply</th>
+                <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Tool Return</th>
+                <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Outils finis sur la machine</th>
+                <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Total</th>
+                <th style="width:40px"></th>
+              </tr>
+            </thead>
+            <tbody id="ds-tbody"></tbody>
+          </table>
+        </div>
       </section>
 
       <!-- ================================================================= -->
@@ -15262,6 +15312,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       { key: 'queue',        label: "File d'attente",       icon: '⏳', nav: 'queue',        views: ['queue'] },
       { key: 'catalog',      label: 'Catalogue outils',     icon: '🛠', nav: 'catalog',      views: ['catalog'] },
       { key: 'blocked',      label: 'Outils Bloqués',       icon: '🚫', nav: 'blocked',      views: ['blocked'] },
+      { key: 'dispatch',     label: 'Dispatcheur Suivi',    icon: '🚚', nav: 'dispatch',     views: ['dispatch'] },
       { key: 'equipe',       label: 'Équipe',               icon: '👥', nav: 'equipe',       views: ['technicians','users','equipe'] },
       { key: 'analytics',    label: 'Analytics',            icon: '📊', nav: 'analytics',    views: ['performance','stats','analytics'] },
       { key: 'magasin',      label: 'Magasin Stock',        icon: '📦', nav: 'magasin',      views: ['magasin'] },
@@ -17029,7 +17080,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         mergedTarget = hash;
         resolvedHash = mergedHubs[hash];
       }
-      const valid = ['hub','intervention','preventive5j','history','queue','catalog','blocked','users','technicians','stats','auditlog','magasin','performance','pdr','demandes-pdr','preparations','qrqc','documentation','missions'];
+      const valid = ['hub','intervention','preventive5j','history','queue','catalog','blocked','dispatch','users','technicians','stats','auditlog','magasin','performance','pdr','demandes-pdr','preparations','qrqc','documentation','missions'];
       let view = valid.includes(resolvedHash) ? resolvedHash : 'hub';
 
       // ── Restrictions par rôle ──
@@ -29936,6 +29987,217 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
 
     /* ==========================================================================
+       🚚 DISPATCHEUR SUIVI — par date et équipe (A / B / C) :
+          Tool Supply / Tool Return comptés dans l'extraction Komax importée,
+          Outils finis sur la machine = onglet TERMINÉS 24H des Outils Bloqués,
+          Total = Tool Return − (Tool Supply + Finis sur la machine)
+       Firebase : dispatchSuivi/{AAAA-MM-JJ}/{A|B|C} = { supply, ret, finished, importedAt, importedBy, sourceFile }
+       ========================================================================== */
+    dispatch: {
+      TEAMS: ['A', 'B', 'C'],
+      _entries: {},
+      _subscribed: false,
+
+      init() {
+        // Date + équipe par défaut selon l'heure (C après minuit = poste commencé la veille)
+        const now = new Date();
+        const day = new Date(now);
+        if (now.getHours() < 6) day.setDate(day.getDate() - 1);
+        const dateEl = document.getElementById('ds-date');
+        if (dateEl) dateEl.value = this._isoDate(day);
+        const teamEl = document.getElementById('ds-team');
+        if (teamEl) teamEl.value = this._teamAt(now.getHours());
+
+        document.getElementById('ds-import-btn')?.addEventListener('click', () => {
+          document.getElementById('ds-import-file').click();
+        });
+        document.getElementById('ds-import-file')?.addEventListener('change', (e) => {
+          const f = e.target.files?.[0];
+          if (f) this.importExcel(f);
+          e.target.value = ''; // reset
+        });
+        document.getElementById('ds-export-btn')?.addEventListener('click', () => this.exportExcel());
+        document.getElementById('ds-tbody')?.addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-ds-del]');
+          if (btn) this.remove(btn.dataset.dsDel, btn.dataset.dsTeam);
+        });
+
+        // Écoute temps réel : tous les postes voient les mêmes saisies
+        fbAuth.onAuthStateChanged(u => {
+          if (!u || this._subscribed) return;
+          this._subscribed = true;
+          fbDb.ref('dispatchSuivi').on('value', snap => {
+            this._entries = snap.val() || {};
+            if (state.currentView === 'dispatch') this.render();
+          }, err => {
+            this._subscribed = false;
+            console.warn('[dispatch] lecture Firebase :', err.message);
+          });
+        });
+      },
+
+      /** Équipe d'après l'heure : A 06h–14h · B 14h–22h · C 22h–06h */
+      _teamAt(h) {
+        return (h >= 6 && h < 14) ? 'A' : (h >= 14 && h < 22) ? 'B' : 'C';
+      },
+
+      /** Date locale AAAA-MM-JJ (clé Firebase) */
+      _isoDate(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      },
+
+      /** AAAA-MM-JJ → JJ/MM/AAAA */
+      _fmtDate(iso) {
+        const [y, m, d] = String(iso).split('-');
+        return d ? `${d}/${m}/${y}` : String(iso);
+      },
+
+      /** Total = Tool Return − (Tool Supply + Finis sur la machine) */
+      _total(e) {
+        return (Number(e.ret) || 0) - ((Number(e.supply) || 0) + (Number(e.finished) || 0));
+      },
+
+      /** Outils finis sur la machine = onglet TERMINÉS 24H des Outils Bloqués (tous projets), null si rien d'importé */
+      _finishedCount() {
+        const bl = views.blocked;
+        if (!bl || !bl._data || !bl._data.length) return null;
+        return bl._usedRecent(24, r => bl._isFinishedOnMachine(r), true).length;
+      },
+
+      async _loadXlsx() {
+        if (typeof XLSX !== 'undefined') return;
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+          s.onload = res; s.onerror = rej;
+          document.head.appendChild(s);
+        });
+      },
+
+      /** Import d'une extraction Komax : compte les outils Tool Supply / Tool Return (colonne « Location Type ») */
+      async importExcel(file) {
+        const date = document.getElementById('ds-date')?.value;
+        const team = document.getElementById('ds-team')?.value;
+        if (!date || !this.TEAMS.includes(team)) { ui.toast('⚠️ Choisissez la date et l\'équipe avant l\'import', 'warn'); return; }
+        try {
+          await this._loadXlsx();
+          const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+          if (!rows.length) { ui.toast('⚠️ Fichier vide ou format inattendu', 'warn'); return; }
+          // En-têtes tolérants (casse, espaces, ponctuation) : « Location Type », sinon « Location »
+          const normH = h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const headers = Object.keys(rows[0]);
+          const typeCol = headers.find(h => normH(h) === 'locationtype');
+          const locCol  = headers.find(h => normH(h) === 'location');
+          if (!typeCol && !locCol) { ui.toast('⛔ Colonne « Location Type » introuvable — vérifiez l\'extraction Komax', 'danger'); return; }
+
+          let supply = 0, ret = 0;
+          const others = new Set();   // autres valeurs lues (diagnostic si rien trouvé)
+          rows.forEach(r => {
+            const raw = String((typeCol && r[typeCol]) || (locCol && r[locCol]) || '').trim();
+            const v = normH(raw);
+            if (v.includes('toolsupply')) supply++;
+            else if (v.includes('toolreturn')) ret++;
+            else if (raw && others.size < 8) others.add(raw);
+          });
+
+          const finished = this._finishedCount();
+          if (finished === null) ui.toast('⚠️ Aucune donnée Outils Bloqués : importez d\'abord le fichier Komax dans Outils Bloqués — finis sur la machine compté à 0', 'warn', 9000);
+          const entry = {
+            supply, ret, finished: finished || 0,
+            importedAt: Date.now(),
+            importedBy: state.user?.name || state.user?.email || 'admin',
+            sourceFile: file.name
+          };
+          const prev = this._entries?.[date]?.[team];
+          if (prev && !confirm(`Équipe ${team} du ${this._fmtDate(date)} déjà importée (Tool Supply ${prev.supply} · Tool Return ${prev.ret}).\n\nRemplacer par cette extraction ?`)) return;
+          await fbDb.ref(`dispatchSuivi/${date}/${team}`).set(entry);
+          try { db.audit('dispatch.import', '', { date, team, supply, ret, finished: entry.finished, sourceFile: file.name }); } catch (e) {}
+          ui.toast(`✅ ${this._fmtDate(date)} · Équipe ${team} : Tool Supply ${supply} · Tool Return ${ret} · Finis machine ${entry.finished} · Total ${this._total(entry)}`, 'success', 9000);
+          if (!supply && !ret) ui.toast('⚠️ Aucun outil « Tool Supply » ni « Tool Return » trouvé' + (others.size ? ' — valeurs lues : ' + [...others].join(', ') : ''), 'warn', 12000);
+          this.render();
+        } catch (e) {
+          console.error('[dispatch import]', e);
+          ui.toast('⛔ Erreur import : ' + e.message, 'danger');
+        }
+      },
+
+      async remove(date, team) {
+        if (!this._entries?.[date]?.[team]) return;
+        if (!confirm(`Supprimer la saisie équipe ${team} du ${this._fmtDate(date)} ?`)) return;
+        try {
+          await fbDb.ref(`dispatchSuivi/${date}/${team}`).remove();
+          try { db.audit('dispatch.delete', '', { date, team }); } catch (e) {}
+          ui.toast('🗑️ Saisie supprimée', 'info', 2500);
+        } catch (e) {
+          ui.toast('⛔ Suppression impossible : ' + e.message, 'danger');
+        }
+      },
+
+      render() {
+        const tb = document.getElementById('ds-tbody');
+        if (!tb) return;
+        const info = document.getElementById('ds-finished-info');
+        if (info) {
+          const n = this._finishedCount();
+          info.textContent = n === null
+            ? '⚠️ Aucune donnée Outils Bloqués : importez le fichier Komax dans Outils Bloqués pour compter les outils finis sur la machine'
+            : `🏭 Outils finis sur la machine en ce moment (TERMINÉS 24H, tous projets) : ${n}`;
+        }
+        const dates = Object.keys(this._entries || {}).sort().reverse();
+        if (!dates.length) {
+          tb.innerHTML = `<tr><td colspan="7" style="padding:1.5rem;text-align:center;color:var(--text-muted)">Aucune extraction importée — choisissez la date et l'équipe puis « 📥 Importer extraction »</td></tr>`;
+          return;
+        }
+        const canEdit = typeof access === 'undefined' || access.canEdit('dispatch');
+        const td  = 'padding:.55rem .6rem;border-bottom:1px solid var(--border-soft)';
+        const num = 'text-align:right;font-family:var(--font-mono);font-weight:700';
+        tb.innerHTML = dates.map(date => this.TEAMS.map((team, i) => {
+          const e = (this._entries[date] || {})[team];
+          const total = e ? this._total(e) : null;
+          const tip = e ? `Importé par ${e.importedBy || '?'} le ${new Date(e.importedAt).toLocaleString('fr-FR')} · ${e.sourceFile || ''}` : '';
+          return `<tr title="${ui.escape(tip)}">
+            ${i === 0 ? `<td rowspan="${this.TEAMS.length}" style="${td};text-align:center;font-weight:800;color:var(--text-primary);border-right:1px solid var(--border-soft)">${ui.escape(this._fmtDate(date))}</td>` : ''}
+            <td style="${td};text-align:center;font-weight:800;color:#7c5cdb">${team}</td>
+            <td style="${td};${num}">${e ? Number(e.supply) || 0 : ''}</td>
+            <td style="${td};${num}">${e ? Number(e.ret) || 0 : ''}</td>
+            <td style="${td};${num}">${e ? Number(e.finished) || 0 : ''}</td>
+            <td style="${td};${num};color:${total === null ? 'inherit' : total < 0 ? '#fb5a6a' : '#34d399'}">${e ? total : ''}</td>
+            <td style="${td};text-align:center">${e && canEdit ? `<button data-ds-del="${ui.escape(date)}" data-ds-team="${team}" title="Supprimer cette saisie" style="background:none;border:none;cursor:pointer;font-size:.9rem">🗑</button>` : ''}</td>
+          </tr>`;
+        }).join('')).join('');
+      },
+
+      async exportExcel() {
+        const dates = Object.keys(this._entries || {}).sort().reverse();
+        if (!dates.length) { ui.toast('⚠️ Aucune donnée à exporter', 'warn'); return; }
+        try {
+          await this._loadXlsx();
+          const aoa = [['Date', 'Équipe', 'Tool Supply', 'Tool Return', 'Outils finis sur la machine', 'Total']];
+          const merges = [];
+          dates.forEach(date => {
+            merges.push({ s: { r: aoa.length, c: 0 }, e: { r: aoa.length + this.TEAMS.length - 1, c: 0 } });
+            this.TEAMS.forEach((team, i) => {
+              const e = (this._entries[date] || {})[team];
+              aoa.push([i === 0 ? this._fmtDate(date) : '', team,
+                e ? Number(e.supply) || 0 : '', e ? Number(e.ret) || 0 : '',
+                e ? Number(e.finished) || 0 : '', e ? this._total(e) : '']);
+            });
+          });
+          const ws = XLSX.utils.aoa_to_sheet(aoa);
+          ws['!cols'] = [{ wch: 12 }, { wch: 8 }, { wch: 13 }, { wch: 13 }, { wch: 26 }, { wch: 10 }];
+          ws['!merges'] = merges;
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'DISPATCHEUR SUIVI');
+          XLSX.writeFile(wb, `LEONI_Dispatcheur_Suivi_${this._isoDate(new Date())}.xlsx`);
+        } catch (e) {
+          console.error('[dispatch export]', e);
+          ui.toast('⛔ Erreur export : ' + e.message, 'danger');
+        }
+      }
+    },
+
+    /* ==========================================================================
        🚫 OUTILS BLOQUÉS — Statuts critiques importés depuis Komax/DocuLink
        ========================================================================== */
     blocked: {
@@ -30331,15 +30593,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       /** Outils dont « Last Used » date des `hours` dernières heures et qui vérifient `test`
-       *  (filtre projet respecté), plus récents d'abord */
-      _usedRecent(hours, test) {
+       *  (filtre projet respecté sauf si allProjects), plus récents d'abord */
+      _usedRecent(hours, test, allProjects = false) {
         const now = Date.now();
         const limit = now - hours * 3600 * 1000;
         let rows = (this._data || []).filter(r => {
           const t = this._lastUsageTs(r);
           return t && t >= limit && t <= now + 3600 * 1000 && test(r);
         });
-        if (this._selectedProjects && this._selectedProjects.size > 0) {
+        if (!allProjects && this._selectedProjects && this._selectedProjects.size > 0) {
           if (this._selectedProjects.has('__NONE__')) rows = [];
           else rows = rows.filter(r => this._selectedProjects.has(r.masterLocation));
         }
@@ -40597,6 +40859,7 @@ Erreur Firebase : ${e.message}`;
     views.queue.init();
     views.catalog.init();
     if (views.blocked && views.blocked.init) views.blocked.init();
+    if (views.dispatch && views.dispatch.init) views.dispatch.init();
     views.users.init();
     views.notifications.init();
     views.auditLog.init();

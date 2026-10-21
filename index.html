@@ -9863,12 +9863,46 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       <!-- VIEW — DISPATCHEUR SUIVI · Tool Supply / Tool Return / Finis      -->
       <!-- ================================================================= -->
       <section class="catalog" id="view-dispatch" data-view="dispatch" hidden>
+        <style>
+          #view-dispatch .ds-card{background:var(--bg-elevated,var(--bg-2));border:1px solid var(--border-soft);border-radius:12px}
+          #view-dispatch .ds-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.75rem;margin-bottom:.6rem}
+          #view-dispatch .ds-kpi{padding:.85rem 1rem}
+          #view-dispatch .ds-kpi__label{font-size:.8rem;font-weight:700;color:var(--text-secondary)}
+          #view-dispatch .ds-kpi__value{font-size:2rem;font-weight:800;color:var(--text-primary);line-height:1.15;margin-top:.2rem}
+          #view-dispatch .ds-kpi__sub{font-size:.72rem;color:var(--text-muted);margin-top:.25rem}
+          #view-dispatch .ds-key{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:.4rem;vertical-align:-1px}
+          #view-dispatch .ds-pill{display:inline-block;min-width:3.4em;padding:.2rem .6rem;border-radius:999px;font-weight:800;font-variant-numeric:tabular-nums;text-align:center;font-size:.88rem;white-space:nowrap}
+          #view-dispatch .ds-pill--neg{background:rgba(208,59,59,.15);color:#e05252}
+          #view-dispatch .ds-pill--pos{background:rgba(12,163,12,.15);color:#18a518}
+          #view-dispatch .ds-pill--zero{background:rgba(127,127,127,.14);color:var(--text-secondary)}
+          #view-dispatch .ds-kpi__sub .ds-pill{font-size:.72rem;min-width:0;margin-right:.35rem}
+          #view-dispatch .ds-table{width:100%;border-collapse:collapse;font-size:.86rem;min-width:680px}
+          #view-dispatch .ds-table th{padding:.65rem .75rem;font-size:.78rem;font-weight:800;color:var(--text-primary);text-align:right;border-bottom:1px solid var(--border-soft);background:rgba(124,92,219,.1);white-space:nowrap}
+          #view-dispatch .ds-table th small{display:block;font-size:.66rem;font-weight:600;color:var(--text-muted)}
+          #view-dispatch .ds-table th.ds-left{text-align:left}
+          #view-dispatch .ds-table td{padding:.6rem .75rem;border-bottom:1px solid var(--border-soft);vertical-align:middle}
+          #view-dispatch .ds-table tr.ds-alt td{background:rgba(124,92,219,.05)}
+          #view-dispatch .ds-num{text-align:right;font-weight:800;font-size:1rem;color:var(--text-primary);font-variant-numeric:tabular-nums}
+          #view-dispatch .ds-none{color:var(--text-muted);font-weight:500}
+          #view-dispatch .ds-cap{display:block;font-size:.66rem;font-weight:600;color:var(--text-muted)}
+          #view-dispatch .ds-team{display:inline-flex;align-items:center;justify-content:center;width:1.8rem;height:1.8rem;border-radius:8px;background:rgba(124,92,219,.16);color:#8b6cf0;font-weight:800;margin-right:.5rem;flex:none}
+          #view-dispatch .ds-names{font-size:.74rem;color:var(--text-secondary);margin-top:.3rem;line-height:1.4;white-space:nowrap}
+          #view-dispatch .ds-table .ds-cap{white-space:nowrap}
+          #view-dispatch .ds-date{font-weight:800;color:var(--text-primary);white-space:nowrap}
+          #view-dispatch .ds-today{display:inline-block;margin-top:.3rem;padding:.1rem .45rem;border-radius:999px;background:rgba(124,92,219,.16);color:#8b6cf0;font-size:.66rem;font-weight:800}
+          #view-dispatch .ds-del{background:none;border:none;cursor:pointer;font-size:.9rem;opacity:.45}
+          #view-dispatch .ds-del:hover{opacity:1}
+          #view-dispatch .ds-help summary{cursor:pointer;font-size:.78rem;font-weight:700;color:var(--text-secondary)}
+          #view-dispatch .ds-help ul{margin:.5rem 0 0;padding-left:1.1rem;font-size:.78rem;color:var(--text-secondary);line-height:1.5}
+          #view-dispatch .ds-chart-title{font-weight:800;color:var(--text-primary);font-size:.95rem}
+          #view-dispatch .ds-chart-sub{font-size:.74rem;color:var(--text-muted)}
+        </style>
         <header class="catalog__header" style="margin-bottom:1rem">
           <h1 style="margin:0;font-size:1.4rem;color:#7c5cdb">🚚 Dispatcheur Suivi</h1>
-          <p style="margin:.3rem 0 0;color:var(--text-secondary);font-size:.85rem">Chaque extraction Komax importée compte les <strong>Tool supply</strong> et <strong>Tool return</strong> de la colonne <strong>Event</strong> et note le prénom et le nom (First Name, Name) de l'équipe · Outils finis sur la machine = <strong>reste de l'équipe précédente (−8 h)</strong> : outils <strong>Finished At Machine</strong> des Outils Bloqués (TERMINÉS 24H) finis pendant le poste d'avant — <strong>B dans C, A dans B, C de la veille dans A</strong> · <strong>Total = Tool Return − (Tool Supply + Finis sur la machine)</strong></p>
+          <p style="margin:.3rem 0 0;color:var(--text-secondary);font-size:.85rem">Sorties et retours d'outils par équipe — <strong>A</strong> 06h–14h · <strong>B</strong> 14h–22h · <strong>C</strong> 22h–06h</p>
         </header>
 
-        <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:.6rem">
+        <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
           <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;font-weight:700;color:var(--text-secondary)">Période
             <select id="ds-period" style="padding:.4rem .5rem;border-radius:6px;border:1px solid var(--border-soft);background:var(--bg-2);color:var(--text-primary);font-size:.78rem">
               <option value="7">7 derniers jours</option>
@@ -9880,28 +9914,50 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <button id="ds-import-btn" class="btn btn--secondary" data-edit-module="dispatch" style="background:rgba(52, 211, 153,.12);color:#34d399;border:1px solid rgba(52, 211, 153,.3);font-weight:700;font-size:.78rem">📥 Importer extraction</button>
           <input type="file" id="ds-import-file" accept=".xlsx,.xls,.csv" hidden>
           <button id="ds-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem">📤 Exporter Excel</button>
-          <span style="font-size:.75rem;color:var(--text-secondary)">Date et équipe automatiques selon <strong>Insert Time</strong> : <strong>A</strong> 06h–14h · <strong>B</strong> 14h–22h · <strong>C</strong> 22h–06h (après minuit = poste de la veille)</span>
+          <details class="ds-help" style="flex-basis:100%">
+            <summary>ℹ️ Comment c'est calculé</summary>
+            <ul>
+              <li><strong>Sorties / Retours</strong> : lignes « Tool supply » / « Tool return » de la colonne <em>Event</em> de l'extraction Komax, rangées dans leur poste selon <em>Insert Time</em> (après minuit = poste C de la veille). Un mouvement déjà importé n'est jamais compté deux fois.</li>
+              <li><strong>Finis sur la machine</strong> : reste de l'équipe précédente (−8 h) — outils « Finished At Machine » des Outils Bloqués finis pendant le poste d'avant : <strong>B dans C, A dans B, C de la veille dans A</strong>.</li>
+              <li><strong>Écart</strong> = Retours − (Sorties + Finis sur la machine).</li>
+            </ul>
+          </details>
         </div>
+
+        <div id="ds-kpis" class="ds-kpis"></div>
         <p id="ds-finished-info" style="margin:0 0 1rem;font-size:.75rem;color:var(--text-muted)"></p>
 
-        <!-- Diagramme : colonnes Supply / Return / Finis (équipe −8 h) + ligne Total, par poste -->
-        <div style="border:1px solid var(--border-soft);border-radius:10px;background:var(--bg-elevated,var(--bg-2));padding:.85rem 1rem 1rem;margin-bottom:1rem">
-          <div style="font-weight:800;color:var(--text-primary);font-size:.92rem">Mouvements par poste</div>
-          <div style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem">Colonnes : Tool Supply, Tool Return, outils finis sur la machine (équipe −8 h) · Ligne : Total = Tool Return − (Tool Supply + Finis)</div>
-          <div id="ds-chart-wrap" style="position:relative;height:300px"><canvas id="ds-chart" role="img" aria-label="Diagramme par poste : Tool Supply, Tool Return, outils finis sur la machine et total"></canvas></div>
-          <p id="ds-chart-empty" hidden style="margin:.5rem 0 0;font-size:.8rem;color:var(--text-muted)">Aucune saisie sur la période choisie.</p>
+        <!-- Diagrammes alignés poste par poste : mouvements (colonnes) puis écart (positif / négatif) -->
+        <div class="ds-card" style="padding:.85rem 1rem 1rem;margin-bottom:1rem">
+          <div id="ds-charts">
+            <div class="ds-chart-title">Mouvements par poste</div>
+            <div class="ds-chart-sub" style="margin-bottom:.4rem">Sorties, retours et outils finis sur la machine (reste de l'équipe −8 h)</div>
+            <div style="position:relative;height:260px"><canvas id="ds-chart" role="img" aria-label="Mouvements par poste : sorties, retours et outils finis sur la machine"></canvas></div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:.6rem;flex-wrap:wrap;margin-top:1.1rem">
+              <div>
+                <div class="ds-chart-title">Écart par poste</div>
+                <div class="ds-chart-sub">Retours − (Sorties + Finis)</div>
+              </div>
+              <div style="font-size:.74rem;color:var(--text-secondary);display:flex;gap:.9rem">
+                <span><span class="ds-key" style="background:#0ca30c"></span>▲ Écart positif</span>
+                <span><span class="ds-key" style="background:#d03b3b"></span>▼ Écart négatif</span>
+              </div>
+            </div>
+            <div style="position:relative;height:180px;margin-top:.4rem"><canvas id="ds-gap-chart" role="img" aria-label="Écart par poste : retours moins sorties et outils finis"></canvas></div>
+          </div>
+          <p id="ds-chart-empty" hidden style="margin:0;font-size:.8rem;color:var(--text-muted)">Aucune saisie sur la période choisie.</p>
         </div>
 
-        <div style="overflow-x:auto;border:1px solid var(--border-soft);border-radius:10px">
-          <table style="width:100%;border-collapse:collapse;font-size:.85rem;min-width:640px">
+        <div class="ds-card" style="overflow-x:auto">
+          <table class="ds-table">
             <thead>
-              <tr style="background:rgba(124, 92, 219,.12)">
-                <th style="padding:.7rem .6rem;text-align:center;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Date</th>
-                <th style="padding:.7rem .6rem;text-align:center;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Équipe</th>
-                <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Tool Supply</th>
-                <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Tool Return</th>
-                <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Outils finis sur la machine (équipe −8 h)</th>
-                <th style="padding:.7rem .6rem;text-align:right;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:var(--text-primary)">Total</th>
+              <tr>
+                <th class="ds-left">Date</th>
+                <th class="ds-left">Équipe</th>
+                <th>Sorties<small>Tool Supply</small></th>
+                <th>Retours<small>Tool Return</small></th>
+                <th>Finis sur la machine<small>reste équipe −8 h</small></th>
+                <th>Écart<small>Retours − (Sorties + Finis)</small></th>
                 <th style="width:40px"></th>
               </tr>
             </thead>
@@ -30355,6 +30411,65 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return out;
       },
 
+      /** Postes saisis, ordre chronologique, avec le reste de l'équipe −8 h et l'écart */
+      _shiftRows(entries) {
+        const rows = [];
+        Object.keys(entries).sort().forEach(date => this.TEAMS.forEach(team => {
+          const e = entries[date][team];
+          if (!e) return;
+          const prev = this._prevShift(date, team);
+          const fin = this._finishedOwn(prev.date, prev.team);
+          rows.push({ date, team, prev, supply: Number(e.supply) || 0, ret: Number(e.ret) || 0, fin, total: this._total(e, fin) });
+        }));
+        return rows;
+      },
+
+      /** 1 234 · +12 · −8 (vrai signe moins) */
+      _num(n) { return Number(n || 0).toLocaleString('fr-FR'); },
+      _signed(n) { return n > 0 ? '+' + this._num(n) : n < 0 ? '−' + this._num(-n) : '0'; },
+
+      /** Pastille d'écart : signe + flèche + couleur (jamais la couleur seule) */
+      _gapPill(total) {
+        const kind = total < 0 ? 'neg' : total > 0 ? 'pos' : 'zero';
+        return `<span class="ds-pill ds-pill--${kind}">${total < 0 ? '▼ ' : total > 0 ? '▲ ' : ''}${this._signed(total)}</span>`;
+      },
+
+      /** Couleurs du thème actif : palette catégorielle validée (ordre fixe), statut, encres */
+      _colors() {
+        const light = document.documentElement.dataset.theme === 'light';
+        const css = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+        return {
+          series: light ? ['#2a78d6', '#eb6834', '#1baf7a'] : ['#3987e5', '#d95926', '#199e70'],
+          good: '#0ca30c',
+          critical: '#d03b3b',
+          inkSoft: css('--text-secondary', light ? '#3d566e' : '#9fb0d6'),
+          muted: css('--text-muted', light ? '#6b7d8f' : '#64749c'),
+          grid: css('--border-soft', light ? 'rgba(0,80,120,.1)' : 'rgba(148,177,255,.14)')
+        };
+      },
+
+      /** Chiffres clés de la période */
+      _renderKpis(rows) {
+        const box = document.getElementById('ds-kpis');
+        if (!box) return;
+        if (!rows.length) { box.innerHTML = ''; return; }
+        const c = this._colors();
+        const sum = k => rows.reduce((s, r) => s + r[k], 0);
+        const total = sum('total');
+        const [kind, word] = total < 0 ? ['neg', '▼ Écart négatif'] : total > 0 ? ['pos', '▲ Écart positif'] : ['zero', 'Équilibré'];
+        const tile = (key, label, value, sub) => `<div class="ds-card ds-kpi">
+            <div class="ds-kpi__label">${key ? `<span class="ds-key" style="background:${key}"></span>` : ''}${label}</div>
+            <div class="ds-kpi__value">${value}</div>
+            <div class="ds-kpi__sub">${sub}</div>
+          </div>`;
+        box.innerHTML = [
+          tile(c.series[0], 'Sorties', this._num(sum('supply')), 'Tool Supply'),
+          tile(c.series[1], 'Retours', this._num(sum('ret')), 'Tool Return'),
+          tile(c.series[2], 'Finis sur la machine', this._num(sum('fin')), 'reste de l\'équipe −8 h'),
+          tile('', 'Écart total', this._signed(total), `<span class="ds-pill ds-pill--${kind}">${word}</span>Retours − (Sorties + Finis)`)
+        ].join('');
+      },
+
       _loadChart() {
         if (window.Chart) return Promise.resolve();
         return this._chartLoading || (this._chartLoading = new Promise((res, rej) => {
@@ -30366,116 +30481,104 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }));
       },
 
-      /** Diagramme par poste (ordre chronologique) : colonnes Tool Supply / Tool Return / Finis (équipe −8 h)
-       *  + ligne Total sur le même axe (même unité : nombre d'outils) */
-      async renderChart(entries = this._periodEntries()) {
-        const canvas = document.getElementById('ds-chart');
-        const wrap = document.getElementById('ds-chart-wrap');
+      /** Deux diagrammes alignés poste par poste (même axe X, même largeur d'axe Y) :
+       *  colonnes Sorties / Retours / Finis, puis Écart (vert positif, rouge négatif) */
+      async renderChart(rows) {
+        const box = document.getElementById('ds-charts');
         const empty = document.getElementById('ds-chart-empty');
-        if (!canvas || !wrap) return;
-        const shifts = [];
-        Object.keys(entries).sort().forEach(date => this.TEAMS.forEach(team => {
-          const e = entries[date][team];
-          if (!e) return;
-          const p = this._prevShift(date, team);
-          const fin = this._finishedOwn(p.date, p.team);
-          shifts.push({ date, team, prev: p.team, supply: Number(e.supply) || 0, ret: Number(e.ret) || 0, fin, total: this._total(e, fin) });
-        }));
-        wrap.style.display = shifts.length ? '' : 'none';
-        if (empty) empty.hidden = shifts.length > 0;
-        if (!shifts.length) {
-          if (this._chart) { this._chart.destroy(); this._chart = null; }
+        const cMoves = document.getElementById('ds-chart');
+        const cGap = document.getElementById('ds-gap-chart');
+        if (!box || !cMoves || !cGap) return;
+        box.style.display = rows.length ? '' : 'none';
+        if (empty) empty.hidden = rows.length > 0;
+        this._charts = this._charts || {};
+        if (!rows.length) {
+          Object.values(this._charts).forEach(ch => ch.destroy());
+          this._charts = {};
           return;
         }
         await this._loadChart();
         if (typeof applyChartDefaults === 'function') applyChartDefaults();
-
-        // Palette catégorielle validée (ordre fixe) : teintes du thème clair / du thème sombre
-        const light = document.documentElement.dataset.theme === 'light';
-        const series = light ? ['#2a78d6', '#eb6834', '#1baf7a'] : ['#3987e5', '#d95926', '#199e70'];
-        const css = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
-        const ink = css('--text-primary', light ? '#05070d' : '#f3f6ff');
-        const inkSoft = css('--text-secondary', light ? '#3d566e' : '#9fb0d6');
-        const muted = css('--text-muted', light ? '#6b7d8f' : '#64749c');
-        const grid = css('--border-soft', light ? 'rgba(0,80,120,.1)' : 'rgba(148,177,255,.14)');
-        const surface = light ? '#ffffff' : '#172036';
+        const c = this._colors();
         const HOURS = { A: '06h–14h', B: '14h–22h', C: '22h–06h' };
-
-        const bar = (label, key, color) => ({
-          type: 'bar', label, data: shifts.map(s => s[key]), backgroundColor: color, hoverBackgroundColor: color,
-          borderWidth: 0, borderRadius: 4, borderSkipped: 'start', maxBarThickness: 24,
-          barPercentage: 0.86, categoryPercentage: 0.72, pointStyle: 'rectRounded', order: 1
+        const labels = rows.map(r => `${this._fmtDate(r.date).slice(0, 5)} ${r.team}`);
+        const title = items => { const r = rows[items[0].dataIndex]; return `${this._fmtDate(r.date)} · Équipe ${r.team} (${HOURS[r.team]})`; };
+        const xAxis = () => ({ grid: { display: false }, border: { color: c.grid }, ticks: { color: c.muted, maxRotation: 0, autoSkip: true } });
+        const yAxis = () => ({
+          beginAtZero: true,
+          border: { display: false },
+          ticks: { color: c.muted, precision: 0 },
+          grid: { color: g => (g.tick && g.tick.value === 0 ? c.muted : c.grid), lineWidth: 1 },   // zéro marqué
+          afterFit: s => { s.width = 52; }   // même largeur dans les deux diagrammes : postes alignés
         });
-        const data = {
-          labels: shifts.map(s => `${this._fmtDate(s.date).slice(0, 5)} ${s.team}`),
-          datasets: [
-            bar('Tool Supply', 'supply', series[0]),
-            bar('Tool Return', 'ret', series[1]),
-            bar('Finis sur la machine (équipe −8 h)', 'fin', series[2]),
-            {
-              type: 'line', label: 'Total', data: shifts.map(s => s.total),
-              borderColor: ink, backgroundColor: ink, borderWidth: 2, borderCapStyle: 'round', borderJoinStyle: 'round',
-              tension: 0, pointStyle: 'circle', pointRadius: 4, pointHoverRadius: 6,
-              pointBackgroundColor: ink, pointBorderColor: surface, pointBorderWidth: 2, pointHitRadius: 12, order: 0
-            }
-          ]
-        };
-        const options = {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: this._chart ? false : { duration: 300 },
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: {
-              position: 'top', align: 'start',
-              labels: { color: inkSoft, usePointStyle: true, boxWidth: 10, boxHeight: 10, padding: 14, sort: (a, b) => a.datasetIndex - b.datasetIndex }
+        const bar = (label, data, color) => ({
+          label, data, backgroundColor: color, hoverBackgroundColor: color, borderWidth: 0,
+          borderRadius: 4, borderSkipped: 'start', maxBarThickness: 24, barPercentage: 0.86, categoryPercentage: 0.72
+        });
+        const gapColors = rows.map(r => (r.total < 0 ? c.critical : c.good));
+        const configs = {
+          moves: {
+            canvas: cMoves,
+            data: {
+              labels,
+              datasets: [
+                bar('Sorties (Tool Supply)', rows.map(r => r.supply), c.series[0]),
+                bar('Retours (Tool Return)', rows.map(r => r.ret), c.series[1]),
+                bar('Finis sur la machine (équipe −8 h)', rows.map(r => r.fin), c.series[2])
+              ]
             },
-            tooltip: {
-              callbacks: {
-                title: items => { const s = shifts[items[0].dataIndex]; return `${this._fmtDate(s.date)} · Équipe ${s.team} (${HOURS[s.team]})`; },
-                label: item => {
-                  const s = shifts[item.dataIndex];
-                  return ` ${item.dataset.label} : ${item.formattedValue}` + (item.datasetIndex === 2 ? ` (reste équipe ${s.prev})` : '');
-                }
-              }
+            plugins: {
+              legend: { position: 'top', align: 'start', labels: { color: c.inkSoft, usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 10, boxHeight: 10, padding: 14 } },
+              tooltip: { callbacks: { title, label: it => ` ${it.dataset.label} : ${this._num(it.raw)}` + (it.datasetIndex === 2 ? ` (reste équipe ${rows[it.dataIndex].prev.team})` : '') } }
             }
           },
-          scales: {
-            x: { grid: { display: false }, border: { color: grid }, ticks: { color: muted, maxRotation: 0, autoSkip: true } },
-            y: {
-              beginAtZero: true,
-              border: { display: false },
-              ticks: { color: muted, precision: 0 },
-              // Ligne de zéro marquée : le Total peut passer en négatif
-              grid: { color: c => (c.tick && c.tick.value === 0 ? muted : grid), lineWidth: 1 }
+          gap: {
+            canvas: cGap,
+            data: { labels, datasets: [{ ...bar('Écart', rows.map(r => r.total), c.good), backgroundColor: gapColors, hoverBackgroundColor: gapColors }] },
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { title, label: it => { const r = rows[it.dataIndex]; return ` Écart : ${this._signed(r.total)} = ${r.ret} − (${r.supply} + ${r.fin})`; } } }
             }
           }
         };
-        if (this._chart && this._chart.canvas === canvas) {
-          this._chart.data = data;
-          this._chart.options = options;
-          this._chart.update();
-        } else {
-          if (this._chart) this._chart.destroy();
-          this._chart = new Chart(canvas, { type: 'bar', data, options });
-        }
+        Object.entries(configs).forEach(([key, cfg]) => {
+          const options = {
+            responsive: true, maintainAspectRatio: false,
+            animation: this._charts[key] ? false : { duration: 300 },
+            interaction: { mode: 'index', intersect: false },
+            plugins: cfg.plugins,
+            scales: { x: xAxis(), y: yAxis() }
+          };
+          const ch = this._charts[key];
+          if (ch && ch.canvas === cfg.canvas) { ch.data = cfg.data; ch.options = options; ch.update(); }
+          else {
+            if (ch) ch.destroy();
+            this._charts[key] = new Chart(cfg.canvas, { type: 'bar', data: cfg.data, options });
+          }
+        });
       },
 
       render() {
         const tb = document.getElementById('ds-tbody');
         if (!tb) return;
+        const entries = this._periodEntries();
+        const rows = this._shiftRows(entries);
+        this._renderKpis(rows);
+        this.renderChart(rows).catch(e => console.warn('[dispatch] diagramme', e));
         const info = document.getElementById('ds-finished-info');
         if (info) {
           const n = this._finishedCount();
           const nLegacy = Object.keys(this._legacyPaths()).length;
-          info.textContent = (n === null
-            ? '⚠️ Aucune donnée Outils Bloqués : importez le fichier Komax dans Outils Bloqués pour compter les outils finis sur la machine'
-            : `🏭 Outils finis sur la machine en ce moment (TERMINÉS 24H, tous projets) : ${n}`)
-            + (nLegacy ? ` · ⚠️ ${nLegacy} ancien(s) import(s) non réparti(s) par poste masqué(s) — réimportez l'extraction` : '');
+          const days = Number(document.getElementById('ds-period')?.value) || 0;
+          info.textContent = [
+            rows.length ? `${rows.length} poste(s) · ${days ? days + ' derniers jours' : 'toute la période'}` : '',
+            n === null
+              ? '⚠️ Aucune donnée Outils Bloqués : importez le fichier Komax dans Outils Bloqués pour compter les outils finis sur la machine'
+              : `🏭 Finis sur la machine en ce moment (TERMINÉS 24H, tous projets) : ${n}`,
+            nLegacy ? `⚠️ ${nLegacy} ancien(s) import(s) non réparti(s) par poste masqué(s) — réimportez l'extraction` : ''
+          ].filter(Boolean).join(' · ');
         }
-        const entries = this._periodEntries();
         const dates = Object.keys(entries).sort().reverse();
-        this.renderChart(entries).catch(e => console.warn('[dispatch] diagramme', e));
         if (!dates.length) {
           tb.innerHTML = `<tr><td colspan="7" style="padding:1.5rem;text-align:center;color:var(--text-muted)">${Object.keys(this._valid()).length
             ? 'Aucune saisie sur la période choisie — choisissez une période plus longue'
@@ -30484,28 +30587,34 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
         const canEdit = typeof access === 'undefined' || access.canEdit('dispatch');
         const names = this._knownNames();
-        const td  = 'padding:.55rem .6rem;border-bottom:1px solid var(--border-soft)';
-        const num = 'text-align:right;font-family:var(--font-mono);font-weight:700';
-        tb.innerHTML = dates.map(date => this.TEAMS.map((team, i) => {
+        const today = this._isoDate(new Date());
+        const HOURS = { A: '06h–14h', B: '14h–22h', C: '22h–06h' };
+        const none = '<span class="ds-none">—</span>';
+        const fmt = ts => new Date(ts).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+        tb.innerHTML = dates.map((date, di) => this.TEAMS.map((team, i) => {
           const e = (entries[date] || {})[team];
           const p = this._prevShift(date, team);
-          const fin = this._finishedOwn(p.date, p.team);   // reste de l'équipe précédente (−8 h)
-          const total = e ? this._total(e, fin) : null;
-          const fmt = ts => new Date(ts).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+          const fin = this._finishedOwn(p.date, p.team);
           const tip = e ? (e.from ? `Extraction du ${fmt(e.from)} au ${fmt(e.to)} · ` : '')
             + `Importé par ${e.importedBy || '?'} le ${fmt(e.importedAt)} · ${e.sourceFile || ''}` : '';
           const staff = this._staff(e, names);
-          return `<tr title="${ui.escape(tip)}">
-            ${i === 0 ? `<td rowspan="${this.TEAMS.length}" style="${td};text-align:center;font-weight:800;color:var(--text-primary);border-right:1px solid var(--border-soft)">${ui.escape(this._fmtDate(date))}</td>` : ''}
-            <td style="${td};text-align:center">
-              <div style="font-weight:800;color:#7c5cdb">${team}</div>
-              ${staff.map(s => `<div style="font-size:.7rem;font-weight:600;color:var(--text-secondary);white-space:nowrap;margin-top:.1rem">${ui.escape(s.name)}</div>`).join('')}
+          const [y, m, d] = date.split('-').map(Number);
+          const dayName = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long' });
+          return `<tr class="${di % 2 ? 'ds-alt' : ''}" title="${ui.escape(tip)}">
+            ${i === 0 ? `<td rowspan="${this.TEAMS.length}" style="border-right:1px solid var(--border-soft)">
+              <div class="ds-date">${ui.escape(this._fmtDate(date))}</div>
+              <span class="ds-cap" style="text-transform:capitalize">${dayName}</span>
+              ${date === today ? '<span class="ds-today">Aujourd\'hui</span>' : ''}
+            </td>` : ''}
+            <td>
+              <div style="display:flex;align-items:center"><span class="ds-team">${team}</span><span class="ds-cap">${HOURS[team]}</span></div>
+              ${staff.length ? `<div class="ds-names">${staff.map(s => ui.escape(s.name)).join('<br>')}</div>` : ''}
             </td>
-            <td style="${td};${num}">${e ? Number(e.supply) || 0 : ''}</td>
-            <td style="${td};${num}">${e ? Number(e.ret) || 0 : ''}</td>
-            <td style="${td};${num}" title="Outils finis sur la machine par l'équipe ${p.team} du ${ui.escape(this._fmtDate(p.date))}">${e ? `${fin}<div style="font-size:.66rem;font-weight:600;color:var(--text-muted);font-family:inherit">reste équipe ${p.team}${p.date !== date ? ' (veille)' : ''}</div>` : ''}</td>
-            <td style="${td};${num};color:${total === null ? 'inherit' : total < 0 ? '#fb5a6a' : '#34d399'}">${e ? total : ''}</td>
-            <td style="${td};text-align:center">${e && canEdit ? `<button data-ds-del="${ui.escape(date)}" data-ds-team="${team}" title="Supprimer cette saisie" style="background:none;border:none;cursor:pointer;font-size:.9rem">🗑</button>` : ''}</td>
+            <td class="ds-num">${e ? this._num(e.supply) : none}</td>
+            <td class="ds-num">${e ? this._num(e.ret) : none}</td>
+            <td class="ds-num" title="Outils finis sur la machine par l'équipe ${p.team} du ${ui.escape(this._fmtDate(p.date))}">${e ? `${this._num(fin)}<span class="ds-cap">reste équipe ${p.team}${p.date !== date ? ' (veille)' : ''}</span>` : none}</td>
+            <td style="text-align:right">${e ? this._gapPill(this._total(e, fin)) : none}</td>
+            <td style="text-align:center">${e && canEdit ? `<button class="ds-del" data-ds-del="${ui.escape(date)}" data-ds-team="${team}" title="Supprimer cette saisie">🗑</button>` : ''}</td>
           </tr>`;
         }).join('')).join('');
       },

@@ -7457,17 +7457,29 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <p style="text-align:center;margin-top:1.5rem;font-size:.78rem;color:#6b7994">
           <span data-i18n="login.forgotten">Mot de passe oublié ? Contactez votre administrateur</span>
         </p>
-        <p style="text-align:center;margin-top:.5rem">
-          <button type="button" id="btn-open-repair-admin"
-                  style="background:none;border:none;color:#0a3d8f;font-size:.75rem;cursor:pointer;text-decoration:underline;padding:.25rem">
-            🔧 Compte admin non reconnu ? Outil de réparation
-          </button>
-        </p>
+        <!-- 🔒 SÉCURITÉ : l'outil de réparation admin (création de compte + rôle admin sans
+             vérification) a été retiré de l'écran de connexion. -->
       </form>
 
-      <!-- Form PIN caché pour compatibilité interne -->
-      <form id="form-pin" hidden>
-        <input id="pin-code" type="hidden"/>
+      <!-- 🆕 Connexion par PIN : affichée seulement sur un poste enrôlé par un administrateur
+           (serveur requis, voir API_BASE_URL). Sinon ce formulaire reste caché. -->
+      <form id="form-pin" class="login__form" hidden autocomplete="off" novalidate
+            style="margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid rgba(76,92,125,.18)">
+        <p style="margin:0 0 .8rem;font-weight:700;color:#0a1628">🔢 Connexion par PIN
+          <span id="pin-device-label" style="font-weight:500;color:#6b7994;font-size:.8rem"></span></p>
+        <div class="login__field">
+          <label class="login__label" for="pin-matricule">Matricule</label>
+          <input class="login__input" id="pin-matricule" type="text" maxlength="32" autocomplete="off"
+                 autocapitalize="characters" style="font-size:1rem;padding:.85rem 1rem"/>
+        </div>
+        <div class="login__field">
+          <label class="login__label" for="pin-code">PIN</label>
+          <input class="login__input" id="pin-code" type="password" inputmode="numeric" maxlength="8"
+                 autocomplete="off" placeholder="6 à 8 chiffres" style="font-size:1rem;padding:.85rem 1rem"/>
+        </div>
+        <button class="login__submit" type="submit" id="btn-pin-login"
+                style="font-size:1rem;padding:.9rem 1.5rem;margin-top:.5rem">Se connecter par PIN</button>
+        <p class="login__error" id="login-error-pin" hidden></p>
       </form>
 
       <footer class="login__footer">
@@ -9048,7 +9060,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       <section class="users-view" id="view-users" data-view="users" hidden>
         <header class="users-view__header">
           <h1 class="users-view__title" data-i18n="users.title">Gestion des utilisateurs</h1>
-          <button class="btn btn--primary" id="btn-user-add">＋ Nouvel utilisateur</button>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn btn--ghost" id="btn-pin-devices" type="button" hidden>🔢 Postes PIN</button>
+            <button class="btn btn--primary" id="btn-user-add">＋ Nouvel utilisateur</button>
+          </div>
         </header>
 
         <table class="data-table" id="users-table">
@@ -11615,6 +11630,283 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     }
     return FIREBASE_CONFIG_DEFAULT;
   })();
+
+  /* ==========================================================================
+     🆕 SERVEUR (Spring Boot) — décisions sur les bons en transaction côté serveur
+     ==========================================================================
+     API_BASE_URL vide   → comportement actuel : le navigateur écrit directement dans Firebase.
+     API_BASE_URL rempli → validation, refus, livraison du dossier et validation automatique
+     passent par le serveur : une seule transaction, jamais appliquée deux fois.
+     Adresse écrite ici volontairement : jamais lue depuis la base ni le stockage local, pour
+     qu'une donnée modifiable ne puisse pas envoyer les jetons de connexion à un autre serveur.
+     ========================================================================== */
+  const API_BASE_URL = '';
+  // Version de cette page (AAAAMMJJ + n° du jour). Si system/clientPolicy/minBuild est plus
+  // grand, un bandeau invite les onglets restés ouverts sur une ancienne version à recharger.
+  const APP_BUILD = 202610221;
+
+  const api = {
+    enabled() { return !!API_BASE_URL; },
+
+    // Identifiant d'UNE décision : réutilisé tel quel si l'utilisateur réessaie après une
+    // coupure réseau ou un délai dépassé, pour que le serveur ne l'applique jamais deux fois.
+    _pending: {},
+    _newRequestId() {
+      if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+      const b = new Uint8Array(16);
+      crypto.getRandomValues(b);
+      return Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+    },
+
+    async post(path, body, timeoutMs = 45000) {
+      return this.request('POST', path, body, { timeoutMs });
+    },
+
+    /** Appel au serveur. auth=false uniquement pour la connexion par PIN (pas encore de session). */
+    async request(method, path, body, { auth = true, timeoutMs = 45000 } = {}) {
+      if (!API_BASE_URL) throw new Error("Serveur non configuré (API_BASE_URL vide).");
+      const headers = {};
+      if (auth) {
+        const user = fbAuth && fbAuth.currentUser;
+        if (!user) throw new Error('Session expirée — reconnectez-vous.');
+        headers['Authorization'] = 'Bearer ' + await user.getIdToken();
+      }
+      if (body !== undefined) headers['Content-Type'] = 'application/json';
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      let res;
+      try {
+        res = await fetch(API_BASE_URL.replace(/\/+$/, '') + path, {
+          method,
+          headers,
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: ctrl.signal,
+          cache: 'no-store',
+          credentials: 'omit'
+        });
+      } catch (e) {
+        const err = new Error(e && e.name === 'AbortError'
+          ? "Délai dépassé : l'opération a peut-être été enregistrée. Réessayez, elle ne sera pas appliquée deux fois."
+          : "Serveur injoignable : rien n'a été enregistré. Vérifiez le réseau puis réessayez.");
+        err.retryable = true;
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+      let data = null;
+      if (res.status !== 204) { try { data = await res.json(); } catch (e) {} }
+      if (!res.ok) {
+        const err = new Error((data && (data.detail || data.title)) || ('Erreur serveur (' + res.status + ')'));
+        err.status = res.status;
+        err.retryable = res.status >= 500 || res.status === 429;
+        throw err;
+      }
+      return data || {};
+    },
+
+    /** Décision sur un bon : 'validate' | 'reject' | 'deliver' | 'auto-validate' */
+    async decide(action, reg, body) {
+      const key = action + ':' + reg;
+      const requestId = this._pending[key] || (this._pending[key] = this._newRequestId());
+      const mode = (typeof productionSwitch !== 'undefined' && productionSwitch._currentMode === 'test') ? 'test' : 'production';
+      try {
+        const res = await this.post('/api/interventions/' + encodeURIComponent(reg) + '/' + action,
+          Object.assign({}, body, { requestId, mode }));
+        delete this._pending[key];
+        return res;
+      } catch (e) {
+        // Refus définitif (409, 422…) : un nouvel essai sera une nouvelle décision
+        if (!e.retryable) delete this._pending[key];
+        throw e;
+      }
+    }
+  };
+
+  /* 🆕 Onglets restés ouverts sur une ancienne version : bandeau non bloquant (rien n'est perdu,
+     l'utilisateur termine sa saisie puis recharge). Réglage : system/clientPolicy/minBuild. */
+  const clientPolicy = {
+    _ref: null,
+    _handler: null,
+    start() {
+      if (this._ref || typeof firebase === 'undefined') return;
+      try {
+        // Chemin global : system/ n'est jamais préfixé par le mode TEST
+        this._ref = firebase.database().ref('system/clientPolicy/minBuild');
+        this._handler = s => this.apply(Number(s.val()) || 0);
+        this._ref.on('value', this._handler, () => {});
+      } catch (e) { this._ref = null; }
+    },
+    stop() {
+      try { if (this._ref) this._ref.off('value', this._handler); } catch (e) {}
+      this._ref = null;
+      this.apply(0);
+    },
+    apply(minBuild) {
+      let bar = document.getElementById('update-banner');
+      if (!(minBuild > APP_BUILD)) { if (bar) bar.hidden = true; return; }
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'update-banner';
+        bar.setAttribute('role', 'status');
+        bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;padding:10px 16px;'
+          + 'background:#92400e;color:#fff;font:600 14px/1.4 system-ui,sans-serif;display:flex;gap:12px;'
+          + 'align-items:center;justify-content:center;flex-wrap:wrap;text-align:center';
+        const msg = document.createElement('span');
+        msg.textContent = "Nouvelle version de l'application disponible. Terminez la saisie en cours, puis rechargez la page.";
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Recharger';
+        btn.style.cssText = 'padding:6px 14px;border:0;border-radius:6px;background:#fff;color:#92400e;font-weight:700;cursor:pointer';
+        btn.addEventListener('click', () => location.reload());
+        bar.append(msg, btn);
+        document.body.appendChild(bar);
+      }
+      bar.hidden = false;
+    }
+  };
+
+  /* 🆕 PIN SUR POSTE ENRÔLÉ (serveur requis)
+     Un administrateur enrôle le poste depuis « Utilisateurs » : le serveur remet un secret,
+     conservé ici dans le navigateur de CE poste uniquement. Le PIN seul ne suffit jamais. */
+  const pinDevice = {
+    KEY: 'leoni_pin_device',
+    get() {
+      try {
+        const d = JSON.parse(localStorage.getItem(this.KEY) || 'null');
+        return d && d.id && d.secret ? d : null;
+      } catch (e) { return null; }
+    },
+    save(d) { localStorage.setItem(this.KEY, JSON.stringify(d)); },
+    clear() { try { localStorage.removeItem(this.KEY); } catch (e) {} },
+    available() { return api.enabled() && !!this.get(); }
+  };
+
+  const pinAdmin = {
+    _modal(title, bodyHtml) {
+      let m = document.getElementById('modal-pin-admin');
+      if (!m) {
+        m = document.createElement('div');
+        m.className = 'modal';
+        m.id = 'modal-pin-admin';
+        m.setAttribute('role', 'dialog');
+        m.setAttribute('aria-modal', 'true');
+        m.innerHTML = '<div class="modal__backdrop" data-close></div>'
+          + '<div class="modal__panel" style="max-width:640px"><header class="modal__header">'
+          + '<h2 class="modal__title"></h2><button class="modal__close" type="button" data-close aria-label="Fermer">×</button>'
+          + '</header><div class="modal__body"></div></div>';
+        m.addEventListener('click', e => { if (e.target.closest('[data-close]')) m.hidden = true; });
+        document.body.appendChild(m);
+      }
+      m.querySelector('.modal__title').textContent = title;
+      m.querySelector('.modal__body').innerHTML = bodyHtml;
+      m.hidden = false;
+      return m;
+    },
+
+    _field(id, label, attrs = '') {
+      return `<label for="${id}" style="display:block;margin:.6rem 0 .25rem;font-size:.8rem;font-weight:600">${label}</label>`
+        + `<input id="${id}" ${attrs} style="width:100%;box-sizing:border-box;padding:.55rem .7rem;border-radius:6px;border:1px solid var(--border-soft,#ccd);background:var(--bg-3,#fff);color:inherit;font-size:.95rem">`;
+    },
+
+    /** Définir, débloquer ou supprimer le PIN d'un compte */
+    setPin(uid, name) {
+      const m = this._modal('🔢 PIN de ' + name, `
+        <p style="font-size:.82rem;color:var(--text-muted);margin-top:0;line-height:1.5">
+          6 à 8 chiffres, utilisable seulement sur un poste enrôlé, avec le matricule du compte.
+          Après 5 erreurs : blocage de 15 min ; après 10 : blocage jusqu'au déblocage par un administrateur.
+          Le PIN n'est jamais affiché ni enregistré en clair.</p>
+        ${this._field('pa-pin1', 'Nouveau PIN', 'type="password" inputmode="numeric" maxlength="8" autocomplete="new-password"')}
+        ${this._field('pa-pin2', 'Confirmer le PIN', 'type="password" inputmode="numeric" maxlength="8" autocomplete="new-password"')}
+        <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap">
+          <button class="btn btn--ghost" type="button" id="pa-remove">Supprimer le PIN</button>
+          <button class="btn btn--ghost" type="button" id="pa-unlock">Débloquer</button>
+          <button class="btn btn--primary" type="button" id="pa-save">Enregistrer</button>
+        </div>`);
+      const path = '/api/admin/users/' + encodeURIComponent(uid) + '/pin';
+      const run = async (label, fn) => {
+        ui.showLoader(label);
+        try { await fn(); m.hidden = true; }
+        catch (e) { ui.toast('⛔ ' + (e.message || e), 'danger', 7000); }
+        finally { ui.hideLoader(); }
+      };
+      m.querySelector('#pa-save').addEventListener('click', () => {
+        const p1 = m.querySelector('#pa-pin1').value.trim();
+        const p2 = m.querySelector('#pa-pin2').value.trim();
+        if (!/^[0-9]{6,8}$/.test(p1)) return ui.toast('Le PIN doit comporter de 6 à 8 chiffres.', 'warn');
+        if (p1 !== p2) return ui.toast('Les deux PIN ne correspondent pas.', 'warn');
+        run('Enregistrement du PIN…', async () => {
+          await api.request('PUT', path, { pin: p1 });
+          ui.toast(`PIN de ${name} enregistré`, 'success');
+        });
+      });
+      m.querySelector('#pa-unlock').addEventListener('click', () => run('Déblocage…', async () => {
+        await api.request('POST', path + '/unlock', {});
+        ui.toast(`PIN de ${name} débloqué`, 'success');
+      }));
+      m.querySelector('#pa-remove').addEventListener('click', async () => {
+        if (!await ui.confirm('Supprimer le PIN', `${name} ne pourra plus se connecter par PIN.`, { type: 'danger' })) return;
+        run('Suppression…', async () => {
+          await api.request('DELETE', path);
+          ui.toast(`PIN de ${name} supprimé`, 'success');
+        });
+      });
+      setTimeout(() => m.querySelector('#pa-pin1')?.focus(), 50);
+    },
+
+    /** Postes enrôlés : liste, enrôlement de ce poste, révocation */
+    async devices() {
+      const m = this._modal('🔢 Postes enrôlés pour le PIN', '<p>Chargement…</p>');
+      let list;
+      try {
+        list = await api.request('GET', '/api/admin/devices');
+      } catch (e) {
+        m.querySelector('.modal__body').innerHTML = '<p>⛔ ' + ui.escape(e.message || e) + '</p>';
+        return;
+      }
+      const here = pinDevice.get();
+      const hereActive = here && list.some(d => d.deviceId === here.id && d.active);
+      const rows = list.map(d => `<tr>
+          <td>${ui.escape(d.label)}${here && here.id === d.deviceId ? ' <strong>(ce poste)</strong>' : ''}</td>
+          <td>${d.active ? '✅ Actif' : '⛔ Révoqué'}</td>
+          <td style="font-size:.75rem">${d.lastUsedAt ? fmt.dateTime(d.lastUsedAt) : '—'}</td>
+          <td>${d.active ? `<button class="btn btn--ghost" type="button" data-revoke="${ui.escape(d.deviceId)}" data-label="${ui.escape(d.label)}" style="font-size:.72rem;color:#fb5a6a">Révoquer</button>` : ''}</td>
+        </tr>`).join('');
+      m.querySelector('.modal__body').innerHTML = `
+        <p style="font-size:.82rem;color:var(--text-muted);margin-top:0;line-height:1.5">
+          Ce poste : <strong>${hereActive ? 'enrôlé — la connexion par PIN est proposée sur l’écran de connexion' : 'non enrôlé'}</strong>.
+          Révoquer un poste coupe immédiatement les nouvelles connexions et les accès à la base de ses sessions PIN.</p>
+        ${hereActive ? '' : this._field('pa-label', 'Nom de ce poste (ex. « Atelier sertissage — PC 2 »)', 'maxlength="60"')
+          + '<div style="text-align:right;margin-top:.6rem"><button class="btn btn--primary" type="button" id="pa-enroll">Enrôler ce poste</button></div>'}
+        <table class="data-table" style="margin-top:1rem;width:100%">
+          <thead><tr><th>Poste</th><th>Statut</th><th>Dernière connexion</th><th></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Aucun poste enrôlé</td></tr>'}</tbody>
+        </table>`;
+      m.querySelector('#pa-enroll')?.addEventListener('click', async () => {
+        const label = m.querySelector('#pa-label').value.trim();
+        if (!label) return ui.toast('Donnez un nom à ce poste.', 'warn');
+        ui.showLoader('Enrôlement…');
+        try {
+          const res = await api.request('POST', '/api/admin/devices', { label });
+          pinDevice.save({ id: res.deviceId, secret: res.deviceSecret, label });
+          ui.toast('Poste enrôlé : la connexion par PIN est disponible sur ce poste.', 'success', 6000);
+        } catch (e) { ui.toast('⛔ ' + (e.message || e), 'danger', 7000); }
+        finally { ui.hideLoader(); }
+        this.devices();
+      });
+      m.querySelectorAll('[data-revoke]').forEach(btn => btn.addEventListener('click', async () => {
+        const id = btn.dataset.revoke;
+        if (!await ui.confirm('Révoquer le poste', `« ${btn.dataset.label} » ne pourra plus servir à la connexion par PIN. Les sessions PIN ouvertes sur ce poste perdent l'accès.`, { type: 'danger', okLabel: 'Révoquer' })) return;
+        ui.showLoader('Révocation…');
+        try {
+          await api.request('POST', '/api/admin/devices/' + encodeURIComponent(id) + '/revoke', {});
+          if (here && here.id === id) pinDevice.clear();
+          ui.toast('Poste révoqué', 'success');
+        } catch (e) { ui.toast('⛔ ' + (e.message || e), 'danger', 7000); }
+        finally { ui.hideLoader(); }
+        this.devices();
+      }));
+    }
+  };
 
   // Tolérances par défaut pour le calcul Cm/Cmk (à ajuster par outil/produit)
   const DEFAULT_TOLERANCES = {
@@ -15630,6 +15922,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       // ── Connexion par EMAIL + MOT DE PASSE ──
       $('#form-login')?.addEventListener('submit', this.handleLogin.bind(this));
 
+      // ── 🆕 Connexion par PIN : seulement sur un poste enrôlé (serveur requis) ──
+      if (pinDevice.available() && $('#form-pin')) {
+        $('#form-pin').hidden = false;
+        const lbl = $('#pin-device-label');
+        if (lbl) lbl.textContent = '· ' + (pinDevice.get().label || 'poste enrôlé');
+        $('#form-pin').addEventListener('submit', this.handlePinLogin.bind(this));
+      }
+
       // Toggle visibilité du mot de passe
       $('#btn-toggle-pass')?.addEventListener('click', () => {
         const inp = $('#login-password');
@@ -15664,14 +15964,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     /* ── Connexion par PIN UNIQUEMENT — Solution ultra-simple ── */
     async handlePinLogin(e) {
       e.preventDefault();
+      const matricule = ($('#pin-matricule')?.value || '').trim();
       const pin = $('#pin-code').value.trim();
       const errEl = $('#login-error-pin');
       const formEl = $('#form-pin');
       errEl.hidden = true;
       formEl.classList.remove('login__form--error');
 
-      if (pin.length !== 4) {
-        errEl.textContent = 'PIN à 4 chiffres requis';
+      if (!matricule || !/^[0-9]{6,8}$/.test(pin)) {
+        errEl.textContent = 'Matricule et PIN (6 à 8 chiffres) requis';
         errEl.hidden = false;
         formEl.classList.add('login__form--error');
         return;
@@ -15679,46 +15980,29 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
       ui.showLoader('Connexion en cours…');
       try {
-        // ── Charger TOUT l'index de login (public) pour chercher le PIN ──
-        const indexSnap = await fbDb.ref('loginIndex').once('value');
-        const allIndex = indexSnap.val() || {};
-
-        // ── Chercher l'utilisateur par PIN UNIQUEMENT ──
-        let entry = null;
-        let matchedKey = null;
-        for (const key in allIndex) {
-          if (String(allIndex[key].pin || '').trim() === pin) {
-            entry = allIndex[key];
-            matchedKey = key;
-            break;
-          }
-        }
-
-        if (!entry) {
-          throw new Error('Code PIN incorrect');
-        }
-        if (entry.active === false) {
-          throw new Error('Compte désactivé. Contactez votre admin.');
-        }
-        if (!entry.email || !entry.password) {
-          throw new Error('Profil incomplet. Contactez votre admin.');
-        }
-
-        // Connexion réelle via Firebase Auth
-        await fbAuth.signInWithEmailAndPassword(entry.email, entry.password);
-
+        // 🆕 Le serveur vérifie le poste enrôlé, le PIN (empreinte) et les limites d'essais,
+        //    puis remet un jeton de session limité à ce poste (12 h au plus).
+        const device = pinDevice.get();
+        if (!api.enabled() || !device) throw new Error("Ce poste n'est pas enrôlé pour la connexion par PIN.");
+        const res = await api.request('POST', '/api/pin/login',
+          { deviceId: device.id, deviceSecret: device.secret, matricule, pin },
+          { auth: false, timeoutMs: 45000 }); // marge pour un serveur qui démarre après une pause
+        // Poste partagé : la session se ferme avec l'onglet
+        await fbAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+        this._pinPersistence = true;
+        await fbAuth.signInWithCustomToken(res.customToken);
+        $('#pin-code').value = '';
+        // La suite (profil, écrans) est faite par handleAuthChange, comme pour l'e-mail
       } catch (err) {
         ui.hideLoader();
         const friendlyMsg = (() => {
           const m = err.message || '';
-          if (err.code === 'auth/wrong-password') return 'Mot de passe technique incorrect (contactez admin)';
-          if (err.code === 'auth/user-not-found') return 'Compte introuvable (contactez admin)';
+          if (err.code === 'auth/user-disabled') return 'Compte désactivé (contactez admin)';
           if (err.code === 'auth/network-request-failed') return 'Pas de connexion internet';
           if (err.code === 'auth/too-many-requests') return 'Trop de tentatives — attendez 5 min';
-          if (err.code === 'PERMISSION_DENIED') return 'Permission refusée — contactez admin';
           return m || 'Erreur de connexion';
         })();
-        errEl.innerHTML = '❌ ' + friendlyMsg;
+        errEl.textContent = '❌ ' + friendlyMsg;
         errEl.hidden = false;
         errEl.style.fontSize = '0.85rem';
         errEl.style.lineHeight = '1.4';
@@ -15749,6 +16033,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
       ui.showLoader('Connexion…');
       try {
+        // 🆕 Après une session PIN dans cet onglet : revenir à la persistance habituelle
+        if (this._pinPersistence) {
+          try { await fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
+          this._pinPersistence = false;
+        }
         await fbAuth.signInWithEmailAndPassword(email, password);
         // Sauvegarder l'email si "Se souvenir"
         try {
@@ -15811,56 +16100,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     /* ── Synchroniser TOUS les utilisateurs existants vers loginIndex ── */
     /* À appeler une fois après login admin pour rattraper les anciens comptes */
     async syncLoginIndex() {
-      try {
-        if (state.role !== 'admin' && state.role !== 'super_admin') return;
-        console.log('[LEONI] 🔄 Synchronisation du loginIndex en cours…');
-        const snap = await fbDb.ref('users').once('value');
-        const users = snap.val() || {};
-        let synced = 0;
-        let skipped = 0;
-        const result = {};
-
-        for (const uid in users) {
-          const u = users[uid];
-          if (!u.email || !u.password) {
-            console.warn('  ⚠️ Skip:', u.displayName || uid, '(email ou password manquant)');
-            skipped++;
-            continue;
-          }
-          // Clé = matricule (priorité) OU displayName OU email
-          const key = (u.matricule || u.displayName || u.email.split('@')[0]).toUpperCase().trim();
-          if (!key) { skipped++; continue; }
-
-          const indexEntry = {
-            uid: u.uid,
-            email: u.email,
-            password: u.password,
-            pin: u.pin || null,
-            displayName: u.displayName || '',
-            matricule: u.matricule || '',
-            active: u.active !== false
-          };
-          await fbDb.ref('loginIndex/' + key).set(indexEntry);
-          result[key] = {
-            name: u.displayName || '(sans nom)',
-            pin: u.pin || '(aucun)',
-            active: u.active !== false ? '✅' : '❌'
-          };
-          synced++;
-        }
-
-        console.log('[LEONI] ✅ ' + synced + ' utilisateurs synchronisés (' + skipped + ' ignorés)');
-        if (synced > 0) {
-          console.log('[LEONI] 📋 Matricules utilisables pour le login PIN :');
-          console.table(result);
-          // Toast informatif
-          if (typeof ui !== 'undefined' && ui.toast) {
-            ui.toast(`✅ ${synced} comptes prêts pour le login PIN`, 'success');
-          }
-        }
-      } catch(e) {
-        console.error('[LEONI] ❌ Erreur sync loginIndex:', e);
-      }
+      // 🔒 SÉCURITÉ : cette fonction recopiait e-mails, mots de passe et PIN dans loginIndex.
+      //    Désactivée : aucun secret n'est plus écrit dans la base.
+      return;
     },
 
     async handleAuthChange(user) {
@@ -15871,50 +16113,21 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const snap = await fbDb.ref(`users/${user.uid}`).once('value');
         let profile = snap.val();
         
-        // ═══ Auto-création profil admin si email connu ═══
-        // Si profil inexistant MAIS c'est le compte admin@leoni.com, le créer automatiquement
-        if (!profile && user.email === 'admin@leoni.com') {
-          console.log('[LEONI] Profil admin manquant — création automatique...');
-          profile = {
-            uid: user.uid,
-            displayName: 'master admin',
-            email: 'admin@leoni.com',
-            password: '199700',
-            matricule: '10541',
-            role: 'admin',
-            active: true,
-            createdAt: Date.now(),
-            lastLoginAt: Date.now()
-          };
-          try {
-            await fbDb.ref(`users/${user.uid}`).set(profile);
-            console.log('[LEONI] ✅ Profil admin créé automatiquement');
-          } catch(e) {
-            console.error('[LEONI] Erreur création profil admin:', e.message);
-          }
-        }
-        
+        // 🔒 SÉCURITÉ : plus d'auto-création ni de restauration de rôle admin selon l'e-mail.
+        //    Un profil (et son rôle) n'est créé que par un administrateur déjà reconnu.
+
         // Si profil inexistant et pas l'admin
         if (!profile) {
           await fbAuth.signOut();
           const errEl = document.getElementById('login-error');
           if (errEl) {
-            errEl.textContent = 'Compte non configuré. Contactez l\'administrateur ou utilisez l\'outil de réparation ci-dessous';
+            errEl.textContent = 'Compte non configuré. Contactez l\'administrateur.';
             errEl.hidden = false;
           }
           ui.hideLoader();
           return;
         }
         
-        // ═══ Si rôle manquant pour admin@leoni.com, le restaurer ═══
-        if (user.email === 'admin@leoni.com' && (!profile.role || profile.role === 'viewer')) {
-          console.log('[LEONI] Rôle admin manquant — restauration...');
-          profile.role = 'admin';
-          profile.active = true;
-          try {
-            await fbDb.ref(`users/${user.uid}`).update({ role: 'admin', active: true });
-          } catch(e) {}
-        }
         if (!profile.active) {
           ui.toast('Compte désactivé. Contacte l\'administrateur.', 'danger');
           await fbAuth.signOut();
@@ -15958,22 +16171,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           productionSwitch.loadCurrentMode();
           productionSwitch.init();
         }
+        // 🆕 Bandeau « nouvelle version » pour les onglets restés ouverts
+        clientPolicy.start();
 
         // 🔔 Demander la permission notifications système (1 seule fois)
         // Délai 2s pour ne pas perturber le login + laisser le UI s'afficher
         setTimeout(() => { try { notifAlert.requestPermission(); } catch(e){} }, 2000);
 
-        // ⚠️ AUTO-SYNC du loginIndex pour le login PIN
-        // Tourne 1 seule fois par session admin
-        if ((state.role === 'admin' || state.role === 'super_admin') && !window.__loginIndexSynced) {
-          window.__loginIndexSynced = true;
-          setTimeout(() => this.syncLoginIndex(), 1500); // délai pour laisser le UI charger
-        }
       } else {
         state.user = null;
         state.profile = null;
         state.role = 'viewer';
         app.detachListeners();
+        clientPolicy.stop();
         $('#view-login').hidden = false;
         $('#shell').hidden = true;
         // 📱 Cacher le bouton flottant QR scanner
@@ -16085,95 +16295,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
 
     async run() {
-      const btn = $('#btn-repair-admin-run');
-      const emailInp = $('#repair-email');
-      const pwdInp = $('#repair-password');
-      $('#repair-output').innerHTML = '';
-      btn.disabled = true;
-      btn.textContent = '⏳ Réparation en cours…';
-      auth._repairBusy = true;
-
-      try {
-        const email = emailInp.value.trim();
-        const pwd = pwdInp.value;
-        if (!email || !pwd) throw new Error('Email et mot de passe requis');
-
-        this.log('🔄 Étape 1 : Authentification…');
-        let adminUser;
-        try {
-          const cred = await fbAuth.signInWithEmailAndPassword(email, pwd);
-          adminUser = cred.user;
-          this.log('✅ Connecté (UID: ' + adminUser.uid.substring(0, 8) + '…)', 'ok');
-        } catch (e) {
-          if (e.code === 'auth/user-not-found') {
-            this.log('⚠️ Compte inexistant, création…', 'warn');
-            const cred = await fbAuth.createUserWithEmailAndPassword(email, pwd);
-            adminUser = cred.user;
-            this.log('✅ Compte créé (UID: ' + adminUser.uid.substring(0, 8) + '…)', 'ok');
-          } else {
-            throw e;
-          }
-        }
-
-        const adminUid = adminUser.uid;
-
-        this.log('🔄 Étape 2 : Vérification du profil…');
-        const profileSnap = await fbDb.ref('users/' + adminUid).once('value');
-        const currentProfile = profileSnap.val();
-        this.log(currentProfile
-          ? 'ℹ️ Profil existant trouvé. Rôle actuel : ' + (currentProfile.role || '<vide>')
-          : '⚠️ Aucun profil — création nécessaire', 'warn');
-
-        this.log('🔄 Étape 3 : Création/réparation du profil admin…');
-        await fbDb.ref('users/' + adminUid).set({
-          uid: adminUid,
-          displayName: currentProfile?.displayName || 'master admin',
-          email,
-          password: pwd,
-          matricule: currentProfile?.matricule || '10541',
-          role: 'admin',
-          active: true,
-          createdAt: currentProfile?.createdAt || Date.now(),
-          lastLoginAt: Date.now()
-        });
-        this.log('✅ Profil admin réparé avec le rôle "admin"', 'ok');
-
-        this.log('🔄 Étape 4 : Synchronisation loginIndex…');
-        const usersSnap = await fbDb.ref('users').once('value');
-        const allUsers = usersSnap.val() || {};
-        let synced = 0;
-        for (const uid in allUsers) {
-          const u = allUsers[uid];
-          if (!u.email || !u.password) continue;
-          const key = String(u.matricule || u.displayName || u.email.split('@')[0]).toUpperCase().trim();
-          if (!key) continue;
-          await fbDb.ref('loginIndex/' + key).set({
-            uid: u.uid || uid,
-            email: u.email,
-            password: String(u.password),
-            pin: String(u.pin || ''),
-            displayName: u.displayName || '',
-            matricule: String(u.matricule || ''),
-            active: u.active !== false
-          });
-          synced++;
-        }
-        this.log('✅ ' + synced + ' utilisateur(s) synchronisé(s)', 'ok');
-        this.log('🎉 Réparation terminée ! Ferme cette fenêtre puis reconnecte-toi.', 'ok');
-        ui.toast('Compte admin réparé avec succès', 'success');
-        btn.textContent = '✅ Terminé';
-      } catch (e) {
-        this.log('❌ ERREUR : ' + e.message, 'error');
-        if (e.code) this.log('Code Firebase : ' + e.code, 'error');
-        btn.disabled = false;
-        btn.textContent = '🔄 Réessayer';
-      } finally {
-        // On se déconnecte systématiquement pour repartir sur un écran de login propre,
-        // puis on redonne la main au listener global d'authentification.
-        try { await fbAuth.signOut(); } catch (e) {}
-        auth._repairBusy = false;
-        btn.disabled = false;
-      }
+      // 🔒 SÉCURITÉ : cette procédure créait un compte et lui donnait le rôle admin sans aucune
+      //    vérification, puis recopiait les mots de passe dans loginIndex. Elle est désactivée.
+      //    Récupération d'un accès admin : console Firebase, puis serveur (à venir).
+      ui.toast('Outil de réparation désactivé pour raison de sécurité — contactez le responsable technique.', 'warn', 8000);
+      return;
     }
   };
 
@@ -16427,6 +16553,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           type: data.type || 'preventive',
           duration: data.duration || 0,                  // ⏱ durée saisie via les pills
           subType: data.subType || '',                   // sous-type (coupe / binding) pour préventive
+          reglageMecanique: !!data.reglageMecanique,     // 🆕 enregistré dès la création (comme en édition)
           configurationsCount: data.configurationsCount || 0,  // pour homologation
           piecesChanged: data.piecesChanged || {},
           observation: data.observation || '',
@@ -16506,7 +16633,26 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       this.notifyMagasinier(reg);
     },
 
+    /** 🆕 Décision via le serveur (si API_BASE_URL) : une transaction, jamais appliquée deux fois.
+     *  Le serveur écrit le bon, l'audit et la notification ; ici on relit le bon et on garde
+     *  l'enregistrement PDR existant (protégé contre les doublons, voir recordPdrChangeFromBon). */
+    async _decideViaApi(action, reg, body) {
+      const res = await api.decide(action, reg, body);
+      await this._syncOneBon(reg);
+      if ((action === 'validate' || action === 'auto-validate') && (res.applied || res.replay)
+          && typeof wearAlerts !== 'undefined' && wearAlerts.recordPdrChangeFromBon) {
+        const data = state.interventions && state.interventions[reg];
+        if (data) {
+          wearAlerts.recordPdrChangeFromBon(reg, data).catch(e =>
+            console.error('[decision] PDR auto-record failed:', e)
+          );
+        }
+      }
+      return res;
+    },
+
     async validateIntervention(reg, labData) {
+      if (api.enabled()) return this._decideViaApi('validate', reg, labData);
       const now = Date.now();
       const ref = fbDb.ref(`interventions/${reg}`);
       const snap = await ref.once('value');
@@ -16564,6 +16710,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
      *  aucun passage laboratoire. Le bon est validé immédiatement (temps technicien conservé) et
      *  l'outil est débloqué tout de suite. S'applique à Préventive / Homologation / Requalification. */
     async autoValidateIntervention(reg) {
+      // Via le serveur : il débloque aussi l'outil et notifie, dans la même opération
+      if (api.enabled()) return this._decideViaApi('auto-validate', reg, {});
       const now = Date.now();
       const ref = fbDb.ref(`interventions/${reg}`);
       const snap = await ref.once('value');
@@ -16630,6 +16778,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
        déclare le dossier livré → bon définitivement clôturé.
        ════════════════════════════════════════════════════════════════════ */
     async deliverDossier(reg, extras = {}) {
+      if (api.enabled()) {
+        const report = extras.reportData && extras.reportData.dataUrl ? extras.reportData : null;
+        return this._decideViaApi('deliver', reg, {
+          tech2Name: extras.tech2Name || '',
+          tech2Matricule: extras.tech2Mat || '',
+          reportData: report
+        });
+      }
       const now = Date.now();
       const ref = fbDb.ref(`interventions/${reg}`);
       const snap = await ref.once('value');
@@ -16678,6 +16834,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     },
 
     async rejectIntervention(reg, reason) {
+      if (api.enabled()) return this._decideViaApi('reject', reg, { reason });
       const now = Date.now();
       const ref = fbDb.ref(`interventions/${reg}`);
       const snap = await ref.once('value');
@@ -18684,10 +18841,25 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const typeIndicatesPdr = /changement[_ ]?pdr|requalif|^pdr$|pdr[_ ]change/i.test(bonType);
         const isPdrChange = (piecesList.length > 0) || typeIndicatesPdr;
 
+        // 🆕 UNE SEULE FOIS PAR BON : un nouvel essai, une validation rejouée ou un second onglet
+        //    ne ré-enregistre pas le changement PDR (historique, alertes, nouvelle référence de
+        //    cycles). Le verrou est posé par transaction dans le bon lui-même.
+        let pdrClaimed = false;
+        if (isPdrChange) {
+          try {
+            const claim = await fbDb.ref(`interventions/${reg}/pdrAutoRecord`).transaction(cur =>
+              cur ? undefined : { at: now, by: state.user?.uid || '' });
+            pdrClaimed = !!(claim && claim.committed);
+          } catch (e) {
+            console.warn('[recordPdrChangeFromBon] verrou PDR indisponible — enregistrement reporté :', e);
+          }
+          if (!pdrClaimed) console.info('[recordPdrChangeFromBon] Bon ' + reg + ' — PDR déjà enregistré, ignoré');
+        }
+
         let pdrHistoryPushed = false;
         let isPremature = false;
         let cyclesSinceLastPdr = 0;
-        if (isPdrChange) {
+        if (isPdrChange && pdrClaimed) {
           const cyclesBefore = parseFloat(stateTool?.cyclesAtLastPdr) || 0;
           cyclesSinceLastPdr = Math.max(0, cyclesAtValidation - cyclesBefore);
           const labelTool = stateTool?.serial || stateTool?.outilId || stateTool?.doutils || toolInfo.serial || toolInfo.outilId || toolKey;
@@ -22098,7 +22270,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           // Espace courant (chemins normaux)
           ...this.NAMESPACED_PATHS,
           // Catalogues partagés
-          'users', 'tools', 'stockPieces', 'pdfTemplates', 'toolAttachments', 'loginIndex',
+          'users', 'tools', 'stockPieces', 'pdfTemplates', 'toolAttachments',
           'system'
         ];
 
@@ -22128,6 +22300,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const snap = await direct.ref(this.TEST_NAMESPACE).once('value');
           backup[this.TEST_NAMESPACE] = snap.val();
         } catch(e){}
+
+        // 🔒 SÉCURITÉ : aucun mot de passe ni PIN dans un fichier de sauvegarde
+        if (backup.users && typeof backup.users === 'object') {
+          Object.values(backup.users).forEach(u => { if (u && typeof u === 'object') { delete u.password; delete u.pin; } });
+        }
 
         const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
         const filename = `leoni_backup_${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}.json`;
@@ -24150,9 +24327,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           }
 
           // 💾 ENREGISTREMENT FIREBASE — 3s seulement car juste un update JSON
+          //    🆕 Via le serveur : envoi de la photo + transaction → délai plus large
           console.log('[validate] 💾 enregistrement Firebase…');
           ui.showLoader('Sauvegarde Firebase…');
-          await withTimeout(db.validateIntervention(reg, labData), 3000, 'sauvegarde Firebase');
+          await withTimeout(db.validateIntervention(reg, labData), api.enabled() ? 60000 : 3000, 'sauvegarde Firebase');
           console.log('[validate] ✅ Validation enregistrée dans Firebase');
 
           // Message adapté selon le type
@@ -24279,8 +24457,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           // Récupérer info techniciens #2 pour le payload
           const extras = { tech2Name, tech2Mat, reportData };
           ui.showLoader('Sauvegarde Firebase…');
-          // 💾 3s timeout — c'est juste un update JSON
-          await withTimeout(db.deliverDossier(reg, extras), 3000, 'sauvegarde Firebase');
+          // 💾 3s timeout — c'est juste un update JSON (🆕 60 s via le serveur : envoi du rapport)
+          await withTimeout(db.deliverDossier(reg, extras), api.enabled() ? 60000 : 3000, 'sauvegarde Firebase');
           console.log('[deliverDossier] ✅ Succès');
           ui.toast(`📁 Dossier livré · Bon N°${reg} clôturé ✅`, 'success', 4000);
           this.setStatus('delivered');
@@ -29444,6 +29622,14 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
       init() {
         $('#btn-user-add').addEventListener('click', () => this.openCreateModal());
+        // 🆕 Postes enrôlés pour le PIN (serveur requis, administrateurs)
+        const pinBtn = document.getElementById('btn-pin-devices');
+        if (pinBtn && api.enabled()) {
+          pinBtn.addEventListener('click', () => {
+            if (state.role !== 'admin' && state.role !== 'super_admin') return ui.toast('Permission refusée', 'danger');
+            pinAdmin.devices();
+          });
+        }
 
         // ── Event delegation pour les boutons du tableau ──
         document.getElementById('users-body').addEventListener('click', (e) => {
@@ -29479,6 +29665,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
       async render() {
         if (state.role !== 'admin' && state.role !== 'super_admin' && !auth.can('user.read')) return;
+        const pinBtn = document.getElementById('btn-pin-devices');
+        if (pinBtn) pinBtn.hidden = !(api.enabled() && (state.role === 'admin' || state.role === 'super_admin'));
         // Initialiser le listener une seule fois (re-render auto sur changement)
         this._initListener();
         // Premier rendu avec cache si dispo
@@ -29535,6 +29723,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                   data-action="edit" data-uid="${ui.escape(u.uid || '')}" data-i18n="t.modifier">✏️ Modifier</button>
                 <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem;color:var(--accent-500)"
                   data-action="set-pass" data-uid="${ui.escape(u.uid || '')}" data-email="${ui.escape(u.email || '')}" data-name="${ui.escape(u.displayName || u.email || '')}">🔑 Changer MDP</button>
+                ${api.enabled() && (state.role === 'admin' || state.role === 'super_admin') ? `<button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem"
+                  data-action="set-pin" data-uid="${ui.escape(u.uid || '')}" data-name="${ui.escape(u.displayName || u.email || '')}">🔢 PIN</button>` : ''}
                 <button class="btn btn--ghost" style="font-size:.72rem;padding:.28rem .55rem;color:${isActive ? 'var(--danger-500)' : 'var(--success-500)'}"
                   data-action="toggle-active" data-uid="${ui.escape(u.uid || '')}" data-active="${isActive}">
                   ${isActive ? '⛔' : '✅'}
@@ -29549,125 +29739,24 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
       /* ── Définir / modifier le code PIN ── */
       async setPin(uid, name, currentPin) {
-        if (state.role !== 'admin' && state.role !== 'super_admin') {
-          return ui.toast('Permission refusée', 'danger');
+        // 🔒 SÉCURITÉ : le PIN était stocké en clair (profil + loginIndex public). Il est désormais
+        //    géré par le serveur (empreinte, poste enrôlé, limitation des essais).
+        if (!api.enabled()) {
+          ui.toast('Gestion des PIN disponible quand le serveur de l\'application sera en service.', 'warn', 7000);
+          return;
         }
-        const newPin = prompt(
-          `🔢 Définir le code PIN pour :\n${name}\n\n` +
-          `${currentPin ? 'PIN actuel : ' + currentPin + '\n\n' : ''}` +
-          `Entrez 4 chiffres (ou laissez vide pour supprimer le PIN) :`,
-          currentPin || ''
-        );
-        if (newPin === null) return; // annulé
-
-        const trimmed = String(newPin || '').trim();
-        if (trimmed && !/^\d{4}$/.test(trimmed)) {
-          return ui.toast('Le PIN doit faire exactement 4 chiffres', 'warn');
-        }
-
-        try {
-          // Récupérer l'utilisateur complet
-          const user = this._allUsers?.[uid];
-          if (!user) {
-            return ui.toast('Utilisateur introuvable', 'danger');
-          }
-          if (!user.matricule) {
-            return ui.toast('Cet utilisateur n\'a pas de matricule. Modifie-le d\'abord pour ajouter un matricule.', 'warn');
-          }
-
-          if (trimmed) {
-            // Vérifier que ce PIN n'est pas déjà utilisé par un AUTRE user
-            const allUsers = this._allUsers || {};
-            const conflict = Object.values(allUsers).find(u =>
-              u.uid !== uid && String(u.pin) === trimmed
-            );
-            if (conflict) {
-              return ui.toast(`⚠️ Ce PIN est déjà utilisé par ${conflict.displayName}`, 'danger');
-            }
-
-            // ── 1. Mettre à jour /users/{uid}/pin ──
-            await fbDb.ref('users/' + uid + '/pin').set(trimmed);
-
-            // ── 2. Recréer COMPLÈTEMENT l'entrée loginIndex (set, pas update) ──
-            // Cela garantit que l'entrée est correcte même si elle n'existait pas
-            const key = String(user.matricule).toUpperCase().trim();
-            await fbDb.ref('loginIndex/' + key).set({
-              uid         : user.uid || uid,
-              email       : user.email || '',
-              password    : String(user.password || ''),
-              pin         : trimmed,
-              displayName : user.displayName || '',
-              matricule   : String(user.matricule),
-              active      : user.active !== false
-            });
-
-            ui.toast(`✅ PIN ${trimmed} défini pour ${name} — utilisez-le maintenant`, 'success');
-            console.log('[setPin] PIN mis à jour partout :', { uid, matricule: key, newPin: trimmed });
-          } else {
-            // Supprimer le PIN
-            await fbDb.ref('users/' + uid + '/pin').remove();
-            const key = String(user.matricule).toUpperCase().trim();
-            await fbDb.ref('loginIndex/' + key).remove();
-            ui.toast(`PIN supprimé pour ${name}`, 'info');
-          }
-          // Audit
-          await fbDb.ref('auditLog').push({
-            timestamp: Date.now(), uid: state.user.uid,
-            userName: state.profile?.displayName || '',
-            action: 'user.setPin',
-            entity: 'users/' + uid,
-            meta: { targetName: name, action: trimmed ? 'set' : 'remove' }
-          });
-        } catch (e) {
-          ui.toast('Erreur : ' + e.message, 'danger');
-        }
+        if (state.role !== 'admin' && state.role !== 'super_admin') return ui.toast('Permission refusée', 'danger');
+        pinAdmin.setPin(uid, name);
       },
 
       /* ── Changer mot de passe directement (super admin) ── */
       async setPasswordDirect(uid, email, name) {
-        if (state.role !== 'admin' && state.role !== 'super_admin') {
-          return ui.toast('Permission refusée', 'danger');
-        }
-        const newPass = prompt(`Définir un nouveau mot de passe pour :\n${name} (${email})\n\nMin. 8 caractères :`, '');
-        if (!newPass) return;
-        if (newPass.length < 8) return ui.toast('Mot de passe trop court (min 8 caractères)', 'warn');
-
-        try {
-          // 1. Sauvegarder dans RTDB
-          await fbDb.ref('users/' + uid + '/password').set(newPass);
-          await fbDb.ref('users/' + uid + '/passwordChangedAt').set(Date.now());
-          await fbDb.ref('users/' + uid + '/passwordChangedBy').set(state.profile?.displayName || state.user?.email || '');
-
-          // 2. ⚠️ Synchroniser loginIndex pour que le login PIN utilise le nouveau password
-          const user = this._allUsers?.[uid];
-          if (user && user.matricule) {
-            const key = String(user.matricule).toUpperCase().trim();
-            await fbDb.ref('loginIndex/' + key).set({
-              uid         : user.uid || uid,
-              email       : user.email || email,
-              password    : newPass,
-              pin         : String(user.pin || ''),
-              displayName : user.displayName || name,
-              matricule   : String(user.matricule),
-              active      : user.active !== false
-            });
-          }
-
-          // 3. Audit log
-          await fbDb.ref('auditLog').push({
-            timestamp: Date.now(),
-            uid: state.user.uid,
-            userName: state.profile?.displayName || '',
-            action: 'user.setPassword',
-            entity: 'users/' + uid,
-            meta: { targetEmail: email, targetName: name }
-          });
-
-          ui.toast(`✅ Mot de passe modifié pour ${name}`, 'success');
-          ui.toast(`⚠️ Note importante : Firebase Auth conserve l'ancien mdp. L'utilisateur doit utiliser son login PIN (qui marche avec le nouveau mdp).`, 'warn');
-        } catch (e) {
-          ui.toast('Erreur : ' + e.message, 'danger');
-        }
+        // 🔒 SÉCURITÉ : cette action écrivait le mot de passe en clair dans la base, sans changer le
+        //    vrai mot de passe Firebase. Désactivée. Réinitialisation : console Firebase (Authentication),
+        //    ou l'utilisateur change lui-même son mot de passe depuis son profil.
+        if (state.role !== 'admin' && state.role !== 'super_admin') return ui.toast('Permission refusée', 'danger');
+        ui.toast(`Pour réinitialiser le mot de passe de ${name} : console Firebase → Authentication, ou l'utilisateur le change depuis son profil.`, 'info', 9000);
+        return;
       },
 
       /* ── Supprimer un utilisateur ── */
@@ -29839,12 +29928,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const newRole = document.getElementById('edit-role').value;
           if (!newName) return ui.toast('Le nom est obligatoire', 'warn');
           try {
-            await fbDb.ref('users/' + uid).update({
-              displayName : newName,
-              matricule   : newMat,
-              role        : newRole,
-              updatedAt   : Date.now()
-            });
+            const upd = { displayName: newName, matricule: newMat, updatedAt: Date.now() };
+            // 🔒 Personne ne modifie son propre rôle (règle aussi appliquée par la base de données)
+            if (uid !== state.user?.uid) upd.role = newRole;
+            else if (newRole !== this._allUsers?.[uid]?.role) ui.toast('Votre propre rôle ne peut pas être modifié — demandez à un autre administrateur.', 'warn', 7000);
+            await fbDb.ref('users/' + uid).update(upd);
             ui.toast('Utilisateur mis à jour ✅', 'success');
             close();
             this.render();
@@ -29909,20 +29997,25 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           btn.textContent = 'Création…';
 
           try {
-            // 1. Créer le compte Firebase Auth (le mdp y est hashé automatiquement)
-            const cred = await fbAuth.createUserWithEmailAndPassword(data.email, data.password);
+            // 1. Créer le compte Firebase Auth dans une instance SECONDAIRE : la session de
+            //    l'administrateur n'est pas remplacée par celle du nouveau compte.
+            const appName = 'creation-utilisateur';
+            const secondary = firebase.apps.find(a => a.name === appName) || firebase.initializeApp(FIREBASE_CONFIG, appName);
+            let newUid;
+            try {
+              const created = await secondary.auth().createUserWithEmailAndPassword(data.email, data.password);
+              newUid = created.user.uid;
+            } finally {
+              try { await secondary.auth().signOut(); } catch (e) {}
+            }
 
-            // 2. Créer le profil dans la RTDB — SANS le mot de passe en clair
-            //    SÉCURITÉ : seul Firebase Auth connaît le mdp (hashé bcrypt)
-            // Profil utilisateur — Note: password stocké pour permettre login PIN
-            // (Firebase Auth nécessite l'email/password pour signer, donc on doit l'avoir)
-            await fbDb.ref('users/' + cred.user.uid).set({
-              uid               : cred.user.uid,
+            // 2. Profil écrit par l'administrateur. 🔒 Aucun mot de passe ni PIN dans la base :
+            //    seul Firebase Authentication connaît le mot de passe.
+            await fbDb.ref('users/' + newUid).set({
+              uid               : newUid,
               displayName       : data.displayName,
               matricule         : String(data.matricule).trim(),
               email             : data.email,
-              password          : String(data.password),
-              pin               : String(data.pin),
               role              : data.role,
               active            : true,
               createdAt         : Date.now(),
@@ -29932,25 +30025,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               passwordChangedBy : state.profile?.displayName || 'Création initiale'
             });
 
-            // ⚠️ Synchroniser l'index public pour le login PIN
-            const key = String(data.matricule).toUpperCase().trim();
-            await fbDb.ref('loginIndex/' + key).set({
-              uid         : cred.user.uid,
-              email       : data.email,
-              password    : String(data.password),
-              pin         : String(data.pin),
-              displayName : data.displayName,
-              matricule   : String(data.matricule).trim(),
-              active      : true
-            });
-
             // 3. Audit log
             await fbDb.ref('auditLog').push({
               timestamp : Date.now(),
               uid       : state.user?.uid || '',
               userName  : state.profile?.displayName || '',
               action    : 'user.create',
-              entity    : 'users/' + cred.user.uid,
+              entity    : 'users/' + newUid,
               meta      : { email: data.email, role: data.role, name: data.displayName }
             });
 
@@ -39819,47 +39900,44 @@ Erreur Firebase : ${e.message}`;
   // ── Helper console pour forcer la sync de loginIndex ──
   // Tape: forceSyncLogin()
   window.forceSyncLogin = async function() {
-    if (!fbAuth.currentUser) {
-      console.error('❌ Pas connecté. Connectez-vous d\'abord en admin.');
-      return;
+    // SECURITE : recopiait les mots de passe et PIN dans loginIndex. Desactivee.
+    console.warn("forceSyncLogin desactivee : plus aucun secret ecrit dans la base.");
+  };
+
+  /* 🔒 PURGE DES SECRETS — à lancer une fois par un administrateur, APRÈS le déploiement des
+     règles qui empêchent leur réécriture. Console (F12) :
+       await leoniPurgeSecrets()                  → simulation : compte ce qui serait supprimé
+       await leoniPurgeSecrets({ apply: true })   → suppression (une seule écriture atomique)
+     Supprime loginIndex entier et les champs password / pin de chaque profil users/{uid}. */
+  window.leoniPurgeSecrets = async function({ apply = false } = {}) {
+    if (!fbAuth.currentUser || (state.role !== 'admin' && state.role !== 'super_admin')) {
+      console.error('Réservé à un administrateur connecté.');
+      return null;
     }
-    if (state.role !== 'admin' && state.role !== 'super_admin') {
-      console.error('❌ Vous devez être admin pour synchroniser l\'index.');
-      return;
-    }
-    console.log('🔄 Synchronisation forcée de loginIndex…');
+    const users = (await fbDb.ref('users').once('value')).val() || {};
+    const idx = (await fbDb.ref('loginIndex').once('value')).val() || {};
+    const updates = {};
+    let pw = 0, pin = 0;
+    Object.entries(users).forEach(([uid, u]) => {
+      if (!u || typeof u !== 'object') return;
+      if ('password' in u) { updates['users/' + uid + '/password'] = null; pw++; }
+      if ('pin' in u) { updates['users/' + uid + '/pin'] = null; pin++; }
+    });
+    const nIdx = Object.keys(idx).length;
+    if (nIdx) updates['loginIndex'] = null;
+    const summary = { profilsAvecMotDePasse: pw, profilsAvecPin: pin, entreesLoginIndex: nIdx };
+    if (!apply) { console.table(summary); console.log('Simulation : rien n’a été supprimé. Relancez avec { apply: true }.'); return summary; }
+    if (!Object.keys(updates).length) { console.log('Rien à supprimer.'); return summary; }
+    await fbDb.ref().update(updates);
     try {
-      const snap = await fbDb.ref('users').once('value');
-      const users = snap.val() || {};
-      let synced = 0;
-      const indexResult = {};
-      for (const uid in users) {
-        const u = users[uid];
-        if (!u.email || !u.password) {
-          console.warn('⚠ Skip (pas d\'email/password):', u.displayName || uid);
-          continue;
-        }
-        const key = (u.matricule || u.displayName || u.email.split('@')[0]).toUpperCase().trim();
-        if (!key) continue;
-        const entry = {
-          uid: u.uid,
-          email: u.email,
-          password: u.password,
-          pin: u.pin || null,
-          displayName: u.displayName || '',
-          matricule: u.matricule || '',
-          active: u.active !== false
-        };
-        await fbDb.ref('loginIndex/' + key).set(entry);
-        indexResult[key] = { name: u.displayName, pin: u.pin || '(aucun)', active: u.active !== false };
-        synced++;
-      }
-      console.log('✅ ' + synced + ' utilisateurs synchronisés !');
-      console.table(indexResult);
-      console.log('Vous pouvez maintenant utiliser le login PIN.');
-    } catch(e) {
-      console.error('❌ Erreur:', e);
-    }
+      await fbDb.ref('auditLog').push({
+        timestamp: Date.now(), uid: state.user.uid, userName: state.profile?.displayName || '',
+        action: 'security.purgeSecrets', entity: 'users+loginIndex', ...summary
+      });
+    } catch (e) {}
+    console.table(summary);
+    console.log('✅ Secrets supprimés de la base.');
+    return summary;
   };
 
   /* ==========================================================================

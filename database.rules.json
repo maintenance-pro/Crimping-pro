@@ -1,7 +1,32 @@
 {
   "rules": {
-    ".read": "auth != null",
-    ".write": "auth != null",
+    ".read": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false",
+    ".write": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false",
+    "loginIndex": {
+      "$key": {
+        ".validate": false
+      }
+    },
+    "users": {
+      ".indexOn": [
+        "role"
+      ],
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "password": {
+          ".validate": false
+        },
+        "pin": {
+          ".validate": false
+        },
+        "role": {
+          ".validate": "newData.isString() && newData.val().matches(/^(super_admin|admin|responsable|tl|crimp|crimping|labo|magasinier|operateur|viewer)$/) && auth.uid != $uid && (root.child('users').child(auth.uid).child('role').val() == 'super_admin' || (root.child('users').child(auth.uid).child('role').val() == 'admin' && newData.val() != 'super_admin' && data.val() != 'super_admin'))"
+        },
+        "active": {
+          ".validate": "newData.isBoolean() && auth.uid != $uid && (root.child('users').child(auth.uid).child('role').val() == 'super_admin' || (root.child('users').child(auth.uid).child('role').val() == 'admin' && data.parent().child('role').val() != 'super_admin'))"
+        }
+      }
+    },
     "interventions": {
       ".indexOn": [
         "numBon",
@@ -40,10 +65,6 @@
           "createdAt"
         ]
       }
-    },
-    "loginIndex": {
-      ".read": true,
-      ".write": "auth != null"
     }
   }
 }

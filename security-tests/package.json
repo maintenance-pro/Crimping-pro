@@ -1,0 +1,14 @@
+{
+  "name": "crimping-pro-security-tests",
+  "private": true,
+  "description": "Tests des règles Firebase sur l'émulateur local (projet demo-, jamais la production). Dépendances installées hors du dépôt : voir run-rules-tests.mjs",
+  "scripts": {
+    "test:rules": "node run-rules-tests.mjs",
+    "test:rules:phase2": "node run-rules-tests.mjs --rules ../database.rules.phase2.json --test rules-phase2.test.mjs && node run-rules-tests.mjs --rules ../database.rules.phase2.json",
+    "test:client": "node --test api-client.test.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "3.0.4",
+    "firebase": "10.14.1"
+  }
+}

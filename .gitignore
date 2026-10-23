@@ -1,0 +1,6 @@
+# Outils locaux (JDK, Maven) et dépendances de test : jamais dans le dépôt
+backend/tools/
+node_modules/
+backend/target/
+security-tests/node_modules/
+*.log

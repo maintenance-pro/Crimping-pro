@@ -1,0 +1,129 @@
+{
+  "rules": {
+    "secure": {
+      ".read": false,
+      ".write": false
+    },
+    "system": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      "$key": {
+        ".validate": "root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin'"
+      }
+    },
+    "loginIndex": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      "$key": {
+        ".validate": false
+      }
+    },
+    "users": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".indexOn": [
+        "role"
+      ],
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        "password": {
+          ".validate": false
+        },
+        "pin": {
+          ".validate": false
+        },
+        "role": {
+          ".validate": "newData.isString() && newData.val().matches(/^(super_admin|admin|responsable|tl|crimp|crimping|labo|magasinier|operateur|viewer)$/) && auth.uid != $uid && (root.child('users').child(auth.uid).child('role').val() == 'super_admin' || (root.child('users').child(auth.uid).child('role').val() == 'admin' && newData.val() != 'super_admin' && data.val() != 'super_admin'))"
+        },
+        "active": {
+          ".validate": "newData.isBoolean() && auth.uid != $uid && (root.child('users').child(auth.uid).child('role').val() == 'super_admin' || (root.child('users').child(auth.uid).child('role').val() == 'admin' && data.parent().child('role').val() != 'super_admin'))"
+        }
+      }
+    },
+    "interventions": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".indexOn": [
+        "numBon",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ],
+      "$reg": {
+        "status": {
+          ".validate": "newData.val() == data.val() || (!(data.val() == 'validated' || data.val() == 'rejected' || data.val() == 'delivered') && !(newData.val() == 'validated' || newData.val() == 'rejected' || newData.val() == 'delivered'))"
+        },
+        "locked": {
+          ".validate": "newData.val() == data.val() || data.val() != true"
+        },
+        "lab": {
+          "decision": {
+            ".validate": "newData.val() == data.val()"
+          }
+        }
+      }
+    },
+    "test_data": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      "interventions": {
+        "$reg": {
+          "status": {
+            ".validate": "newData.val() == data.val() || (!(data.val() == 'validated' || data.val() == 'rejected' || data.val() == 'delivered') && !(newData.val() == 'validated' || newData.val() == 'rejected' || newData.val() == 'delivered'))"
+          },
+          "locked": {
+            ".validate": "newData.val() == data.val() || data.val() != true"
+          },
+          "lab": {
+            "decision": {
+              ".validate": "newData.val() == data.val()"
+            }
+          }
+        }
+      }
+    },
+    "stockImportHistory": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".indexOn": [
+        "timestamp"
+      ]
+    },
+    "stockMovements": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".indexOn": [
+        "timestamp",
+        "stockId"
+      ]
+    },
+    "auditLog": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".indexOn": [
+        "timestamp",
+        "uid"
+      ]
+    },
+    "notifications": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".indexOn": [
+        "timestamp",
+        "read",
+        "createdAt"
+      ],
+      "$uid": {
+        ".indexOn": [
+          "timestamp",
+          "read",
+          "createdAt"
+        ]
+      }
+    },
+    "$other": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').exists() && root.child('users').child(auth.uid).child('active').val() != false && (auth.token.pin_device == null || (root.child('secure').child('devices').child(auth.token.pin_device).child('active').val() == true && auth.token.auth_time * 1000 > now - 43200000))"
+    }
+  }
+}

@@ -38,6 +38,10 @@ self.addEventListener('fetch', (event) => {
   // chrome-extension:… doivent être laissés au navigateur (sinon TypeError sur cache.put)
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
+  // 🆕 Serveur de l'application (API) et toute requête authentifiée : jamais interceptées ni
+  // mises en cache (une réponse contenant des données d'un compte ne doit pas rester sur le poste)
+  if (url.pathname.indexOf('/api/') !== -1 || event.request.headers.has('Authorization')) return;
+
   // Jamais de cache pour Firebase / APIs externes → toujours réseau frais (données live)
   const isFirebase = /firebaseio\.com|firebasedatabase\.app|firebasestorage\.googleapis\.com|googleapis\.com|firebaseapp\.com/.test(url.hostname);
   if (event.request.method !== 'GET' || isFirebase) {

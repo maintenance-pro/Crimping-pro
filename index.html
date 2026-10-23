@@ -17397,6 +17397,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
       } catch(e) { console.warn('[access] route guard', e); }
 
+      const prevView = state.currentView;
       ui.showView(view);
       // Activer le bon hub virtuel dans la sidebar si on est dans une vue fusionnée
       const hubMap = {
@@ -17417,7 +17418,36 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         'demandes-pdr': 'demandesPdr'
       };
       const moduleName = moduleMap[view] || view;
-      if (views[moduleName] && views[moduleName].render) views[moduleName].render();
+
+      // 🆕 Section quittée : elle arrête ses rendus en cours et libère ce qui ne sert plus
+      //    (ses abonnements globaux restent actifs).
+      if (prevView && prevView !== view) {
+        const prevMod = views[moduleMap[prevView] || prevView];
+        if (prevMod && typeof prevMod.leave === 'function') {
+          try { prevMod.leave(); } catch (e) { console.warn('[router] leave', prevView, e); }
+        }
+      }
+
+      // 🆕 Rendu APRÈS l'affichage : le menu actif et la section demandée apparaissent dès le
+      //    clic, puis la vue se dessine. Avant, render() tournait dans la même tâche que le
+      //    clic : tant qu'il n'était pas fini (2 à 4 s pour Outils Bloqués), l'ancienne
+      //    section restait à l'écran. Clics rapides : seul le dernier rendu demandé s'exécute.
+      const navId = ++this._navId;
+      const mod = views[moduleName];
+      if (mod && mod.render) {
+        this._afterPaint(() => {
+          if (navId !== this._navId || state.currentView !== view) return; // section déjà quittée
+          mod.render();
+        });
+      }
+    },
+
+    _navId: 0,
+
+    /** Lance fn juste après le prochain affichage (onglet en arrière-plan : sans attendre) */
+    _afterPaint(fn) {
+      if (document.visibilityState === 'hidden') { setTimeout(fn, 0); return; }
+      requestAnimationFrame(() => setTimeout(fn, 0));
     },
 
     /* ════════════════════════════════════════════════════════════════════
@@ -30075,6 +30105,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             direct.ref('auditLog').limitToLast(200).once('value'),
             direct.ref(testNs + '/auditLog').limitToLast(200).once('value').catch(() => null)
           ]);
+          // 🆕 Réponse arrivée après un changement de section : ignorée (redessinée à la prochaine ouverture)
+          if (state.currentView !== 'auditlog') return;
           const logs = [];
           if (prodSnap) prodSnap.forEach(c => { logs.push({ id: c.key, _space: 'prod', ...c.val() }); });
           if (testSnap) testSnap.forEach(c => { logs.push({ id: c.key, _space: 'test', ...c.val() }); });
@@ -30893,6 +30925,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
     blocked: {
       _data: [],          // données importées en mémoire
       _initialized: false,
+      _loading: false,    // 🆕 lecture Firebase en cours (affiche « Chargement… »)
 
       // ╔══════════════════════════════════════════════════════════════════════╗
       // ║ 🏭 CONFIGURATION CLIENTS / CONSTRUCTEURS AUTOMOBILES                ║
@@ -31188,7 +31221,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (cnt) cnt.textContent = rows.length;
         if (!rows.length) { sec.style.display = 'none'; tb.innerHTML = ''; return; }
         sec.style.display = '';
-        tb.innerHTML = rows.slice(0, 200).map(r => {
+        this._fillRows(tb, rows.slice(0, 200), r => {
           const client = this._getClientForProject(r.masterLocation);
           const clientBadge = client ? `<span class="bl-pill" style="color:${client.color};background:${client.color}1a">${client.icon} ${client.name.toUpperCase()}</span>` : '';
           return `<tr data-bl-mrow="${ui.escape(r.inventoryNo||'')}" style="border-bottom:1px solid var(--border-soft);cursor:pointer" onmouseover="this.style.background='rgba(34,197,94,.06)'" onmouseout="this.style.background=''">
@@ -31197,9 +31230,46 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <td style="padding:.5rem .75rem">${this._locationBadge(r)}</td>
             <td style="padding:.5rem .75rem;text-align:center">${this._causeBadge(r)}</td>
           </tr>`;
-        }).join('');
-        tb.querySelectorAll('[data-bl-mrow]').forEach(tr => {
-          tr.addEventListener('click', () => { const row = (this._data||[]).find(r => String(r.inventoryNo) === String(tr.dataset.blMrow)); if (row) this._showToolDetail(row); });
+        });
+      },
+
+      /** 🆕 Remplit un tableau au fil du défilement : les 25 premières lignes tout de suite, les
+       *  suivantes quand sa zone de défilement approche du bas (_moreRows). Construire d'un
+       *  coup les ~1 000 lignes des trois tableaux (≈ 35 000 éléments) figeait l'écran 2 à 4 s
+       *  à l'ouverture comme à la sortie de la section ; le contenu affiché reste le même. */
+      _fillRows(tb, rows, rowHtml, tailHtml = '') {
+        const st = { rows, rowHtml, tailHtml, i: Math.min(rows.length, 25) };
+        this._lazy.set(tb.id, st);
+        tb.innerHTML = rows.slice(0, st.i).map((r, k) => rowHtml(r, k)).join('') + (st.i >= rows.length ? tailHtml : '');
+        if (st.i < rows.length) requestAnimationFrame(() => this._moreRows(tb));
+      },
+      _lazy: new Map(),   // id du tbody → lignes restant à afficher
+
+      /** Ajoute 60 lignes tant que la zone de défilement du tableau est proche du bas */
+      _moreRows(tb) {
+        const st = this._lazy.get(tb.id);
+        const box = tb.closest('table')?.parentElement;
+        if (!st || !box || state.currentView !== 'blocked' || !box.clientHeight) return;
+        while (st.i < st.rows.length && box.scrollTop + box.clientHeight >= box.scrollHeight - 400) {
+          const end = Math.min(st.rows.length, st.i + 60);
+          tb.insertAdjacentHTML('beforeend', st.rows.slice(st.i, end).map((r, k) => st.rowHtml(r, st.i + k)).join('') + (end >= st.rows.length ? st.tailHtml : ''));
+          st.i = end;
+        }
+      },
+
+      /** 🆕 Ligne d'attente affichée dans un tableau (mêmes styles que « Aucune donnée ») */
+      _loadingRow(colspan) {
+        return `<tr><td colspan="${colspan}" style="padding:2rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">⏳ Chargement des outils bloqués…</td></tr>`;
+      },
+
+      /** 🆕 Appelé par le routeur quand on quitte la section : vide les tableaux. Gardées
+       *  cachées, des centaines de lignes rendaient le changement de section suivant très lent
+       *  (mesuré : 23,8 s → 0,5 s sur mobile émulé). render() les redessine à chaque ouverture. */
+      leave() {
+        this._lazy.clear();
+        [['bl-tbody', 10], ['bl-machine-tbody', 4], ['bl-finished-tbody', 8]].forEach(([id, cols]) => {
+          const tb = document.getElementById(id);
+          if (tb) tb.innerHTML = this._loadingRow(cols);
         });
       },
 
@@ -31349,7 +31419,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             + (nTransit ? ' · 🚚 ' + nTransit + ' outil(s) en transit (onglet Excel EN TRANSIT 24H)' : '');
         if (!rows.length) { sec.style.display = 'none'; tb.innerHTML = ''; return; }
         sec.style.display = '';
-        tb.innerHTML = rows.slice(0, 300).map(r => {
+        this._fillRows(tb, rows.slice(0, 300), r => {
           const since = this._lastUsageTs(r);
           const isRecent = since && since >= Date.now() - DAY;
           const client = this._getClientForProject(r.masterLocation);
@@ -31364,9 +31434,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <td style="padding:.5rem .75rem;text-align:right;white-space:nowrap;font-family:var(--font-mono);${isRecent ? 'font-weight:800;color:#2563eb' : 'color:var(--text-muted)'}" title="Dernière utilisation il y a ${this._ago(since)}">${since ? (isRecent ? '🆕 ' : '') + new Date(since).toLocaleDateString('fr-FR') : '—'}</td>
             <td style="padding:.5rem .75rem;text-align:right;white-space:nowrap;font-family:var(--font-mono);${isRecent ? 'font-weight:800;color:#2563eb' : 'color:var(--text-muted)'}" title="Dernière utilisation il y a ${this._ago(since)}">${since ? new Date(since).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
           </tr>`;
-        }).join('');
-        tb.querySelectorAll('[data-bl-frow]').forEach(tr => {
-          tr.addEventListener('click', () => { const row = (this._data||[]).find(r => String(r.inventoryNo) === String(tr.dataset.blFrow)); if (row) this._showToolDetail(row); });
         });
       },
 
@@ -31957,6 +32024,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           th.addEventListener('click', () => this._setSort(th.dataset.blSort));
         });
 
+        // 🆕 Clic sur une ligne → fiche détaillée. Délégation posée une seule fois : les lignes
+        //    arrivent par tranches (_fillRows) et ne reçoivent plus chacune leur écouteur.
+        [['bl-tbody', 'blRow'], ['bl-machine-tbody', 'blMrow'], ['bl-finished-tbody', 'blFrow']].forEach(([id, key]) => {
+          document.getElementById(id)?.addEventListener('click', (e) => {
+            if (e.target.closest('button')) return; // ignore clics boutons
+            const tr = e.target.closest('tr');
+            const inv = tr ? tr.dataset[key] : undefined;
+            if (inv === undefined) return;
+            const row = (this._data || []).find(r => String(r.inventoryNo) === String(inv));
+            if (row) this._showToolDetail(row);
+          });
+          // 🆕 Défilement du tableau → lignes suivantes (_fillRows / _moreRows)
+          const tb = document.getElementById(id);
+          tb?.closest('table')?.parentElement?.addEventListener('scroll', () => this._moreRows(tb), { passive: true });
+        });
+
         // 🆕 Multi-select projets : toggle du panel
         const toggleBtn = document.getElementById('bl-project-toggle');
         const panel = document.getElementById('bl-project-panel');
@@ -32492,6 +32575,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
       /** Charge depuis Firebase au démarrage */
       async _loadFromFirebase() {
+        this._loading = true;
         try {
           const snap = await fbDb.ref('blockedTools/data').once('value');
           const data = snap.val();
@@ -32499,18 +32583,22 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             this._data = data;
             console.info(`[blocked] ${data.length} outils chargés depuis Firebase`);
             this._renderProjectOptions();
-            this.render();
             this._updateNavBadge();
           } else if (data && typeof data === 'object') {
             // Si stocké comme objet (clé:valeur) → convertir en array
             this._data = Object.values(data);
             this._renderProjectOptions();
-            this.render();
             this._updateNavBadge();
           }
         } catch (e) {
           console.warn('[blocked] Chargement Firebase échoué :', e.message);
+        } finally {
+          this._loading = false;
         }
+        // 🆕 Réponse arrivée pendant qu'une autre section est affichée : on ne dessine pas la
+        //    section cachée (connexion lente : l'écran affiché se figeait 8,7 s). Le routeur la
+        //    dessine à l'ouverture ; si elle est ouverte, elle quitte l'état « Chargement… ».
+        if (state.currentView === 'blocked') this.render();
       },
 
       /** Import Excel via SheetJS (déjà chargé pour le magasin) */
@@ -32910,6 +32998,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       },
 
       render() {
+        this._lazy.clear(); // lignes en attente d'un rendu précédent : obsolètes
         // KPIs globaux (sur l'ensemble, pas filtré)
         const total = this._data.length;
         const blocked = this._data.filter(r => this._isBlocked(r)).length;
@@ -32930,7 +33019,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (banner) banner.style.display = 'none';
           const caoBox = document.getElementById('bl-cao-alert'); if (caoBox) caoBox.style.display = 'none';
           const caoRmBox = document.getElementById('bl-cao-remove-alert'); if (caoRmBox) caoRmBox.style.display = 'none';
-          if (tbody) tbody.innerHTML = `<tr><td colspan="10" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>`;
+          // 🆕 Lecture Firebase en cours (connexion lente) : on l'indique au lieu de « Aucune donnée »
+          if (tbody) tbody.innerHTML = this._loading
+            ? this._loadingRow(10)
+            : `<tr><td colspan="10" style="padding:3rem 1rem;text-align:center;color:var(--text-muted);font-style:italic">📥 Aucune donnée chargée — Cliquez sur <strong>"Importer Excel"</strong> pour charger l'extraction Komax</td></tr>`;
           return;
         }
 
@@ -33012,7 +33104,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         // Limiter à 500 lignes pour les perfs
         const MAX_DISPLAY = 500;
         const slice = filtered.slice(0, MAX_DISPLAY);
-        tbody.innerHTML = slice.map((r, idx) => {
+        const moreRow = filtered.length > MAX_DISPLAY
+          ? `<tr><td colspan="10" style="padding:1rem;text-align:center;color:var(--text-muted);font-style:italic;background:rgba(255,180,71,.05)">⚠️ ${filtered.length - MAX_DISPLAY} lignes supplémentaires non affichées — affinez les filtres pour les voir</td></tr>`
+          : '';
+        this._fillRows(tbody, slice, (r, idx) => {
           const isBlocked = this._isBlocked(r);
           // 🆕 Style ligne : zebra stripes + indicateur visuel fort pour les bloqués
           const zebra = idx % 2 === 0 ? 'rgba(0,0,0,.015)' : 'transparent';
@@ -33055,21 +33150,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               <td style="padding:.6rem .5rem;text-align:center;vertical-align:middle">${this._causeBadge(r)}</td>
             </tr>
           `;
-        }).join('');
-
-        if (filtered.length > MAX_DISPLAY) {
-          tbody.innerHTML += `<tr><td colspan="10" style="padding:1rem;text-align:center;color:var(--text-muted);font-style:italic;background:rgba(255,180,71,.05)">⚠️ ${filtered.length - MAX_DISPLAY} lignes supplémentaires non affichées — affinez les filtres pour les voir</td></tr>`;
-        }
-
-        // 🆕 Clic sur ligne → fiche détaillée
-        tbody.querySelectorAll('[data-bl-row]').forEach(tr => {
-          tr.addEventListener('click', (e) => {
-            if (e.target.closest('button')) return; // ignore clics boutons
-            const inv = tr.dataset.blRow;
-            const row = this._data.find(r => String(r.inventoryNo) === String(inv));
-            if (row) this._showToolDetail(row);
-          });
-        });
+        }, moreRow);
       },
 
       /** 🆕 Fiche détaillée d'un outil (modal) */
@@ -41381,6 +41462,22 @@ Erreur Firebase : ${e.message}`;
     EMOJI_RE.lastIndex = 0;
     return EMOJI_RE.test(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
   }
+  // 🆕 Une icône = un modèle construit une fois puis cloné : analyser le SVG à chaque emoji
+  //    coûtait ~1,1 s pour les 3 500 icônes d'Outils Bloqués (même DOM produit).
+  const _iconSpanTpl = new Map();
+  function _iconSpan(val) {
+    let tpl = _iconSpanTpl.get(val);
+    if (!tpl) {
+      const key = typeof val === 'string' ? val : val.icon;
+      const color = typeof val === 'string' ? '' : `color:${val.color};`;
+      tpl = document.createElement('span');
+      tpl.className = 'ic-inline';
+      tpl.style.cssText = `display:inline-flex;vertical-align:-2px;${color}`;
+      tpl.innerHTML = svgIcon(key, 14);
+      _iconSpanTpl.set(val, tpl);
+    }
+    return tpl.cloneNode(true);
+  }
   function _replaceEmojiInTextNode(node) {
     if (!node.parentNode) return;
     const text = node.nodeValue;
@@ -41391,15 +41488,7 @@ Erreur Firebase : ${e.message}`;
       hit = true;
       if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
       const val = EMOJI_ICON_MAP[m[0]];
-      if (val) {
-        const key = typeof val === 'string' ? val : val.icon;
-        const color = typeof val === 'string' ? '' : `color:${val.color};`;
-        const span = document.createElement('span');
-        span.className = 'ic-inline';
-        span.style.cssText = `display:inline-flex;vertical-align:-2px;${color}`;
-        span.innerHTML = svgIcon(key, 14);
-        frag.appendChild(span);
-      }
+      if (val) frag.appendChild(_iconSpan(val));
       last = m.index + m[0].length;
     }
     if (!hit) return;

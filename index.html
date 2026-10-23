@@ -15983,7 +15983,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!api.enabled() || !device) throw new Error("Ce poste n'est pas enrôlé pour la connexion par PIN.");
         const res = await api.request('POST', '/api/pin/login',
           { deviceId: device.id, deviceSecret: device.secret, matricule, pin },
-          { auth: false, timeoutMs: 20000 });
+          { auth: false, timeoutMs: 45000 }); // marge pour un serveur qui démarre après une pause
         // Poste partagé : la session se ferme avec l'onglet
         await fbAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
         this._pinPersistence = true;

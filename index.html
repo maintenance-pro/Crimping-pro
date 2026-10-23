@@ -15314,17 +15314,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         el.classList.toggle('sidebar__link--active', el.dataset.nav === viewName);
       });
       state.currentView = viewName;
-      window.location.hash = viewName;
+      // 🆕 Adresse mise à jour SANS relancer le routeur. Avec « location.hash = … », une section
+      //    redirigée (Équipe → Techniciens, Analytics → Performance, PDR → Suivi PDR) relançait
+      //    tout le routeur : vue dessinée deux fois et étape d'historique en trop.
+      if (window.location.hash !== '#' + viewName) {
+        try { history.replaceState(history.state, '', '#' + viewName); }
+        catch (e) { window.location.hash = viewName; }
+      }
 
       // 🔁 Re-render le champ durée intelligent quand on entre dans la vue intervention
       // (s'assure que l'UI s'adapte au type sélectionné après navigation)
       if (viewName === 'intervention' && typeof window._refreshSmartDuration === 'function') {
         setTimeout(() => window._refreshSmartDuration(), 30);
       }
-      // 👷 Render la vue Techniciens quand on y entre
-      if (viewName === 'technicians' && views.technicians && views.technicians.render) {
-        setTimeout(() => views.technicians.render(), 30);
-      }
+      // 👷 Techniciens : le routeur dessine déjà la vue juste après (un 2ᵉ rendu ici était inutile)
     },
 
     applyRoleVisibility() {
@@ -17281,13 +17284,16 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
       viewEl.querySelector('.merged-tabs')?.remove();
       const bar = document.createElement('div');
       bar.className = 'merged-tabs';
+      // 🆕 data-tab-view (et non data-view) : showView() masque tous les [data-view] qui ne sont
+      //    pas la vue affichée. Avec data-view, les onglets se masquaient eux-mêmes et la barre
+      //    pouvait être insérée dans un ancien bouton au lieu de la section.
       bar.innerHTML = tabs.map(t =>
-        `<button type="button" class="merged-tabs__btn" data-view="${t.view}" data-active="${t.view === activeView ? 'true' : 'false'}">${t.label}</button>`
+        `<button type="button" class="merged-tabs__btn" data-tab-view="${t.view}" data-active="${t.view === activeView ? 'true' : 'false'}">${t.label}</button>`
       ).join('');
       // Insère en TOUT premier dans la section
       viewEl.insertBefore(bar, viewEl.firstChild);
       bar.querySelectorAll('.merged-tabs__btn').forEach(btn => {
-        btn.addEventListener('click', () => { window.location.hash = btn.dataset.view; });
+        btn.addEventListener('click', () => { window.location.hash = btn.dataset.tabView; });
       });
     }
   };

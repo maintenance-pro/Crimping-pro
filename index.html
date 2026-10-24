@@ -9981,7 +9981,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <details class="ds-help" style="flex-basis:100%">
             <summary>ℹ️ Comment c'est calculé</summary>
             <ul>
-              <li><strong>Sorties / Retours</strong> : lignes « Tool supply » / « Tool return » de la colonne <em>Event</em> de l'extraction Komax, rangées dans leur poste selon <em>Insert Time</em> (après minuit = poste C de la veille). Un mouvement déjà importé n'est jamais compté deux fois.</li>
+              <li><strong>Sorties / Retours</strong> : lignes « Tool supply » / « Tool return » de la colonne <em>Event</em> de l'extraction Komax, rangées dans leur poste selon <em>Insert Time</em> (après minuit = poste C de la veille). Un mouvement déjà importé n'est jamais compté deux fois. Les « Tool return » dont la colonne <em>Notes</em> indique « Source Location Type=Stock area » ou « Quarantine store » ne sont pas comptés.</li>
               <li><strong>Finis sur la machine</strong> : reste de l'équipe précédente (−8 h) — outils « Finished At Machine » des Outils Bloqués finis pendant le poste d'avant : <strong>B dans C, A dans B, C de la veille dans A</strong>.</li>
               <li><strong>Écart</strong> = Retours − (Sorties + Finis sur la machine).</li>
             </ul>
@@ -30514,6 +30514,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const firstCol = col('firstname', 'prenom');
           const lastCol  = col('name', 'nom', 'lastname');
           const invCol   = col('inventoryno', 'inventory');
+          const notesCol = col('notes', 'note', 'remarks', 'remarques');
+          // 🆕 Retours venant du stock ou de la quarantaine : pas des retours de production → non comptés
+          const NOT_A_RETURN = ['sourcelocationtypestockarea', 'sourcelocationtypequarantinestore'];
           if (!eventCol || !timeCol) {
             ui.toast(`⛔ Colonne « ${!eventCol ? 'Event' : 'Insert Time'} » introuvable — vérifiez l'extraction Komax`, 'danger');
             return;
@@ -30522,7 +30525,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           // Mouvements rangés par poste
           const groups = {};          // 'AAAA-MM-JJ|A' → { date, team, events }
           const others = new Set();   // autres valeurs Event (diagnostic si rien trouvé)
-          let moves = 0, noTime = 0;
+          let moves = 0, noTime = 0, skippedReturns = 0;
           rows.forEach(r => {
             const raw = String(r[eventCol] || '').trim();
             const v = normH(raw);
@@ -30534,7 +30537,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               .map(x => String(x || '').trim().toUpperCase()).filter(Boolean).join(' ') || '?';
             const inv = String((invCol && r[invCol]) || who).trim().replace(/[.#$\[\]\/\s]/g, '-');
             const { date, team } = this._shiftOf(ts);
-            const g = groups[date + '|' + team] || (groups[date + '|' + team] = { date, team, events: {} });
+            const g = groups[date + '|' + team] || (groups[date + '|' + team] = { date, team, events: {}, drop: {} });
+            if (kind === 'r' && notesCol && NOT_A_RETURN.some(n => normH(r[notesCol]).includes(n))) {
+              g.drop[`${ts}_${kind}_${inv}`] = true;   // retiré aussi s'il avait été importé avant cette règle
+              skippedReturns++;
+              return;
+            }
             g.events[`${ts}_${kind}_${inv}`] = who;
             moves++;
           });
@@ -30566,6 +30574,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             // (Ré)écrit les lignes du fichier + les anciennes lignes dont le prénom seul devient « PRÉNOM NOM »
             const merged = { ...known, ...g.events };
             const write = {};
+            Object.keys(g.drop).forEach(k => { if (k in merged) { delete merged[k]; write[k] = null; } });
             Object.entries(merged).forEach(([k, who]) => {
               const full = this._fullName(who, names);
               merged[k] = full;
@@ -30593,6 +30602,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           ui.toast(`✅ ${moves} mouvements répartis sur ${list.length} poste(s) : ${shifts}` +
             (added < moves ? ` — ${moves - added} déjà importé(s), non recompté(s)` : ''), 'success', 10000);
           if (noTime) ui.toast(`⚠️ ${noTime} ligne(s) sans « Insert Time » lisible — ignorée(s)`, 'warn', 9000);
+          if (skippedReturns) ui.toast(`ℹ️ ${skippedReturns} « Tool return » non compté(s) : Notes « Source Location Type = Stock area / Quarantine store »`, 'info', 9000);
           this.render();
         } catch (e) {
           ui.hideLoader?.();

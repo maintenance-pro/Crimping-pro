@@ -10661,6 +10661,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <div class="intervention__grid intervention__grid--2">
           <div class="field"><label aria-label="Groupe">Groupe</label><input name="groupe" placeholder="Ex: 7188, 8051J" / autocomplete="off"></div>
           <div class="field"><label aria-label="Connection">Connection</label><input name="connection" placeholder="Ex: P00118418" / autocomplete="off"></div>
+          <div class="field"><label aria-label="Joint">Joint</label><input name="joint" placeholder="Réf. du joint (outils avec joint)" autocomplete="off"></div>
           <div class="field"><label aria-label="Terminal">Terminal</label><input name="terminal" / autocomplete="off"></div>
           <div class="field"><label aria-label="N° Contact">N° Contact - Outils</label><input name="numContact" / autocomplete="off"></div>
           <div class="field"><label aria-label="D'Outils">D'Outils</label><input name="doutils" placeholder="Ex: WZ7144" / autocomplete="off"></div>
@@ -27663,6 +27664,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             ${row("D'Outils", tool.doutils, 'doutils')}
             ${row('Groupe', tool.groupe, 'groupe')}
             ${row('Connection', tool.connection, 'connection')}
+            ${row('Joint', tool.joint)}
             ${row('Terminal', tool.terminal, 'terminal')}
             ${row('N° Contact - Outils', tool.numContact, 'numContact')}
             ${row("N° d'inventaire D'Outils", tool.numInventaire, 'numInventaire')}
@@ -27897,6 +27899,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const rows = list.map(t => ({
             'GROUPE'                       : t.groupe         || '',
             'CONNECTION'                   : t.connection     || '',
+            'JOINT'                        : t.joint          || '',
             'TERMINAL'                     : t.terminal       || '',
             'N° DE CONTACT -OUTILS'        : t.numContact     || '',
             "D'OUTILS"                     : t.doutils        || t.outilId || '',
@@ -27921,9 +27924,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           const wb = XLSX.utils.book_new();
           const ws = XLSX.utils.json_to_sheet(rows);
 
-          // Largeurs colonnes ajustées pour les 21 colonnes
+          // Largeurs colonnes ajustées pour les 22 colonnes (JOINT après CONNECTION)
           ws['!cols'] = [
-            {wch:10},{wch:14},{wch:10},{wch:14},{wch:12},{wch:10},{wch:14},
+            {wch:10},{wch:14},{wch:14},{wch:10},{wch:14},{wch:12},{wch:10},{wch:14},
             {wch:22},{wch:22},{wch:22},{wch:22},{wch:22},{wch:22},
             {wch:22},{wch:14},{wch:14},{wch:14},{wch:14},
             {wch:14},{wch:14},{wch:14}
@@ -27985,6 +27988,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               'groupe'                  : 'groupe',
               'connection'              : 'connection',
               'connexion'               : 'connection',
+              'joint'                   : 'joint',       // 🆕 joint (outils avec joint)
+              'joints'                  : 'joint',
+              'seal'                    : 'joint',
               'terminal'                : 'terminal',
               'numerodecontactoutils'   : 'numContact',
               'ndecontactoutils'        : 'numContact',
@@ -28423,6 +28429,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           (t.groupe || '').toLowerCase().includes(q) ||
           (t.doutils || '').toLowerCase().includes(q) ||
           (t.connection || '').toLowerCase().includes(q) ||
+          (t.joint || '').toLowerCase().includes(q) ||
           (t.projet || '').toLowerCase().includes(q) ||
           (t.fournisseur || '').toLowerCase().includes(q)
         );

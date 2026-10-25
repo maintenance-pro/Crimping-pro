@@ -3401,25 +3401,101 @@ label:has(#pc-merge-toggle) {
   cursor: pointer;
 }
 
-/* ── Barre de recherche dédiée ── */
-#pc-search {
+/* ── Grandes barres de recherche (.search-xl) : Magasin + Catalogue outils
+      loupe, bordure colorée, bouton ✕ / Échap pour effacer (branchés au démarrage) ── */
+.search-xl {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search-xl__icon {
+  position: absolute;
+  left: 1.05rem;
+  width: 21px;
+  height: 21px;
+  color: var(--accent-500);
+  pointer-events: none;
+  z-index: 2;   /* au-dessus du champ (positionné par les styles du magasin) */
+}
+#pc-search, #catalog-search {
   width: 100% !important;
+  min-width: 0 !important;
   flex: none !important;
-  height: 44px !important;
-  padding: 0 1rem !important;
-  background: var(--bg-2) !important;
-  border: 1px solid var(--border-base) !important;
-  border-radius: 10px !important;
+  height: 54px !important;
+  padding: 0 3.2rem 0 3.1rem !important;
+  background: var(--bg-elevated) !important;
+  border: 2px solid rgba(79, 144, 230, .45) !important;
+  border-color: color-mix(in srgb, var(--accent-500) 45%, transparent) !important;
+  border-radius: 14px !important;
   color: var(--text-primary) !important;
-  font-size: .9rem !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
   font-family: var(--font-mono) !important;
+  box-shadow: 0 4px 16px rgba(79, 144, 230, .14);
   transition: border-color .15s, box-shadow .15s;
 }
-#pc-search:focus {
+#pc-search::placeholder, #catalog-search::placeholder {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--text-secondary);
+  opacity: .9;
+}
+#pc-search::-webkit-search-cancel-button, #catalog-search::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+#pc-search:placeholder-shown, #catalog-search:placeholder-shown { padding-right: 1rem !important; }   /* pas de ✕ : toute la largeur pour le texte d'aide */
+#pc-search:hover, #catalog-search:hover { border-color: var(--accent-500) !important; }
+#pc-search:focus, #catalog-search:focus {
   border-color: var(--accent-500) !important;
   outline: none !important;
-  box-shadow: 0 0 0 3px rgba(79, 144, 230, .15);
+  box-shadow: 0 0 0 4px rgba(79, 144, 230, .22), 0 6px 20px rgba(79, 144, 230, .18);
 }
+.search-xl__clear {
+  position: absolute;
+  right: .65rem;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg-3);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.search-xl__clear:hover { background: var(--accent-500); color: #fff; }
+.search-xl input:placeholder-shown ~ .search-xl__clear { display: none; }
+
+/* ── Catalogue outils : bouton Masquer / Afficher les filtres ── */
+.cat-filters-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  margin: 0 0 .6rem;
+  padding: .45rem .85rem;
+  border-radius: 9px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.cat-filters-toggle:hover { border-color: var(--accent-500); color: var(--text-primary); }
+.cat-filters-toggle__chev { transition: transform .15s; }
+.cat-filters-toggle[aria-expanded="false"] .cat-filters-toggle__chev { transform: rotate(-90deg); }
+.cat-filters-toggle__count {
+  min-width: 1.3rem;
+  padding: .05rem .4rem;
+  border-radius: 20px;
+  background: var(--accent-500);
+  color: #fff;
+  font-size: .68rem;
+  text-align: center;
+}
+#cat-search-wrap { margin: 0 0 1rem; }
 
 /* ── Filtres en GRILLE 5 colonnes (force horizontal) ── */
 .pc-filters-grid {
@@ -8768,7 +8844,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <header class="catalog__header">
           <h1 class="catalog__title" data-i18n="catalog.title">Catalogue outils</h1>
           <div class="catalog__actions">
-            <input class="catalog__search" id="catalog-search" type="search" placeholder="Rechercher par serial, groupe, projet, fournisseur…" / autocomplete="off">
             <button class="btn btn--secondary" id="btn-catalog-import" data-edit-module="catalog">📥 Importer Excel</button>
             <button class="btn btn--secondary" id="btn-catalog-export"><span data-i18n="action.exportExcel">📤 Exporter Excel</span></button>
             <button class="btn btn--secondary" id="btn-catalog-print-qr" style="background:rgba(52, 211, 153,.12);color:#34d399;border:1px solid rgba(52, 211, 153,.3);font-weight:700" title="Imprimer les QR codes des outils filtrés">🖨 QR Codes</button>
@@ -8819,8 +8894,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         <!-- 🆕 Chips de filtre rapide par CLIENT -->
         <div id="cat-client-chips" class="chip-row"></div>
 
+        <!-- 🆕 Masquer / afficher la palette de filtres (choix mémorisé sur le poste) -->
+        <button type="button" class="cat-filters-toggle" id="cat-filters-toggle" aria-expanded="true" aria-controls="cat-filters">
+          <svg class="cat-filters-toggle__chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6,9 12,15 18,9"/></svg>
+          <span id="cat-filters-toggle-label">Masquer les filtres</span>
+          <span class="cat-filters-toggle__count" id="cat-filters-count" hidden></span>
+        </button>
+
         <!-- 🔧 Filters bar -->
-        <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;padding:.65rem .85rem;background:var(--bg-elevated);border-radius:9px;border:1px solid var(--border-soft)">
+        <div id="cat-filters" style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;padding:.65rem .85rem;background:var(--bg-elevated);border-radius:9px;border:1px solid var(--border-soft)">
           <select id="cat-filter-fab" class="filter__input" style="font-size:.85rem;min-width:160px">
             <option value="">🏭 Tous fabricants</option>
           </select>
@@ -8873,6 +8955,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                   title="⚠️ DANGER : Supprimer TOUS les outils du catalogue d'un coup"
                   style="background:#fb5a6a;color:#fff;border:1px solid #cc1f3a;font-size:.78rem;padding:.4rem .8rem;font-weight:700">
             ☠️ Supprimer TOUT
+          </button>
+        </div>
+
+        <!-- 🔍 Recherche (sous la palette de filtres, toujours visible) -->
+        <div class="search-xl" id="cat-search-wrap">
+          <svg class="search-xl__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.8" y1="15.8" x2="20.5" y2="20.5"/></svg>
+          <input id="catalog-search" type="search" placeholder="Rechercher par serial, groupe, projet, fournisseur…" aria-label="Rechercher dans le catalogue" autocomplete="off">
+          <button type="button" class="search-xl__clear" aria-label="Effacer la recherche" title="Effacer (Échap)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
           </button>
         </div>
 
@@ -9677,9 +9768,6 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <span id="pc-merge-info" style="font-size:.72rem;color:var(--text-muted)"></span>
           </div>
 
-          <!-- Search bar dédiée -->
-          <input class="filter__input" id="pc-search" placeholder="🔍 Rechercher une référence (ex: 37 2 0765 20 0) · emplacement · fournisseur…"/ autocomplete="off">
-
           <!-- Filtres en grille 5 colonnes -->
           <div class="pc-filters-grid">
             <select class="filter__input" id="pc-empl-filter"><option value="">📍 <span data-i18n="stock.allLocations">Tous emplacements</span></option></select>
@@ -9704,6 +9792,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <div id="pc-analysis-box" style="display:none;margin:.8rem 0;border:1px solid var(--border-soft);border-radius:10px;overflow:hidden">
             <div id="pc-analysis-scope"></div>
             <div id="pc-to-order"></div>
+          </div>
+
+          <!-- Search bar dédiée (juste au-dessus du tableau du stock) -->
+          <div class="search-xl">
+            <svg class="search-xl__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.8" y1="15.8" x2="20.5" y2="20.5"/></svg>
+            <input class="filter__input" id="pc-search" type="search" placeholder="Rechercher une référence, un emplacement, un fournisseur… (ex : 37 2 0765 20 0)" aria-label="Rechercher dans le stock" autocomplete="off">
+            <button type="button" class="search-xl__clear" aria-label="Effacer la recherche" title="Effacer (Échap)">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+            </button>
           </div>
 
           <!-- Data table -->
@@ -26249,6 +26346,35 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           });
         });
       },
+      /** 🆕 Masque ou affiche la palette de filtres (la recherche reste visible dessous) */
+      _setFiltersHidden(hide) {
+        const box = document.getElementById('cat-filters');
+        const btn = document.getElementById('cat-filters-toggle');
+        if (!box || !btn) return;
+        box.hidden = hide;
+        btn.setAttribute('aria-expanded', String(!hide));
+        const lbl = document.getElementById('cat-filters-toggle-label');
+        if (lbl) lbl.textContent = hide ? 'Afficher les filtres' : 'Masquer les filtres';
+        this._updateFiltersCount();
+      },
+
+      /** 🆕 Nombre de filtres différents des réglages par défaut (pastille du bouton Filtres) */
+      _updateFiltersCount() {
+        const el = document.getElementById('cat-filters-count');
+        if (!el) return;
+        const val = (id) => document.getElementById(id)?.value || '';
+        const n = [
+          val('cat-filter-fab') !== '',
+          this._selectedProjects.size > 0,
+          (val('cat-filter-status') || 'complete') !== 'complete',
+          val('cat-filter-toolstatus') !== '',
+          val('cat-filter-docs') !== ''
+        ].filter(Boolean).length;
+        el.hidden = !n;
+        el.textContent = n;
+        el.title = n + ' filtre(s) actif(s)';
+      },
+
       init() {
         $('#catalog-search').addEventListener('input', debounce(() => { this._page = 1; this.render(); }, 120));
         $('#btn-catalog-add').addEventListener('click', () => this.openModal());
@@ -26262,6 +26388,15 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         document.getElementById('cat-filter-sort')?.addEventListener('change', () => { this._page = 1; this.render(); });
         // 🆕 Filtre documents
         document.getElementById('cat-filter-docs')?.addEventListener('change', () => { this._page = 1; this.render(); });
+        // 🆕 Masquer / afficher la palette de filtres (choix mémorisé sur ce poste)
+        let filtersHidden = false;
+        try { filtersHidden = localStorage.getItem('leoni-cat-filters-hidden') === '1'; } catch (e) {}
+        this._setFiltersHidden(filtersHidden);
+        document.getElementById('cat-filters-toggle')?.addEventListener('click', () => {
+          const hide = !document.getElementById('cat-filters').hidden;
+          this._setFiltersHidden(hide);
+          try { localStorage.setItem('leoni-cat-filters-hidden', hide ? '1' : '0'); } catch (e) {}
+        });
         // 🆕 KPIs cliquables → filtrent le catalogue
         document.querySelectorAll('#catalog-kpis [data-kpi-filter]').forEach(el => {
           el.addEventListener('mouseenter', () => { el.style.transform = 'translateY(-2px)'; el.style.boxShadow = '0 6px 16px rgba(0,0,0,.18)'; });
@@ -27497,6 +27632,20 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           </div>`;
         };
 
+        // 🆕 Ligne de pièce : clic droit sur la référence → case du stock (emplacements, quantité,
+        //    bouton Magasin) — si le rôle a accès au Magasin ; sinon ligne normale
+        let canStock = false;
+        try { canStock = access.canView('magasin'); } catch (e) {}
+        const pieceRow = (label, value, fieldName) => {
+          const v = value && String(value).trim() ? String(value).trim() : '';
+          if (!v || !canStock) return row(label, value, fieldName);
+          fieldStatus.push({ label, filled: true, fieldName });
+          return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:.45rem .65rem;border-bottom:1px solid var(--border-soft);gap:.75rem">
+            <span style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;white-space:nowrap">${ui.escape(label)}</span>
+            <span tabindex="0" data-stock-search="${ui.escape(v)}" data-stock-four="${ui.escape(tool.fournisseur || tool.fabricant || '')}" title="Clic droit : emplacements et quantité en stock" style="font-family:var(--font-mono);font-size:.86rem;font-weight:600;color:var(--text-primary);text-align:right;word-break:break-word;border-bottom:1px dotted var(--text-muted);cursor:context-menu">${ui.escape(v)}</span>
+          </div>`;
+        };
+
         // Helper pour titre de section
         const sectionTitle = (emoji, label, color) =>
           `<div style="margin:1.1rem 0 .35rem;font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:${color};font-weight:700;padding:0 .65rem">${emoji} ${label}</div>`;
@@ -27530,19 +27679,19 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
 
           <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
             ${sectionTitle('🔧', 'Pièces (PDR)', '#f7b733')}
-            ${row('P-AR · Poinçon condu (Wire Crimper)', piece('pAr'), 'pAr')}
-            ${row('P-AV · Poinçon isolant (Ins Crimper)', piece('pAv'), 'pAv')}
-            ${row('E-AR · Enclume condu (Anvil)', piece('eAr'), 'eAr')}
-            ${row('E-AV · Enclume isolant (Anvil)', piece('eAv'), 'eAv')}
-            ${row('C-AR · Couteaux (Floating Shear)', piece('cAr'), 'cAr')}
-            ${row('C-AV · Matrice couteau (Shear)', piece('cAv'), 'cAv')}
+            ${pieceRow('P-AR · Poinçon condu (Wire Crimper)', piece('pAr'), 'pAr')}
+            ${pieceRow('P-AV · Poinçon isolant (Ins Crimper)', piece('pAv'), 'pAv')}
+            ${pieceRow('E-AR · Enclume condu (Anvil)', piece('eAr'), 'eAr')}
+            ${pieceRow('E-AV · Enclume isolant (Anvil)', piece('eAv'), 'eAv')}
+            ${pieceRow('C-AR · Couteaux (Floating Shear)', piece('cAr'), 'cAr')}
+            ${pieceRow('C-AV · Matrice couteau (Shear)', piece('cAv'), 'cAv')}
           </div>
 
           <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
             ${sectionTitle('⚙️', 'Presseur & Matrices', '#34d399')}
-            ${row('Presseur (hold down)', tool.presseur, 'presseur')}
-            ${row('Matrice avant', tool.matriceAvant, 'matriceAvant')}
-            ${row('Matrice arrière', tool.matriceArriere, 'matriceArriere')}
+            ${pieceRow('Presseur (hold down)', tool.presseur, 'presseur')}
+            ${pieceRow('Matrice avant', tool.matriceAvant, 'matriceAvant')}
+            ${pieceRow('Matrice arrière', tool.matriceArriere, 'matriceArriere')}
           </div>
 
           <div style="background:var(--bg-elevated);border-radius:8px;padding:.5rem 0;margin-bottom:.5rem">
@@ -27563,6 +27712,18 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             ${row('Modifié le', fmtDate(tool.updatedAt), false)}
           </div>
         `;
+
+        // 🆕 Clic droit sur une référence de pièce → case à côté : emplacements, quantité physique,
+        //    bouton « Rechercher dans le Magasin » (branché une seule fois)
+        if (!body._stockSearchWired) {
+          body._stockSearchWired = true;
+          body.addEventListener('contextmenu', (e) => {
+            const btn = e.target.closest('[data-stock-search]');
+            if (!btn) return;
+            e.preventDefault();
+            views.magasin.showPieceStock(btn.dataset.stockSearch, btn.dataset.stockFour, btn);
+          });
+        }
 
         // 📎 Charger et afficher la section des pièces jointes
         toolAttachments.renderForTool(tool);
@@ -28124,6 +28285,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         const filterDocs   = document.getElementById('cat-filter-docs')?.value || '';  // 🆕 '', 'with', 'without'
         const sortBy       = document.getElementById('cat-filter-sort')?.value || 'name';
         const filterToolStatus = document.getElementById('cat-filter-toolstatus')?.value || '';  // 🆕 statut opérationnel
+        this._updateFiltersCount();
         const allToolsRaw = Object.values(state.tools);
 
         // 🆕 SCOPE PAR RÔLE : l'admin voit tout, les autres ne voient QUE production
@@ -34257,6 +34419,99 @@ Erreur Firebase : ${e.message}`;
         this._cols = cols;
       },
 
+      /** 🆕 Correspondance d'une référence avec une ligne du stock : séparateurs ignorés (« 35-2-0246 »
+       *  = « 35 2 0246 ») et, pour une référence SIROCO complète, tous ses indices — même règle que le
+       *  lien outil ↔ stock (_refKey). supplier = fournisseur de l'outil (détection SIROCO plus fiable). */
+      _refMatcher(q, supplier) {
+        const qFull = this._refFull(q), qKey = this._refKey(q, supplier);
+        return (r) => qFull.length >= 4 && ['nom', 'nom2', 'npiece', 'nstock'].some(k => {
+          const f = this._refFull(r[k]);
+          return f && (f.includes(qFull) || (qKey !== qFull && this._refKey(r[k], r.nomFour || r.codeFour) === qKey));
+        });
+      },
+
+      /** 🆕 Case « stock de la pièce » (clic droit sur une référence dans la fiche outil) :
+       *  emplacements + quantité physique, et bouton vers la recherche du Magasin. */
+      showPieceStock(ref, supplier, anchor) {
+        document.getElementById('piece-stock-pop')?.remove();
+        const rows = (this.pieces || []).filter(this._refMatcher(ref, supplier));
+        const num = (v) => { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+        const total = rows.reduce((s, r) => s + num(r.qty), 0);
+        const shown = rows.slice(0, 12);
+        const pop = document.createElement('div');
+        pop.id = 'piece-stock-pop';
+        pop.setAttribute('role', 'dialog');
+        pop.setAttribute('aria-label', 'Stock de la pièce ' + ref);
+        pop.style.cssText = 'position:fixed;z-index:100000;width:340px;max-width:calc(100vw - 16px);background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:11px;box-shadow:0 14px 38px rgba(0,0,0,.45);padding:.75rem .85rem;backdrop-filter:blur(14px)';
+        const cell = 'padding:.3rem .4rem;border-bottom:1px solid var(--border-soft)';
+        const body = !(this.pieces || []).length
+          ? `<div style="font-size:.78rem;color:var(--text-muted);padding:.4rem 0">Stock du magasin non chargé — ouvrez le Magasin pour importer ou charger le fichier.</div>`
+          : !rows.length
+            ? `<div style="font-size:.8rem;color:#fb5a6a;font-weight:700;padding:.4rem 0">Aucune pièce en stock pour cette référence</div>`
+            : `<div style="font-size:.74rem;color:var(--text-secondary);margin-bottom:.4rem">${rows.length} emplacement${rows.length > 1 ? 's' : ''} · <strong style="color:${total > 0 ? '#34d399' : '#fb5a6a'}">${fmt.number(total)} pièce${total > 1 ? 's' : ''} en stock</strong></div>
+              <div style="max-height:240px;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:.76rem">
+                <thead><tr style="font-size:.6rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);text-align:left">
+                  <th style="${cell}">Emplacement</th><th style="${cell}">Référence</th><th style="${cell};text-align:right">Qté phys.</th></tr></thead>
+                <tbody>${shown.map(r => `<tr>
+                  <td style="${cell};font-family:var(--font-mono);font-weight:700;color:var(--text-primary)">${ui.escape(r.empl || '—')}</td>
+                  <td style="${cell};font-family:var(--font-mono);color:var(--text-secondary)">${ui.escape(r.nom || r.npiece || r.nstock || '—')}</td>
+                  <td style="${cell};text-align:right;font-family:var(--font-mono);font-weight:800;color:${num(r.qty) > 0 ? 'var(--text-primary)' : '#fb5a6a'}">${fmt.number(num(r.qty))}</td>
+                </tr>`).join('')}</tbody></table></div>
+              ${rows.length > shown.length ? `<div style="font-size:.7rem;color:var(--text-muted);margin-top:.3rem">… et ${rows.length - shown.length} autre(s) emplacement(s)</div>` : ''}`;
+        pop.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-bottom:.45rem">
+            <strong style="font-family:var(--font-mono);font-size:.86rem;color:var(--accent-500);word-break:break-all">${ui.escape(ref)}</strong>
+            <button type="button" data-pop-close aria-label="Fermer" style="background:none;border:0;color:var(--text-muted);font-size:1rem;cursor:pointer;line-height:1">✕</button>
+          </div>${body}
+          <button type="button" data-pop-search style="margin-top:.6rem;width:100%;display:flex;align-items:center;justify-content:center;gap:.45rem;padding:.5rem .8rem;border:0;border-radius:8px;background:var(--accent-500);color:#fff;font-weight:700;font-size:.8rem;cursor:pointer">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.8" y1="15.8" x2="20.5" y2="20.5"/></svg>
+            Rechercher dans le Magasin</button>`;
+        document.body.appendChild(pop);
+        // À côté de la référence : dessous, aligné à droite ; au-dessus s'il n'y a pas la place
+        const a = anchor.getBoundingClientRect(), p = pop.getBoundingClientRect();
+        const left = Math.max(8, Math.min(a.right - p.width, innerWidth - p.width - 8));
+        const top = a.bottom + 6 + p.height <= innerHeight - 8 ? a.bottom + 6 : Math.max(8, a.top - p.height - 6);
+        pop.style.left = left + 'px';
+        pop.style.top = top + 'px';
+        const close = () => {
+          pop.remove();
+          document.removeEventListener('mousedown', onOutside, true);
+          document.removeEventListener('keydown', onKey, true);
+          window.removeEventListener('scroll', onScroll, true);
+        };
+        const onOutside = (e) => { if (!pop.contains(e.target)) close(); };
+        const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+        const onScroll = (e) => { if (!pop.contains(e.target)) close(); };
+        pop.querySelector('[data-pop-close]').addEventListener('click', close);
+        pop.querySelector('[data-pop-search]').addEventListener('click', () => {
+          close();
+          document.getElementById('modal-tool-details')?.setAttribute('hidden', '');
+          this.searchPiece(ref);
+        });
+        setTimeout(() => {
+          document.addEventListener('mousedown', onOutside, true);
+          document.addEventListener('keydown', onKey, true);
+          window.addEventListener('scroll', onScroll, true);
+        }, 0);
+      },
+
+      /** 🆕 Ouvre le Magasin sur la recherche d'une référence (bouton de la case « stock de la pièce »).
+       *  Les autres filtres du magasin sont remis à « Tous » pour que la pièce ne soit pas masquée. */
+      searchPiece(ref) {
+        const s = document.getElementById('pc-search');
+        if (!s) return;
+        s.value = String(ref || '').trim();
+        ['pc-empl-filter', 'pc-stock-filter', 'pc-four-filter', 'pc-type-filter', 'pc-etat-filter'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        router.go('magasin');
+        // La section se dessine juste après l'affichage (routeur) : la recherche est appliquée ensuite
+        setTimeout(() => {
+          if (this.pieces && this.pieces.length) this.applyFilters();
+          s.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }, 150);
+      },
+
       applyFilters() {
         const mergeEl2 = document.getElementById('pc-merge-toggle');
         const isMerged = mergeEl2 ? mergeEl2.checked : false;
@@ -34273,7 +34528,9 @@ Erreur Firebase : ${e.message}`;
         if (q) {
           // Recherche ciblée sur les champs textuels pertinents
           const SEARCHABLE = ['nom', 'nom2', 'npiece', 'empl', 'nstock', 'codeFour', 'nomFour', 'typePiece', 'groupePiece', 'site'];
-          data = data.filter(r => SEARCHABLE.some(k => String(r[k]||'').toLowerCase().includes(q)));
+          // 🆕 Références : séparateurs ignorés (« 35-2-0246 » trouve « 35 2 0246 ») + indices SIROCO (_refMatcher)
+          const refMatch = this._refMatcher(q);
+          data = data.filter(r => SEARCHABLE.some(k => String(r[k]||'').toLowerCase().includes(q)) || refMatch(r));
         }
         const fStock = document.getElementById('pc-stock-filter')?.value || '';
         if (fEmpl)  data = data.filter(r => (r.empl||'').includes(fEmpl));
@@ -42031,6 +42288,20 @@ Erreur Firebase : ${e.message}`;
     document.head.appendChild(hiddenStyle);
 
     Shortcuts.init();
+    // 🆕 Grandes barres de recherche (.search-xl, Magasin + Catalogue) : bouton ✕ ou Échap pour effacer
+    const clearSearchXl = (input) => {
+      if (!input || !input.value) return;
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+      input.focus();
+    };
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.search-xl__clear');
+      if (btn) clearSearchXl(btn.parentElement.querySelector('input'));
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && e.target.matches && e.target.matches('.search-xl input')) clearSearchXl(e.target);
+    });
     if (typeof CommandPalette !== 'undefined') CommandPalette.init();
     // Wire le bouton de la barre du haut pour ouvrir la palette
     document.getElementById('btn-open-cmdk')?.addEventListener('click', () => CommandPalette.open());

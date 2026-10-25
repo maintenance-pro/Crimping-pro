@@ -7591,18 +7591,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         </div>
       </div>
 
-      <!-- ── Ligne 2 : recherche globale + création de bon ── -->
+      <!-- ── Ligne 2 : création de bon (barre « Rechercher partout » retirée à la demande) ── -->
       <div class="topbar__row topbar__row2">
-        <div class="topbar__search">
-          <button type="button" id="btn-open-cmdk"
-                  style="display:flex;align-items:center;gap:.6rem;width:100%;padding:.55rem .85rem;background:var(--bg-elevated);border:1px solid var(--border-soft);border-radius:8px;cursor:pointer;color:var(--text-muted);font-size:.88rem;transition:all .15s ease">
-            <span style="font-size:1rem;opacity:.7">🔍</span>
-            <span style="flex:1;text-align:left">Rechercher partout — outils, bons, techniciens…</span>
-            <kbd class="cmdk__kbd">Ctrl</kbd><kbd class="cmdk__kbd">K</kbd>
-          </button>
-          <input class="topbar__search-input" id="global-search" type="search" placeholder="Rechercher un bon, un outil, un technicien…" data-i18n-placeholder="search.placeholder" autocomplete="off" style="display:none">
-        </div>
-
         <div class="topbar__actions">
           <!-- 🔄 BOUTON BASCULE MODE TEST ↔ PROD — admin/super_admin uniquement -->
           <button class="topbar__btn topbar__btn--mode" id="btn-mode-switch" title="Basculer entre Mode TEST et PRODUCTION" data-requires-role="admin,super_admin" hidden>

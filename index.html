@@ -10065,6 +10065,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <button id="ds-import-btn" class="btn btn--secondary" data-edit-module="dispatch" style="background:rgba(52, 211, 153,.12);color:#34d399;border:1px solid rgba(52, 211, 153,.3);font-weight:700;font-size:.78rem">📥 Importer extraction</button>
           <input type="file" id="ds-import-file" accept=".xlsx,.xls,.csv" hidden>
           <button id="ds-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem">📤 Exporter Excel</button>
+          <button id="ds-report-btn" class="btn btn--secondary" title="Rapport des 3 derniers jours (mouvements et écart par poste) à imprimer en A3 paysage ou à enregistrer en PDF" style="background:rgba(20,184,166,.12);color:#14b8a6;border:1px solid rgba(20,184,166,.3);font-weight:700;font-size:.78rem">🖨️ Rapport A3 · 3 jours</button>
           <details class="ds-help" style="flex-basis:100%">
             <summary>ℹ️ Comment c'est calculé</summary>
             <ul>
@@ -30410,6 +30411,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           e.target.value = ''; // reset
         });
         document.getElementById('ds-export-btn')?.addEventListener('click', () => this.exportExcel());
+        document.getElementById('ds-report-btn')?.addEventListener('click', () => this.printReport());
         document.getElementById('ds-period')?.addEventListener('change', () => this.render());
         // Les deux diagrammes défilent ensemble : les postes restent alignés
         const sa = document.getElementById('ds-scroll-moves');
@@ -30783,10 +30785,9 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
       },
 
-      /** Saisies de la période choisie (7 / 14 / 30 derniers jours, 0 = tout) */
-      _periodEntries() {
+      /** Saisies de la période choisie (7 / 14 / 30 derniers jours, 0 = tout) — ou des `days` derniers jours */
+      _periodEntries(days = Number(document.getElementById('ds-period')?.value) || 0) {
         const all = this._valid();
-        const days = Number(document.getElementById('ds-period')?.value) || 0;
         if (!days) return all;
         const from = new Date();
         from.setDate(from.getDate() - days + 1);
@@ -30819,8 +30820,13 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return `<span class="ds-pill ds-pill--${kind}">${total < 0 ? '▼ ' : total > 0 ? '▲ ' : ''}${this._signed(total)}</span>`;
       },
 
-      /** Couleurs du thème actif : palette catégorielle validée (ordre fixe), statut, encres */
-      _colors() {
+      /** Couleurs du thème actif : palette catégorielle validée (ordre fixe), statut, encres.
+       *  paper = true : couleurs pour l'impression (fond blanc), quel que soit le thème affiché. */
+      _colors(paper = false) {
+        if (paper) return {
+          series: ['#2a78d6', '#eb6834', '#1baf7a'], good: '#0ca30c', critical: '#d03b3b',
+          ink: '#0a1628', inkSoft: '#254060', muted: '#4a6580', grid: 'rgba(0,60,110,.14)'
+        };
         const light = document.documentElement.dataset.theme === 'light';
         const css = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
         return {
@@ -30926,14 +30932,45 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (hint) hint.hidden = !needScroll;
 
         // Légende en HTML : reste visible pendant le défilement
-        const names = ['Sorties (Tool Supply)', 'Retours (Tool Return)', 'Finis sur la machine (équipe −8 h)'];
         const legend = document.getElementById('ds-moves-legend');
-        if (legend) legend.innerHTML = names.map((l, i) => `<span><span class="ds-key" style="background:${c.series[i]}"></span>${l}</span>`).join('');
+        if (legend) legend.innerHTML = this.SERIES_NAMES.map((l, i) => `<span><span class="ds-key" style="background:${c.series[i]}"></span>${l}</span>`).join('');
 
+        const configs = this._chartConfigs(rows, c);
+        configs.moves.canvas = cMoves;
+        configs.gap.canvas = cGap;
+        Object.entries(configs).forEach(([key, cfg]) => {
+          const options = {
+            responsive: true, maintainAspectRatio: false,
+            animation: this._charts[key] ? false : { duration: 300 },
+            interaction: { mode: 'index', intersect: false },
+            plugins: cfg.plugins,
+            scales: cfg.scales
+          };
+          const ch = this._charts[key];
+          if (ch && ch.canvas === cfg.canvas) { ch.data = cfg.data; ch.options = options; ch.update(); }
+          else {
+            if (ch) ch.destroy();
+            this._charts[key] = new Chart(cfg.canvas, { type: 'bar', data: cfg.data, options, plugins: [this._valueLabels] });
+          }
+        });
+
+        // S'ouvre sur les postes les plus récents (à chaque changement de période ou nouveau poste)
+        const last = rows[rows.length - 1];
+        const key = `${document.getElementById('ds-period')?.value}|${rows.length}|${last.date}${last.team}`;
+        if (needScroll && key !== this._scrollKey) requestAnimationFrame(() => scrollers.forEach(s => { s.scrollLeft = s.scrollWidth; }));
+        this._scrollKey = key;
+      },
+
+      SERIES_NAMES: ['Sorties (Tool Supply)', 'Retours (Tool Return)', 'Finis sur la machine (équipe −8 h)'],
+
+      /** Données et options des deux diagrammes, partagées par la page et le rapport A3 :
+       *  { moves, gap } → { data, plugins, scales } */
+      _chartConfigs(rows, c, fontSize = 12) {
+        const names = this.SERIES_NAMES;
         const HOURS = { A: '06h–14h', B: '14h–22h', C: '22h–06h' };
         const labels = rows.map(r => `${this._fmtDate(r.date).slice(0, 5)} ${r.team}`);
         const title = items => { const r = rows[items[0].dataIndex]; return `${this._fmtDate(r.date)} · Équipe ${r.team} (${HOURS[r.team]})`; };
-        const font = { size: 12 };
+        const font = { size: fontSize };
         const xAxis = () => ({ grid: { display: false }, border: { color: c.grid }, ticks: { color: c.muted, font, maxRotation: 0, autoSkip: false } });
         const yAxis = () => ({
           beginAtZero: true,
@@ -30949,47 +30986,26 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           borderRadius: 4, borderSkipped: 'start', maxBarThickness: 24, barPercentage: 0.86, categoryPercentage: 0.72
         });
         const gapColors = rows.map(r => (r.total < 0 ? c.critical : c.good));
-        const configs = {
+        return {
           moves: {
-            canvas: cMoves,
             data: { labels, datasets: names.map((l, i) => bar(l, rows.map(r => [r.supply, r.ret, r.fin][i]), c.series[i])) },
             plugins: {
               legend: { display: false },
               tooltip: tooltip(it => ` ${it.dataset.label} : ${this._num(it.raw)}` + (it.datasetIndex === 2 ? ` (reste équipe ${rows[it.dataIndex].prev.team})` : '')),
-              dsValueLabels: { color: c.ink, size: 11, format: v => this._num(v) }
-            }
+              dsValueLabels: { color: c.ink, size: fontSize - 1, format: v => this._num(v) }
+            },
+            scales: { x: xAxis(), y: yAxis() }
           },
           gap: {
-            canvas: cGap,
             data: { labels, datasets: [{ ...bar('Écart', rows.map(r => r.total), c.good), backgroundColor: gapColors, hoverBackgroundColor: gapColors }] },
             plugins: {
               legend: { display: false },
               tooltip: tooltip(it => { const r = rows[it.dataIndex]; return ` Écart : ${this._signed(r.total)} = ${r.ret} − (${r.supply} + ${r.fin})`; }),
-              dsValueLabels: { color: c.ink, size: 12, format: v => this._signed(v) }
-            }
+              dsValueLabels: { color: c.ink, size: fontSize, format: v => this._signed(v) }
+            },
+            scales: { x: xAxis(), y: yAxis() }
           }
         };
-        Object.entries(configs).forEach(([key, cfg]) => {
-          const options = {
-            responsive: true, maintainAspectRatio: false,
-            animation: this._charts[key] ? false : { duration: 300 },
-            interaction: { mode: 'index', intersect: false },
-            plugins: cfg.plugins,
-            scales: { x: xAxis(), y: yAxis() }
-          };
-          const ch = this._charts[key];
-          if (ch && ch.canvas === cfg.canvas) { ch.data = cfg.data; ch.options = options; ch.update(); }
-          else {
-            if (ch) ch.destroy();
-            this._charts[key] = new Chart(cfg.canvas, { type: 'bar', data: cfg.data, options, plugins: [this._valueLabels] });
-          }
-        });
-
-        // S'ouvre sur les postes les plus récents (à chaque changement de période ou nouveau poste)
-        const last = rows[rows.length - 1];
-        const key = `${document.getElementById('ds-period')?.value}|${rows.length}|${last.date}${last.team}`;
-        if (needScroll && key !== this._scrollKey) requestAnimationFrame(() => scrollers.forEach(s => { s.scrollLeft = s.scrollWidth; }));
-        this._scrollKey = key;
       },
 
       render() {
@@ -31051,6 +31067,165 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <td style="text-align:center">${e && canEdit ? `<button class="ds-del" data-ds-del="${ui.escape(date)}" data-ds-team="${team}" title="Supprimer cette saisie">🗑</button>` : ''}</td>
           </tr>`;
         }).join('')).join('');
+      },
+
+      /** 🆕 Rapport des 3 derniers jours, mis en page pour une feuille A3 paysage (imprimer ou
+       *  « Enregistrer au format PDF ») : chiffres clés, « Mouvements par poste », « Écart par poste »
+       *  et détail par poste avec les dispatcheurs. */
+      async printReport() {
+        const DAYS = 3;
+        const entries = this._periodEntries(DAYS);
+        const rows = this._shiftRows(entries);
+        if (!rows.length) { ui.toast('⚠️ Aucune saisie sur les 3 derniers jours — importez l\'extraction Komax', 'warn', 6000); return; }
+        // Fenêtre ouverte dans le clic (sinon bloquée comme pop-up), remplie quand les diagrammes sont prêts
+        const w = window.open('', '_blank');
+        if (!w) { ui.toast('⛔ Fenêtre bloquée : autorisez les pop-ups pour ce site, puis recommencez', 'danger', 7000); return; }
+        w.document.write('<p style="font:16px system-ui,sans-serif;padding:2rem;color:#254060">Préparation du rapport…</p>');
+        try {
+          await this._loadChart();
+          const imgs = this._reportCharts(rows, this._colors(true));
+          w.document.open();
+          w.document.write(this._reportHtml(rows, entries, DAYS, imgs));
+          w.document.close();
+          await Promise.all([...w.document.images].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; })));
+          w.focus();
+          w.print();
+        } catch (e) {
+          console.error('[dispatch rapport]', e);
+          try { w.close(); } catch (er) {}
+          ui.toast('⛔ Rapport impossible : ' + e.message, 'danger', 7000);
+        }
+      },
+
+      /** Les deux diagrammes dessinés hors écran (couleurs papier, haute définition) → images PNG */
+      _reportCharts(rows, c) {
+        const host = document.createElement('div');
+        host.style.cssText = 'position:fixed;left:-10000px;top:0;pointer-events:none';
+        document.body.appendChild(host);
+        const configs = this._chartConfigs(rows, c, 15);
+        const out = {};
+        try {
+          [['moves', 640], ['gap', 400]].forEach(([key, h]) => {   // proportions : remplissent la colonne A3
+            const canvas = document.createElement('canvas');
+            canvas.width = 1500; canvas.height = h;
+            canvas.style.cssText = `width:1500px;height:${h}px`;
+            host.appendChild(canvas);
+            const cfg = configs[key];
+            cfg.plugins.tooltip = { enabled: false };
+            const ch = new Chart(canvas, {
+              type: 'bar', data: cfg.data, plugins: [this._valueLabels],
+              options: { responsive: false, animation: false, devicePixelRatio: 2, plugins: cfg.plugins, scales: cfg.scales }
+            });
+            out[key] = ch.toBase64Image('image/png', 1);
+            ch.destroy();
+          });
+        } finally {
+          host.remove();
+        }
+        return out;
+      },
+
+      /** Page HTML du rapport (A3 paysage) */
+      _reportHtml(rows, entries, days, imgs) {
+        const esc = (s) => ui.escape(String(s ?? ''));
+        const c = this._colors(true);
+        const sum = (list, k) => list.reduce((s, r) => s + r[k], 0);
+        const gapCls = (n) => n < 0 ? 'neg' : n > 0 ? 'pos' : '';
+        const gapTxt = (n) => `${n < 0 ? '▼ ' : n > 0 ? '▲ ' : ''}${this._signed(n)}`;
+        const HOURS = { A: '06h–14h', B: '14h–22h', C: '22h–06h' };
+        const today = new Date();
+        const from = new Date(); from.setDate(from.getDate() - days + 1);
+        const total = sum(rows, 'total');
+        const names = this._knownNames();
+        const kpi = (color, label, value, sub, cls = '') =>
+          `<div class="kpi"><div class="kpi__label">${color ? `<i style="background:${color}"></i>` : ''}${label}</div><div class="kpi__value ${cls}">${value}</div><div class="kpi__sub">${sub}</div></div>`;
+        const dates = Object.keys(entries).sort();
+        const body = dates.map(date => {
+          const [y, m, d] = date.split('-').map(Number);
+          const dayName = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long' });
+          const dayRows = rows.filter(r => r.date === date);
+          const lines = this.TEAMS.map((team, i) => {
+            const e = (entries[date] || {})[team];
+            const r = dayRows.find(x => x.team === team);
+            const staff = this._staff(e, names).map(s => esc(s.name)).join(', ');
+            return `<tr>
+              ${i === 0 ? `<td rowspan="${this.TEAMS.length + 1}" class="date"><b>${esc(this._fmtDate(date))}</b><span>${esc(dayName)}</span></td>` : ''}
+              <td><b class="team">${team}</b> <span class="muted">${HOURS[team]}</span>${staff ? `<div class="staff">${staff}</div>` : ''}</td>
+              <td class="num">${r ? this._num(r.supply) : '—'}</td>
+              <td class="num">${r ? this._num(r.ret) : '—'}</td>
+              <td class="num">${r ? this._num(r.fin) : '—'}</td>
+              <td class="num gap ${r ? gapCls(r.total) : ''}">${r ? gapTxt(r.total) : '—'}</td>
+            </tr>`;
+          }).join('');
+          const dt = sum(dayRows, 'total');
+          return lines + `<tr class="daytotal"><td>Total du jour</td>
+              <td class="num">${this._num(sum(dayRows, 'supply'))}</td><td class="num">${this._num(sum(dayRows, 'ret'))}</td>
+              <td class="num">${this._num(sum(dayRows, 'fin'))}</td><td class="num gap ${gapCls(dt)}">${gapTxt(dt)}</td></tr>`;
+        }).join('');
+        const legend = this.SERIES_NAMES.map((l, i) => `<span><i style="background:${c.series[i]}"></i>${esc(l)}</span>`).join('');
+        const who = (state.profile && (state.profile.displayName || state.profile.email)) || '';
+        return `<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<title>Dispatcheur Suivi — rapport du ${esc(this._fmtDate(this._isoDate(from)))} au ${esc(this._fmtDate(this._isoDate(today)))}</title>
+<style>
+  @page { size: A3 landscape; margin: 9mm; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: ${c.ink}; background: #fff; }
+  .bar { position: sticky; top: 0; display: flex; gap: 12px; align-items: center; padding: 10px 16px; background: #eef3f9; border-bottom: 1px solid #d5e0ec; font-size: 14px; }
+  .bar button { padding: 8px 16px; border: 0; border-radius: 8px; background: #0082aa; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; }
+  .page { width: 402mm; height: 279mm; margin: 0 auto; padding: 2mm; display: flex; flex-direction: column; gap: 5mm; overflow: hidden; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid #0082aa; padding-bottom: 3mm; }
+  h1 { margin: 0; font-size: 22pt; letter-spacing: .01em; } h1 small { font-size: 12pt; color: ${c.muted}; font-weight: 600; margin-left: 4mm; }
+  .meta { text-align: right; font-size: 10pt; color: ${c.inkSoft}; line-height: 1.5; }
+  .brand { font-weight: 800; letter-spacing: .12em; color: #0082aa; font-size: 11pt; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
+  .kpi { border: 1px solid #d5e0ec; border-radius: 3mm; padding: 3mm 4mm; }
+  .kpi__label { font-size: 10pt; font-weight: 700; color: ${c.inkSoft}; display: flex; align-items: center; gap: 2mm; }
+  .kpi__value { font-size: 26pt; font-weight: 800; line-height: 1.15; }
+  .kpi__sub { font-size: 9pt; color: ${c.muted}; }
+  i { display: inline-block; width: 3.2mm; height: 3.2mm; border-radius: .8mm; }
+  .main { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.62fr 1fr; gap: 5mm; }
+  .charts { display: flex; flex-direction: column; gap: 4mm; min-height: 0; }
+  .card { border: 1px solid #d5e0ec; border-radius: 3mm; padding: 3mm 4mm; }
+  .card h2 { margin: 0; font-size: 13pt; } .card p { margin: .5mm 0 2mm; font-size: 9pt; color: ${c.muted}; }
+  .legend { display: flex; gap: 6mm; font-size: 9.5pt; color: ${c.inkSoft}; margin-bottom: 1.5mm; } .legend span { display: flex; align-items: center; gap: 1.5mm; }
+  .card img { display: block; width: 100%; }
+  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  th { font-size: 8pt; text-transform: uppercase; letter-spacing: .05em; color: ${c.muted}; text-align: left; padding: 1.8mm 2mm; border-bottom: 1.5px solid #c9d6e4; }
+  td { padding: 1.5mm 2mm; border-bottom: 1px solid #e3eaf2; vertical-align: top; }
+  td.date { border-right: 1px solid #e3eaf2; white-space: nowrap; } td.date span { display: block; text-transform: capitalize; color: ${c.muted}; font-size: 8.5pt; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; } th.num { text-align: right; }
+  .team { display: inline-block; min-width: 5mm; } .muted { color: ${c.muted}; font-size: 8.5pt; }
+  .staff { font-size: 8pt; color: ${c.inkSoft}; margin-top: .6mm; line-height: 1.3; }
+  .gap { font-weight: 800; } .neg { color: ${c.critical}; } .pos { color: ${c.good}; }
+  .daytotal td { background: #f1f5fa; font-weight: 800; border-bottom: 1.5px solid #c9d6e4; }
+  footer { font-size: 8.5pt; color: ${c.muted}; display: flex; justify-content: space-between; }
+  @media print { .bar { display: none; } .page { margin: 0; } }
+</style></head><body>
+<div class="bar"><button onclick="print()">Imprimer / Enregistrer en PDF</button><span>Format : <b>A3 paysage</b> — dans la fenêtre d'impression, choisir le papier A3 (ou « Enregistrer au format PDF »).</span></div>
+<div class="page">
+  <header>
+    <div><div class="brand">LEONI · SERTISSAGE LAB</div><h1>Dispatcheur Suivi<small>Rapport des ${days} derniers jours — du ${esc(this._fmtDate(this._isoDate(from)))} au ${esc(this._fmtDate(this._isoDate(today)))}</small></h1></div>
+    <div class="meta">Équipes : A 06h–14h · B 14h–22h · C 22h–06h<br>${rows.length} poste(s) · édité le ${esc(today.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }))}${who ? ' par ' + esc(who) : ''}</div>
+  </header>
+  <section class="kpis">
+    ${kpi(c.series[0], 'Sorties', this._num(sum(rows, 'supply')), 'Tool Supply')}
+    ${kpi(c.series[1], 'Retours', this._num(sum(rows, 'ret')), 'Tool Return')}
+    ${kpi(c.series[2], 'Finis sur la machine', this._num(sum(rows, 'fin')), 'reste de l\'équipe −8 h')}
+    ${kpi('', 'Écart total', gapTxt(total), 'Retours − (Sorties + Finis)', gapCls(total))}
+  </section>
+  <section class="main">
+    <div class="charts">
+      <div class="card"><h2>Mouvements par poste</h2><p>Sorties, retours et outils finis sur la machine (reste de l'équipe −8 h)</p><div class="legend">${legend}</div><img src="${imgs.moves}" alt="Mouvements par poste"></div>
+      <div class="card"><h2>Écart par poste</h2><p>Retours − (Sorties + Finis) — vert : positif · rouge : négatif</p><img src="${imgs.gap}" alt="Écart par poste"></div>
+    </div>
+    <div class="card"><h2>Détail par poste</h2><p>Dispatcheurs du poste et mouvements de l'extraction Komax</p>
+      <table><thead><tr><th>Date</th><th>Équipe · dispatcheurs</th><th class="num">Sorties</th><th class="num">Retours</th><th class="num">Finis −8 h</th><th class="num">Écart</th></tr></thead>
+      <tbody>${body}</tbody></table>
+    </div>
+  </section>
+  <footer><span>Écart = Retours − (Sorties + Outils finis sur la machine par l'équipe précédente, −8 h)</span><span>Crimping Pro · Dispatcheur Suivi</span></footer>
+</div>
+</body></html>`;
       },
 
       async exportExcel() {

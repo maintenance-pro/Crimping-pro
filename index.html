@@ -10125,8 +10125,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 <th class="ds-left">Équipe</th>
                 <th>Sorties<small>Tool Supply</small></th>
                 <th>Retours<small>Tool Return</small></th>
-                <th>Finis sur la machine<small>reste équipe −8 h</small></th>
                 <th>Écart<small>Retours − Sorties</small></th>
+                <th>Finis sur la machine<small>reste équipe −8 h</small></th>
                 <th style="width:40px"></th>
               </tr>
             </thead>
@@ -31080,8 +31080,8 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             </td>
             <td class="ds-num">${e ? this._num(e.supply) : none}</td>
             <td class="ds-num">${e ? this._num(e.ret) : none}</td>
-            <td class="ds-num" title="Outils finis sur la machine par l'équipe ${p.team} du ${ui.escape(this._fmtDate(p.date))}">${e ? `${this._num(fin)}<span class="ds-cap">reste équipe ${p.team}${p.date !== date ? ' (veille)' : ''}</span>` : none}</td>
             <td style="text-align:right">${e ? this._gapPill(this._total(e)) : none}</td>
+            <td class="ds-num" title="Outils finis sur la machine par l'équipe ${p.team} du ${ui.escape(this._fmtDate(p.date))}">${e ? `${this._num(fin)}<span class="ds-cap">reste équipe ${p.team}${p.date !== date ? ' (veille)' : ''}</span>` : none}</td>
             <td style="text-align:center">${e && canEdit ? `<button class="ds-del" data-ds-del="${ui.escape(date)}" data-ds-team="${team}" title="Supprimer cette saisie">🗑</button>` : ''}</td>
           </tr>`;
         }).join('')).join('');

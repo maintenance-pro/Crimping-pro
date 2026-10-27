@@ -10065,13 +10065,24 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           <button id="ds-import-btn" class="btn btn--secondary" data-edit-module="dispatch" style="background:rgba(52, 211, 153,.12);color:#34d399;border:1px solid rgba(52, 211, 153,.3);font-weight:700;font-size:.78rem">📥 Importer extraction</button>
           <input type="file" id="ds-import-file" accept=".xlsx,.xls,.csv" hidden>
           <button id="ds-export-btn" class="btn btn--secondary" style="background:rgba(124, 92, 219,.12);color:#7c5cdb;border:1px solid rgba(124, 92, 219,.3);font-weight:700;font-size:.78rem">📤 Exporter Excel</button>
-          <button id="ds-report-btn" class="btn btn--secondary" title="Rapport des 3 derniers jours (mouvements et écart par poste) à imprimer en A3 paysage ou à enregistrer en PDF" style="background:rgba(20,184,166,.12);color:#14b8a6;border:1px solid rgba(20,184,166,.3);font-weight:700;font-size:.78rem">🖨️ Rapport A3 · 3 jours</button>
+          <span style="display:inline-flex;align-items:center;gap:.35rem">
+            <select id="ds-report-days" title="Nombre de jours dans le rapport A3" aria-label="Nombre de jours dans le rapport A3" style="padding:.4rem .5rem;border-radius:6px;border:1px solid var(--border-soft);background:var(--bg-2);color:var(--text-primary);font-size:.78rem">
+              <option value="1">1 jour</option>
+              <option value="2">2 jours</option>
+              <option value="3">3 jours</option>
+              <option value="4">4 jours</option>
+              <option value="5" selected>5 jours</option>
+              <option value="6">6 jours</option>
+              <option value="7">7 jours</option>
+            </select>
+            <button id="ds-report-btn" class="btn btn--secondary" title="Rapport des derniers jours choisis (mouvements et écart par poste) à imprimer en A3 paysage ou à enregistrer en PDF" style="background:rgba(20,184,166,.12);color:#14b8a6;border:1px solid rgba(20,184,166,.3);font-weight:700;font-size:.78rem">🖨️ Rapport A3</button>
+          </span>
           <details class="ds-help" style="flex-basis:100%">
             <summary>ℹ️ Comment c'est calculé</summary>
             <ul>
               <li><strong>Sorties / Retours</strong> : lignes « Tool supply » / « Tool return » de la colonne <em>Event</em> de l'extraction Komax, rangées dans leur poste selon <em>Insert Time</em> (après minuit = poste C de la veille). Un mouvement déjà importé n'est jamais compté deux fois. Les « Tool return » dont la colonne <em>Notes</em> indique « Source Location Type=Stock area » ou « Quarantine store » ne sont pas comptés.</li>
               <li><strong>Finis sur la machine</strong> : reste de l'équipe précédente (−8 h) — outils « Finished At Machine » des Outils Bloqués finis pendant le poste d'avant : <strong>B dans C, A dans B, C de la veille dans A</strong>.</li>
-              <li><strong>Écart</strong> = Retours − (Sorties + Finis sur la machine).</li>
+              <li><strong>Écart</strong> = Retours − Sorties. Les finis sur la machine sont affichés pour information, ils n'entrent pas dans l'écart.</li>
             </ul>
           </details>
         </div>
@@ -10093,7 +10104,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:.6rem;flex-wrap:wrap;margin-top:1.1rem">
               <div>
                 <div class="ds-chart-title">Écart par poste</div>
-                <div class="ds-chart-sub">Retours − (Sorties + Finis)</div>
+                <div class="ds-chart-sub">Retours − Sorties</div>
               </div>
               <div class="ds-legend">
                 <span><span class="ds-key" style="background:#0ca30c"></span>▲ Écart positif</span>
@@ -10115,7 +10126,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
                 <th>Sorties<small>Tool Supply</small></th>
                 <th>Retours<small>Tool Return</small></th>
                 <th>Finis sur la machine<small>reste équipe −8 h</small></th>
-                <th>Écart<small>Retours − (Sorties + Finis)</small></th>
+                <th>Écart<small>Retours − Sorties</small></th>
                 <th style="width:40px"></th>
               </tr>
             </thead>
@@ -30389,7 +30400,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           d'après « Insert Time » (A 06h–14h · B 14h–22h · C 22h–06h), avec prénom + nom (First Name, Name),
           Outils finis sur la machine d'un poste = reste de l'équipe précédente (−8 h : C de la veille → A,
           A → B, B → C) = Finished At Machine des Outils Bloqués dont la dernière utilisation tombe dans ce poste précédent,
-          Total = Tool Return − (Tool Supply + Finis sur la machine)
+          Écart = Tool Return − Tool Supply (les finis sur la machine sont affichés à part)
        Firebase : dispatchSuivi/{AAAA-MM-JJ}/{A|B|C} =
           { supply, ret, staff: [{ name, supply, ret }], from, to, v: 2, importedAt, importedBy, sourceFile }
           dispatchEvents/{AAAA-MM-JJ}/{A|B|C}/{ts_s|r_inventaire} = PRÉNOM NOM (anti double comptage)
@@ -30412,6 +30423,12 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         });
         document.getElementById('ds-export-btn')?.addEventListener('click', () => this.exportExcel());
         document.getElementById('ds-report-btn')?.addEventListener('click', () => this.printReport());
+        // 🆕 Nombre de jours du rapport A3 (1 à 7), mémorisé sur ce poste
+        const daysSel = document.getElementById('ds-report-days');
+        if (daysSel) {
+          try { const saved = localStorage.getItem('leoni-ds-report-days'); if (saved && daysSel.querySelector(`option[value="${saved}"]`)) daysSel.value = saved; } catch (e) {}
+          daysSel.addEventListener('change', () => { try { localStorage.setItem('leoni-ds-report-days', daysSel.value); } catch (e) {} });
+        }
         document.getElementById('ds-period')?.addEventListener('change', () => this.render());
         // Les deux diagrammes défilent ensemble : les postes restent alignés
         const sa = document.getElementById('ds-scroll-moves');
@@ -30508,9 +30525,10 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         return d ? `${d}/${m}/${y}` : String(iso);
       },
 
-      /** Total = Tool Return − (Tool Supply + Finis sur la machine) */
-      _total(e, finished) {
-        return (Number(e.ret) || 0) - ((Number(e.supply) || 0) + (Number(finished) || 0));
+      /** Écart = Tool Return − Tool Supply (règle du 27/10/2026 : les « finis sur la machine »
+       *  restent affichés à titre d'information mais n'entrent plus dans l'écart) */
+      _total(e) {
+        return (Number(e.ret) || 0) - (Number(e.supply) || 0);
       },
 
       /** Poste précédent (−8 h) : C de la veille → A, A → B, B → C */
@@ -30805,7 +30823,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           if (!e) return;
           const prev = this._prevShift(date, team);
           const fin = this._finishedOwn(prev.date, prev.team);
-          rows.push({ date, team, prev, supply: Number(e.supply) || 0, ret: Number(e.ret) || 0, fin, total: this._total(e, fin) });
+          rows.push({ date, team, prev, supply: Number(e.supply) || 0, ret: Number(e.ret) || 0, fin, total: this._total(e) });
         }));
         return rows;
       },
@@ -30858,7 +30876,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
           tile(c.series[0], 'Sorties', this._num(sum('supply')), 'Tool Supply'),
           tile(c.series[1], 'Retours', this._num(sum('ret')), 'Tool Return'),
           tile(c.series[2], 'Finis sur la machine', this._num(sum('fin')), 'reste de l\'équipe −8 h'),
-          tile('', 'Écart total', this._signed(total), `<span class="ds-pill ds-pill--${kind}">${word}</span>Retours − (Sorties + Finis)`)
+          tile('', 'Écart total', this._signed(total), `<span class="ds-pill ds-pill--${kind}">${word}</span>Retours − Sorties`)
         ].join('');
       },
 
@@ -31000,7 +31018,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             data: { labels, datasets: [{ ...bar('Écart', rows.map(r => r.total), c.good), backgroundColor: gapColors, hoverBackgroundColor: gapColors }] },
             plugins: {
               legend: { display: false },
-              tooltip: tooltip(it => { const r = rows[it.dataIndex]; return ` Écart : ${this._signed(r.total)} = ${r.ret} − (${r.supply} + ${r.fin})`; }),
+              tooltip: tooltip(it => { const r = rows[it.dataIndex]; return ` Écart : ${this._signed(r.total)} = ${r.ret} − ${r.supply}`; }),
               dsValueLabels: { color: c.ink, size: fontSize, format: v => this._signed(v) }
             },
             scales: { x: xAxis(), y: yAxis() }
@@ -31063,31 +31081,27 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
             <td class="ds-num">${e ? this._num(e.supply) : none}</td>
             <td class="ds-num">${e ? this._num(e.ret) : none}</td>
             <td class="ds-num" title="Outils finis sur la machine par l'équipe ${p.team} du ${ui.escape(this._fmtDate(p.date))}">${e ? `${this._num(fin)}<span class="ds-cap">reste équipe ${p.team}${p.date !== date ? ' (veille)' : ''}</span>` : none}</td>
-            <td style="text-align:right">${e ? this._gapPill(this._total(e, fin)) : none}</td>
+            <td style="text-align:right">${e ? this._gapPill(this._total(e)) : none}</td>
             <td style="text-align:center">${e && canEdit ? `<button class="ds-del" data-ds-del="${ui.escape(date)}" data-ds-team="${team}" title="Supprimer cette saisie">🗑</button>` : ''}</td>
           </tr>`;
         }).join('')).join('');
       },
 
-      /** 🆕 Rapport des 3 derniers jours, mis en page pour une feuille A3 paysage (imprimer ou
-       *  « Enregistrer au format PDF ») : chiffres clés, « Mouvements par poste », « Écart par poste »
-       *  et détail par poste avec les dispatcheurs. */
-      async printReport() {
-        const DAYS = 3;
+      /** 🆕 Rapport des N derniers jours (1 à 7, liste « ds-report-days ») pour une feuille A3 paysage
+       *  (imprimer ou « Enregistrer au format PDF »). Un poste = une colonne : « Mouvements par poste »
+       *  et « Écart par poste » sont dessinés juste au-dessus des chiffres de leur colonne (Sorties,
+       *  Retours, Finis, Écart, dispatcheurs) — aucun chiffre sur les barres, tout se lit en dessous. */
+      printReport() {
+        const DAYS = Math.min(7, Math.max(1, Number(document.getElementById('ds-report-days')?.value) || 5));
         const entries = this._periodEntries(DAYS);
         const rows = this._shiftRows(entries);
-        if (!rows.length) { ui.toast('⚠️ Aucune saisie sur les 3 derniers jours — importez l\'extraction Komax', 'warn', 6000); return; }
-        // Fenêtre ouverte dans le clic (sinon bloquée comme pop-up), remplie quand les diagrammes sont prêts
+        if (!rows.length) { ui.toast(`⚠️ Aucune saisie ${DAYS === 1 ? 'aujourd\'hui' : `sur les ${DAYS} derniers jours`} — importez l'extraction Komax`, 'warn', 6000); return; }
         const w = window.open('', '_blank');
         if (!w) { ui.toast('⛔ Fenêtre bloquée : autorisez les pop-ups pour ce site, puis recommencez', 'danger', 7000); return; }
-        w.document.write('<p style="font:16px system-ui,sans-serif;padding:2rem;color:#254060">Préparation du rapport…</p>');
         try {
-          await this._loadChart();
-          const imgs = this._reportCharts(rows, this._colors(true));
           w.document.open();
-          w.document.write(this._reportHtml(rows, entries, DAYS, imgs));
+          w.document.write(this._reportHtml(rows, entries, DAYS));
           w.document.close();
-          await Promise.all([...w.document.images].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; })));
           w.focus();
           w.print();
         } catch (e) {
@@ -31097,133 +31111,190 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
       },
 
-      /** Les deux diagrammes dessinés hors écran (couleurs papier, haute définition) → images PNG */
-      _reportCharts(rows, c) {
-        const host = document.createElement('div');
-        host.style.cssText = 'position:fixed;left:-10000px;top:0;pointer-events:none';
-        document.body.appendChild(host);
-        const configs = this._chartConfigs(rows, c, 15);
-        const out = {};
-        try {
-          [['moves', 640], ['gap', 400]].forEach(([key, h]) => {   // proportions : remplissent la colonne A3
-            const canvas = document.createElement('canvas');
-            canvas.width = 1500; canvas.height = h;
-            canvas.style.cssText = `width:1500px;height:${h}px`;
-            host.appendChild(canvas);
-            const cfg = configs[key];
-            cfg.plugins.tooltip = { enabled: false };
-            const ch = new Chart(canvas, {
-              type: 'bar', data: cfg.data, plugins: [this._valueLabels],
-              options: { responsive: false, animation: false, devicePixelRatio: 2, plugins: cfg.plugins, scales: cfg.scales }
-            });
-            out[key] = ch.toBase64Image('image/png', 1);
-            ch.destroy();
-          });
-        } finally {
-          host.remove();
-        }
-        return out;
-      },
-
-      /** Page HTML du rapport (A3 paysage) */
-      _reportHtml(rows, entries, days, imgs) {
+      /** Page HTML du rapport A3. Toutes les mesures sont en mm : le tableau fait W mm de large et les
+       *  diagrammes (SVG, 1 unité = 1 mm) occupent toute sa largeur, donc chaque barre tombe exactement
+       *  au-dessus de la colonne de son poste. */
+      _reportHtml(rows, entries, days) {
         const esc = (s) => ui.escape(String(s ?? ''));
         const c = this._colors(true);
+        // Encres et traits (palette de référence dataviz, surface claire) ; statut : bon / critique
+        const INK = '#0b0b0b', INK2 = '#52514e', GRID = '#e1e0d9', AXIS = '#c3c2b7', ZERO = '#8c8b85', BAND = '#f1f4f8', SEP = '#c9d3de';
         const sum = (list, k) => list.reduce((s, r) => s + r[k], 0);
-        const gapCls = (n) => n < 0 ? 'neg' : n > 0 ? 'pos' : '';
-        const gapTxt = (n) => `${n < 0 ? '▼ ' : n > 0 ? '▲ ' : ''}${this._signed(n)}`;
+        const chip = (n) => `<span class="chip ${n < 0 ? 'neg' : n > 0 ? 'pos' : 'zero'}">${n < 0 ? '▼ ' : n > 0 ? '▲ ' : ''}${this._signed(n)}</span>`;
         const HOURS = { A: '06h–14h', B: '14h–22h', C: '22h–06h' };
         const today = new Date();
         const from = new Date(); from.setDate(from.getDate() - days + 1);
-        const total = sum(rows, 'total');
-        const names = this._knownNames();
-        const kpi = (color, label, value, sub, cls = '') =>
-          `<div class="kpi"><div class="kpi__label">${color ? `<i style="background:${color}"></i>` : ''}${label}</div><div class="kpi__value ${cls}">${value}</div><div class="kpi__sub">${sub}</div></div>`;
-        const dates = Object.keys(entries).sort();
-        const body = dates.map(date => {
-          const [y, m, d] = date.split('-').map(Number);
-          const dayName = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long' });
-          const dayRows = rows.filter(r => r.date === date);
-          const lines = this.TEAMS.map((team, i) => {
-            const e = (entries[date] || {})[team];
-            const r = dayRows.find(x => x.team === team);
-            const staff = this._staff(e, names).map(s => esc(s.name)).join(', ');
-            return `<tr>
-              ${i === 0 ? `<td rowspan="${this.TEAMS.length + 1}" class="date"><b>${esc(this._fmtDate(date))}</b><span>${esc(dayName)}</span></td>` : ''}
-              <td><b class="team">${team}</b> <span class="muted">${HOURS[team]}</span>${staff ? `<div class="staff">${staff}</div>` : ''}</td>
-              <td class="num">${r ? this._num(r.supply) : '—'}</td>
-              <td class="num">${r ? this._num(r.ret) : '—'}</td>
-              <td class="num">${r ? this._num(r.fin) : '—'}</td>
-              <td class="num gap ${r ? gapCls(r.total) : ''}">${r ? gapTxt(r.total) : '—'}</td>
-            </tr>`;
-          }).join('');
-          const dt = sum(dayRows, 'total');
-          return lines + `<tr class="daytotal"><td>Total du jour</td>
-              <td class="num">${this._num(sum(dayRows, 'supply'))}</td><td class="num">${this._num(sum(dayRows, 'ret'))}</td>
-              <td class="num">${this._num(sum(dayRows, 'fin'))}</td><td class="num gap ${gapCls(dt)}">${gapTxt(dt)}</td></tr>`;
-        }).join('');
-        const legend = this.SERIES_NAMES.map((l, i) => `<span><i style="background:${c.series[i]}"></i>${esc(l)}</span>`).join('');
+        const fmtD = (d) => this._fmtDate(this._isoDate(d));
+        const span = days === 1
+          ? `Rapport du jour — ${esc(fmtD(today))}`
+          : `Rapport des ${days} derniers jours — du ${esc(fmtD(from))} au ${esc(fmtD(today))}`;
         const who = (state.profile && (state.profile.displayName || state.profile.email)) || '';
+        const names = this._knownNames();
+
+        // Colonnes : les 3 postes de chaque jour de la période (« — » si un poste n'a pas de saisie)
+        const cols = [], groups = [];
+        Object.keys(entries).sort().forEach(date => {
+          const start = cols.length;
+          this.TEAMS.forEach(team => cols.push({
+            date, team,
+            r: rows.find(x => x.date === date && x.team === team) || null,
+            staff: this._staff((entries[date] || {})[team], names).map(s => s.name)
+          }));
+          groups.push({ date, start, end: cols.length - 1 });
+        });
+        const n = cols.length;
+        const compact = n > 15;                       // 6–7 jours : textes un peu plus petits
+        const W = 398, L = 34;                        // largeur du tableau / de la colonne des libellés (mm)
+        const cw = (W - L) / n;                       // largeur d'une colonne de poste
+        const xc = (i) => L + cw * (i + .5);
+        const r2 = (v) => Math.round(v * 100) / 100;
+        const dayOf = (i) => groups.findIndex(g => i >= g.start && i <= g.end);
+        const colCls = (i) => [dayOf(i) % 2 ? 'alt' : '', i && cols[i].team === this.TEAMS[0] ? 'sep' : ''].filter(Boolean).join(' ');
+        const shortName = (s) => { const p = String(s).trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1][0]}.` : p[0]; };
+
+        // ── Outils de dessin SVG ──
+        const niceStep = (range, ticks) => {
+          const raw = range / ticks, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+          return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+        };
+        // Bandes des jours + séparateurs, identiques à ceux du tableau
+        const bands = (H) => groups.map((g, i) =>
+          (i % 2 ? `<rect x="${r2(L + g.start * cw)}" y="0" width="${r2((g.end - g.start + 1) * cw)}" height="${H}" fill="${BAND}"/>` : '') +
+          (i ? `<line x1="${r2(L + g.start * cw)}" y1="0" x2="${r2(L + g.start * cw)}" y2="${H}" stroke="${SEP}" stroke-width=".3"/>` : '')).join('');
+        // Colonne arrondie (rayon 0,9 mm) du côté de la valeur, posée sur la ligne de base
+        const bar = (x, y, w, base, color) => {
+          const h = Math.abs(base - y);
+          if (h < .05) return '';
+          const r = Math.min(.9, w / 2, h), up = y <= base, e = up ? y + r : y - r;
+          return `<path d="M${r2(x)},${r2(base)} V${r2(e)} Q${r2(x)},${r2(y)} ${r2(x + r)},${r2(y)} H${r2(x + w - r)} Q${r2(x + w)},${r2(y)} ${r2(x + w)},${r2(e)} V${r2(base)} Z" fill="${color}"/>`;
+        };
+        const axis = (H, PT, PB, lo, hi, step) => {
+          const y = (v) => PT + (H - PT - PB) * (hi - v) / ((hi - lo) || 1);
+          let s = '';
+          for (let v = lo; v <= hi + step / 1000; v += step) {
+            const yy = r2(y(v));
+            s += `<line x1="${L}" y1="${yy}" x2="${W}" y2="${yy}" stroke="${v === 0 ? (lo < 0 ? ZERO : AXIS) : GRID}" stroke-width="${v === 0 ? .4 : .22}"/>`;
+            s += `<text x="${L - 2}" y="${r2(yy + 1)}" font-size="2.9" text-anchor="end" fill="${INK2}">${v < 0 ? '−' + this._num(-v) : this._num(v)}</text>`;
+          }
+          return { y, s };
+        };
+        const svg = (H, body) => `<svg viewBox="0 0 ${W} ${H}" style="display:block;width:100%;height:${H}mm" font-family="Segoe UI, Inter, Roboto, Arial, sans-serif">${body}</svg>`;
+
+        // Mouvements par poste : Sorties · Retours · Finis, colonnes groupées
+        const H1 = compact ? 88 : 82;
+        const mv = cols.filter(x => x.r).flatMap(x => [x.r.supply, x.r.ret, x.r.fin]);
+        const step1 = niceStep(Math.max(1, ...mv), 4);
+        const ax1 = axis(H1, 3, 1, 0, Math.ceil(Math.max(1, ...mv) / step1) * step1, step1);
+        const gapBar = .55, bw = Math.min((cw * .7 - 2 * gapBar) / 3, 9), gw = 3 * bw + 2 * gapBar;
+        let moves = bands(H1) + ax1.s;
+        cols.forEach((x, i) => {
+          if (!x.r) return;
+          [x.r.supply, x.r.ret, x.r.fin].forEach((v, k) => { moves += bar(xc(i) - gw / 2 + k * (bw + gapBar), ax1.y(v), bw, ax1.y(0), c.series[k]); });
+        });
+
+        // Écart par poste : sous la ligne zéro = négatif (rouge), au-dessus = positif (vert)
+        const H2 = compact ? 48 : 45;
+        const gv = cols.filter(x => x.r).map(x => x.r.total);
+        const lo = Math.min(0, ...gv), hi = Math.max(0, ...gv);
+        const step2 = niceStep(Math.max(1, hi - lo), 4);
+        const ax2 = axis(H2, 3, 3, Math.floor(lo / step2) * step2, Math.ceil(hi / step2) * step2, step2);
+        const gbw = Math.min(cw * .3, 7);   // colonne fine (pas de gros bloc saturé)
+        let gaps = bands(H2) + ax2.s;
+        cols.forEach((x, i) => { if (x.r) gaps += bar(xc(i) - gbw / 2, ax2.y(x.r.total), gbw, ax2.y(0), x.r.total < 0 ? c.critical : c.good); });
+
+        // ── Tableau ──
+        const sw = (color) => `<i style="background:${color}"></i>`;
+        const legend = this.SERIES_NAMES.map((l, k) => `<span>${sw(c.series[k])}${esc(l)}</span>`).join('');
+        const dayHead = groups.map((g, i) => {
+          const [y, m, d] = g.date.split('-').map(Number);
+          const dn = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long' });
+          return `<th colspan="${g.end - g.start + 1}" class="${[i % 2 ? 'alt' : '', i ? 'sep' : ''].join(' ')}">${esc(dn)} ${esc(this._fmtDate(g.date))}</th>`;
+        }).join('');
+        const teamHead = cols.map((x, i) => `<th class="${colCls(i)}"><b>${x.team}</b><span>${HOURS[x.team]}</span></th>`).join('');
+        const line = (cls, label, cell) => `<tr class="${cls}"><th>${label}</th>${cols.map((x, i) => `<td class="${colCls(i)}">${x.r ? cell(x.r) : '—'}</td>`).join('')}</tr>`;
+        const staffRow = `<tr class="who"><th>Dispatcheurs</th>${cols.map((x, i) =>
+          `<td class="${colCls(i)}">${x.staff.length ? x.staff.map(s => esc(cw >= 36 ? s : shortName(s))).join('<br>') : '—'}</td>`).join('')}</tr>`;
+        const totalRow = `<tr class="tot"><th>Total du jour</th>${groups.map((g, i) => {
+          const dr = cols.slice(g.start, g.end + 1).filter(x => x.r).map(x => x.r);
+          return `<td colspan="${g.end - g.start + 1}" class="${i ? 'sep' : ''}">${dr.length
+            ? `<div><span>Sorties <b>${this._num(sum(dr, 'supply'))}</b></span><span>Retours <b>${this._num(sum(dr, 'ret'))}</b></span><span>Finis <b>${this._num(sum(dr, 'fin'))}</b></span></div><div class="tchip">${chip(sum(dr, 'total'))}</div>`
+            : '—'}</td>`;
+        }).join('')}</tr>`;
+        const full = n + 1;
+
         return `<!doctype html><html lang="fr"><head><meta charset="utf-8">
-<title>Dispatcheur Suivi — rapport du ${esc(this._fmtDate(this._isoDate(from)))} au ${esc(this._fmtDate(this._isoDate(today)))}</title>
+<title>Dispatcheur Suivi — ${span}</title>
 <style>
   @page { size: A3 landscape; margin: 9mm; }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { margin: 0; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: ${c.ink}; background: #fff; }
-  .bar { position: sticky; top: 0; display: flex; gap: 12px; align-items: center; padding: 10px 16px; background: #eef3f9; border-bottom: 1px solid #d5e0ec; font-size: 14px; }
+  body { margin: 0; font-family: 'Segoe UI', Inter, Roboto, Arial, sans-serif; color: ${INK}; background: #fff; }
+  .bar { position: sticky; top: 0; z-index: 1; display: flex; gap: 12px; align-items: center; padding: 10px 16px; background: #eef3f9; border-bottom: 1px solid #d5e0ec; font-size: 14px; }
   .bar button { padding: 8px 16px; border: 0; border-radius: 8px; background: #0082aa; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; }
-  .page { width: 402mm; height: 279mm; margin: 0 auto; padding: 2mm; display: flex; flex-direction: column; gap: 5mm; overflow: hidden; }
-  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid #0082aa; padding-bottom: 3mm; }
-  h1 { margin: 0; font-size: 22pt; letter-spacing: .01em; } h1 small { font-size: 12pt; color: ${c.muted}; font-weight: 600; margin-left: 4mm; }
-  .meta { text-align: right; font-size: 10pt; color: ${c.inkSoft}; line-height: 1.5; }
-  .brand { font-weight: 800; letter-spacing: .12em; color: #0082aa; font-size: 11pt; }
-  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4mm; }
-  .kpi { border: 1px solid #d5e0ec; border-radius: 3mm; padding: 3mm 4mm; }
-  .kpi__label { font-size: 10pt; font-weight: 700; color: ${c.inkSoft}; display: flex; align-items: center; gap: 2mm; }
-  .kpi__value { font-size: 26pt; font-weight: 800; line-height: 1.15; }
-  .kpi__sub { font-size: 9pt; color: ${c.muted}; }
-  i { display: inline-block; width: 3.2mm; height: 3.2mm; border-radius: .8mm; }
-  .main { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.62fr 1fr; gap: 5mm; }
-  .charts { display: flex; flex-direction: column; gap: 4mm; min-height: 0; }
-  .card { border: 1px solid #d5e0ec; border-radius: 3mm; padding: 3mm 4mm; }
-  .card h2 { margin: 0; font-size: 13pt; } .card p { margin: .5mm 0 2mm; font-size: 9pt; color: ${c.muted}; }
-  .legend { display: flex; gap: 6mm; font-size: 9.5pt; color: ${c.inkSoft}; margin-bottom: 1.5mm; } .legend span { display: flex; align-items: center; gap: 1.5mm; }
-  .card img { display: block; width: 100%; }
-  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
-  th { font-size: 8pt; text-transform: uppercase; letter-spacing: .05em; color: ${c.muted}; text-align: left; padding: 1.8mm 2mm; border-bottom: 1.5px solid #c9d6e4; }
-  td { padding: 1.5mm 2mm; border-bottom: 1px solid #e3eaf2; vertical-align: top; }
-  td.date { border-right: 1px solid #e3eaf2; white-space: nowrap; } td.date span { display: block; text-transform: capitalize; color: ${c.muted}; font-size: 8.5pt; }
-  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; } th.num { text-align: right; }
-  .team { display: inline-block; min-width: 5mm; } .muted { color: ${c.muted}; font-size: 8.5pt; }
-  .staff { font-size: 8pt; color: ${c.inkSoft}; margin-top: .6mm; line-height: 1.3; }
-  .gap { font-weight: 800; } .neg { color: ${c.critical}; } .pos { color: ${c.good}; }
-  .daytotal td { background: #f1f5fa; font-weight: 800; border-bottom: 1.5px solid #c9d6e4; }
-  footer { font-size: 8.5pt; color: ${c.muted}; display: flex; justify-content: space-between; }
+  .page { width: 402mm; height: 279mm; margin: 0 auto; padding: 2mm; display: flex; flex-direction: column; gap: 3mm; overflow: hidden; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: .6mm solid #0082aa; padding-bottom: 2.5mm; }
+  .brand { font-weight: 800; letter-spacing: .14em; color: #0082aa; font-size: 10pt; }
+  h1 { margin: .6mm 0 0; font-size: 25pt; line-height: 1.1; }
+  h1 small { display: block; font-size: 13pt; font-weight: 600; color: ${INK2}; margin-top: 1.2mm; }
+  .meta { text-align: right; font-size: 10pt; color: ${INK2}; line-height: 1.55; }
+  table { width: ${W}mm; table-layout: fixed; border-collapse: collapse; }
+  th, td { padding: 0; text-align: center; vertical-align: middle; }
+  .alt { background: ${BAND}; }
+  .sep { border-left: .3mm solid ${SEP}; }
+  .days th { font-size: 12pt; font-weight: 800; text-transform: capitalize; padding: 1.6mm 0; border-bottom: .3mm solid ${SEP}; }
+  .teams th { padding: 1.3mm 0 1.5mm; border-bottom: .3mm solid ${SEP}; }
+  .teams b { display: inline-flex; align-items: center; justify-content: center; width: 6.2mm; height: 6.2mm; border-radius: 1.4mm; background: #2c3e55; color: #fff; font-size: 10.5pt; }
+  .teams span { display: block; margin-top: .6mm; font-size: 7.5pt; font-weight: 600; color: ${INK2}; }
+  .ctitle td { text-align: left; padding: 2.6mm 0 .8mm 1mm; }
+  .ctitle b { font-size: 12.5pt; margin-right: 5mm; }
+  .lg { font-size: 9.5pt; color: ${INK2}; }
+  .lg span { margin-right: 5mm; white-space: nowrap; }
+  .lg i { display: inline-block; width: 3.4mm; height: 3.4mm; border-radius: .8mm; vertical-align: -.5mm; margin-right: 1.4mm; }
+  tbody th i { display: inline-block; width: 3mm; height: 3mm; border-radius: .7mm; vertical-align: -.3mm; margin-right: 1.2mm; }
+  .chart td { padding: 0; }
+  tbody th { text-align: left; padding-left: 1mm; font-size: 8.5pt; font-weight: 700; color: ${INK2}; text-transform: uppercase; letter-spacing: .04em; }
+  .num td { font-size: 12.5pt; font-weight: 600; font-variant-numeric: tabular-nums; padding: 1.7mm 0; border-top: .2mm solid #e6e5df; }
+  .num.first td, .num.first th { border-top: .45mm solid ${SEP}; }
+  .gap td { padding: 1.7mm 0; border-top: .2mm solid #e6e5df; } .gap th { border-top: .2mm solid #e6e5df; }
+  .chip { display: inline-block; padding: .6mm 1.8mm; border-radius: 1.4mm; font-weight: 800; font-size: 11.5pt; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chip.neg { background: #fbe9e9; color: ${c.critical}; } .chip.pos { background: #e3f3e3; color: #006300; } .chip.zero { background: #eeede8; color: ${INK2}; }
+  .who td { font-size: 8pt; color: ${INK2}; line-height: 1.3; padding: 1.6mm .8mm; border-top: .2mm solid #e6e5df; }
+  .who th { border-top: .2mm solid #e6e5df; }
+  .tot td, .tot th { background: #e8eff7; border-top: .45mm solid #9fb3c8; padding: 2mm .8mm; }
+  .tot td { font-size: 9.5pt; color: ${INK2}; } .tot td span { display: inline-block; margin: 0 1.6mm; white-space: nowrap; } .tot td b { font-size: 11.5pt; color: ${INK}; }
+  .tot .tchip { margin-top: 1mm; }
+  footer { margin-top: auto; font-size: 8.5pt; color: ${INK2}; display: flex; justify-content: space-between; }
+  /* 6 et 7 jours : colonnes étroites */
+  .compact .days th { font-size: 10pt; } .compact .num td { font-size: 10.5pt; padding: 1.3mm 0; } .compact .chip { font-size: 9.5pt; padding: .4mm 1mm; }
+  .compact .who td { font-size: 7pt; padding: 1.2mm .5mm; } .compact .tot td { font-size: 7.6pt; } .compact .tot td b { font-size: 9pt; } .compact .tot td span { margin: 0 .6mm; }
+  .compact .teams span { font-size: 6.5pt; }
   @media print { .bar { display: none; } .page { margin: 0; } }
 </style></head><body>
 <div class="bar"><button onclick="print()">Imprimer / Enregistrer en PDF</button><span>Format : <b>A3 paysage</b> — dans la fenêtre d'impression, choisir le papier A3 (ou « Enregistrer au format PDF »).</span></div>
-<div class="page">
+<div class="page${compact ? ' compact' : ''}">
   <header>
-    <div><div class="brand">LEONI · SERTISSAGE LAB</div><h1>Dispatcheur Suivi<small>Rapport des ${days} derniers jours — du ${esc(this._fmtDate(this._isoDate(from)))} au ${esc(this._fmtDate(this._isoDate(today)))}</small></h1></div>
+    <div><div class="brand">LEONI · SERTISSAGE LAB</div><h1>Dispatcheur Suivi<small>${span}</small></h1></div>
     <div class="meta">Équipes : A 06h–14h · B 14h–22h · C 22h–06h<br>${rows.length} poste(s) · édité le ${esc(today.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }))}${who ? ' par ' + esc(who) : ''}</div>
   </header>
-  <section class="kpis">
-    ${kpi(c.series[0], 'Sorties', this._num(sum(rows, 'supply')), 'Tool Supply')}
-    ${kpi(c.series[1], 'Retours', this._num(sum(rows, 'ret')), 'Tool Return')}
-    ${kpi(c.series[2], 'Finis sur la machine', this._num(sum(rows, 'fin')), 'reste de l\'équipe −8 h')}
-    ${kpi('', 'Écart total', gapTxt(total), 'Retours − (Sorties + Finis)', gapCls(total))}
-  </section>
-  <section class="main">
-    <div class="charts">
-      <div class="card"><h2>Mouvements par poste</h2><p>Sorties, retours et outils finis sur la machine (reste de l'équipe −8 h)</p><div class="legend">${legend}</div><img src="${imgs.moves}" alt="Mouvements par poste"></div>
-      <div class="card"><h2>Écart par poste</h2><p>Retours − (Sorties + Finis) — vert : positif · rouge : négatif</p><img src="${imgs.gap}" alt="Écart par poste"></div>
-    </div>
-    <div class="card"><h2>Détail par poste</h2><p>Dispatcheurs du poste et mouvements de l'extraction Komax</p>
-      <table><thead><tr><th>Date</th><th>Équipe · dispatcheurs</th><th class="num">Sorties</th><th class="num">Retours</th><th class="num">Finis −8 h</th><th class="num">Écart</th></tr></thead>
-      <tbody>${body}</tbody></table>
-    </div>
-  </section>
-  <footer><span>Écart = Retours − (Sorties + Outils finis sur la machine par l'équipe précédente, −8 h)</span><span>Crimping Pro · Dispatcheur Suivi</span></footer>
+  <table>
+    <colgroup><col style="width:${L}mm">${cols.map(() => '<col>').join('')}</colgroup>
+    <thead>
+      <tr class="days"><th></th>${dayHead}</tr>
+      <tr class="teams"><th></th>${teamHead}</tr>
+    </thead>
+    <tbody>
+      <tr class="ctitle"><td colspan="${full}"><b>Mouvements par poste</b><span class="lg">${legend}</span></td></tr>
+      <tr class="chart"><td colspan="${full}">${svg(H1, moves)}</td></tr>
+      <tr class="ctitle"><td colspan="${full}"><b>Écart par poste</b><span class="lg">Retours − Sorties ·<b style="color:#006300;font-size:inherit;margin:0">▲ positif</b> · <b style="color:${c.critical};font-size:inherit;margin:0">▼ négatif</b></span></td></tr>
+      <tr class="chart"><td colspan="${full}">${svg(H2, gaps)}</td></tr>
+      ${line('num first', `${sw(c.series[0])} Sorties`, r => this._num(r.supply))}
+      ${line('num', `${sw(c.series[1])} Retours`, r => this._num(r.ret))}
+      ${line('num', `${sw(c.series[2])} Finis (−8 h)`, r => this._num(r.fin))}
+      ${line('gap', 'Écart', r => chip(r.total))}
+      ${staffRow}
+      ${totalRow}
+    </tbody>
+  </table>
+  <footer><span>Écart = Retours − Sorties · Finis (−8 h) = outils finis sur la machine par l'équipe précédente, pour information · Source : extraction Komax importée</span><span>Crimping Pro · Dispatcheur Suivi</span></footer>
 </div>
 </body></html>`;
       },
@@ -31234,7 +31305,7 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         if (!dates.length) { ui.toast('⚠️ Aucune donnée à exporter', 'warn'); return; }
         try {
           await this._loadXlsx();
-          const aoa = [['Date', 'Équipe', 'Tool Supply', 'Tool Return', 'Outils finis sur la machine (équipe −8 h)', 'Total']];
+          const aoa = [['Date', 'Équipe', 'Tool Supply', 'Tool Return', 'Outils finis sur la machine (équipe −8 h)', 'Écart (Return − Supply)']];
           const merges = [];
           const names = this._knownNames();
           dates.forEach(date => {
@@ -31247,11 +31318,11 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
               aoa.push([i === 0 ? this._fmtDate(date) : '',
                 staff.length ? `${team} : ${staff.map(s => s.name).join(' ; ')}` : team,
                 e ? Number(e.supply) || 0 : '', e ? Number(e.ret) || 0 : '',
-                e ? `${fin} (reste équipe ${p.team}${p.date !== date ? ' veille' : ''})` : '', e ? this._total(e, fin) : '']);
+                e ? `${fin} (reste équipe ${p.team}${p.date !== date ? ' veille' : ''})` : '', e ? this._total(e) : '']);
             });
           });
           const ws = XLSX.utils.aoa_to_sheet(aoa);
-          ws['!cols'] = [{ wch: 12 }, { wch: 50 }, { wch: 13 }, { wch: 13 }, { wch: 36 }, { wch: 10 }];
+          ws['!cols'] = [{ wch: 12 }, { wch: 50 }, { wch: 13 }, { wch: 13 }, { wch: 36 }, { wch: 22 }];
           ws['!merges'] = merges;
           const wb = XLSX.utils.book_new();
           XLSX.utils.book_append_sheet(wb, ws, 'DISPATCHEUR SUIVI');

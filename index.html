@@ -31087,21 +31087,24 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }).join('')).join('');
       },
 
-      /** 🆕 Rapport des N derniers jours (1 à 7, liste « ds-report-days ») pour une feuille A3 paysage
-       *  (imprimer ou « Enregistrer au format PDF »). Un poste = une colonne : « Mouvements par poste »
-       *  et « Écart par poste » sont dessinés juste au-dessus des chiffres de leur colonne (Sorties,
-       *  Retours, Finis, Écart, dispatcheurs) — aucun chiffre sur les barres, tout se lit en dessous. */
-      printReport() {
+      /** 🆕 Rapport des N derniers jours (1 à 7, liste « ds-report-days »), mis en page pour une feuille
+       *  A3 paysage (imprimer ou « Enregistrer au format PDF ») — modèle « Classique ». */
+      async printReport() {
         const DAYS = Math.min(7, Math.max(1, Number(document.getElementById('ds-report-days')?.value) || 5));
         const entries = this._periodEntries(DAYS);
         const rows = this._shiftRows(entries);
         if (!rows.length) { ui.toast(`⚠️ Aucune saisie ${DAYS === 1 ? 'aujourd\'hui' : `sur les ${DAYS} derniers jours`} — importez l'extraction Komax`, 'warn', 6000); return; }
+        // Fenêtre ouverte dans le clic (sinon bloquée comme pop-up), remplie quand les diagrammes sont prêts
         const w = window.open('', '_blank');
         if (!w) { ui.toast('⛔ Fenêtre bloquée : autorisez les pop-ups pour ce site, puis recommencez', 'danger', 7000); return; }
+        w.document.write('<p style="font:16px system-ui,sans-serif;padding:2rem;color:#254060">Préparation du rapport…</p>');
         try {
+          await this._loadChart();
+          const imgs = this._reportCharts(rows, this._colors(true), this.REPORT_CHARTS);
           w.document.open();
-          w.document.write(this._reportHtml(rows, entries, DAYS));
+          w.document.write(this._reportHtml(rows, entries, DAYS, imgs));
           w.document.close();
+          await Promise.all([...w.document.images].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; })));
           w.focus();
           w.print();
         } catch (e) {
@@ -31111,192 +31114,171 @@ body.tv-mode-active > *:not(#tv-dashboard-overlay) {
         }
       },
 
-      /** Page HTML du rapport A3. Toutes les mesures sont en mm : le tableau fait W mm de large et les
-       *  diagrammes (SVG, 1 unité = 1 mm) occupent toute sa largeur, donc chaque barre tombe exactement
-       *  au-dessus de la colonne de son poste. */
-      _reportHtml(rows, entries, days) {
+      /** Les deux diagrammes dessinés hors écran (couleurs papier, haute définition) → images PNG.
+       *  size = { moves: [largeur, hauteur], gap: [largeur, hauteur], font } en pixels de dessin. */
+      _reportCharts(rows, c, size) {
+        const host = document.createElement('div');
+        host.style.cssText = 'position:fixed;left:-10000px;top:0;pointer-events:none';
+        document.body.appendChild(host);
+        const configs = this._chartConfigs(rows, c, size.font);
+        const out = {};
+        try {
+          ['moves', 'gap'].forEach(key => {
+            const [w, h] = size[key];
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.style.cssText = `width:${w}px;height:${h}px`;
+            host.appendChild(canvas);
+            const cfg = configs[key];
+            cfg.plugins.tooltip = { enabled: false };
+            const ch = new Chart(canvas, {
+              type: 'bar', data: cfg.data, plugins: [this._valueLabels],
+              options: { responsive: false, animation: false, devicePixelRatio: 2, plugins: cfg.plugins, scales: cfg.scales }
+            });
+            // width / height : la place de l'image est connue avant son chargement (ajustement à la page)
+            out[key] = `<img src="${ch.toBase64Image('image/png', 1)}" width="${w}" height="${h}" alt="${key === 'moves' ? 'Mouvements par poste' : 'Écart par poste'}">`;
+            ch.destroy();
+          });
+        } finally {
+          host.remove();
+        }
+        return out;
+      },
+
+      /** En-tête, styles communs et pied de page du rapport A3 ; `body` = contenu propre au modèle */
+      _reportPage(rows, days, body, css) {
         const esc = (s) => ui.escape(String(s ?? ''));
         const c = this._colors(true);
-        // Encres et traits (palette de référence dataviz, surface claire) ; statut : bon / critique
-        const INK = '#0b0b0b', INK2 = '#52514e', GRID = '#e1e0d9', AXIS = '#c3c2b7', ZERO = '#8c8b85', BAND = '#f1f4f8', SEP = '#c9d3de';
-        const sum = (list, k) => list.reduce((s, r) => s + r[k], 0);
-        const chip = (n) => `<span class="chip ${n < 0 ? 'neg' : n > 0 ? 'pos' : 'zero'}">${n < 0 ? '▼ ' : n > 0 ? '▲ ' : ''}${this._signed(n)}</span>`;
-        const HOURS = { A: '06h–14h', B: '14h–22h', C: '22h–06h' };
         const today = new Date();
         const from = new Date(); from.setDate(from.getDate() - days + 1);
-        const fmtD = (d) => this._fmtDate(this._isoDate(d));
-        const span = days === 1
-          ? `Rapport du jour — ${esc(fmtD(today))}`
-          : `Rapport des ${days} derniers jours — du ${esc(fmtD(from))} au ${esc(fmtD(today))}`;
+        const period = days === 1
+          ? `Rapport du jour — ${this._fmtDate(this._isoDate(today))}`
+          : `Rapport des ${days} derniers jours — du ${this._fmtDate(this._isoDate(from))} au ${this._fmtDate(this._isoDate(today))}`;
         const who = (state.profile && (state.profile.displayName || state.profile.email)) || '';
-        const names = this._knownNames();
-
-        // Colonnes : les 3 postes de chaque jour de la période (« — » si un poste n'a pas de saisie)
-        const cols = [], groups = [];
-        Object.keys(entries).sort().forEach(date => {
-          const start = cols.length;
-          this.TEAMS.forEach(team => cols.push({
-            date, team,
-            r: rows.find(x => x.date === date && x.team === team) || null,
-            staff: this._staff((entries[date] || {})[team], names).map(s => s.name)
-          }));
-          groups.push({ date, start, end: cols.length - 1 });
-        });
-        const n = cols.length;
-        const compact = n > 15;                       // 6–7 jours : textes un peu plus petits
-        const W = 398, L = 34;                        // largeur du tableau / de la colonne des libellés (mm)
-        const cw = (W - L) / n;                       // largeur d'une colonne de poste
-        const xc = (i) => L + cw * (i + .5);
-        const r2 = (v) => Math.round(v * 100) / 100;
-        const dayOf = (i) => groups.findIndex(g => i >= g.start && i <= g.end);
-        const colCls = (i) => [dayOf(i) % 2 ? 'alt' : '', i && cols[i].team === this.TEAMS[0] ? 'sep' : ''].filter(Boolean).join(' ');
-        const shortName = (s) => { const p = String(s).trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1][0]}.` : p[0]; };
-
-        // ── Outils de dessin SVG ──
-        const niceStep = (range, ticks) => {
-          const raw = range / ticks, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
-          return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
-        };
-        // Bandes des jours + séparateurs, identiques à ceux du tableau
-        const bands = (H) => groups.map((g, i) =>
-          (i % 2 ? `<rect x="${r2(L + g.start * cw)}" y="0" width="${r2((g.end - g.start + 1) * cw)}" height="${H}" fill="${BAND}"/>` : '') +
-          (i ? `<line x1="${r2(L + g.start * cw)}" y1="0" x2="${r2(L + g.start * cw)}" y2="${H}" stroke="${SEP}" stroke-width=".3"/>` : '')).join('');
-        // Colonne arrondie (rayon 0,9 mm) du côté de la valeur, posée sur la ligne de base
-        const bar = (x, y, w, base, color) => {
-          const h = Math.abs(base - y);
-          if (h < .05) return '';
-          const r = Math.min(.9, w / 2, h), up = y <= base, e = up ? y + r : y - r;
-          return `<path d="M${r2(x)},${r2(base)} V${r2(e)} Q${r2(x)},${r2(y)} ${r2(x + r)},${r2(y)} H${r2(x + w - r)} Q${r2(x + w)},${r2(y)} ${r2(x + w)},${r2(e)} V${r2(base)} Z" fill="${color}"/>`;
-        };
-        const axis = (H, PT, PB, lo, hi, step) => {
-          const y = (v) => PT + (H - PT - PB) * (hi - v) / ((hi - lo) || 1);
-          let s = '';
-          for (let v = lo; v <= hi + step / 1000; v += step) {
-            const yy = r2(y(v));
-            s += `<line x1="${L}" y1="${yy}" x2="${W}" y2="${yy}" stroke="${v === 0 ? (lo < 0 ? ZERO : AXIS) : GRID}" stroke-width="${v === 0 ? .4 : .22}"/>`;
-            s += `<text x="${L - 2}" y="${r2(yy + 1)}" font-size="2.9" text-anchor="end" fill="${INK2}">${v < 0 ? '−' + this._num(-v) : this._num(v)}</text>`;
-          }
-          return { y, s };
-        };
-        const svg = (H, body) => `<svg viewBox="0 0 ${W} ${H}" style="display:block;width:100%;height:${H}mm" font-family="Segoe UI, Inter, Roboto, Arial, sans-serif">${body}</svg>`;
-
-        // Mouvements par poste : Sorties · Retours · Finis, colonnes groupées
-        const H1 = compact ? 88 : 82;
-        const mv = cols.filter(x => x.r).flatMap(x => [x.r.supply, x.r.ret, x.r.fin]);
-        const step1 = niceStep(Math.max(1, ...mv), 4);
-        const ax1 = axis(H1, 3, 1, 0, Math.ceil(Math.max(1, ...mv) / step1) * step1, step1);
-        const gapBar = .55, bw = Math.min((cw * .7 - 2 * gapBar) / 3, 9), gw = 3 * bw + 2 * gapBar;
-        let moves = bands(H1) + ax1.s;
-        cols.forEach((x, i) => {
-          if (!x.r) return;
-          [x.r.supply, x.r.ret, x.r.fin].forEach((v, k) => { moves += bar(xc(i) - gw / 2 + k * (bw + gapBar), ax1.y(v), bw, ax1.y(0), c.series[k]); });
-        });
-
-        // Écart par poste : sous la ligne zéro = négatif (rouge), au-dessus = positif (vert)
-        const H2 = compact ? 48 : 45;
-        const gv = cols.filter(x => x.r).map(x => x.r.total);
-        const lo = Math.min(0, ...gv), hi = Math.max(0, ...gv);
-        const step2 = niceStep(Math.max(1, hi - lo), 4);
-        const ax2 = axis(H2, 3, 3, Math.floor(lo / step2) * step2, Math.ceil(hi / step2) * step2, step2);
-        const gbw = Math.min(cw * .3, 7);   // colonne fine (pas de gros bloc saturé)
-        let gaps = bands(H2) + ax2.s;
-        cols.forEach((x, i) => { if (x.r) gaps += bar(xc(i) - gbw / 2, ax2.y(x.r.total), gbw, ax2.y(0), x.r.total < 0 ? c.critical : c.good); });
-
-        // ── Tableau ──
-        const sw = (color) => `<i style="background:${color}"></i>`;
-        const legend = this.SERIES_NAMES.map((l, k) => `<span>${sw(c.series[k])}${esc(l)}</span>`).join('');
-        const dayHead = groups.map((g, i) => {
-          const [y, m, d] = g.date.split('-').map(Number);
-          const dn = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long' });
-          return `<th colspan="${g.end - g.start + 1}" class="${[i % 2 ? 'alt' : '', i ? 'sep' : ''].join(' ')}">${esc(dn)} ${esc(this._fmtDate(g.date))}</th>`;
-        }).join('');
-        const teamHead = cols.map((x, i) => `<th class="${colCls(i)}"><b>${x.team}</b><span>${HOURS[x.team]}</span></th>`).join('');
-        const line = (cls, label, cell) => `<tr class="${cls}"><th>${label}</th>${cols.map((x, i) => `<td class="${colCls(i)}">${x.r ? cell(x.r) : '—'}</td>`).join('')}</tr>`;
-        const staffRow = `<tr class="who"><th>Dispatcheurs</th>${cols.map((x, i) =>
-          `<td class="${colCls(i)}">${x.staff.length ? x.staff.map(s => esc(cw >= 36 ? s : shortName(s))).join('<br>') : '—'}</td>`).join('')}</tr>`;
-        const totalRow = `<tr class="tot"><th>Total du jour</th>${groups.map((g, i) => {
-          const dr = cols.slice(g.start, g.end + 1).filter(x => x.r).map(x => x.r);
-          return `<td colspan="${g.end - g.start + 1}" class="${i ? 'sep' : ''}">${dr.length
-            ? `<div><span>Sorties <b>${this._num(sum(dr, 'supply'))}</b></span><span>Retours <b>${this._num(sum(dr, 'ret'))}</b></span><span>Finis <b>${this._num(sum(dr, 'fin'))}</b></span></div><div class="tchip">${chip(sum(dr, 'total'))}</div>`
-            : '—'}</td>`;
-        }).join('')}</tr>`;
-        const full = n + 1;
-
         return `<!doctype html><html lang="fr"><head><meta charset="utf-8">
-<title>Dispatcheur Suivi — ${span}</title>
+<title>Dispatcheur Suivi — ${esc(period)}</title>
 <style>
   @page { size: A3 landscape; margin: 9mm; }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { margin: 0; font-family: 'Segoe UI', Inter, Roboto, Arial, sans-serif; color: ${INK}; background: #fff; }
-  .bar { position: sticky; top: 0; z-index: 1; display: flex; gap: 12px; align-items: center; padding: 10px 16px; background: #eef3f9; border-bottom: 1px solid #d5e0ec; font-size: 14px; }
+  body { margin: 0; font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: ${c.ink}; background: #fff; }
+  .bar { position: sticky; top: 0; display: flex; gap: 12px; align-items: center; padding: 10px 16px; background: #eef3f9; border-bottom: 1px solid #d5e0ec; font-size: 14px; z-index: 1; }
   .bar button { padding: 8px 16px; border: 0; border-radius: 8px; background: #0082aa; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; }
-  .page { width: 402mm; height: 279mm; margin: 0 auto; padding: 2mm; display: flex; flex-direction: column; gap: 3mm; overflow: hidden; }
-  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: .6mm solid #0082aa; padding-bottom: 2.5mm; }
-  .brand { font-weight: 800; letter-spacing: .14em; color: #0082aa; font-size: 10pt; }
-  h1 { margin: .6mm 0 0; font-size: 25pt; line-height: 1.1; }
-  h1 small { display: block; font-size: 13pt; font-weight: 600; color: ${INK2}; margin-top: 1.2mm; }
-  .meta { text-align: right; font-size: 10pt; color: ${INK2}; line-height: 1.55; }
-  table { width: ${W}mm; table-layout: fixed; border-collapse: collapse; }
-  th, td { padding: 0; text-align: center; vertical-align: middle; }
-  .alt { background: ${BAND}; }
-  .sep { border-left: .3mm solid ${SEP}; }
-  .days th { font-size: 12pt; font-weight: 800; text-transform: capitalize; padding: 1.6mm 0; border-bottom: .3mm solid ${SEP}; }
-  .teams th { padding: 1.3mm 0 1.5mm; border-bottom: .3mm solid ${SEP}; }
-  .teams b { display: inline-flex; align-items: center; justify-content: center; width: 6.2mm; height: 6.2mm; border-radius: 1.4mm; background: #2c3e55; color: #fff; font-size: 10.5pt; }
-  .teams span { display: block; margin-top: .6mm; font-size: 7.5pt; font-weight: 600; color: ${INK2}; }
-  .ctitle td { text-align: left; padding: 2.6mm 0 .8mm 1mm; }
-  .ctitle b { font-size: 12.5pt; margin-right: 5mm; }
-  .lg { font-size: 9.5pt; color: ${INK2}; }
-  .lg span { margin-right: 5mm; white-space: nowrap; }
-  .lg i { display: inline-block; width: 3.4mm; height: 3.4mm; border-radius: .8mm; vertical-align: -.5mm; margin-right: 1.4mm; }
-  tbody th i { display: inline-block; width: 3mm; height: 3mm; border-radius: .7mm; vertical-align: -.3mm; margin-right: 1.2mm; }
-  .chart td { padding: 0; }
-  tbody th { text-align: left; padding-left: 1mm; font-size: 8.5pt; font-weight: 700; color: ${INK2}; text-transform: uppercase; letter-spacing: .04em; }
-  .num td { font-size: 12.5pt; font-weight: 600; font-variant-numeric: tabular-nums; padding: 1.7mm 0; border-top: .2mm solid #e6e5df; }
-  .num.first td, .num.first th { border-top: .45mm solid ${SEP}; }
-  .gap td { padding: 1.7mm 0; border-top: .2mm solid #e6e5df; } .gap th { border-top: .2mm solid #e6e5df; }
-  .chip { display: inline-block; padding: .6mm 1.8mm; border-radius: 1.4mm; font-weight: 800; font-size: 11.5pt; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .chip.neg { background: #fbe9e9; color: ${c.critical}; } .chip.pos { background: #e3f3e3; color: #006300; } .chip.zero { background: #eeede8; color: ${INK2}; }
-  .who td { font-size: 8pt; color: ${INK2}; line-height: 1.3; padding: 1.6mm .8mm; border-top: .2mm solid #e6e5df; }
-  .who th { border-top: .2mm solid #e6e5df; }
-  .tot td, .tot th { background: #e8eff7; border-top: .45mm solid #9fb3c8; padding: 2mm .8mm; }
-  .tot td { font-size: 9.5pt; color: ${INK2}; } .tot td span { display: inline-block; margin: 0 1.6mm; white-space: nowrap; } .tot td b { font-size: 11.5pt; color: ${INK}; }
-  .tot .tchip { margin-top: 1mm; }
-  footer { margin-top: auto; font-size: 8.5pt; color: ${INK2}; display: flex; justify-content: space-between; }
-  /* 6 et 7 jours : colonnes étroites */
-  .compact .days th { font-size: 10pt; } .compact .num td { font-size: 10.5pt; padding: 1.3mm 0; } .compact .chip { font-size: 9.5pt; padding: .4mm 1mm; }
-  .compact .who td { font-size: 7pt; padding: 1.2mm .5mm; } .compact .tot td { font-size: 7.6pt; } .compact .tot td b { font-size: 9pt; } .compact .tot td span { margin: 0 .6mm; }
-  .compact .teams span { font-size: 6.5pt; }
+  .page { width: 402mm; height: 279mm; margin: 0 auto; padding: 2mm; display: flex; flex-direction: column; gap: 5mm; overflow: hidden; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid #0082aa; padding-bottom: 3mm; }
+  h1 { margin: 0; font-size: 22pt; letter-spacing: .01em; } h1 small { font-size: 12pt; color: ${c.muted}; font-weight: 600; margin-left: 4mm; }
+  .meta { text-align: right; font-size: 10pt; color: ${c.inkSoft}; line-height: 1.5; }
+  .brand { font-weight: 800; letter-spacing: .12em; color: #0082aa; font-size: 11pt; }
+  i { display: inline-block; width: 3.2mm; height: 3.2mm; border-radius: .8mm; }
+  .card { border: 1px solid #d5e0ec; border-radius: 3mm; padding: 3mm 4mm; flex-shrink: 0; }   /* jamais comprimé : un débordement est détecté et ajusté */
+  .card h2 { margin: 0; font-size: 13pt; } .card p { margin: .5mm 0 2mm; font-size: 9pt; color: ${c.muted}; }
+  .legend { display: flex; gap: 6mm; font-size: 9.5pt; color: ${c.inkSoft}; margin-bottom: 1.5mm; } .legend span { display: flex; align-items: center; gap: 1.5mm; }
+  .card img { display: block; width: 100%; height: auto; margin: 0 auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  th { font-size: 8pt; text-transform: uppercase; letter-spacing: .05em; color: ${c.muted}; text-align: left; padding: 1.8mm 2mm; border-bottom: 1.5px solid #c9d6e4; }
+  td { padding: 1.5mm 2mm; border-bottom: 1px solid #e3eaf2; vertical-align: top; }
+  td.date { white-space: nowrap; } td.date span { display: block; text-transform: capitalize; color: ${c.muted}; font-size: 8.5pt; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; } th.num { text-align: right; }
+  .muted { color: ${c.muted}; font-size: 8.5pt; }
+  .gap { font-weight: 800; } .neg { color: ${c.critical}; } .pos { color: ${c.good}; }
+  footer { font-size: 8.5pt; color: ${c.muted}; display: flex; justify-content: space-between; }
   @media print { .bar { display: none; } .page { margin: 0; } }
+${css}
 </style></head><body>
 <div class="bar"><button onclick="print()">Imprimer / Enregistrer en PDF</button><span>Format : <b>A3 paysage</b> — dans la fenêtre d'impression, choisir le papier A3 (ou « Enregistrer au format PDF »).</span></div>
-<div class="page${compact ? ' compact' : ''}">
+<div class="page">
   <header>
-    <div><div class="brand">LEONI · SERTISSAGE LAB</div><h1>Dispatcheur Suivi<small>${span}</small></h1></div>
+    <div><div class="brand">LEONI · SERTISSAGE LAB</div><h1>Dispatcheur Suivi<small>${esc(period)}</small></h1></div>
     <div class="meta">Équipes : A 06h–14h · B 14h–22h · C 22h–06h<br>${rows.length} poste(s) · édité le ${esc(today.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }))}${who ? ' par ' + esc(who) : ''}</div>
   </header>
-  <table>
-    <colgroup><col style="width:${L}mm">${cols.map(() => '<col>').join('')}</colgroup>
-    <thead>
-      <tr class="days"><th></th>${dayHead}</tr>
-      <tr class="teams"><th></th>${teamHead}</tr>
-    </thead>
-    <tbody>
-      <tr class="ctitle"><td colspan="${full}"><b>Mouvements par poste</b><span class="lg">${legend}</span></td></tr>
-      <tr class="chart"><td colspan="${full}">${svg(H1, moves)}</td></tr>
-      <tr class="ctitle"><td colspan="${full}"><b>Écart par poste</b><span class="lg">Retours − Sorties ·<b style="color:#006300;font-size:inherit;margin:0">▲ positif</b> · <b style="color:${c.critical};font-size:inherit;margin:0">▼ négatif</b></span></td></tr>
-      <tr class="chart"><td colspan="${full}">${svg(H2, gaps)}</td></tr>
-      ${line('num first', `${sw(c.series[0])} Sorties`, r => this._num(r.supply))}
-      ${line('num', `${sw(c.series[1])} Retours`, r => this._num(r.ret))}
-      ${line('num', `${sw(c.series[2])} Finis (−8 h)`, r => this._num(r.fin))}
-      ${line('gap', 'Écart', r => chip(r.total))}
-      ${staffRow}
-      ${totalRow}
-    </tbody>
-  </table>
-  <footer><span>Écart = Retours − Sorties · Finis (−8 h) = outils finis sur la machine par l'équipe précédente, pour information · Source : extraction Komax importée</span><span>Crimping Pro · Dispatcheur Suivi</span></footer>
+${body}
+  <footer><span>Écart = Retours − Sorties · Finis (−8 h) = outils finis sur la machine par l'équipe précédente, pour information</span><span>Crimping Pro · Dispatcheur Suivi</span></footer>
 </div>
+<script>
+  // Une seule feuille A3 quoi qu'il arrive (noms longs, 3 dispatcheurs, 7 jours) : tableau resserré
+  // (« compact » puis « tight »), puis diagrammes réduits pas à pas tant que cela fait gagner de la place.
+  (function () {
+    var page = document.querySelector('.page');
+    var over = function () { return page.scrollHeight - page.clientHeight; };
+    ['compact', 'tight'].forEach(function (k) { if (over() > 0) page.classList.add(k); });
+    var imgs = [].slice.call(page.querySelectorAll('.card img'));
+    for (var i = 0; i < 40 && over() > 0 && imgs.length; i++) {
+      var before = page.scrollHeight;
+      var widths = imgs.map(function (im) { return im.getBoundingClientRect().width; });
+      imgs.forEach(function (im, j) { im.style.width = (widths[j] * 0.96) + 'px'; });
+      if (page.scrollHeight >= before) { imgs.forEach(function (im, j) { im.style.width = widths[j] + 'px'; }); break; }
+    }
+  })();
+<\/script>
 </body></html>`;
+      },
+
+      /** Légende des mouvements + petites fonctions d'écriture partagées par le modèle */
+      _reportBits() {
+        const c = this._colors(true);
+        return {
+          esc: (s) => ui.escape(String(s ?? '')),
+          sum: (list, k) => list.reduce((s, r) => s + r[k], 0),
+          gapCls: (n) => n < 0 ? 'neg' : n > 0 ? 'pos' : '',
+          gapTxt: (n) => `${n < 0 ? '▼ ' : n > 0 ? '▲ ' : ''}${this._signed(n)}`,
+          dayName: (date) => { const [y, m, d] = date.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long' }); },
+          legend: this.SERIES_NAMES.map((l, i) => `<span><i style="background:${c.series[i]}"></i>${ui.escape(l)}</span>`).join('')
+        };
+      },
+
+      /** Taille de dessin des diagrammes du modèle « Classique » (colonne de gauche) */
+      REPORT_CHARTS: { moves: [1500, 640], gap: [1500, 400], font: 15 },
+
+      /** Modèle « Classique » : diagrammes à gauche, détail par poste (avec dispatcheurs) à droite */
+      _reportHtml(rows, entries, days, imgs) {
+        const { esc, sum, gapCls, gapTxt, dayName, legend } = this._reportBits();
+        const HOURS = { A: '06h–14h', B: '14h–22h', C: '22h–06h' };
+        const names = this._knownNames();
+        const body = Object.keys(entries).sort().map(date => {
+          const dayRows = rows.filter(r => r.date === date);
+          const lines = this.TEAMS.map((team, i) => {
+            const e = (entries[date] || {})[team];
+            const r = dayRows.find(x => x.team === team);
+            const staff = this._staff(e, names).map(s => esc(s.name)).join(', ');
+            return `<tr>
+              ${i === 0 ? `<td rowspan="${this.TEAMS.length + 1}" class="date"><b>${esc(this._fmtDate(date))}</b><span>${esc(dayName(date))}</span></td>` : ''}
+              <td><b class="team">${team}</b> <span class="muted">${HOURS[team]}</span>${staff ? `<div class="staff">${staff}</div>` : ''}</td>
+              <td class="num">${r ? this._num(r.supply) : '—'}</td>
+              <td class="num">${r ? this._num(r.ret) : '—'}</td>
+              <td class="num gap ${r ? gapCls(r.total) : ''}">${r ? gapTxt(r.total) : '—'}</td>
+              <td class="num">${r ? this._num(r.fin) : '—'}</td>
+            </tr>`;
+          }).join('');
+          const dt = sum(dayRows, 'total');
+          return lines + `<tr class="daytotal"><td>Total du jour</td>
+              <td class="num">${this._num(sum(dayRows, 'supply'))}</td><td class="num">${this._num(sum(dayRows, 'ret'))}</td>
+              <td class="num gap ${gapCls(dt)}">${gapTxt(dt)}</td><td class="num">${this._num(sum(dayRows, 'fin'))}</td></tr>`;
+        }).join('');
+        return this._reportPage(rows, days, `
+  <section class="main">
+    <div class="charts">
+      <div class="card"><h2>Mouvements par poste</h2><p>Sorties, retours et outils finis sur la machine (reste de l'équipe −8 h)</p><div class="legend">${legend}</div>${imgs.moves}</div>
+      <div class="card"><h2>Écart par poste</h2><p>Retours − Sorties — vert : positif · rouge : négatif</p>${imgs.gap}</div>
+    </div>
+    <div class="card"><h2>Détail par poste</h2><p>Dispatcheurs du poste et mouvements de l'extraction Komax</p>
+      <table><thead><tr><th>Date</th><th>Équipe · dispatcheurs</th><th class="num">Sorties</th><th class="num">Retours</th><th class="num">Écart</th><th class="num">Finis −8 h</th></tr></thead>
+      <tbody>${body}</tbody></table>
+    </div>
+  </section>`, `
+  .main { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.5fr 1fr; gap: 5mm; }
+  .charts { display: flex; flex-direction: column; gap: 4mm; min-height: 0; }
+  td.date { border-right: 1px solid #e3eaf2; }
+  .team { display: inline-block; min-width: 5mm; }
+  .staff { font-size: 8pt; color: #254060; margin-top: .6mm; line-height: 1.3; }
+  .daytotal td { background: #f1f5fa; font-weight: 800; border-bottom: 1.5px solid #c9d6e4; }
+  /* Ajustement à la page : tableau plus large et resserré (« compact »), puis plus petit (« tight ») */
+  .compact .main { grid-template-columns: 1.3fr 1fr; }
+  .compact table { font-size: 8.8pt; }
+  .compact td { padding: .8mm 1.6mm; }
+  .compact .staff { display: inline; margin: 0 0 0 1.5mm; font-size: 7.5pt; }
+  .tight .main { grid-template-columns: 1.15fr 1fr; }
+  .tight table { font-size: 8.2pt; }
+  .tight td { padding: .5mm 1.4mm; }
+  .tight .staff { font-size: 7pt; }`);
       },
 
       async exportExcel() {
